@@ -32,6 +32,7 @@ correlatorSize, numCorrelators = 0, 0
 Restart = False
 ciExpansion = []
 doHessian = False
+maxIter = 1000
 
 for line in f:
     linesp = line.split();
@@ -48,15 +49,17 @@ for line in f:
     elif ( len(linesp) != 0 and linesp[0][0] != "#" and linesp[0].lower() == "restart"):
 	    Restart = True
     #read the determinant file to see the number of determinants
-    if (len(linesp) != 0 and linesp[0][0] != "#" and linesp[0] == "determinants"):
+    if (len(linesp) != 0 and linesp[0][0] != "#" and linesp[0].lower() == "determinants"):
         determinantFile = linesp[1]
         f2 = open(determinantFile, 'r')
         for line2 in f2:
             if (line2.strip(' \n') != ''):
                 tok = line2.split()
                 ciExpansion.append(float(tok[0]))
-    if (len(linesp) != 0 and linesp[0][0] != "#" and linesp[0] == "doHessian"):
+    if (len(linesp) != 0 and linesp[0][0] != "#" and linesp[0].lower() == "dohessian"):
         doHessian = True
+    if (len(linesp) != 0 and linesp[0][0] != "#" and linesp[0].lower() == "maxiter"):
+        maxIter = int(linesp[1])
 
 if (len(ciExpansion) == 0) :
     ciExpansion = [1.]
@@ -99,14 +102,15 @@ if (Restart):
 
 
 if (doHessian):
-    for i in range(500):
+    for i in range(maxIter):
         grad = d_loss_wrt_pars(wrt)
         Hessian = np.fromfile("hessian.bin", dtype="float64")
         Smatrix = np.fromfile("smatrix.bin", dtype="float64")
         Hessian.shape = (numVars+1, numVars+1)
         Smatrix.shape = (numVars+1, numVars+1)
+        Hessian[1:,1:] += 0.02*np.eye(numVars)
 
-
+        print np.linalg.norm(Hessian-Hessian.T)
         #make the tangent space orthogonal to the wavefunction
         Uo = 0.* Smatrix
         Uo[0,0] = 1.0;
@@ -148,7 +152,7 @@ else :
         opt.est_mom2_b = np.fromfile("moment2.bin", dtype="float64")
 
     for info in opt:
-        if info['n_iter'] >= 5000:
+        if info['n_iter'] >= maxIter:
             break
         opt.est_mom1_b.astype("float64").tofile("moment1.bin")
         opt.est_mom2_b.astype("float64").tofile("moment2.bin")
