@@ -58,6 +58,8 @@ SRC_CI = ConfigurationInteraction.cpp MoDeterminants.cpp staticVariables.cpp inp
 
 SRC_GFMC = GFMC.cpp MoDeterminants.cpp staticVariables.cpp input.cpp integral.cpp SHCIshm.cpp CPS.cpp Wfn.cpp evaluateE.cpp Determinants.cpp diis.cpp Walker.cpp optimizer.cpp Davidson.cpp evaluatePT.cpp
 
+SRC_FCIQMC = FCIQMC.cpp MoDeterminants.cpp staticVariables.cpp input.cpp integral.cpp SHCIshm.cpp CPS.cpp Wfn.cpp evaluateE.cpp Determinants.cpp diis.cpp Walker.cpp Davidson.cpp evaluatePT.cpp
+
 OBJ_VMC+=obj/VMC.o obj/MoDeterminants.o obj/staticVariables.o obj/input.o obj/integral.o obj/SHCIshm.o obj/CPS.o obj/Wfn.o obj/evaluateE.o obj/Determinants.o obj/diis.o obj/Walker.o obj/optimizer.o obj/Davidson.o obj/evaluatePT.o
 
 OBJ_sPT+=obj/StochasticPT.o obj/MoDeterminants.o obj/staticVariables.o obj/input.o obj/integral.o obj/SHCIshm.o obj/CPS.o obj/Wfn.o obj/evaluateE.o obj/Determinants.o obj/Walker.o obj/evaluatePT.o
@@ -67,6 +69,8 @@ OBJ_CI+=obj/ConfigurationInteraction.o obj/MoDeterminants.o obj/staticVariables.
 OBJ_PythonInterface+=obj/PythonInterface.o obj/MoDeterminants.o obj/staticVariables.o obj/input.o obj/integral.o obj/SHCIshm.o obj/CPS.o obj/Wfn.o obj/evaluateE.o obj/Determinants.o obj/Walker.o obj/Davidson.o
 
 OBJ_GFMC+=obj/GFMC.o obj/MoDeterminants.o obj/staticVariables.o obj/input.o obj/integral.o obj/SHCIshm.o obj/CPS.o obj/Wfn.o obj/evaluateE.o obj/Determinants.o obj/Walker.o obj/Davidson.o
+
+OBJ_FCIQMC+=obj/FCIQMC.o obj/MoDeterminants.o obj/staticVariables.o obj/input.o obj/integral.o obj/SHCIshm.o obj/CPS.o obj/Wfn.o obj/evaluateE.o obj/Determinants.o obj/Walker.o obj/evaluatePT.o
 
 
 obj/%.o: %.cpp  
@@ -95,6 +99,9 @@ CI	: $(OBJ_CI)
 
 VMC2	: $(OBJ_VMC) 
 	$(CXX)   $(FLAGS) $(OPT) -o  VMC2 $(OBJ_VMC) $(LFLAGS)
+
+FCIQMC	: $(OBJ_FCIQMC)
+	$(CXX)   $(FLAGS) $(OPT) -o  FCIQMC $(OBJ_FCIQMC) $(LFLAGS)
 
 clean :
 	find . -name "*.o"|xargs rm 2>/dev/null;rm -f VMC >/dev/null 2>&1

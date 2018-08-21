@@ -68,7 +68,12 @@ private:
       & tau
       & fn_factor
       & nGeneration
-      & excitationLevel;
+      & excitationLevel
+      & nAttemptsEach
+      & minSpawn
+      & minPop
+      & initialPop
+      & targetPop;
 
   }
 public:
@@ -118,6 +123,13 @@ public:
 
   //option for configuration interaction
   int excitationLevel;
+
+  //options for FCIQMC
+  int nAttemptsEach;
+  double minSpawn;
+  double minPop;
+  double initialPop;
+  double targetPop;
 };
 
 /**

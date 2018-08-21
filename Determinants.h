@@ -356,4 +356,19 @@ void getOrbDiff(Determinant &bra, Determinant &ket, vector<int> &creA, vector<in
                 vector<int> &creB, vector<int> &desB);
 
 double getParityForDiceToAlphaBeta(Determinant& det);
+
+template<> struct hash<Determinant>
+{
+    typedef std::size_t result_type;
+    std::size_t operator()(Determinant const& d) const noexcept
+    {
+        std::size_t h_tot = 0;
+        for (int i=0; i<d.EffDetLen; i++) {
+            std::size_t const h1 ( std::hash<long>{}(d.reprA[i]) );
+            std::size_t const h2 ( std::hash<long>{}(d.reprB[i]) );
+            h_tot = h_tot ^ h1 ^ (h2 << 1);
+        }
+        return h_tot;
+    }
+};
 #endif

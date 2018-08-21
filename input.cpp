@@ -69,6 +69,11 @@ void readInput(string input, schedule& schd, bool print) {
   schd.fn_factor              = 1.0;
   schd.nGeneration            = 30.0;
   schd.excitationLevel        = 1;
+  schd.nAttemptsEach          = 1;
+  schd.minSpawn               = 0.01;
+  schd.minPop                 = 1.0;
+  schd.initialPop             = 100.0;
+  schd.targetPop              = 1000.0;
 
   while (dump.good()) {
 
@@ -206,6 +211,26 @@ void readInput(string input, schedule& schd, bool print) {
 
     else if (boost::iequals(ArgName,  "excitationlevel"      )) {
       schd.excitationLevel = atoi(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "nAttemptsEach"      )) {
+      schd.nAttemptsEach = atoi(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "minSpawn"           )) {
+      schd.minSpawn = atof(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "minWalkerPop"       )) {
+      schd.minPop = atof(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "initialPop"         )) {
+      schd.initialPop = atof(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "targetPop"          )) {
+      schd.targetPop = atof(tok[1].c_str());
     }
 
     else {
