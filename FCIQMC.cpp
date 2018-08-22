@@ -75,7 +75,7 @@ void updateShift(double& Eshift, bool& varyShift, double& walkerPop,
 void printDataTableHeader();
 
 void printDataTable(int& iter, int& nDets, int& nSpawned,
-                    double& walkerPop, double& EProj,
+                    double& shift, double& walkerPop, double& EProj,
                     double& HFAmp, double& iter_time);
 
 int main(int argc, char *argv[])
@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
       }
       performDeath(walkers.dets[iDet], walkers.amps[iDet], I1, I2, I2HBSHM, coreE, Eshift, schd.tau);
     }
-    printDataTable(iter, walkers.nDets, spawn.nDets, walkerPop, EProj, HFAmp, iter_time);
+    printDataTable(iter, walkers.nDets, spawn.nDets, Eshift, walkerPop, EProj, HFAmp, iter_time);
 
     // Perform annihilation
     spawn.communicate();
@@ -476,19 +476,21 @@ void printDataTableHeader()
   printf ("#  1. Iter");
   printf ("     2. nDets");
   printf ("  3. nSpawned");
-  printf ("          4. nWalkers");
-  printf ("       5. Energy num.");
-  printf ("     6. Energy denom.");
-  printf ("    7. Time\n");
+  printf ("             4. Shift");
+  printf ("          5. nWalkers");
+  printf ("       6. Energy num.");
+  printf ("     7. Energy denom.");
+  printf ("    8. Time\n");
 }
 
 void printDataTable(int& iter, int& nDets, int& nSpawned,
-                    double& walkerPop, double& EProj,
+                    double& shift, double& walkerPop, double& EProj,
                     double& HFAmp, double& iter_time)
 {
   printf ("%10d   ", iter);
   printf ("%10d   ", nDets);
   printf ("%10d   ", nSpawned);
+  printf ("%18.10f   ", shift);
   printf ("%18.10f   ", walkerPop);
   printf ("%18.10f   ", EProj);
   printf ("%18.10f   ", HFAmp);
