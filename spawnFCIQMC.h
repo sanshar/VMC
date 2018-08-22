@@ -83,52 +83,42 @@ class spawnFCIQMC {
   // determinant only appears once
   void compress() {
 
-    // Perform sort
-    cout << "HereAA" << endl;
-    auto p = sort_permutation(nDets, detsTemp, [](Determinant const& a, Determinant const& b){ return (a < b); });
-    cout << "HereBB" << endl;
-    apply_permutation( nDets, detsTemp, dets, p );
-    cout << "HereCC" << endl;
-    apply_permutation( nDets, ampsTemp, amps, p );
-    cout << "HereDD" << endl;
+    if (nDets > 0) {
+      // Perform sort
+      auto p = sort_permutation(nDets, detsTemp, [](Determinant const& a, Determinant const& b){ return (a < b); });
+      apply_permutation( nDets, detsTemp, dets, p );
+      apply_permutation( nDets, ampsTemp, amps, p );
   
-    bool exitOuter = false;
-    int j = 0, k = 0;
-  
-    // Now the array is sorted, loop through and merge repeats
-    cout << "HereEE" << endl;
-    while (true) {
-      dets[j] = dets[k];
-      amps[j] = amps[k];
-      cout << "HereFF" << endl;
+      bool exitOuter = false;
+      int j = 0, k = 0;
+
+      // Now the array is sorted, loop through and merge repeats
       while (true) {
-        k += 1;
-        if (k == nDets) {
-          exitOuter = true;
-          break;
+        dets[j] = dets[k];
+        amps[j] = amps[k];
+        while (true) {
+          k += 1;
+          if (k == nDets) {
+            exitOuter = true;
+            break;
+          }
+          if ( dets[j] == dets[k] ) {
+            amps[j] += amps[k];
+          } else {
+            break;
+          }
         }
-        cout << "HereAAA" << endl;
-        if ( dets[j] == dets[k] ) {
-          cout << "HereBBB" << endl;
-          amps[j] += amps[k];
-          cout << "HereCCC" << endl;
-        } else {
-          cout << "HereDDD" << endl;
-          break;
-        }
-      }
-      cout << "HereGG" << endl;
   
-      if (exitOuter) break;
-      
-      if (j == nDets-1) {
-        break;
-      } else {
-        j += 1;
+        if (exitOuter) break;
+        
+        if (j == nDets-1) {
+          break;
+        } else {
+          j += 1;
+        }
       }
+      nDets = j+1;
     }
-    cout << "HereHH" << endl;
-    nDets = j+1;
   }
   
   // Move spawned walkers to the provided main walker list

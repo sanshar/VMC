@@ -80,8 +80,6 @@ void printDataTable(int& iter, int& nDets, int& nSpawned,
 
 int main(int argc, char *argv[])
 {
-  cout << "Here1" << endl;
-
 #ifndef SERIAL
   boost::mpi::environment env(argc, argv);
   boost::mpi::communicator world;
@@ -90,7 +88,6 @@ int main(int argc, char *argv[])
 
   initSHM();
   license();
-  cout << "Here2" << endl;
 
   string inputFile = "input.dat";
   if (argc > 1)
@@ -100,19 +97,15 @@ int main(int argc, char *argv[])
 #ifndef SERIAL
   mpi::broadcast(world, schd, 0);
 #endif
-  cout << "Here3" << endl;
 
   generator = std::mt19937(schd.seed + commrank);
-  cout << "Here4" << endl;
 
   twoInt I2;
   oneInt I1;
   int norbs, nalpha, nbeta;
   double coreE = 0.0;
   std::vector<int> irrep;
-  cout << "Here5" << endl;
   readIntegrals("FCIDUMP", I2, I1, nalpha, nbeta, norbs, coreE, irrep);
-  cout << "Here6" << endl;
 
   // Initialize the heatbath integrals
   std::vector<int> allorbs;
@@ -123,7 +116,6 @@ int main(int argc, char *argv[])
   if (commrank == 0)
     I2HB.constructClass(allorbs, I2, I1, norbs);
   I2HBSHM.constructClass(norbs, I2HB);
-  cout << "Here7" << endl;
 
   // Setup static variables
   Determinant::EffDetLen = (norbs) / 64 + 1;
@@ -137,7 +129,6 @@ int main(int argc, char *argv[])
 
   walkersFCIQMC walkers(10000000);
   spawnFCIQMC spawn(10000000);
-  cout << "Here8" << endl;
 
   // Set the population on the reference to 100
   walkers.amps[0] = schd.initialPop;
@@ -153,7 +144,6 @@ int main(int argc, char *argv[])
   {
     readDeterminants(schd.determinantFile, walkers.dets, walkers.amps);
   }
-  cout << "Here9" << endl;
 
   int excitLevel = 0, nAttempts = 0;
   double EProj = 0.0, HFAmp = 0.0, pgen = 0.0, parentAmp = 0.0;
@@ -179,14 +169,12 @@ int main(int argc, char *argv[])
 
     // Loop over all walkers/determinants
     for (int iDet=0; iDet<walkers.nDets; iDet++) {
-      cout << "HereA" << endl;
       // Is this unoccupied?
       if (abs(walkers.amps[iDet]) < 1.0e-12) {
         walkers.lastEmpty += 1;
         walkers.emptyDets[walkers.lastEmpty] = iDet;
         continue;
       }
-      cout << "HereB" << endl;
 
       excitLevel = HFDet.ExcitationDistance(walkers.dets[iDet]);
       calcFCIQMCStats(iDet, excitLevel, walkers.dets, walkers.amps, HFDet, walkerPop, EProj, HFAmp, I1, I2, I2HBSHM, coreE);
@@ -197,33 +185,22 @@ int main(int argc, char *argv[])
 
       // Perform one spawning attempt for each 'walker' of weight parentAmp
       for (int iAttempt=0; iAttempt<nAttempts; iAttempt++) {
-        cout << "HereC" << endl;
         generateExcitation(walkers.dets[iDet], childDet, pgen);
-        cout << "HereD" << endl;
 
         attemptSpawning(walkers.dets[iDet], childDet, spawn, I1, I2, I2HBSHM, coreE,
                         schd.nAttemptsEach, parentAmp, schd.tau, schd.minSpawn, pgen);
-        cout << "HereE" << endl;
       }
-      cout << "HereF" << endl;
       performDeath(walkers.dets[iDet], walkers.amps[iDet], I1, I2, I2HBSHM, coreE, Eshift, schd.tau);
-      cout << "HereG" << endl;
     }
-    cout << "HereG" << endl;
     printDataTable(iter, walkers.nDets, spawn.nDets, walkerPop, EProj, HFAmp, iter_time);
-    cout << "HereH" << endl;
 
     // Perform annihilation
     spawn.communicate();
-    cout << "HereI" << endl;
     spawn.compress();
-    cout << "HereJ" << endl;
     spawn.mergeIntoMain(walkers, schd.minPop);
 
-    cout << "HereK" << endl;
     updateShift(Eshift, varyShift, walkerPop, walkerPopOld, schd.targetPop, shiftDamping, schd.tau);
 
-    cout << "HereL" << endl;
     walkerPopOld = walkerPop;
 
     time_end = getTime();
