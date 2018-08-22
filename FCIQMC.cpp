@@ -127,10 +127,14 @@ int main(int argc, char *argv[])
   for (int i = 0; i < nbeta; i++)
     HFDet.setoccB(i, true);
 
-  walkersFCIQMC walkers(10000000);
-  spawnFCIQMC spawn(10000000);
+  // TODO: Update when code is parallelized
+  int walkersSize = schd.targetPop * schd.mainMemoryFac;
+  int spawnSize = schd.targetPop * schd.spawnMemoryFac;
 
-  // Set the population on the reference to 100
+  walkersFCIQMC walkers(walkersSize);
+  spawnFCIQMC spawn(spawnSize);
+
+  // Set the population on the reference
   walkers.amps[0] = schd.initialPop;
   // The number of determinants in the walker list
   walkers.nDets = 1;
@@ -147,12 +151,12 @@ int main(int argc, char *argv[])
 
   int excitLevel = 0, nAttempts = 0;
   double EProj = 0.0, HFAmp = 0.0, pgen = 0.0, parentAmp = 0.0;
-  double shiftDamping = 0.1, time_start = 0.0, time_end = 0.0, iter_time = 0.0;
+  double time_start = 0.0, time_end = 0.0, iter_time = 0.0;
   double walkerPop = 0.0, walkerPopOld = 0.0;
   bool varyShift = false;
   Determinant childDet;
 
-  double Eshift = HFDet.Energy(I1, I2, coreE);
+  double Eshift = HFDet.Energy(I1, I2, coreE) + schd.initialShift;
 
   printDataTableHeader();
 
@@ -199,7 +203,7 @@ int main(int argc, char *argv[])
     spawn.compress();
     spawn.mergeIntoMain(walkers, schd.minPop);
 
-    updateShift(Eshift, varyShift, walkerPop, walkerPopOld, schd.targetPop, shiftDamping, schd.tau);
+    updateShift(Eshift, varyShift, walkerPop, walkerPopOld, schd.targetPop, schd.shiftDamping, schd.tau);
 
     walkerPopOld = walkerPop;
 

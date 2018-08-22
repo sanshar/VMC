@@ -70,6 +70,10 @@ private:
       & nGeneration
       & excitationLevel
       & nAttemptsEach
+      & mainMemoryFac
+      & spawnMemoryFac
+      & shiftDamping
+      & initialShift
       & minSpawn
       & minPop
       & initialPop
@@ -126,6 +130,10 @@ public:
 
   //options for FCIQMC
   int nAttemptsEach;
+  double shiftDamping;
+  double mainMemoryFac;
+  double spawnMemoryFac;
+  double initialShift;
   double minSpawn;
   double minPop;
   double initialPop;

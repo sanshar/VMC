@@ -70,6 +70,10 @@ void readInput(string input, schedule& schd, bool print) {
   schd.nGeneration            = 30.0;
   schd.excitationLevel        = 1;
   schd.nAttemptsEach          = 1;
+  schd.mainMemoryFac          = 5.0;
+  schd.spawnMemoryFac         = 5.0;
+  schd.shiftDamping           = 0.01;
+  schd.initialShift           = 0.0;
   schd.minSpawn               = 0.01;
   schd.minPop                 = 1.0;
   schd.initialPop             = 100.0;
@@ -215,6 +219,22 @@ void readInput(string input, schedule& schd, bool print) {
 
     else if (boost::iequals(ArgName,  "nAttemptsEach"      )) {
       schd.nAttemptsEach = atoi(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "mainMemoryFac"       )) {
+      schd.mainMemoryFac = atof(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "spawnMemoryFac"       )) {
+      schd.spawnMemoryFac = atof(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "shiftDamping"       )) {
+      schd.shiftDamping = atof(tok[1].c_str());
+    }
+
+    else if (boost::iequals(ArgName,  "initialShift"       )) {
+      schd.initialShift = atof(tok[1].c_str());
     }
 
     else if (boost::iequals(ArgName,  "minSpawn"           )) {
