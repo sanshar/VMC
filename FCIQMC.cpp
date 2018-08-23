@@ -185,8 +185,8 @@ int main(int argc, char *argv[])
       calcFCIQMCStats(iDet, excitLevel, walkers.dets, walkers.amps, HFDet, walkerPop, EProj, HFAmp, I1, I2, I2HBSHM, coreE);
 
       // Number of spawnings to attempt
-      nAttempts = max(1.0, round(walkers.amps[iDet]));
-      parentAmp = walkers.amps[iDet] / nAttempts;
+      nAttempts = max(1.0, round(walkers.amps[iDet] * schd.nAttemptsEach));
+      parentAmp = walkers.amps[iDet] * schd.nAttemptsEach / nAttempts;
 
       // Perform one spawning attempt for each 'walker' of weight parentAmp
       for (int iAttempt=0; iAttempt<nAttempts; iAttempt++) {
