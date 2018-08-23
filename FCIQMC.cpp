@@ -169,6 +169,7 @@ int main(int argc, char *argv[])
     walkerPop = 0.0;
     EProj = 0.0;
     HFAmp = 0.0;
+
     //cout << walkers << endl;
 
     // Loop over all walkers/determinants
@@ -202,6 +203,8 @@ int main(int argc, char *argv[])
     spawn.communicate();
     spawn.compress();
     spawn.mergeIntoMain(walkers, schd.minPop);
+    // Stochastic rounding of small walkers
+    walkers.stochasticRoundAll(schd.minPop);
 
     updateShift(Eshift, varyShift, walkerPop, walkerPopOld, schd.targetPop, schd.shiftDamping, schd.tau);
 
@@ -435,16 +438,8 @@ void attemptSpawning(Determinant& parentDet, Determinant& childDet, spawnFCIQMC&
   double HElem = Hij(parentDet, childDet, I1, I2, coreE);
   double childAmp = - tau * parentAmp * HElem / pgen_tot;
 
-  // Decide if to perform a spawning, and if so what it's amplitude is
   if (abs(childAmp) < minSpawn) {
-    auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
-    double pAccept = abs(childAmp)/minSpawn;
-    if (random() < pAccept) {
-      childAmp = copysign(minSpawn, childAmp);
-    } else {
-      childAmp = 0.0;
-      childSpawned = false;
-    }
+    stochastic_round(minSpawn, childAmp, childSpawned);
   }
 
   if (childSpawned) {

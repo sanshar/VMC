@@ -119,13 +119,17 @@ class spawnFCIQMC {
       }
       nDets = j+1;
     }
+
   }
   
   // Move spawned walkers to the provided main walker list
   void mergeIntoMain(walkersFCIQMC& walkers, double& minPop) {
+
     int pos;
+    bool keepDet;
   
     for (int i = 0; i<nDets; i++) {
+      keepDet = true;
       // Is this spawned determinant already in the main list?
       if (walkers.ht.find(dets[i]) != walkers.ht.end()) {
         int iDet = walkers.ht[dets[i]];
@@ -136,24 +140,32 @@ class spawnFCIQMC {
       else
       {
         // New determinant:
+        if (abs(amps[i]) < minPop) {
+          stochastic_round(minPop, amps[i], keepDet);
+        }
 
-        // Check if a determinant has become unoccupied in the existing list
-        // If not, then increase the walkers.ndets by 1 and add it on the end
-        if (walkers.firstEmpty <= walkers.lastEmpty) {
-          pos = walkers.emptyDets[walkers.firstEmpty];
-          walkers.firstEmpty += 1;
+        if (keepDet) {
+          // Check if a determinant has become unoccupied in the existing list
+          // If so, insert into that position
+          // If not, then increase the walkers.ndets by 1 and add it on the end
+          if (walkers.firstEmpty <= walkers.lastEmpty) {
+            pos = walkers.emptyDets[walkers.firstEmpty];
+            walkers.firstEmpty += 1;
+          }
+          else
+          {
+            pos = walkers.nDets;
+            walkers.nDets += 1;
+          }
+          walkers.dets[pos] = dets[i];
+          walkers.amps[pos] = amps[i];
+          walkers.ht[dets[i]] = pos;
         }
-        else
-        {
-          pos = walkers.nDets;
-          walkers.nDets += 1;
-        }
-        walkers.dets[pos] = dets[i];
-        walkers.amps[pos] = amps[i];
-        walkers.ht[dets[i]] = pos;
+
       }
     }
   }
 
 };
+
 #endif

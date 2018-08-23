@@ -27,6 +27,18 @@
 
 class Determinant;
 
+void stochastic_round(const double& minPop, double& amp, bool& roundedUp) {
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+  double pAccept = abs(amp)/minPop;
+  if (random() < pAccept) {
+    amp = copysign(minPop, amp);
+    roundedUp = true;
+  } else {
+    amp = 0.0;
+    roundedUp = false;
+  }
+}
+
 using namespace std;
 
 // Class for main walker list in FCIQMC
@@ -56,6 +68,34 @@ class walkersFCIQMC {
     emptyDets.resize(arrayLength);
     firstEmpty = 0;
     lastEmpty = -1;
+  }
+
+  void stochasticRoundAll(const double& minPop) {
+    bool keepDet;
+    for (int iDet=0; iDet<nDets; iDet++) {
+
+      // To be a valid walker in the main list, there must be a corresponding
+      // hash table entry *and* the amplitude must be non-zero
+      if ( ht.find(dets[iDet]) != ht.end() && abs(amps[iDet]) > 1.0e-12 ) {
+        if (abs(amps[iDet]) < minPop) {
+          stochastic_round(minPop, amps[iDet], keepDet);
+
+          if (!keepDet) {
+            ht.erase(dets[iDet]);
+            lastEmpty += 1;
+            emptyDets[lastEmpty] = iDet;
+          }
+        }
+      } else {
+        if (abs(amps[iDet]) > 1.0e-12) {
+          // This should never happen - the hash table entry should not be
+          // removed unless the walker population becomes zero
+          cout << "#Error: Non-empty det no hash table entry found." << endl;
+          cout << dets[iDet] << "    " << amps[iDet] << endl;
+        }
+      }
+
+    }
   }
 
   // Print the determinants and hash table
