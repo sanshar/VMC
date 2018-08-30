@@ -80,6 +80,15 @@ class Determinant {
     }
   }
 
+  Determinant(const std::array<long, 2*DetLen> combined) {
+    for (int i=0; i<DetLen; i++) {
+      reprA[i] = combined[i];
+    }
+    for (int i=0; i<DetLen; i++) {
+      reprB[i] = combined[i+DetLen];
+    }
+  }
+
   void operator=(const Determinant& d) {
     for (int i=0; i<DetLen; i++) {
       reprA[i] = d.reprA[i];
@@ -316,6 +325,27 @@ class Determinant {
       return true;
   }
 
+  // Get unique processor label for this determinant
+  int getProc() {
+    std::size_t h_tot = 0;
+    for (int i=0; i<DetLen; i++) {
+      std::size_t const h1 ( std::hash<long>{}(reprA[i]) );
+      std::size_t const h2 ( std::hash<long>{}(reprB[i]) );
+      h_tot = h_tot ^ h1 ^ (h2 << 1);
+    }
+    return h_tot % commsize;
+  }
+
+  std::array<long, 2*DetLen> combineDet() {
+    std::array<long, 2*DetLen> combined;
+    for (int i=0; i<DetLen; i++) {
+      combined[i] = reprA[i];
+    }
+    for (int i=0; i<DetLen; i++) {
+      combined[i+DetLen] = reprB[i];
+    }
+    return combined;
+  }
 
   //Prints the determinant
   friend ostream& operator<<(ostream& os, const Determinant& d) {
@@ -339,7 +369,6 @@ class Determinant {
   int numberPossibleSingles(double& screen, oneInt& I1, twoInt& I2,
 			    twoIntHeatBathSHM& I2hb);
 
-
 };
 
 
@@ -359,11 +388,10 @@ double getParityForDiceToAlphaBeta(Determinant& det);
 
 template<> struct hash<Determinant>
 {
-    typedef std::size_t result_type;
     std::size_t operator()(Determinant const& d) const noexcept
     {
         std::size_t h_tot = 0;
-        for (int i=0; i<d.EffDetLen; i++) {
+        for (int i=0; i<DetLen; i++) {
             std::size_t const h1 ( std::hash<long>{}(d.reprA[i]) );
             std::size_t const h2 ( std::hash<long>{}(d.reprB[i]) );
             h_tot = h_tot ^ h1 ^ (h2 << 1);
@@ -371,4 +399,5 @@ template<> struct hash<Determinant>
         return h_tot;
     }
 };
+
 #endif

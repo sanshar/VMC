@@ -53,7 +53,7 @@ using namespace std;
 
 void calcFCIQMCStats(int& iDet, int& excitLevel, std::vector<Determinant>& determinants,
                      std::vector<double>& walkerAmps, Determinant& HFDet,
-                     double& walkerPop, double &EProj, double &HFAmp, oneInt &I1, twoInt &I2,
+                     double &EProj, double &HFAmp, oneInt &I1, twoInt &I2,
                      twoIntHeatBathSHM &I2hb, double &coreE);
 
 void generateExcitation(Determinant& parentDet, Determinant& childDet, double& pgen);
@@ -68,13 +68,18 @@ void attemptSpawning(Determinant& parentDet, Determinant& childDet, spawnFCIQMC&
 void performDeath(Determinant& parentDet, double& detPopulation, oneInt &I1, twoInt &I2,
                   twoIntHeatBathSHM &I2hb, double& coreE, double& Eshift, double& tau);
 
+void communicateEstimates(const double& walkerPop, const double& EProj, const double& HFAmp,
+                          const int& nDets, const int& nSpawnedDets,
+                          double& walkerPopTot, double& EProjTot, double& HFAmpTot,
+                          int& nDetsTot, int& nSpawnedDetsTot);
+
 void updateShift(double& Eshift, bool& varyShift, double& walkerPop,
                  double& walkerPopOld, double& targetPop,
                  double& shiftDamping, double& tau);
 
 void printDataTableHeader();
 
-void printDataTable(int& iter, int& nDets, int& nSpawned,
+void printDataTable(int iter, int& nDets, int& nSpawned,
                     double& shift, double& walkerPop, double& EProj,
                     double& HFAmp, double& iter_time);
 
@@ -127,6 +132,9 @@ int main(int argc, char *argv[])
   for (int i = 0; i < nbeta; i++)
     HFDet.setoccB(i, true);
 
+  // Processor that the HF determinant lives on
+  int HFDetProc = HFDet.getProc();
+
   // TODO: Update when code is parallelized
   int walkersSize = schd.targetPop * schd.mainMemoryFac;
   int spawnSize = schd.targetPop * schd.spawnMemoryFac;
@@ -134,15 +142,16 @@ int main(int argc, char *argv[])
   walkersFCIQMC walkers(walkersSize);
   spawnFCIQMC spawn(spawnSize);
 
-  // Set the population on the reference
-  walkers.amps[0] = schd.initialPop;
-  // The number of determinants in the walker list
-  walkers.nDets = 1;
-
   if (boost::iequals(schd.determinantFile, ""))
   {
-    walkers.dets[0] = HFDet;
-    walkers.ht[HFDet] = 0;
+    if (HFDetProc == commrank) {
+      walkers.dets[0] = HFDet;
+      walkers.ht[HFDet] = 0;
+      // Set the population on the reference
+      walkers.amps[0] = schd.initialPop;
+      // The number of determinants in the walker list
+      walkers.nDets = 1;
+    }
   }
   else
   {
@@ -150,22 +159,29 @@ int main(int argc, char *argv[])
   }
 
   int excitLevel = 0, nAttempts = 0;
-  double EProj = 0.0, HFAmp = 0.0, pgen = 0.0, parentAmp = 0.0;
+  double EProj = 0.0, HFAmp = 0.0, pgen = 0.0, parentAmp = 0.0, walkerPop = 0.0;
   double time_start = 0.0, time_end = 0.0, iter_time = 0.0;
-  double walkerPop = 0.0, walkerPopOld = 0.0;
   bool varyShift = false;
   Determinant childDet;
 
+  double walkerPopTot = schd.initialPop, walkerPopOldTot = schd.initialPop;
+  double EProjTot = 0.0, HFAmpTot = schd.initialPop;
   double Eshift = HFDet.Energy(I1, I2, coreE) + schd.initialShift;
+  int nDetsTot = 1, nSpawnedDetsTot = 0;
+
+  int parallelReport[commsize];
+  double parallelReportD[commsize];
 
   printDataTableHeader();
+  printDataTable(0, nDetsTot, nSpawnedDetsTot, Eshift, walkerPopTot, EProj, HFAmp, iter_time);
 
-  for (int iter = 0; iter < schd.maxIter; iter++) {
+  for (int iter = 1; iter <= schd.maxIter; iter++) {
     time_start = getTime();
 
     walkers.firstEmpty = 0;
     walkers.lastEmpty = -1;
     spawn.nDets = 0;
+    spawn.currProcSlots = spawn.firstProcSlots;
     walkerPop = 0.0;
     EProj = 0.0;
     HFAmp = 0.0;
@@ -182,7 +198,7 @@ int main(int argc, char *argv[])
       }
 
       excitLevel = HFDet.ExcitationDistance(walkers.dets[iDet]);
-      calcFCIQMCStats(iDet, excitLevel, walkers.dets, walkers.amps, HFDet, walkerPop, EProj, HFAmp, I1, I2, I2HBSHM, coreE);
+      calcFCIQMCStats(iDet, excitLevel, walkers.dets, walkers.amps, HFDet, EProj, HFAmp, I1, I2, I2HBSHM, coreE);
 
       // Number of spawnings to attempt
       nAttempts = max(1.0, round(walkers.amps[iDet] * schd.nAttemptsEach));
@@ -197,24 +213,48 @@ int main(int argc, char *argv[])
       }
       performDeath(walkers.dets[iDet], walkers.amps[iDet], I1, I2, I2HBSHM, coreE, Eshift, schd.tau);
     }
-    printDataTable(iter, walkers.nDets, spawn.nDets, Eshift, walkerPop, EProj, HFAmp, iter_time);
 
     // Perform annihilation
     spawn.communicate();
     spawn.compress();
     spawn.mergeIntoMain(walkers, schd.minPop);
     // Stochastic rounding of small walkers
-    walkers.stochasticRoundAll(schd.minPop);
+    walkers.stochasticRoundAll(schd.minPop, walkerPop);
 
-    updateShift(Eshift, varyShift, walkerPop, walkerPopOld, schd.targetPop, schd.shiftDamping, schd.tau);
+    communicateEstimates(walkerPop, EProj, HFAmp, walkers.nDets, spawn.nDets,
+                         walkerPopTot, EProjTot, HFAmpTot, nDetsTot, nSpawnedDetsTot);
+    updateShift(Eshift, varyShift, walkerPopTot, walkerPopOldTot, schd.targetPop, schd.shiftDamping, schd.tau);
+    printDataTable(iter, nDetsTot, nSpawnedDetsTot, Eshift, walkerPopTot, EProjTot, HFAmpTot, iter_time);
 
-    walkerPopOld = walkerPop;
+    walkerPopOldTot = walkerPopTot;
 
     time_end = getTime();
     iter_time = time_end - time_start;
   }
 
-  cout << "# Total time:  " << getTime() - startofCalc << endl;
+  if (commrank == 0) {
+    cout << "# Total time:  " << getTime() - startofCalc << endl;
+  }
+
+#ifndef SERIAL
+  MPI_Gather(&walkerPop, 1, MPI_DOUBLE, &parallelReportD, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  if (commrank == 0) {
+    cout << "# Min # walkers on proc:   " << *min_element(parallelReportD, parallelReportD + commsize) << endl;
+    cout << "# Max # walkers on proc:   " << *max_element(parallelReportD, parallelReportD + commsize) << endl;
+  }
+
+  MPI_Gather(&walkers.nDets, 1, MPI_INT, &parallelReport, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  if (commrank == 0) {
+    cout << "# Min # determinants on proc:   " << *min_element(parallelReport, parallelReport + commsize) << endl;
+    cout << "# Max # determinants on proc:   " << *max_element(parallelReport, parallelReport + commsize) << endl;
+  }
+
+  MPI_Gather(&spawn.nDets, 1, MPI_INT, &parallelReport, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  if (commrank == 0) {
+    cout << "# Min # determinants spawned on proc:   " << *min_element(parallelReport, parallelReport + commsize) << endl;
+    cout << "# Max # determinants spawned on proc:   " << *max_element(parallelReport, parallelReport + commsize) << endl;
+  }
+#endif
 
   boost::interprocess::shared_memory_object::remove(shciint2.c_str());
   boost::interprocess::shared_memory_object::remove(shciint2shm.c_str());
@@ -224,11 +264,9 @@ int main(int argc, char *argv[])
 
 void calcFCIQMCStats(int& iDet, int& excitLevel, std::vector<Determinant>& determinants,
                      std::vector<double>& walkerAmps, Determinant& HFDet,
-                     double& walkerPop, double &EProj, double &HFAmp, oneInt &I1, twoInt &I2,
+                     double &EProj, double &HFAmp, oneInt &I1, twoInt &I2,
                      twoIntHeatBathSHM &I2hb, double &coreE)
 {
-  walkerPop += abs(walkerAmps[iDet]);
-
   if (excitLevel == 0) {
     HFAmp = walkerAmps[iDet];
   } else if (excitLevel <= 2) {
@@ -443,9 +481,15 @@ void attemptSpawning(Determinant& parentDet, Determinant& childDet, spawnFCIQMC&
   }
 
   if (childSpawned) {
-    spawn.dets[spawn.nDets] = childDet;
-    spawn.amps[spawn.nDets] = childAmp;
-    spawn.nDets += 1;
+    int proc = childDet.getProc();
+    // Find the appropriate place in the spawned list for the processor
+    // of the newly-spawned walker
+    int ind = spawn.currProcSlots[proc];
+    //spawn.dets[ind] = childDet;
+    spawn.dets[ind] = childDet.combineDet();
+    spawn.amps[ind] = childAmp;
+    spawn.currProcSlots[proc] += 1;
+    //spawn.nDets += 1;
   }
 }
 
@@ -455,6 +499,26 @@ void performDeath(Determinant& parentDet, double& detPopulation, oneInt &I1, two
   double parentE = parentDet.Energy(I1, I2, coreE);
   double fac = tau * ( parentE - Eshift );
   detPopulation -= fac * detPopulation;
+}
+
+void communicateEstimates(const double& walkerPop, const double& EProj, const double& HFAmp,
+                          const int& nDets, const int& nSpawnedDets,
+                          double& walkerPopTot, double& EProjTot, double& HFAmpTot,
+                          int& nDetsTot, int& nSpawnedDetsTot)
+{
+#ifdef SERIAL
+  walkerPopTot    = walkerPop;
+  EProjTot        = EProj;
+  HFAmpTot        = HFAmp;
+  nDetsTot        = nDets;
+  nSpawnedDetsTot = nSpawnedDets;
+#else
+  MPI_Allreduce(&walkerPop,    &walkerPopTot,     1,  MPI_DOUBLE,  MPI_SUM,  MPI_COMM_WORLD);
+  MPI_Allreduce(&EProj,        &EProjTot,         1,  MPI_DOUBLE,  MPI_SUM,  MPI_COMM_WORLD);
+  MPI_Allreduce(&HFAmp,        &HFAmpTot,         1,  MPI_DOUBLE,  MPI_SUM,  MPI_COMM_WORLD);
+  MPI_Allreduce(&nDets,        &nDetsTot,         1,  MPI_INT,     MPI_SUM,  MPI_COMM_WORLD);
+  MPI_Allreduce(&nSpawnedDets, &nSpawnedDetsTot,  1,  MPI_INT,     MPI_SUM,  MPI_COMM_WORLD);
+#endif
 }
 
 void updateShift(double& Eshift, bool& varyShift, double& walkerPop,
@@ -472,26 +536,30 @@ void updateShift(double& Eshift, bool& varyShift, double& walkerPop,
 
 void printDataTableHeader()
 {
-  printf ("#  1. Iter");
-  printf ("     2. nDets");
-  printf ("  3. nSpawned");
-  printf ("             4. Shift");
-  printf ("          5. nWalkers");
-  printf ("       6. Energy num.");
-  printf ("     7. Energy denom.");
-  printf ("    8. Time\n");
+  if (commrank == 0) {
+    printf ("#  1. Iter");
+    printf ("     2. nDets");
+    printf ("  3. nSpawned");
+    printf ("             4. Shift");
+    printf ("          5. nWalkers");
+    printf ("       6. Energy num.");
+    printf ("     7. Energy denom.");
+    printf ("    8. Time\n");
+  }
 }
 
-void printDataTable(int& iter, int& nDets, int& nSpawned,
+void printDataTable(int iter, int& nDets, int& nSpawned,
                     double& shift, double& walkerPop, double& EProj,
                     double& HFAmp, double& iter_time)
 {
-  printf ("%10d   ", iter);
-  printf ("%10d   ", nDets);
-  printf ("%10d   ", nSpawned);
-  printf ("%18.10f   ", shift);
-  printf ("%18.10f   ", walkerPop);
-  printf ("%18.10f   ", EProj);
-  printf ("%18.10f   ", HFAmp);
-  printf ("%8.4f\n", iter_time);
+  if (commrank == 0) {
+    printf ("%10d   ", iter);
+    printf ("%10d   ", nDets);
+    printf ("%10d   ", nSpawned);
+    printf ("%18.10f   ", shift);
+    printf ("%18.10f   ", walkerPop);
+    printf ("%18.10f   ", EProj);
+    printf ("%18.10f   ", HFAmp);
+    printf ("%8.4f\n", iter_time);
+  }
 }

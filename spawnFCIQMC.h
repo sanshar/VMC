@@ -54,12 +54,21 @@ class spawnFCIQMC {
   // The number of determinants spawned to
   int nDets;
   // The list of determinants spawned to
-  vector<Determinant> dets;
+  vector<std::array<long, 2*DetLen> > dets;
   // Temporary space for communication and sorting
-  vector<Determinant> detsTemp;
+  vector<std::array<long, 2*DetLen> > detsTemp;
   // The amplitudes of spawned walkers
   vector<double> amps;
   vector<double> ampsTemp;
+
+  // The number of elements allocated for spawns to each processor
+  int nSlotsPerProc;
+  // The positions of the first elements for each processor in the
+  // spawning array
+  vector<int> firstProcSlots;
+  // The current positions in the spawning array, in which to add
+  // the next spawned walker to a given processor
+  vector<int> currProcSlots;
 
   spawnFCIQMC(int spawnSize) {
     nDets = 0;
@@ -67,16 +76,84 @@ class spawnFCIQMC {
     amps.resize(spawnSize, 0.0);
     detsTemp.resize(spawnSize);
     ampsTemp.resize(spawnSize, 0.0);
+
+    firstProcSlots.resize(commsize);
+    currProcSlots.resize(commsize);
+
+    nSlotsPerProc = spawnSize / commsize;
+    for (int i=0; i<commsize; i++) {
+      firstProcSlots[i] = i*nSlotsPerProc;
+    }
+
+    currProcSlots = firstProcSlots;
   }
 
   // Send spawned walkers to their correct processor
   void communicate() {
-    // For now, just copy walkers across to the temporary array
-    // TODO: Implement parallel FCIQMC
+#ifdef SERIAL
+    nDets = currProcSlots[0] - firstProcSlots[0];
     for (int i=0; i<nDets; i++) {
       detsTemp[i] = dets[i];
       ampsTemp[i] = amps[i];
     }
+#else
+    //for (int proc=0; proc<commsize; proc++) {
+    //  cout << "Processor: " << proc << endl;
+    //  for (int i=firstProcSlots[proc]; i<currProcSlots[proc]; i++) {
+    //    cout << i << "    " << dets[i] << "    "  << amps[i] << endl;
+    //  }
+    //}
+
+    int sendCounts[commsize], recvCounts[commsize];
+    int sendDispls[commsize], recvDispls[commsize];
+    int sendCountsDets[commsize], recvCountsDets[commsize];
+    int sendDisplsDets[commsize], recvDisplsDets[commsize];
+
+    for (int proc=0; proc<commsize; proc++) {
+      sendCounts[proc] = currProcSlots[proc] - firstProcSlots[proc];
+      sendDispls[proc] = firstProcSlots[proc];
+    }
+
+    // Communicate the number of dets to be sent and received
+    MPI_Alltoall(sendCounts, 1, MPI_INTEGER, recvCounts, 1, MPI_INTEGER, MPI_COMM_WORLD);
+
+    // Displacements of dets about to be received
+    recvDispls[0] = 0;
+    for (int proc=1; proc<commsize; proc++) {
+      recvDispls[proc] = recvDispls[proc-1] + recvCounts[proc-1];
+    }
+
+    // Dets have width of 2*DetLen
+    // They are stored contiguously in the vector, as required for MPI
+    for (int proc=0; proc<commsize; proc++) {
+      sendCountsDets[proc] = sendCounts[proc] * 2*DetLen;
+      recvCountsDets[proc] = recvCounts[proc] * 2*DetLen;
+      sendDisplsDets[proc] = sendDispls[proc] * 2*DetLen;
+      recvDisplsDets[proc] = recvDispls[proc] * 2*DetLen;
+    }
+
+    //for (int proc=0; proc<commsize; proc++) {
+    //  cout << proc << "  " << "sendCounts: " << sendCounts[proc] << endl;
+    //  cout << proc << "  " << "sendDispls: " << sendDispls[proc] << endl;
+    //  cout << proc << "  " << "recvCounts: " << recvCounts[proc] << endl;
+    //  cout << proc << "  " << "recvDispls: " << recvDispls[proc] << endl;
+    //}
+
+    MPI_Alltoallv(&dets.front(), sendCountsDets, sendDisplsDets, MPI_LONG,
+                  &detsTemp.front(), recvCountsDets, recvDisplsDets, MPI_LONG, MPI_COMM_WORLD);
+
+    MPI_Alltoallv(&amps.front(), sendCounts, sendDispls, MPI_DOUBLE,
+                  &ampsTemp.front(), recvCounts, recvDispls, MPI_DOUBLE, MPI_COMM_WORLD);
+
+    // The total number of determinants received
+    nDets = recvDispls[commsize-1] + recvCounts[commsize-1];
+
+    //for (int i=0; i<nDets; i++) {
+    //  cout << i << "    " << detsTemp[i] << "    " << ampsTemp[i] << endl;
+    //}
+    //cout << "END OF COMMUNICATE  " << commrank << endl << endl << endl;
+    //MPI_Barrier(MPI_COMM_WORLD);
+#endif
   }
   
   // Merge multiple spawned walkers to the same determinant, so that each
@@ -85,7 +162,7 @@ class spawnFCIQMC {
 
     if (nDets > 0) {
       // Perform sort
-      auto p = sort_permutation(nDets, detsTemp, [](Determinant const& a, Determinant const& b){ return (a < b); });
+      auto p = sort_permutation(nDets, detsTemp, [](std::array<long, 2*DetLen> const& a, array<long, 2*DetLen> const& b){ return (a < b); });
       apply_permutation( nDets, detsTemp, dets, p );
       apply_permutation( nDets, ampsTemp, amps, p );
   
@@ -157,7 +234,7 @@ class spawnFCIQMC {
             pos = walkers.nDets;
             walkers.nDets += 1;
           }
-          walkers.dets[pos] = dets[i];
+          walkers.dets[pos] = Determinant(dets[i]);
           walkers.amps[pos] = amps[i];
           walkers.ht[dets[i]] = pos;
         }

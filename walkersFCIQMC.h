@@ -70,7 +70,7 @@ class walkersFCIQMC {
     lastEmpty = -1;
   }
 
-  void stochasticRoundAll(const double& minPop) {
+  void stochasticRoundAll(const double& minPop, double& walkerPop) {
     bool keepDet;
     for (int iDet=0; iDet<nDets; iDet++) {
 
@@ -86,6 +86,9 @@ class walkersFCIQMC {
             emptyDets[lastEmpty] = iDet;
           }
         }
+        // Update the walker population
+        walkerPop += abs(amps[iDet]);
+
       } else {
         if (abs(amps[iDet]) > 1.0e-12) {
           // This should never happen - the hash table entry should not be
