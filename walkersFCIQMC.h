@@ -118,6 +118,7 @@ class walkersFCIQMC {
 
         if (excitLevel == 0) {
           HFAmp = amps[iDet];
+          EProj += amps[iDet] * HFDet.Energy(I1, I2, coreE);
         } else if (excitLevel <= 2) {
           EProj += amps[iDet] * Hij(HFDet, dets[iDet], I1, I2, coreE);
         }

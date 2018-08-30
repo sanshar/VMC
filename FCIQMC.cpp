@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
                        walkerPopTot, EProjTot, HFAmpTot, nDetsTot, nSpawnedDetsTot);
   walkerPopOldTot = walkerPopTot; 
   printDataTableHeader();
-  printDataTable(0, nDetsTot, nSpawnedDetsTot, Eshift, walkerPopTot, EProj, HFAmp, iter_time);
+  printDataTable(0, nDetsTot, nSpawnedDetsTot, Eshift, walkerPopTot, EProjTot, HFAmpTot, iter_time);
 
   // Main FCIQMC loop
   for (int iter = 1; iter <= schd.maxIter; iter++) {
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
 
     // Loop over all walkers/determinants
     for (int iDet=0; iDet<walkers.nDets; iDet++) {
-      // Is this unoccupied?
+      // Is this unoccupied? If so, add to the list of empty slots
       if (abs(walkers.amps[iDet]) < 1.0e-12) {
         walkers.lastEmpty += 1;
         walkers.emptyDets[walkers.lastEmpty] = iDet;
