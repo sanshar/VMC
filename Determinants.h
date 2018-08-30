@@ -23,6 +23,7 @@
 #include <iostream>
 #include <vector>
 #include <boost/serialization/serialization.hpp>
+#include <boost/functional/hash.hpp>
 #include <Eigen/Dense>
 
 
@@ -329,9 +330,8 @@ class Determinant {
   int getProc() {
     std::size_t h_tot = 0;
     for (int i=0; i<DetLen; i++) {
-      std::size_t const h1 ( std::hash<long>{}(reprA[i]) );
-      std::size_t const h2 ( std::hash<long>{}(reprB[i]) );
-      h_tot = h_tot ^ h1 ^ (h2 << 1);
+      boost::hash_combine(h_tot, reprA[i]);
+      boost::hash_combine(h_tot, reprB[i]);
     }
     return h_tot % commsize;
   }
@@ -388,16 +388,15 @@ double getParityForDiceToAlphaBeta(Determinant& det);
 
 template<> struct hash<Determinant>
 {
-    std::size_t operator()(Determinant const& d) const noexcept
-    {
-        std::size_t h_tot = 0;
-        for (int i=0; i<DetLen; i++) {
-            std::size_t const h1 ( std::hash<long>{}(d.reprA[i]) );
-            std::size_t const h2 ( std::hash<long>{}(d.reprB[i]) );
-            h_tot = h_tot ^ h1 ^ (h2 << 1);
-        }
-        return h_tot;
+  std::size_t operator()(Determinant const& d) const noexcept
+  {
+    std::size_t h_tot = 0;
+    for (int i=0; i<DetLen; i++) {
+      boost::hash_combine(h_tot, d.reprA[i]);
+      boost::hash_combine(h_tot, d.reprB[i]);
     }
+    return h_tot;
+  }
 };
 
 #endif
