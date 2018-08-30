@@ -54,9 +54,9 @@ class spawnFCIQMC {
   // The number of determinants spawned to
   int nDets;
   // The list of determinants spawned to
-  vector<std::array<long, 2*DetLen> > dets;
+  vector<simpleDet> dets;
   // Temporary space for communication and sorting
-  vector<std::array<long, 2*DetLen> > detsTemp;
+  vector<simpleDet> detsTemp;
   // The amplitudes of spawned walkers
   vector<double> amps;
   vector<double> ampsTemp;
@@ -162,7 +162,7 @@ class spawnFCIQMC {
 
     if (nDets > 0) {
       // Perform sort
-      auto p = sort_permutation(nDets, detsTemp, [](std::array<long, 2*DetLen> const& a, array<long, 2*DetLen> const& b){ return (a < b); });
+      auto p = sort_permutation(nDets, detsTemp, [](simpleDet const& a, simpleDet const& b){ return (a < b); });
       apply_permutation( nDets, detsTemp, dets, p );
       apply_permutation( nDets, ampsTemp, amps, p );
   

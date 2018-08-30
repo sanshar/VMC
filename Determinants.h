@@ -41,8 +41,8 @@ inline int BitCount (long x)
   return (x * 0x0101010101010101ULL) >> 56;
 }
 
-
-
+// Just the determinant bit string, stored in a contiguous array
+typedef std::array<long, 2*DetLen> simpleDet;
 
 /**
 * This is the occupation number representation of a Determinants
@@ -81,7 +81,7 @@ class Determinant {
     }
   }
 
-  Determinant(const std::array<long, 2*DetLen> combined) {
+  Determinant(const simpleDet combined) {
     for (int i=0; i<DetLen; i++) {
       reprA[i] = combined[i];
     }
@@ -336,8 +336,8 @@ class Determinant {
     return h_tot % commsize;
   }
 
-  std::array<long, 2*DetLen> combineDet() {
-    std::array<long, 2*DetLen> combined;
+  simpleDet combineDet() {
+    simpleDet combined;
     for (int i=0; i<DetLen; i++) {
       combined[i] = reprA[i];
     }
