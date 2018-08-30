@@ -172,6 +172,11 @@ int main(int argc, char *argv[])
   double Eshift = HFDet.Energy(I1, I2, coreE) + schd.initialShift;
   // -----------------------
 
+  if (commrank == 0) {
+    cout << "Number of processors: " << commsize << endl;
+    cout << "Hartree--Fock energy: " << HFDet.Energy(I1, I2, coreE) << endl << endl;
+  }
+
   // Get and print the initial stats
   walkers.calcStats(HFDet, walkerPop, EProj, HFAmp, I1, I2, coreE);
   communicateEstimates(walkerPop, EProj, HFAmp, walkers.nDets, spawn.nDets,
