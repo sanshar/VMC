@@ -70,6 +70,7 @@ class spawnFCIQMC {
   // the next spawned walker to a given processor
   vector<int> currProcSlots;
 
+
   spawnFCIQMC(int spawnSize) {
     nDets = 0;
     dets.resize(spawnSize);
@@ -97,18 +98,13 @@ class spawnFCIQMC {
       ampsTemp[i] = amps[i];
     }
 #else
-    //for (int proc=0; proc<commsize; proc++) {
-    //  cout << "Processor: " << proc << endl;
-    //  for (int i=firstProcSlots[proc]; i<currProcSlots[proc]; i++) {
-    //    cout << i << "    " << dets[i] << "    "  << amps[i] << endl;
-    //  }
-    //}
-
     int sendCounts[commsize], recvCounts[commsize];
     int sendDispls[commsize], recvDispls[commsize];
     int sendCountsDets[commsize], recvCountsDets[commsize];
     int sendDisplsDets[commsize], recvDisplsDets[commsize];
 
+    // The number of determinants to send to each processor, and their
+    // displacements in the spawning list
     for (int proc=0; proc<commsize; proc++) {
       sendCounts[proc] = currProcSlots[proc] - firstProcSlots[proc];
       sendDispls[proc] = firstProcSlots[proc];
@@ -132,13 +128,6 @@ class spawnFCIQMC {
       recvDisplsDets[proc] = recvDispls[proc] * 2*DetLen;
     }
 
-    //for (int proc=0; proc<commsize; proc++) {
-    //  cout << proc << "  " << "sendCounts: " << sendCounts[proc] << endl;
-    //  cout << proc << "  " << "sendDispls: " << sendDispls[proc] << endl;
-    //  cout << proc << "  " << "recvCounts: " << recvCounts[proc] << endl;
-    //  cout << proc << "  " << "recvDispls: " << recvDispls[proc] << endl;
-    //}
-
     MPI_Alltoallv(&dets.front(), sendCountsDets, sendDisplsDets, MPI_LONG,
                   &detsTemp.front(), recvCountsDets, recvDisplsDets, MPI_LONG, MPI_COMM_WORLD);
 
@@ -147,12 +136,6 @@ class spawnFCIQMC {
 
     // The total number of determinants received
     nDets = recvDispls[commsize-1] + recvCounts[commsize-1];
-
-    //for (int i=0; i<nDets; i++) {
-    //  cout << i << "    " << detsTemp[i] << "    " << ampsTemp[i] << endl;
-    //}
-    //cout << "END OF COMMUNICATE  " << commrank << endl << endl << endl;
-    //MPI_Barrier(MPI_COMM_WORLD);
 #endif
   }
   

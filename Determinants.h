@@ -336,7 +336,7 @@ class Determinant {
     return h_tot % commsize;
   }
 
-  simpleDet combineDet() {
+  simpleDet getSimpleDet() {
     simpleDet combined;
     for (int i=0; i<DetLen; i++) {
       combined[i] = reprA[i];

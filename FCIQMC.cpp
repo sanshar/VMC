@@ -83,6 +83,10 @@ void printDataTable(int iter, int& nDets, int& nSpawned,
                     double& shift, double& walkerPop, double& EProj,
                     double& HFAmp, double& iter_time);
 
+void printFinalStats(const double& walkerPop, const int& nDets,
+                     const int& nSpawnDets, const double& total_time);
+
+
 int main(int argc, char *argv[])
 {
 #ifndef SERIAL
@@ -160,7 +164,7 @@ int main(int argc, char *argv[])
 
   int excitLevel = 0, nAttempts = 0;
   double EProj = 0.0, HFAmp = 0.0, pgen = 0.0, parentAmp = 0.0, walkerPop = 0.0;
-  double time_start = 0.0, time_end = 0.0, iter_time = 0.0;
+  double time_start = 0.0, time_end = 0.0, iter_time = 0.0, total_time = 0.0;
   bool varyShift = false;
   Determinant childDet;
 
@@ -168,9 +172,6 @@ int main(int argc, char *argv[])
   double EProjTot = 0.0, HFAmpTot = schd.initialPop;
   double Eshift = HFDet.Energy(I1, I2, coreE) + schd.initialShift;
   int nDetsTot = 1, nSpawnedDetsTot = 0;
-
-  int parallelReport[commsize];
-  double parallelReportD[commsize];
 
   printDataTableHeader();
   printDataTable(0, nDetsTot, nSpawnedDetsTot, Eshift, walkerPopTot, EProj, HFAmp, iter_time);
@@ -232,29 +233,8 @@ int main(int argc, char *argv[])
     iter_time = time_end - time_start;
   }
 
-  if (commrank == 0) {
-    cout << "# Total time:  " << getTime() - startofCalc << endl;
-  }
-
-#ifndef SERIAL
-  MPI_Gather(&walkerPop, 1, MPI_DOUBLE, &parallelReportD, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  if (commrank == 0) {
-    cout << "# Min # walkers on proc:   " << *min_element(parallelReportD, parallelReportD + commsize) << endl;
-    cout << "# Max # walkers on proc:   " << *max_element(parallelReportD, parallelReportD + commsize) << endl;
-  }
-
-  MPI_Gather(&walkers.nDets, 1, MPI_INT, &parallelReport, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  if (commrank == 0) {
-    cout << "# Min # determinants on proc:   " << *min_element(parallelReport, parallelReport + commsize) << endl;
-    cout << "# Max # determinants on proc:   " << *max_element(parallelReport, parallelReport + commsize) << endl;
-  }
-
-  MPI_Gather(&spawn.nDets, 1, MPI_INT, &parallelReport, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  if (commrank == 0) {
-    cout << "# Min # determinants spawned on proc:   " << *min_element(parallelReport, parallelReport + commsize) << endl;
-    cout << "# Max # determinants spawned on proc:   " << *max_element(parallelReport, parallelReport + commsize) << endl;
-  }
-#endif
+  total_time = getTime() - startofCalc;
+  printFinalStats(walkerPop, walkers.nDets, spawn.nDets, total_time);
 
   boost::interprocess::shared_memory_object::remove(shciint2.c_str());
   boost::interprocess::shared_memory_object::remove(shciint2shm.c_str());
@@ -485,11 +465,9 @@ void attemptSpawning(Determinant& parentDet, Determinant& childDet, spawnFCIQMC&
     // Find the appropriate place in the spawned list for the processor
     // of the newly-spawned walker
     int ind = spawn.currProcSlots[proc];
-    //spawn.dets[ind] = childDet;
-    spawn.dets[ind] = childDet.combineDet();
+    spawn.dets[ind] = childDet.getSimpleDet();
     spawn.amps[ind] = childAmp;
     spawn.currProcSlots[proc] += 1;
-    //spawn.nDets += 1;
   }
 }
 
@@ -562,4 +540,35 @@ void printDataTable(int iter, int& nDets, int& nSpawned,
     printf ("%18.10f   ", HFAmp);
     printf ("%8.4f\n", iter_time);
   }
+}
+
+void printFinalStats(const double& walkerPop, const int& nDets,
+                     const int& nSpawnDets, const double& total_time)
+{
+  int parallelReport[commsize];
+  double parallelReportD[commsize];
+
+  if (commrank == 0) {
+    cout << "# Total time:  " << getTime() - startofCalc << endl;
+  }
+
+#ifndef SERIAL
+  MPI_Gather(&walkerPop, 1, MPI_DOUBLE, &parallelReportD, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  if (commrank == 0) {
+    cout << "# Min # walkers on proc:   " << *min_element(parallelReportD, parallelReportD + commsize) << endl;
+    cout << "# Max # walkers on proc:   " << *max_element(parallelReportD, parallelReportD + commsize) << endl;
+  }
+
+  MPI_Gather(&nDets, 1, MPI_INT, &parallelReport, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  if (commrank == 0) {
+    cout << "# Min # determinants on proc:   " << *min_element(parallelReport, parallelReport + commsize) << endl;
+    cout << "# Max # determinants on proc:   " << *max_element(parallelReport, parallelReport + commsize) << endl;
+  }
+
+  MPI_Gather(&nSpawnDets, 1, MPI_INT, &parallelReport, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  if (commrank == 0) {
+    cout << "# Min # determinants spawned on proc:   " << *min_element(parallelReport, parallelReport + commsize) << endl;
+    cout << "# Max # determinants spawned on proc:   " << *max_element(parallelReport, parallelReport + commsize) << endl;
+  }
+#endif
 }
