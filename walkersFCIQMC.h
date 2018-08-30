@@ -70,7 +70,7 @@ class walkersFCIQMC {
     lastEmpty = -1;
   }
 
-  void stochasticRoundAll(const double& minPop, double& walkerPop) {
+  void stochasticRoundAll(const double& minPop) {
     bool keepDet;
     for (int iDet=0; iDet<nDets; iDet++) {
 
@@ -86,8 +86,6 @@ class walkersFCIQMC {
             emptyDets[lastEmpty] = iDet;
           }
         }
-        // Update the walker population
-        walkerPop += abs(amps[iDet]);
 
       } else {
         if (abs(amps[iDet]) > 1.0e-12) {
@@ -99,6 +97,34 @@ class walkersFCIQMC {
       }
 
     }
+  }
+
+  void calcStats(Determinant& HFDet, double& walkerPop, double& EProj, double& HFAmp,
+                 oneInt& I1, twoInt& I2, double& coreE) {
+
+    int excitLevel = 0;
+    walkerPop = 0.0;
+    EProj = 0.0;
+    HFAmp = 0.0;
+
+    for (int iDet=0; iDet<nDets; iDet++) {
+
+      // To be a valid walker in the main list, there must be a corresponding
+      // hash table entry *and* the amplitude must be non-zero
+      if ( ht.find(dets[iDet]) != ht.end() && abs(amps[iDet]) > 1.0e-12 ) {
+
+        walkerPop += abs(amps[iDet]);
+        excitLevel = HFDet.ExcitationDistance(dets[iDet]);
+
+        if (excitLevel == 0) {
+          HFAmp = amps[iDet];
+        } else if (excitLevel <= 2) {
+          EProj += amps[iDet] * Hij(HFDet, dets[iDet], I1, I2, coreE);
+        }
+
+      } // If a valid walker
+
+    } // Loop over all entries in list
   }
 
   // Print the determinants and hash table

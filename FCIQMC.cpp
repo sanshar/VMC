@@ -51,11 +51,6 @@ using namespace boost;
 using namespace std;
 
 
-void calcFCIQMCStats(int& iDet, int& excitLevel, std::vector<Determinant>& determinants,
-                     std::vector<double>& walkerAmps, Determinant& HFDet,
-                     double &EProj, double &HFAmp, oneInt &I1, twoInt &I2,
-                     twoIntHeatBathSHM &I2hb, double &coreE);
-
 void generateExcitation(Determinant& parentDet, Determinant& childDet, double& pgen);
 void generateSingleExcit(Determinant& parentDet, Determinant& childDet, double& pgen_ia);
 void generateDoubleExcit(Determinant& parentDet, Determinant& childDet, double& pgen_ijab);
@@ -162,20 +157,30 @@ int main(int argc, char *argv[])
     readDeterminants(schd.determinantFile, walkers.dets, walkers.amps);
   }
 
-  int excitLevel = 0, nAttempts = 0;
+  // ----- FCIQMC data -----
   double EProj = 0.0, HFAmp = 0.0, pgen = 0.0, parentAmp = 0.0, walkerPop = 0.0;
   double time_start = 0.0, time_end = 0.0, iter_time = 0.0, total_time = 0.0;
-  bool varyShift = false;
+
+  int nAttempts = 0;
   Determinant childDet;
 
-  double walkerPopTot = schd.initialPop, walkerPopOldTot = schd.initialPop;
-  double EProjTot = 0.0, HFAmpTot = schd.initialPop;
-  double Eshift = HFDet.Energy(I1, I2, coreE) + schd.initialShift;
-  int nDetsTot = 1, nSpawnedDetsTot = 0;
+  // Total quantities, after summing over processors
+  double walkerPopTot, walkerPopOldTot, EProjTot, HFAmpTot;
+  int nDetsTot, nSpawnedDetsTot;
 
+  bool varyShift = false;
+  double Eshift = HFDet.Energy(I1, I2, coreE) + schd.initialShift;
+  // -----------------------
+
+  // Get and print the initial stats
+  walkers.calcStats(HFDet, walkerPop, EProj, HFAmp, I1, I2, coreE);
+  communicateEstimates(walkerPop, EProj, HFAmp, walkers.nDets, spawn.nDets,
+                       walkerPopTot, EProjTot, HFAmpTot, nDetsTot, nSpawnedDetsTot);
+  walkerPopOldTot = walkerPopTot; 
   printDataTableHeader();
   printDataTable(0, nDetsTot, nSpawnedDetsTot, Eshift, walkerPopTot, EProj, HFAmp, iter_time);
 
+  // Main FCIQMC loop
   for (int iter = 1; iter <= schd.maxIter; iter++) {
     time_start = getTime();
 
@@ -198,9 +203,6 @@ int main(int argc, char *argv[])
         continue;
       }
 
-      excitLevel = HFDet.ExcitationDistance(walkers.dets[iDet]);
-      calcFCIQMCStats(iDet, excitLevel, walkers.dets, walkers.amps, HFDet, EProj, HFAmp, I1, I2, I2HBSHM, coreE);
-
       // Number of spawnings to attempt
       nAttempts = max(1.0, round(walkers.amps[iDet] * schd.nAttemptsEach));
       parentAmp = walkers.amps[iDet] * schd.nAttemptsEach / nAttempts;
@@ -220,8 +222,9 @@ int main(int argc, char *argv[])
     spawn.compress();
     spawn.mergeIntoMain(walkers, schd.minPop);
     // Stochastic rounding of small walkers
-    walkers.stochasticRoundAll(schd.minPop, walkerPop);
+    walkers.stochasticRoundAll(schd.minPop);
 
+    walkers.calcStats(HFDet, walkerPop, EProj, HFAmp, I1, I2, coreE);
     communicateEstimates(walkerPop, EProj, HFAmp, walkers.nDets, spawn.nDets,
                          walkerPopTot, EProjTot, HFAmpTot, nDetsTot, nSpawnedDetsTot);
     updateShift(Eshift, varyShift, walkerPopTot, walkerPopOldTot, schd.targetPop, schd.shiftDamping, schd.tau);
@@ -241,18 +244,6 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-
-void calcFCIQMCStats(int& iDet, int& excitLevel, std::vector<Determinant>& determinants,
-                     std::vector<double>& walkerAmps, Determinant& HFDet,
-                     double &EProj, double &HFAmp, oneInt &I1, twoInt &I2,
-                     twoIntHeatBathSHM &I2hb, double &coreE)
-{
-  if (excitLevel == 0) {
-    HFAmp = walkerAmps[iDet];
-  } else if (excitLevel <= 2) {
-    EProj += walkerAmps[iDet] * Hij(HFDet, determinants[iDet], I1, I2, coreE);
-  }
-}
 
 // Generate a random single or double excitation, and also return the
 // probability that it was generated
@@ -506,7 +497,6 @@ void updateShift(double& Eshift, bool& varyShift, double& walkerPop,
   if ((!varyShift) && walkerPop > targetPop) {
     varyShift = true;
   }
-
   if (varyShift) {
     Eshift = Eshift - (shiftDamping/tau) * log(walkerPop/walkerPopOld);
   }
