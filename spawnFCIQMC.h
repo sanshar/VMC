@@ -183,7 +183,7 @@ class spawnFCIQMC {
   }
   
   // Move spawned walkers to the provided main walker list
-  void mergeIntoMain(walkersFCIQMC& walkers, double& minPop) {
+  void mergeIntoMain(walkersFCIQMC& walkers, const double& minPop) {
 
     int pos;
     bool keepDet;

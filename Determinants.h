@@ -110,7 +110,7 @@ class Determinant {
                                std::vector<int>& closedAlpha,
                                std::vector<int>& openBeta,
                                std::vector<int>& closedBeta
-                             ) {
+                             ) const {
     for (int i=0; i<norbs; i++) {
       if ( getoccA(i)) closedAlpha.push_back(i);
       else openAlpha.push_back(i);
@@ -128,7 +128,7 @@ class Determinant {
 
   double Energy(oneInt& I1, twoInt& I2, double& coreE);
 
-  int getNbetaBefore(int i) {
+  int getNbetaBefore(int i) const {
     int occ = 0;
     for (int n = 0; n < i/64; n++) {
       occ += BitCount(reprB[n]);
@@ -139,7 +139,7 @@ class Determinant {
     return occ;
   }
 
-  int getNalphaBefore(int i) {
+  int getNalphaBefore(int i) const {
     int occ = 0;
     for (int n = 0; n < i/64; n++) {
       occ += BitCount(reprA[n]);
@@ -170,7 +170,7 @@ class Determinant {
     return;
   }
 
-  double parityA(vector<int>& aArray, vector<int>& iArray)
+  double parityA(vector<int>& aArray, vector<int>& iArray) const
   {
     double p = 1.;
     Determinant dcopy = *this;
@@ -184,7 +184,7 @@ class Determinant {
     return p;
   }
 
-  double parityB(vector<int>& aArray, vector<int>& iArray)
+  double parityB(vector<int>& aArray, vector<int>& iArray) const
   {
     double p = 1.;
     Determinant dcopy = *this;
@@ -327,7 +327,7 @@ class Determinant {
   }
 
   // Get unique processor label for this determinant
-  int getProc() {
+  int getProc() const {
     std::size_t h_tot = 0;
     for (int i=0; i<DetLen; i++) {
       boost::hash_combine(h_tot, reprA[i]);
@@ -336,7 +336,8 @@ class Determinant {
     return h_tot % commsize;
   }
 
-  simpleDet getSimpleDet() {
+  // Return simplified version of determinant 
+  simpleDet getSimpleDet() const {
     simpleDet combined;
     for (int i=0; i<DetLen; i++) {
       combined[i] = reprA[i];

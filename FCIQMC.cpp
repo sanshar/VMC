@@ -51,32 +51,31 @@ using namespace boost;
 using namespace std;
 
 
-void generateExcitation(Determinant& parentDet, Determinant& childDet, double& pgen);
-void generateSingleExcit(Determinant& parentDet, Determinant& childDet, double& pgen_ia);
-void generateDoubleExcit(Determinant& parentDet, Determinant& childDet, double& pgen_ijab);
+void generateExcitation(const Determinant& parentDet, Determinant& childDet, double& pgen);
+void generateSingleExcit(const Determinant& parentDet, Determinant& childDet, double& pgen_ia);
+void generateDoubleExcit(const Determinant& parentDet, Determinant& childDet, double& pgen_ijab);
 
 void attemptSpawning(Determinant& parentDet, Determinant& childDet, spawnFCIQMC& spawn,
-                     oneInt &I1, twoInt &I2, twoIntHeatBathSHM &I2hb,
-                     double& coreE, int& nAttemptsEach, double& parentAmp,
-                     double& tau, double& minSpawn, double& pgen);
+                     oneInt &I1, twoInt &I2, double& coreE, const int& nAttemptsEach, const double& parentAmp,
+                     const double& tau, const double& minSpawn, const double& pgen);
 
 void performDeath(Determinant& parentDet, double& detPopulation, oneInt &I1, twoInt &I2,
-                  twoIntHeatBathSHM &I2hb, double& coreE, double& Eshift, double& tau);
+                  double& coreE, const double& Eshift, const double& tau);
 
 void communicateEstimates(const double& walkerPop, const double& EProj, const double& HFAmp,
                           const int& nDets, const int& nSpawnedDets,
                           double& walkerPopTot, double& EProjTot, double& HFAmpTot,
                           int& nDetsTot, int& nSpawnedDetsTot);
 
-void updateShift(double& Eshift, bool& varyShift, double& walkerPop,
-                 double& walkerPopOld, double& targetPop,
-                 double& shiftDamping, double& tau);
+void updateShift(double& Eshift, bool& varyShift, const double& walkerPop,
+                 const double& walkerPopOld, const double& targetPop,
+                 const double& shiftDamping, const double& tau);
 
 void printDataTableHeader();
 
-void printDataTable(int iter, int& nDets, int& nSpawned,
-                    double& shift, double& walkerPop, double& EProj,
-                    double& HFAmp, double& iter_time);
+void printDataTable(const int iter, const int& nDets, const int& nSpawned,
+                    const double& shift, const double& walkerPop, const double& EProj,
+                    const double& HFAmp, const double& iter_time);
 
 void printFinalStats(const double& walkerPop, const int& nDets,
                      const int& nSpawnDets, const double& total_time);
@@ -216,10 +215,10 @@ int main(int argc, char *argv[])
       for (int iAttempt=0; iAttempt<nAttempts; iAttempt++) {
         generateExcitation(walkers.dets[iDet], childDet, pgen);
 
-        attemptSpawning(walkers.dets[iDet], childDet, spawn, I1, I2, I2HBSHM, coreE,
+        attemptSpawning(walkers.dets[iDet], childDet, spawn, I1, I2, coreE,
                         schd.nAttemptsEach, parentAmp, schd.tau, schd.minSpawn, pgen);
       }
-      performDeath(walkers.dets[iDet], walkers.amps[iDet], I1, I2, I2HBSHM, coreE, Eshift, schd.tau);
+      performDeath(walkers.dets[iDet], walkers.amps[iDet], I1, I2, coreE, Eshift, schd.tau);
     }
 
     // Perform annihilation
@@ -252,7 +251,7 @@ int main(int argc, char *argv[])
 
 // Generate a random single or double excitation, and also return the
 // probability that it was generated
-void generateExcitation(Determinant& parentDet, Determinant& childDet, double& pgen)
+void generateExcitation(const Determinant& parentDet, Determinant& childDet, double& pgen)
 {
   double pSingle = 0.05;
   double pgen_ia, pgen_ijab;
@@ -271,7 +270,7 @@ void generateExcitation(Determinant& parentDet, Determinant& childDet, double& p
 
 // Generate a random single excitation, and also return the probability that
 // it was generated
-void generateSingleExcit(Determinant& parentDet, Determinant& childDet, double& pgen_ia)
+void generateSingleExcit(const Determinant& parentDet, Determinant& childDet, double& pgen_ia)
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
@@ -321,7 +320,7 @@ void generateSingleExcit(Determinant& parentDet, Determinant& childDet, double& 
 
 // Generate a random double excitation, and also return the probability that
 // it was generated
-void generateDoubleExcit(Determinant& parentDet, Determinant& childDet, double& pgen_ijab)
+void generateDoubleExcit(const Determinant& parentDet, Determinant& childDet, double& pgen_ijab)
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
@@ -442,9 +441,8 @@ void generateDoubleExcit(Determinant& parentDet, Determinant& childDet, double& 
 // If it is above amin threshold, then always spawn
 // Otherwsie, stochastically round it up to the threshold or down to 0
 void attemptSpawning(Determinant& parentDet, Determinant& childDet, spawnFCIQMC& spawn,
-                     oneInt &I1, twoInt &I2, twoIntHeatBathSHM &I2hb,
-                     double& coreE, int& nAttemptsEach, double& parentAmp,
-                     double& tau, double& minSpawn, double& pgen)
+                     oneInt &I1, twoInt &I2, double& coreE, const int& nAttemptsEach, const double& parentAmp,
+                     const double& tau, const double& minSpawn, const double& pgen)
 {
   bool childSpawned = true;
 
@@ -468,7 +466,7 @@ void attemptSpawning(Determinant& parentDet, Determinant& childDet, spawnFCIQMC&
 }
 
 void performDeath(Determinant& parentDet, double& detPopulation, oneInt &I1, twoInt &I2,
-                  twoIntHeatBathSHM &I2hb, double& coreE, double& Eshift, double& tau)
+                  double& coreE, const double& Eshift, const double& tau)
 {
   double parentE = parentDet.Energy(I1, I2, coreE);
   double fac = tau * ( parentE - Eshift );
@@ -495,9 +493,9 @@ void communicateEstimates(const double& walkerPop, const double& EProj, const do
 #endif
 }
 
-void updateShift(double& Eshift, bool& varyShift, double& walkerPop,
-                 double& walkerPopOld, double& targetPop,
-                 double& shiftDamping, double& tau)
+void updateShift(double& Eshift, bool& varyShift, const double& walkerPop,
+                 const double& walkerPopOld, const double& targetPop,
+                 const double& shiftDamping, const double& tau)
 {
   if ((!varyShift) && walkerPop > targetPop) {
     varyShift = true;
@@ -521,9 +519,9 @@ void printDataTableHeader()
   }
 }
 
-void printDataTable(int iter, int& nDets, int& nSpawned,
-                    double& shift, double& walkerPop, double& EProj,
-                    double& HFAmp, double& iter_time)
+void printDataTable(const int iter, const int& nDets, const int& nSpawned,
+                    const double& shift, const double& walkerPop, const double& EProj,
+                    const double& HFAmp, const double& iter_time)
 {
   if (commrank == 0) {
     printf ("%10d   ", iter);
