@@ -334,7 +334,7 @@ void getStochasticEnergyContinuousTime(Wfn &w, Walker &walk, double &E0, double 
 
     iter++;
 
-    walk.updateWalker(w.getRef(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    walk.updateWalker(w.getRef(), w.getCPS(), work.excitation1[nextDet], work.excitation2[nextDet]);
     w.HamAndOvlp(walk, ovlp, ham, work);
   }
 
@@ -403,7 +403,7 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
                                    nextDetRandom) - work.ovlpRatio.begin();
 
     transIter++;
-    walk.updateWalker(w.getRef(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    walk.updateWalker(w.getRef(), w.getCPS(), work.excitation1[nextDet], work.excitation2[nextDet]);
     w.HamAndOvlpLanczos(walk, coeffsSample, ovlpSample, work, moreWork, alpha);
   }
 
@@ -434,7 +434,7 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
 
     iter++;
 
-    walk.updateWalker(w.getRef(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    walk.updateWalker(w.getRef(), w.getCPS(), work.excitation1[nextDet], work.excitation2[nextDet]);
     w.HamAndOvlpLanczos(walk, coeffsSample, ovlpSample, work, moreWork, alpha);
   }
   
@@ -555,7 +555,7 @@ void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &E0, doubl
     //cout << "before  " << walk.d << endl;
     //cout << "hftype  " << w.getRef().hftype << endl;
     //cout << w.getRef().determinants[0] << endl;
-    walk.updateWalker(w.getRef(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    walk.updateWalker(w.getRef(), w.getCPS(), work.excitation1[nextDet], work.excitation2[nextDet]);
     //cout << "after  " << walk.d << endl;
 
     w.HamAndOvlp(walk, ovlp, ham, work);
@@ -683,7 +683,7 @@ template<typename Wfn, typename Walker> void getStochasticGradientHessianContinu
 
     iter++;
 
-    walk.updateWalker(w.getRef(), excitation1[nextDet], excitation2[nextDet]);
+    walk.updateWalker(w.getRef(), w.getCPS(), excitation1[nextDet], excitation2[nextDet]);
 
     nExcitations = 0;
     
@@ -808,7 +808,7 @@ template<typename Wfn, typename Walker> void getStochasticGradientMetricContinuo
 
     iter++;
 
-    walk.updateWalker(w.getRef(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    walk.updateWalker(w.getRef(), w.getCPS(), work.excitation1[nextDet], work.excitation2[nextDet]);
 
     localdiagonalGrad.setZero();
     w.HamAndOvlp(walk, ovlp, ham, work);

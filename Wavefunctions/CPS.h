@@ -43,6 +43,8 @@ class CPS {
         & commonCorrelators;
   }
  public:
+  bool twoSiteOrSmaller;
+  
   std::vector<Correlator> cpsArray;  
   
   std::vector<std::vector<int>> mapFromOrbitalToCorrelator;

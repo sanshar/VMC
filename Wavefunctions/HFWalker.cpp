@@ -30,13 +30,14 @@
 using namespace Eigen;
 
 
-HFWalker::HFWalker(const Slater &w) 
+HFWalker::HFWalker(const Slater &w, const CPS &cps) 
 {
   initDet(w.getHforbsA(), w.getHforbsB());
   helper = HFWalkerHelper(w, d);
+  cpshelper = CPSWalkerHelper(cps, d);
 }
 
-HFWalker::HFWalker(const Slater &w, const Determinant &pd) : d(pd), helper(w, pd) {}; 
+HFWalker::HFWalker(const Slater &w, const CPS& cps, const Determinant &pd) : d(pd), helper(w, pd), cpshelper(cps, pd) {}; 
 
 void HFWalker::readBestDeterminant(Determinant& d) const 
 {
@@ -179,7 +180,7 @@ double HFWalker::getDetFactor(int i, int j, int a, int b, bool sz1, bool sz2, co
   return detFactorNum / detFactorDen;
 }
 
-void HFWalker::update(int i, int a, bool sz, const Slater &w, bool doparity)
+void HFWalker::update(int i, int a, bool sz, const Slater &w, const CPS &cps, bool doparity)
 {
   double p = 1.0;
   if (doparity) p *= d.parity(a, i, sz);
@@ -195,9 +196,11 @@ void HFWalker::update(int i, int a, bool sz, const Slater &w, bool doparity)
     vector<int> cre{ a }, des{ i };
     helper.excitationUpdate(w, cre, des, sz, p, d);
   }
+
+  cpshelper.updateHelper(cps, d);
 }
 
-void HFWalker::update(int i, int j, int a, int b, bool sz, const Slater &w, bool doparity)
+void HFWalker::update(int i, int j, int a, int b, bool sz, const Slater &w, const CPS& cps, bool doparity)
 {
   double p = 1.0;
   Determinant dcopy = d;
@@ -216,53 +219,54 @@ void HFWalker::update(int i, int j, int a, int b, bool sz, const Slater &w, bool
     vector<int> cre{ a, b }, des{ i, j };
     helper.excitationUpdate(w, cre, des, sz, p, d);
   }
+  cpshelper.updateHelper(cps, d);
 }
 
-void HFWalker::updateWalker(const Slater& w, int ex1, int ex2, bool doparity)
+void HFWalker::updateWalker(const Slater& w, const CPS& cps, int ex1, int ex2, bool doparity)
 {
   int norbs = Determinant::norbs;
   int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
   int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
   if (I % 2 == J % 2 && ex2 != 0) {
     if (I % 2 == 1) {
-      update(I / 2, J / 2, A / 2, B / 2, 1, w, doparity);
+      update(I / 2, J / 2, A / 2, B / 2, 1, w, cps, doparity);
     }
     else {
-      update(I / 2, J / 2, A / 2, B / 2, 0, w, doparity);
+      update(I / 2, J / 2, A / 2, B / 2, 0, w, cps, doparity);
     }
   }
   else {
     if (I % 2 == 0)
-      update(I / 2, A / 2, 0, w, doparity);
+      update(I / 2, A / 2, 0, w, cps, doparity);
     else
-      update(I / 2, A / 2, 1, w, doparity);
+      update(I / 2, A / 2, 1, w, cps, doparity);
 
     if (ex2 != 0) {
       if (J % 2 == 1) {
-        update(J / 2, B / 2, 1, w, doparity);
+        update(J / 2, B / 2, 1, w, cps, doparity);
       }
       else {
-        update(J / 2, B / 2, 0, w, doparity);
+        update(J / 2, B / 2, 0, w, cps, doparity);
       }
     }
   }
 }
 
-void HFWalker::exciteWalker(const Slater& w, int excite1, int excite2, int norbs)
+void HFWalker::exciteWalker(const Slater& w, const CPS& cps, int excite1, int excite2, int norbs)
 {
   int I1 = excite1 / (2 * norbs), A1 = excite1 % (2 * norbs);
 
   if (I1 % 2 == 0)
-    update(I1 / 2, A1 / 2, 0, w);
+    update(I1 / 2, A1 / 2, 0, w, cps);
   else
-    update(I1 / 2, A1 / 2, 1, w);
+    update(I1 / 2, A1 / 2, 1, w, cps);
 
   if (excite2 != 0) {
     int I2 = excite2 / (2 * norbs), A2 = excite2 % (2 * norbs);
     if (I2 % 2 == 0)
-      update(I2 / 2, A2 / 2, 0, w);
+      update(I2 / 2, A2 / 2, 0, w, cps);
     else
-      update(I2 / 2, A2 / 2, 1, w);
+      update(I2 / 2, A2 / 2, 1, w, cps);
   }
 }
 

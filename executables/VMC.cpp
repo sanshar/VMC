@@ -85,7 +85,8 @@ int main(int argc, char *argv[])
   
   else if (schd.wavefunctionType == "CICPSSlater") {
     CIWavefunction<CPSSlater, HFWalker, SpinFreeOperator> wave; HFWalker walk;
-    wave.appendSinglesToOpList(); wave.appendScreenedDoublesToOpList(0.0);
+    wave.appendSinglesToOpList(1.0);
+    wave.appendScreenedDoublesToOpList(1.0);
     runVMC(wave, walk);
   }
   

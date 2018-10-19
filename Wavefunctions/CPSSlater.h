@@ -53,6 +53,7 @@ class CPSSlater {
    double getJastrowFactor(int i, int a, Determinant &dcopy, Determinant &d) const ;
    double getJastrowFactor(int i, int j, int a, int b, Determinant &dcopy, Determinant &d) const;
    Slater& getRef() { return slater; }
+   CPS& getCPS() { return cps; }
 
    CPSSlater();
    void initWalker(HFWalker &walk) const ;

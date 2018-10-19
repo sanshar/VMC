@@ -45,12 +45,14 @@ CPSAGP::CPSAGP() {
 
 void CPSAGP::initWalker(AGPWalker &walk)
 {
-  agp.initWalker(walk);
+  walk = AGPWalker(agp, cps);
+  //agp.initWalker(walk);
 }
 
 void CPSAGP::initWalker(AGPWalker &walk, Determinant &d)
 {
-  agp.initWalker(walk, d);
+  walk = AGPWalker(agp, cps, d);
+  //agp.initWalker(walk, d);
 }
 
 double CPSAGP::Overlap(AGPWalker &walk)

@@ -47,15 +47,15 @@ Slater::Slater()
 
 int Slater::getNumOfDets() const {return determinants.size();}
 
-void Slater::initWalker(HFWalker &walk) const 
-{
-  walk = HFWalker(*this);
-}
+//void Slater::initWalker(HFWalker &walk) const 
+//{
+//walk = HFWalker(*this);
+//}
 
-void Slater::initWalker(HFWalker &walk, const Determinant &d) const
-{
-  walk = HFWalker(*this, d);
-}
+//void Slater::initWalker(HFWalker &walk, const Determinant &d) const
+//{
+//walk = HFWalker(*this, d);
+//}
 
 void Slater::initHforbs() 
 {

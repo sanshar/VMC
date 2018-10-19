@@ -20,6 +20,7 @@
 #define AGPWalker_HEADER_H
 
 #include "Determinants.h"
+#include "CPSWalkerHelper.h"
 #include <array>
 
 
@@ -78,16 +79,17 @@ class AGPWalker
 public:
   Determinant d; //The current determinant
   AGPWalkerHelper helper;  
-
+  CPSWalkerHelper cpshelper;
+  
   /**
    * constructors
    */
   //AGPWalker(Determinant &pd);
   AGPWalker() {};
 
-  AGPWalker(const AGP &w); 
+  AGPWalker(const AGP &w, const CPS& cps); 
     
-  AGPWalker(const AGP &w, const Determinant &pd);
+  AGPWalker(const AGP &w, const CPS& cps, const Determinant &pd);
 
   /**
    * reads dets from 'BesetDeterminant.txt'
@@ -116,12 +118,12 @@ public:
   double getDetFactor(int i, int j, int a, int b, bool sz1, bool sz2, const AGP &w) const;
 
   //updates det and helpers afterspatial orb excitations i->a, j->b with spin sz
-  void update(int i, int a, bool sz, const AGP &w);
-  void update(int i, int j, int a, int b, bool sz, const AGP &w);
+  void update(int i, int a, bool sz, const AGP &w, const CPS& cps);
+  void update(int i, int j, int a, int b, bool sz, const AGP &w, const CPS& cps);
  
   //ex1 and ex2 are spin related indices
-  void updateWalker(const AGP& w, int ex1, int ex2);
-  void exciteWalker(const AGP& w, int excite1, int excite2, int norbs);
+  void updateWalker(const AGP& w, const CPS& cps, int ex1, int ex2);
+  void exciteWalker(const AGP& w, const CPS& cps, int excite1, int excite2, int norbs);
 
   bool operator<(const AGPWalker &w) const { return d < w.d; }
   bool operator==(const AGPWalker &w) const { return d == w.d; }

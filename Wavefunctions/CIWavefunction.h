@@ -79,10 +79,11 @@ template <typename Wfn, typename Walker, typename OpType>
 
 
   Slater& getRef() { return wave.getRef(); }
+  CPS& getCPS() { return wave.getCPS(); }
 
-  void appendSinglesToOpList()
+  void appendSinglesToOpList(double screen = 1.0)
   {
-    OpType::populateSinglesToOpList(oplist, ciCoeffs);
+    OpType::populateSinglesToOpList(oplist, ciCoeffs, screen);
     ciCoeffs.resize(oplist.size(), 0.0);
   }
 
@@ -151,12 +152,12 @@ template <typename Wfn, typename Walker, typename OpType>
     int norbs = Determinant::norbs;
     if (J == 0 && B == 0) {
       Walker walkcopy = walk;
-      walkcopy.exciteWalker(wave.getRef(), I*2*norbs+A, 0, norbs);
+      walkcopy.exciteWalker(wave.getRef(), wave.getCPS(), I*2*norbs+A, 0, norbs);
       return Overlap(walkcopy)/Overlap(walk);
     }
     else {
       Walker walkcopy = walk;
-      walkcopy.exciteWalker(wave.getRef(), I*2*norbs+A, J*2*norbs+B, norbs);
+      walkcopy.exciteWalker(wave.getRef(), wave.getCPS(), I*2*norbs+A, J*2*norbs+B, norbs);
       return Overlap(walkcopy)/Overlap(walk);
     }
   }
@@ -239,7 +240,7 @@ template <typename Wfn, typename Walker, typename OpType>
       int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
 
       Walker walkcopy = walk;
-      walkcopy.exciteWalker(wave.getRef(), ex1, ex2, norbs);
+      walkcopy.exciteWalker(wave.getRef(), wave.getCPS(), ex1, ex2, norbs);
       double ovlpdetcopy = Overlap(walkcopy);
 
       ham += tia * ovlpdetcopy / ovlp;
@@ -318,7 +319,7 @@ template <typename Wfn, typename Walker>
     CIWavefunction<Wfn, Walker, Operator>(w1, pop);
   }
 
-  void appendSinglesToOpList()
+  void appendSinglesToOpList(double screen = 0.0)
   {
     Operator::populateSinglesToOpList(this->oplist, this->ciCoeffs);
     //ciCoeffs.resize(oplist.size(), 0.0);
@@ -493,7 +494,7 @@ template <typename Wfn, typename Walker>
 		  if (abs(tia) > THRESH)
 		    {
 		      Walker walkcopy = walk;
-		      walkcopy.exciteWalker(this->wave.getRef(), closed[i]*2*norbs+open[a], 0, norbs);
+		      walkcopy.exciteWalker(this->wave.getRef(), this->wave.getCPS(), closed[i]*2*norbs+open[a], 0, norbs);
 		      double ovlpdetcopy = Overlap(walkcopy);
 		      ham += ovlpdetcopy * tia / ovlp;
 
@@ -543,7 +544,7 @@ template <typename Wfn, typename Walker>
 		  double tiajb = integrals[index];
 
 		  Walker walkcopy = walk;
-		  walkcopy.exciteWalker(this->wave.getRef(), closed[i] * 2 * norbs + a, closed[j] * 2 * norbs + b, norbs);
+		  walkcopy.exciteWalker(this->wave.getRef(), this->wave.getCPS(), closed[i] * 2 * norbs + a, closed[j] * 2 * norbs + b, norbs);
 		  double ovlpdetcopy = Overlap(walkcopy);
 
 		  double parity = 1.0;

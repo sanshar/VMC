@@ -45,12 +45,12 @@ CPSSlater::CPSSlater() {
 
 void CPSSlater::initWalker(HFWalker &walk) const
 {
-  slater.initWalker(walk);
+  walk = HFWalker(slater, cps);
 }
 
 void CPSSlater::initWalker(HFWalker &walk, Determinant &d) const 
 {
-  slater.initWalker(walk, d);
+  walk = HFWalker(slater, cps, d);
 }
 
 double CPSSlater::Overlap(const HFWalker &walk) const
@@ -90,7 +90,9 @@ double CPSSlater::getOverlapFactor(int i, int a, const HFWalker& walk, bool dopa
   Determinant dcopy = walk.d;
   dcopy.setocc(i, false);
   dcopy.setocc(a, true);
-  return cps.OverlapRatio(i/2, a/2, dcopy, walk.d) * slater.OverlapRatio(i, a, walk, doparity); 
+      
+  return walk.cpshelper.OverlapRatio(i, a, cps, dcopy, walk.d) * slater.OverlapRatio(i, a, walk, doparity); 
+  //return cps.OverlapRatio(i/2, a/2, dcopy, walk.d) * slater.OverlapRatio(i, a, walk, doparity); 
 }
 
 double CPSSlater::getOverlapFactor(int i, int a, const HFWalker& walk,
@@ -115,8 +117,14 @@ double CPSSlater::getOverlapFactor(int I, int J, int A, int B, const HFWalker& w
   dcopy.setocc(J, false);
   dcopy.setocc(A, true);
   dcopy.setocc(B, true);
-  return cps.OverlapRatio(I/2, J/2, A/2, B/2, dcopy, walk.d)
-      * slater.OverlapRatio(I, J, A, B, walk, doparity);
+
+  if (cps.twoSiteOrSmaller && I/2!=J/2 && I/2!=A/2 && I/2!= B/2 && J/2 != A/2 && J/2 != B/2 && A/2!=B/2)    
+    return walk.cpshelper.OverlapRatio(I, J, A, B, cps, dcopy, walk.d)
+        * slater.OverlapRatio(I, J, A, B, walk, doparity);
+  else
+    return cps.OverlapRatio(I/2, J/2, A/2, B/2, dcopy, walk.d)
+        * slater.OverlapRatio(I, J, A, B, walk, doparity);
+
 }
 
 double CPSSlater::getOverlapFactor(int I, int J, int A, int B, const HFWalker& walk,
@@ -230,9 +238,6 @@ void CPSSlater::HamAndOvlp(const HFWalker &walk,
   ovlp = Overlap(walk);
   ham = walk.d.Energy(I1, I2, coreE); 
 
-  BigDeterminant dbig(walk.d);
-  BigDeterminant dbigcopy = dbig;
- 
   work.setCounterToZero();
   generateAllScreenedSingleExcitation(walk.d, schd.epsilon, schd.screen,
                                       work, false);  
@@ -247,8 +252,8 @@ void CPSSlater::HamAndOvlp(const HFWalker &walk,
     int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
     int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
 
-    //double ovlpRatio = getOverlapFactor(I, J, A, B, walk, false);
-    double ovlpRatio = getOverlapFactor(I, J, A, B, walk, dbig, dbigcopy, false);
+    double ovlpRatio = getOverlapFactor(I, J, A, B, walk, false);
+    //double ovlpRatio = getOverlapFactor(I, J, A, B, walk, dbig, dbigcopy, false);
 
     /*
     double ovlpRatio = 1.0;
@@ -300,7 +305,7 @@ void CPSSlater::HamAndOvlpLanczos(HFWalker &walk,
   for (int i=0; i<work.nExcitations; i++) {
     double tia = work.HijElement[i];
     HFWalker walkCopy = walk;
-    walkCopy.updateWalker(slater, work.excitation1[i], work.excitation2[i], false);
+    walkCopy.updateWalker(slater, cps, work.excitation1[i], work.excitation2[i], false);
     moreWork.setCounterToZero();
     HamAndOvlp(walkCopy, ovlp0, el0, moreWork);
     ovlp1 = el0 * ovlp0;

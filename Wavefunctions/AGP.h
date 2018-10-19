@@ -52,8 +52,8 @@ class AGP {
     * constructor
     */
    AGP();
-   void initWalker(AGPWalker &walk) const;
-   void initWalker(AGPWalker &walk, const Determinant &d) const;
+  //void initWalker(AGPWalker &walk) const;
+  //void initWalker(AGPWalker &walk, const Determinant &d) const;
 
    /**
     * This calculates the overlap of the walker with the

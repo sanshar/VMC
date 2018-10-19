@@ -53,7 +53,8 @@ class CPSAGP {
    double getJastrowFactor(int i, int a, Determinant &dcopy, Determinant &d);
    double getJastrowFactor(int i, int j, int a, int b, Determinant &dcopy, Determinant &d);
    AGP& getRef() { return agp; }
-
+   CPS& getCPS() { return cps;}
+  
    CPSAGP();
    void initWalker(AGPWalker &walk);
    void initWalker(AGPWalker &walk, Determinant &d);

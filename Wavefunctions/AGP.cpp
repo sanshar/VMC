@@ -46,15 +46,15 @@ AGP::AGP()
   readPairMat(pairMat);
 }
 
-void AGP::initWalker(AGPWalker &walk) const 
-{
-  walk = AGPWalker(*this);
-}
+//void AGP::initWalker(AGPWalker &walk) const 
+//{
+//walk = AGPWalker(*this);
+//}
 
-void AGP::initWalker(AGPWalker &walk, const Determinant &d) const
-{
-  walk = AGPWalker(*this, d);
-}
+//void AGP::initWalker(AGPWalker &walk, const Determinant &d) const
+//{
+//walk = AGPWalker(*this, d);
+//}
 
 double AGP::Overlap(const AGPWalker &walk) const
 {

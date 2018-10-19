@@ -21,6 +21,7 @@
 
 #include "Determinants.h"
 #include "HFWalkerHelper.h"
+#include "CPSWalkerHelper.h"
 #include <array>
 
 using namespace Eigen;
@@ -44,13 +45,14 @@ struct HFWalker
 {
 
   Determinant d; //The current determinant
+  CPSWalkerHelper cpshelper; //all information to get overlap ratio of the cps
   HFWalkerHelper helper;  //allinformation about the slaterDeterminant
 
   HFWalker() {};
 
-  HFWalker(const Slater &w); 
+  HFWalker(const Slater &w, const CPS &cps); 
     
-  HFWalker(const Slater &w, const Determinant &pd);
+  HFWalker(const Slater &w, const CPS &cps, const Determinant &pd);
 
 
   /**
@@ -66,13 +68,14 @@ struct HFWalker
   void initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB); 
   
   const Determinant &getDet() const { return d; }
+
   
   //overlap with i th det in the wavefunction
   double getIndividualDetOverlap(int i) const { return helper.thetaDet[i][0] * helper.thetaDet[i][1]; }
   
   //get overlap with the reference
   double getDetOverlap(const Slater &w) const;
-  
+
   //returns < m | Psi0 >/< d | Psi0 >, where m is obtained by exciting the walker with 
   // spin orbital excitations i->a, j->b
   double getDetFactor(int i, int a, const Slater &w) const; 
@@ -83,12 +86,12 @@ struct HFWalker
   double getDetFactor(int i, int j, int a, int b, bool sz1, bool sz2, const Slater &w) const;
 
   //updates det and helpers afterspatial orb excitations i->a, j->b with spin sz
-  void update(int i, int a, bool sz, const Slater &w, bool doparity = true);
-  void update(int i, int j, int a, int b, bool sz, const Slater &w, bool doparity = true);
+  void update(int i, int a, bool sz, const Slater &w, const CPS &cps, bool doparity = true);
+  void update(int i, int j, int a, int b, bool sz, const Slater &w, const CPS &cps, bool doparity = true);
  
   //ex1 and ex2 are spin related indices
-  void updateWalker(const Slater& w, int ex1, int ex2, bool doparity = true);
-  void exciteWalker(const Slater& w, int excite1, int excite2, int norbs);
+  void updateWalker(const Slater& w, const CPS &cps, int ex1, int ex2, bool doparity = true);
+  void exciteWalker(const Slater& w, const CPS &cps, int excite1, int excite2, int norbs);
 
   bool operator<(const HFWalker &w) const { return d < w.d; }
   bool operator==(const HFWalker &w) const { return d == w.d; }

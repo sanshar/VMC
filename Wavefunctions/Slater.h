@@ -67,8 +67,8 @@ class Slater {
    * constructor
    */
   Slater();
-  void initWalker(HFWalker &walk) const;
-  void initWalker(HFWalker &walk, const Determinant &d) const;
+  //void initWalker(HFWalker &walk) const;
+  //void initWalker(HFWalker &walk, const Determinant &d) const;
 
   /**
    * This calculates the overlap of the walker with the
