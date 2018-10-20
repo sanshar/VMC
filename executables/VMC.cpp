@@ -40,14 +40,14 @@
 #include "Determinants.h"
 #include "CPSSlater.h"
 #include "HFWalker.h"
-#include "CPSAGP.h"
-#include "AGPWalker.h"
+//#include "CPSAGP.h"
+//#include "AGPWalker.h"
 #include "input.h"
 #include "integral.h"
 #include "SHCIshm.h"
 #include "math.h"
 #include "Profile.h"
-#include "CIWavefunction.h"
+//#include "CIWavefunction.h"
 #include "runVMC.h"
 
 using namespace Eigen;
@@ -79,10 +79,17 @@ int main(int argc, char *argv[])
 
   //calculate the hessian/gradient
   if (schd.wavefunctionType == "CPSSlater") {
-    CPSSlater wave; HFWalker walk;
+    CPSSlater<CPS, Slater> wave; HFWalker<CPS, Slater> walk;
+    //CPSSlater<Jastrow, Slater> wave; HFWalker<Jastrow, Slater> walk;
+    runVMC(wave, walk);
+  }
+
+  else if (schd.wavefunctionType == "JastrowSlater") {
+    CPSSlater<Jastrow, Slater> wave; HFWalker<Jastrow, Slater> walk;
     runVMC(wave, walk);
   }
   
+  /*
   else if (schd.wavefunctionType == "CICPSSlater") {
     CIWavefunction<CPSSlater, HFWalker, SpinFreeOperator> wave; HFWalker walk;
     wave.appendSinglesToOpList(1.0);
@@ -90,7 +97,7 @@ int main(int argc, char *argv[])
     runVMC(wave, walk);
   }
   
-  
+
   else if (schd.wavefunctionType == "CPSAGP") {
     CPSAGP wave; AGPWalker walk;
     if (schd.restart) wave.readWave();
@@ -176,7 +183,8 @@ int main(int argc, char *argv[])
     //  optimizer.optimize(vars, getStochasticGradient, schd.restart);
     //}
   }
-
+  */
+  
   boost::interprocess::shared_memory_object::remove(shciint2.c_str());
   boost::interprocess::shared_memory_object::remove(shciint2shm.c_str());
   return 0;

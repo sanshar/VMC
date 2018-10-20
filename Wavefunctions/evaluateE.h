@@ -35,13 +35,9 @@
 using namespace Eigen;
 using namespace std;
 
-class Walker;
-class Wfn;
-class CPSSlater;
 class oneInt;
 class twoInt;
 class twoIntHeatBathSHM;
-class MoDeterminant;
 
 //generate all the alpha or beta strings
 void comb(int N, int K, std::vector<std::vector<int>> &combinations);
@@ -490,14 +486,6 @@ void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &E0, doubl
   Determinant bestDet = walk.getDet();
 
   E0 = 0.0;
-  //cout << "wfn slater " << w.slater.determinants[0] << endl;
-  //cout << "walker " << walk.d << endl << endl;
-  //cout << "alphaTable\n" << walk.helper.rTable[0][0] << endl << endl;
-  //cout << "betaaTable\n" << walk.helper.rTable[0][1] << endl << endl;
-  //cout << "dets\n" << walk.helper.thetaDet[0][0] << "  " << walk.helper.thetaDet[0][1] << endl << endl;
-  //cout << "alphaInv\n" << walk.helper.thetaInv[0] << endl << endl;
-  //cout << "betaInv\n" << walk.helper.thetaInv[1] << endl << endl;
-  //cout << walk << endl << endl;
   w.HamAndOvlp(walk, ovlp, ham, work);
   //cout << ham << "  " << ovlp << endl << endl;
   w.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
