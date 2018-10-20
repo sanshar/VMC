@@ -1,14 +1,16 @@
 USE_MPI = yes
 USE_INTEL = yes
-#EIGEN=/projects/sash2458/apps/eigen/
-#BOOST=/projects/sash2458/apps/boost_1_57_0/
-#LIBIGL=/projects/sash2458/apps/libigl/include/
-EIGEN=/projects/anma2640/eigen-eigen-5a0156e40feb
-BOOST=/projects/anma2640/boost_1_66_0
-LIBIGL=/projects/anma2640/local/lib/libigl/include/
+EIGEN=/projects/sash2458/apps/eigen/
+BOOST=/projects/sash2458/apps/boost_1_57_0/
+LIBIGL=/projects/sash2458/apps/libigl/include/
+#EIGEN=/projects/anma2640/eigen-eigen-5a0156e40feb
+#BOOST=/projects/anma2640/boost_1_66_0
+#LIBIGL=/projects/anma2640/local/lib/libigl/include/
 
 FLAGS = -std=c++14 -g  -O3  -I./utils -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
-#FLAGS = -std=c++11  -g  -I./ -I./utils -I./optimizer/ -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
+#FLAGS = -std=c++14 -g   -I./utils -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
+
+
 
 
 
@@ -55,15 +57,9 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/SHCIshm.o \
 	obj/Determinants.o \
 	obj/Slater.o \
-	obj/CPSSlater.o \
-	obj/HFWalker.o \
-	obj/AGP.o \
-	obj/CPSAGP.o \
-	obj/AGPWalker.o \
+	obj/Jastrow.o \
 	obj/CPS.o \
-	obj/excitationOperators.o\
 	obj/Correlator.o \
-	obj/HFWalkerHelper.o\
 	obj/ShermanMorrisonWoodbury.o\
 	obj/evaluateE.o 
 
@@ -83,6 +79,7 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/CPS.o \
 	obj/excitationOperators.o\
 	obj/HFWalkerHelper.o\
+	obj/CPSWalkerHelper.o\
 	obj/ShermanMorrisonWoodbury.o\
 	obj/Correlator.o
 
