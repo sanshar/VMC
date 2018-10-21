@@ -36,7 +36,7 @@ if [ $clean == 1 ]
 then    
     ../clean.sh
 fi
-
+'''
 cd $here/hubbard_1x10agp
 ../clean.sh
 printf "...running hubbard_1x10 agp\n"
@@ -46,7 +46,7 @@ if [ $clean == 1 ]
 then    
     ../clean.sh
 fi
-
+'''
 cd $here/hubbard_1x14
 ../clean.sh
 printf "...running hubbard_1x14\n"

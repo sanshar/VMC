@@ -315,54 +315,66 @@ class WalkerHelper<CPS>
       dcopy1.setocc(i, false); dcopy2.setocc(j, false);
 
       int index = twoSitesToCorrelator[i/2][j/2];
-      ovlp *= cps.cpsArray[index].OverlapRatio(dcopy, d);
-      ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy2);
-      ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy1);
+      if (index != -1) {
+        ovlp *= cps.cpsArray[index].OverlapRatio(dcopy, d);
+        ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy2);
+        ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy1);
+      }
       dcopy1.setocc(i, true); dcopy2.setocc(j, true);
     }
     {//i a
       dcopy1.setocc(i, false); dcopy2.setocc(a, true);
 
       int index = twoSitesToCorrelator[i/2][a/2];
-      ovlp *= cps.cpsArray[index].OverlapRatio(dcopy, d);
-      ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy2);
-      ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy1);
+      if (index != -1) {
+        ovlp *= cps.cpsArray[index].OverlapRatio(dcopy, d);
+        ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy2);
+        ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy1);
+      }
       dcopy1.setocc(i, true); dcopy2.setocc(a, false);
     }
     {//i b
       dcopy1.setocc(i, false); dcopy2.setocc(b, true);
 
       int index = twoSitesToCorrelator[i/2][b/2];
+      if (index != -1) {
       ovlp *= cps.cpsArray[index].OverlapRatio(dcopy, d);
       ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy2);
       ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy1);
+      }
       dcopy1.setocc(i, true); dcopy2.setocc(b, false);
     }
     {//j a
       dcopy1.setocc(j, false); dcopy2.setocc(a, true);
 
       int index = twoSitesToCorrelator[j/2][a/2];
+      if (index != -1) {
       ovlp *= cps.cpsArray[index].OverlapRatio(dcopy, d);
       ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy2);
       ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy1);
+      }
       dcopy1.setocc(j, true); dcopy2.setocc(a, false);
     }
     {//j b
       dcopy1.setocc(j, false); dcopy2.setocc(b, true);
 
       int index = twoSitesToCorrelator[j/2][b/2];
+      if (index != -1) {
       ovlp *= cps.cpsArray[index].OverlapRatio(dcopy, d);
       ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy2);
       ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy1);
+      }
       dcopy1.setocc(j, true); dcopy2.setocc(b, false);
     }
     {//a b
       dcopy1.setocc(a, true); dcopy2.setocc(b, true);
 
       int index = twoSitesToCorrelator[a/2][b/2];
+      if (index != -1) {
       ovlp *= cps.cpsArray[index].OverlapRatio(dcopy, d);
       ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy2);
       ovlp *= cps.cpsArray[index].OverlapRatio(d, dcopy1);
+      }
       dcopy1.setocc(a, false); dcopy2.setocc(b, false);
     }
   

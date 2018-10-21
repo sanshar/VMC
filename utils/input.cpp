@@ -140,13 +140,16 @@ void readInput(string input, schedule& schd, bool print) {
             schd._sgdIter = atoi(tok[1].c_str());
           }
           
-      else if (boost::iequals(ArgName, "agp"))
+          else if (boost::iequals(ArgName, "agp"))
 	    schd.wavefunctionType = "CPSAGP";
-	  
-      else if (boost::iequals(ArgName, "cicpsslater"))
+
+          else if (boost::iequals(ArgName, "jastrowslater"))
+	    schd.wavefunctionType = "JastrowSlater";
+
+          else if (boost::iequals(ArgName, "cicpsslater"))
 	    schd.wavefunctionType = "CICPSSlater";
 	  
-      else if (boost::iequals(ArgName, "lanczos"))
+          else if (boost::iequals(ArgName, "lanczos"))
 	    schd.wavefunctionType = "LanczosCPSSlater";
 	  
 	  else if (boost::iequals(ArgName, "tol"))

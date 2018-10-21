@@ -40,14 +40,14 @@
 #include "Determinants.h"
 #include "CPSSlater.h"
 #include "HFWalker.h"
-//#include "CPSAGP.h"
+#include "AGP.h"
 //#include "AGPWalker.h"
 #include "input.h"
 #include "integral.h"
 #include "SHCIshm.h"
 #include "math.h"
 #include "Profile.h"
-//#include "CIWavefunction.h"
+#include "CIWavefunction.h"
 #include "runVMC.h"
 
 using namespace Eigen;
@@ -89,37 +89,32 @@ int main(int argc, char *argv[])
     runVMC(wave, walk);
   }
   
-  /*
+
   else if (schd.wavefunctionType == "CICPSSlater") {
-    CIWavefunction<CPSSlater, HFWalker, SpinFreeOperator> wave; HFWalker walk;
-    wave.appendSinglesToOpList(1.0);
-    wave.appendScreenedDoublesToOpList(1.0);
+    CIWavefunction<CPSSlater<CPS, Slater>, HFWalker<CPS, Slater>, SpinFreeOperator> wave;
+    HFWalker<CPS, Slater> walk;
+    wave.appendSinglesToOpList(.0);
+    wave.appendScreenedDoublesToOpList(.0);
+    runVMC(wave, walk);
+  }
+
+  else if (schd.wavefunctionType == "CIJastrowSlater") {
+    CIWavefunction<CPSSlater<Jastrow, Slater>, HFWalker<Jastrow, Slater>, SpinFreeOperator> wave;
+    HFWalker<Jastrow, Slater> walk;
+    wave.appendSinglesToOpList(.0);
+    wave.appendScreenedDoublesToOpList(.0);
     runVMC(wave, walk);
   }
   
 
+  /*
   else if (schd.wavefunctionType == "CPSAGP") {
-    CPSAGP wave; AGPWalker walk;
-    if (schd.restart) wave.readWave();
-    VectorXd vars; wave.getVariables(vars);
-
-    getGradientWrapper<CPSAGP, AGPWalker> wrapper(wave, walk, schd.stochasticIter);
-    functor1 getStochasticGradient = boost::bind(&getGradientWrapper<CPSAGP, AGPWalker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
-
-    if (schd.method == amsgrad) {
-      AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter);
-      optimizer.optimize(vars, getStochasticGradient, schd.restart);
-      //if (commrank == 0) wave.printVariables();
-    }
-    else if (schd.method == sgd) {
-      SGD optimizer(schd.stepsize, schd.maxIter);
-      optimizer.optimize(vars, getStochasticGradient, schd.restart);
-    }
-    else if (schd.method == linearmethod) {
-
-    }
+    CPSSlater<AGP, Slater> wave;
+    HFWalker<AGP, Slater> walk;
+    runVMC(wave, walk);
   }
-  
+
+
   else if (schd.wavefunctionType == "LanczosCPSSlater") {
     //CIWavefunction<CPSSlater, HFWalker, Operator> wave;
     CPSSlater wave; HFWalker walk;

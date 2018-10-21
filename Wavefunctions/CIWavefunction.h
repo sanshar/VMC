@@ -78,8 +78,8 @@ template <typename Wfn, typename Walker, typename OpType>
   }
 
 
-  Slater& getRef() { return wave.getRef(); }
-  CPS& getCPS() { return wave.getCPS(); }
+  typename Wfn::ReferenceType& getRef() { return wave.getRef(); }
+  typename Wfn::CorrType& getCPS() { return wave.getCPS(); }
 
   void appendSinglesToOpList(double screen = 1.0)
   {
@@ -215,7 +215,7 @@ template <typename Wfn, typename Walker, typename OpType>
   }
 
 
-  void HamAndOvlp(HFWalker &walk,
+  void HamAndOvlp(Walker &walk,
                   double &ovlp, double &ham, 
                   workingArray& work, bool fillExcitations=true)
   {

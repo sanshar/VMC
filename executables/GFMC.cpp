@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
   workingArray work;
   if (schd.wavefunctionType == "CPSSlater") {
     //initialize wavefunction
-    CPSSlater wave; HFWalker walk;
+    CPSSlater<CPS, Slater> wave; HFWalker<CPS, Slater> walk;
     wave.readWave(); wave.initWalker(walk);
 
     //calculate the energy as a initial guess for shift
@@ -90,7 +90,10 @@ int main(int argc, char *argv[])
     doGFMCCT(wave, walk, ham);
   }
   else if (schd.wavefunctionType == "CICPSSlater") {
-    CIWavefunction<CPSSlater, HFWalker, SpinFreeOperator> wave; HFWalker walk;
+    CIWavefunction<CPSSlater<CPS, Slater>,
+                   HFWalker<CPS, Slater>,
+                   SpinFreeOperator> wave;
+    HFWalker<CPS, Slater> walk;
     wave.readWave(); wave.initWalker(walk);
 
     //calculate the energy as a initial guess for shift

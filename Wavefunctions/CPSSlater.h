@@ -48,6 +48,9 @@ struct CPSSlater {
   }
 
  public:
+  using CorrType = Corr;
+  using ReferenceType = Reference;
+  
   Corr cps; //The jastrow factors
   Reference slater; //reference
 
