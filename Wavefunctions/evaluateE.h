@@ -291,7 +291,7 @@ void getStochasticEnergyContinuousTime(Wfn &w, Walker &walk, double &E0, double 
   w.HamAndOvlp(walk, ovlp, ham, work);
 
 
-  int nstore = 1000000 / commsize;
+  int nstore = 100000 / commsize;
   int gradIter = min(nstore, niter);
 
   std::vector<double> gradError(gradIter * commsize, 0);
@@ -373,7 +373,7 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
   workingArray work, moreWork;
   w.HamAndOvlpLanczos(walk, coeffsSample, ovlpSample, work, moreWork, alpha);
 
-  int nstore = 1000000 / commsize;
+  int nstore = 100000 / commsize;
   int gradIter = min(nstore, niter);
 
   std::vector<std::vector<double>> gradError;
@@ -491,7 +491,7 @@ void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &E0, doubl
   w.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
   
 
-  int nstore = 1000000 / commsize;
+  int nstore = 100000 / commsize;
   int gradIter = min(nstore, niter);
 
   std::vector<double> gradError(gradIter * commsize, 0);
@@ -626,7 +626,7 @@ template<typename Wfn, typename Walker> void getStochasticGradientHessianContinu
                        excitation1, excitation2, HijElements, nExcitations, true, true);
   w.OverlapWithGradient(walk, scale, localdiagonalGrad);
 
-  int nstore = 1000000/commsize;
+  int nstore = 100000/commsize;
   int gradIter = min(nstore, niter);
 
   std::vector<double> gradError(gradIter*commsize, 0);
@@ -753,7 +753,7 @@ template<typename Wfn, typename Walker> void getStochasticGradientMetricContinuo
   w.HamAndOvlp(walk, ovlp, ham, work);
   w.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
 
-  int nstore = 1000000/commsize;
+  int nstore = 100000/commsize;
   int gradIter = min(nstore, niter);
 
   std::vector<double> gradError(gradIter * commsize, 0);

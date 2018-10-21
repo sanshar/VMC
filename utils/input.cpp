@@ -148,9 +148,15 @@ void readInput(string input, schedule& schd, bool print) {
 
           else if (boost::iequals(ArgName, "cicpsslater"))
 	    schd.wavefunctionType = "CICPSSlater";
-	  
-          else if (boost::iequals(ArgName, "lanczos"))
+
+          else if (boost::iequals(ArgName, "cijastrowslater"))
+	    schd.wavefunctionType = "CIJastrowSlater";
+          
+          else if (boost::iequals(ArgName, "lanczoscpsslater"))
 	    schd.wavefunctionType = "LanczosCPSSlater";
+	  
+          else if (boost::iequals(ArgName, "lanczosjastrowslater"))
+	    schd.wavefunctionType = "LanczosJastrowSlater";
 	  
 	  else if (boost::iequals(ArgName, "tol"))
 	    schd.tol = atof(tok[1].c_str());
