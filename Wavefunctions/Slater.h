@@ -83,7 +83,8 @@ int getNumOfDets() const;
   const Eigen::MatrixXd& getHforbsA() const { return HforbsA;}
   const Eigen::MatrixXd& getHforbsB() const  {return HforbsB;}
   const Eigen::MatrixXd& getHforbs(bool sz = 0) const { if(sz == 0) return HforbsA; else return HforbsB;}
-    
+
+  string getfileName() const {return "Slater";};
     //void writeWave();
     //void readWave();
     //void getDetMatrix(Determinant &, Eigen::MatrixXd &alpha, Eigen::MatrixXd &beta);//don't know how to extend to ghf, also non-essential

@@ -208,13 +208,17 @@ struct CPSSlater {
     return numVars;
   }
 
+  string getfileName() const {
+    return slater.getfileName()+cps.getfileName();
+  }
+  
   void writeWave() const
   {
     if (commrank == 0)
     {
       char file[5000];
       //sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
-      sprintf(file, "cpsslaterwave.bkp");
+      sprintf(file, (getfileName()+".bkp").c_str() );
       std::ofstream outfs(file, std::ios::binary);
       boost::archive::binary_oarchive save(outfs);
       save << *this;
@@ -228,7 +232,7 @@ struct CPSSlater {
     {
       char file[5000];
       //sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
-      sprintf(file, "cpsslaterwave.bkp");
+      sprintf(file, (getfileName()+".bkp").c_str() );
       std::ifstream infs(file, std::ios::binary);
       boost::archive::binary_iarchive load(infs);
       load >> *this;
@@ -290,6 +294,7 @@ struct CPSSlater {
     ovlp[0] = ovlp0;
     ovlp[1] = el0 * ovlp0;
     ovlp[2] = ovlp[0] + alpha * ovlp[1];
+
     lanczosCoeffsSample[0] = ovlp[0] * ovlp[0] * el0 / (ovlp[2] * ovlp[2]);
     lanczosCoeffsSample[1] = ovlp[0] * ovlp[1] * el0 / (ovlp[2] * ovlp[2]);
     el1 = walk.d.Energy(I1, I2, coreE);

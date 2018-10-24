@@ -55,6 +55,7 @@ private:
       & PTlambda
       & epsilon
       & screen
+      & lanczosScreen
       & determinantFile
       & doHessian
       & hf
@@ -87,6 +88,7 @@ public:
   double PTlambda;                       // In PT we have to apply H0- E0, here E0 = lambda x <psi0|H0|psi0> + (1 - lambda) x <psi0|H|psi0>
   double epsilon;                        // This is the usual epsilon for the heat bath truncation of integrals
   double screen;                         //This is the screening parameter, any integral below this is ignored
+  double lanczosScreen;
   bool doHessian;                        //This calcules the Hessian and overlap for the linear method
   std::string hf;
   bool optimizeOrbs;

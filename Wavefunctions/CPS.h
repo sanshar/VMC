@@ -27,6 +27,7 @@
 #include <boost/serialization/vector.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
+#include <string>
 
 class Determinant;
 
@@ -108,6 +109,9 @@ class CPS {
   long getNumVariables() const;
   void updateVariables(const Eigen::VectorXd &v);
   void printVariables() const;
+
+  std::string getfileName() const {return "CPS";};
+
 };
 
 

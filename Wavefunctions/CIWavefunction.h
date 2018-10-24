@@ -258,13 +258,16 @@ template <typename Wfn, typename Walker, typename OpType>
     wave.initWalker(walk, d);
   }
 
+  string getfileName() const {
+    return "ci"+wave.getfileName();
+  }
+
   void writeWave()
   {
     if (commrank == 0)
       {
 	char file[5000];
-	//sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
-	sprintf(file, "ciwave.bkp");
+        sprintf(file, (getfileName()+".bkp").c_str() );
 	std::ofstream outfs(file, std::ios::binary);
 	boost::archive::binary_oarchive save(outfs);
 	save << *this;
@@ -277,8 +280,7 @@ template <typename Wfn, typename Walker, typename OpType>
     if (commrank == 0)
       {
 	char file[5000];
-	//sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
-	sprintf(file, "ciwave.bkp");
+        sprintf(file, (getfileName()+".bkp").c_str() );
 	std::ifstream infs(file, std::ios::binary);
 	boost::archive::binary_iarchive load(infs);
 	load >> *this;
@@ -292,7 +294,7 @@ template <typename Wfn, typename Walker, typename OpType>
 
 };
 
-
+/*
 template <typename Wfn, typename Walker>
   class Lanczos : public CIWavefunction<Wfn, Walker, Operator>
 {
@@ -318,6 +320,9 @@ template <typename Wfn, typename Walker>
   {
     CIWavefunction<Wfn, Walker, Operator>(w1, pop);
   }
+
+  typename Wfn::ReferenceType& getRef() { return wave.getRef(); }
+  typename Wfn::CorrType& getCPS() { return wave.getCPS(); }
 
   void appendSinglesToOpList(double screen = 0.0)
   {
@@ -365,7 +370,6 @@ template <typename Wfn, typename Walker>
     double totalovlp = 0.0;
     double ovlp0 = this->wave.Overlap(walk);
     totalovlp += ovlp0;
-    //cout << "totalovlp   " << totalovlp << endl;
 
     for (int i=1; i<this->oplist.size(); i++)
       {
@@ -374,7 +378,6 @@ template <typename Wfn, typename Walker>
 	  bool valid =this-> oplist[i].apply(dcopy, j);
 
 	  if (valid) {
-	    //cout << i<<" -  "<<oplist[i].ops[j]<<"  "<<walk.d<<"  "<<dcopy<<endl;
 	    double ovlpdetcopy = calculateOverlapRatioWithUnderlyingWave(walk, dcopy);
 	    totalovlp += alpha * this->ciCoeffs[i] * ovlpdetcopy * ovlp0;
 	  }
@@ -406,7 +409,7 @@ template <typename Wfn, typename Walker>
     grad[0] += num/(alpha * num + 1);
     return (alpha * num + 1);
   }
-  
+
   void HamAndOvlp(Walker &walk,
 		  double &ovlp, double &ham,
 		  workingArray& work, bool fillExcitations = true)
@@ -602,4 +605,5 @@ template <typename Wfn, typename Walker>
 #endif
   }
 };
+*/
 #endif

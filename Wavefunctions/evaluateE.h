@@ -46,6 +46,42 @@ void comb(int N, int K, std::vector<std::vector<int>> &combinations);
 double calcTcorr(std::vector<double> &v);
 
 void generateAllDeterminants(vector<Determinant> &allDets, int norbs, int nalpha, int nbeta);
+template<typename Wfn, typename Walker> void getEnergyDeterministic(Wfn &w, Walker& walk, double &E0)
+{
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+
+  vector<Determinant> allDets;
+  generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+
+  workingArray work;
+
+  double Overlap = 0, Energy = 0;
+
+  for (int i = commrank; i < allDets.size(); i += commsize)
+  {
+    w.initWalker(walk, allDets[i]);
+    double ovlp = 0, ham = 0;
+    {
+      E0 = 0.;
+      double scale = 1.0;
+
+      w.HamAndOvlp(walk, ovlp, ham, work, false);
+    }
+    
+    //grad += localgrad * ovlp * ovlp;
+    Overlap += ovlp * ovlp;
+    Energy += ham * ovlp * ovlp;
+  }
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(Overlap), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(Energy), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  E0 = Energy / Overlap;
+
+}
 
 template<typename Wfn, typename Walker> void getGradientDeterministic(Wfn &w, Walker& walk, double &E0,
                                                                       VectorXd &grad)
@@ -191,10 +227,7 @@ void getLanczosCoeffsDeterministic(Wfn &w, Walker &walk, double &alpha, Eigen::V
     double overlapSample = 0.;
     //cout << walk;
     w.HamAndOvlpLanczos(walk, coeffsSample, overlapSample, work, moreWork, alpha);
-    //cout << "ham  " << ham[0] << "  " << ham[1] << "  " << ham[2] << endl;
-    //cout << "ovlp  " << ovlp[0] << "  " << ovlp[1] << "  " << ovlp[2] << endl << endl;
-    
-    //grad += localgrad * ovlp * ovlp;
+
     overlapTot += overlapSample * overlapSample;
     coeffs += (overlapSample * overlapSample) * coeffsSample;
   }
@@ -520,8 +553,6 @@ void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &E0, doubl
 
     double Elocold = Eloc;
 
-    //exit(0);
-    //if (commrank == 1) cout << walk.d<<"  "<<ham<<"  "<<Eloc<<"  "<<localdiagonalGrad.norm()<<endl;
 
     double ratio = deltaT / cumdeltaT;
     for (int i = 0; i < grad.rows(); i++)
@@ -540,11 +571,7 @@ void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &E0, doubl
 
     iter++;
 
-    //cout << "before  " << walk.d << endl;
-    //cout << "hftype  " << w.getRef().hftype << endl;
-    //cout << w.getRef().determinants[0] << endl;
     walk.updateWalker(w.getRef(), w.getCPS(), work.excitation1[nextDet], work.excitation2[nextDet]);
-    //cout << "after  " << walk.d << endl;
 
     w.HamAndOvlp(walk, ovlp, ham, work);
     w.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
@@ -562,8 +589,8 @@ void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &E0, doubl
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &Eloc, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-  //exit(0);
-  //if (commrank == 0)
+
+  
   rk = calcTcorr(gradError);
 
   diagonalGrad /= (commsize);

@@ -49,6 +49,7 @@
 #include "Profile.h"
 #include "CIWavefunction.h"
 #include "runVMC.h"
+#include "Lanczos.h"
 
 using namespace Eigen;
 using namespace boost;
@@ -107,78 +108,24 @@ int main(int argc, char *argv[])
   }
   
   else if (schd.wavefunctionType == "LanczosCPSSlater") {
-    //CIWavefunction<CPSSlater, HFWalker, Operator> wave;
-    CPSSlater<CPS, Slater> wave; HFWalker<CPS, Slater> walk;
-    wave.readWave();
+    Lanczos<CPSSlater<CPS, Slater>> wave; HFWalker<CPS, Slater> walk;
     wave.initWalker(walk); 
-    Eigen::VectorXd stddev = Eigen::VectorXd::Zero(4);
-    Eigen::VectorXd rk = Eigen::VectorXd::Zero(4);
-    //double rk = 0;
-    Eigen::VectorXd lanczosCoeffs = Eigen::VectorXd::Zero(4);
-    double alpha = 0.1;
-    if (schd.deterministic) getLanczosCoeffsDeterministic(wave, walk, alpha, lanczosCoeffs);
-    else getLanczosCoeffsContinuousTime(wave, walk, alpha, lanczosCoeffs, stddev, rk, schd.stochasticIter, 1.e-5);
-    //getLanczosMatrixContinuousTime(wave, walk, lanczosMat, stddev, rk, schd.stochasticIter, 1.e-5);
-    double a = lanczosCoeffs[2]/lanczosCoeffs[3];
-    double b = lanczosCoeffs[1]/lanczosCoeffs[3];
-    double c = lanczosCoeffs[0]/lanczosCoeffs[3];
-    double delta = pow(a, 2) + 4 * pow(b, 3) - 6 * a * b * c - 3 * pow(b * c, 2) + 4 * a * pow(c, 3);
-    double numP = a - b * c + pow(delta, 0.5);
-    double numM = a - b * c - pow(delta, 0.5);
-    double denom = 2 * pow(b, 2) - 2 * a * c;
-    double alphaP = numP/denom;
-    double alphaM = numM/denom;
-    double eP = (a * pow(alphaP, 2) + 2 * b * alphaP + c) / (b * pow(alphaP, 2) + 2 * c * alphaP + 1);
-    double eM = (a * pow(alphaM, 2) + 2 * b * alphaM + c) / (b * pow(alphaM, 2) + 2 * c * alphaM + 1);
-    if (commrank == 0) {
-      cout << "lanczosCoeffs\n";
-      cout << lanczosCoeffs << endl;
-      cout << "stddev\n";
-      cout << stddev << endl;
-      cout << "rk\n";
-      cout << rk << endl;
-      cout << "alpha(+/-)   " << alphaP << "   " << alphaM << endl;
-      cout << "energy(+/-)   " << eP << "   " << eM << endl;
-      //cout << "rk\n" << rk << endl << endl;
-      //cout << "stddev\n" << stddev << endl << endl;
-    }
+    wave.optimizeWave(walk);
+    wave.writeWave();
   }
   else if (schd.wavefunctionType == "LanczosJastrowSlater") {
-    CPSSlater<Jastrow, Slater> wave; HFWalker<Jastrow, Slater> walk;
-    wave.readWave();
+    Lanczos<CPSSlater<Jastrow, Slater>> wave; HFWalker<Jastrow, Slater> walk;
     wave.initWalker(walk); 
-    Eigen::VectorXd stddev = Eigen::VectorXd::Zero(4);
-    Eigen::VectorXd rk = Eigen::VectorXd::Zero(4);
-    //double rk = 0;
-    Eigen::VectorXd lanczosCoeffs = Eigen::VectorXd::Zero(4);
-    double alpha = 0.1;
-    if (schd.deterministic) getLanczosCoeffsDeterministic(wave, walk, alpha, lanczosCoeffs);
-    else getLanczosCoeffsContinuousTime(wave, walk, alpha, lanczosCoeffs, stddev, rk, schd.stochasticIter, 1.e-5);
-    //getLanczosMatrixContinuousTime(wave, walk, lanczosMat, stddev, rk, schd.stochasticIter, 1.e-5);
-    double a = lanczosCoeffs[2]/lanczosCoeffs[3];
-    double b = lanczosCoeffs[1]/lanczosCoeffs[3];
-    double c = lanczosCoeffs[0]/lanczosCoeffs[3];
-    double delta = pow(a, 2) + 4 * pow(b, 3) - 6 * a * b * c - 3 * pow(b * c, 2) + 4 * a * pow(c, 3);
-    double numP = a - b * c + pow(delta, 0.5);
-    double numM = a - b * c - pow(delta, 0.5);
-    double denom = 2 * pow(b, 2) - 2 * a * c;
-    double alphaP = numP/denom;
-    double alphaM = numM/denom;
-    double eP = (a * pow(alphaP, 2) + 2 * b * alphaP + c) / (b * pow(alphaP, 2) + 2 * c * alphaP + 1);
-    double eM = (a * pow(alphaM, 2) + 2 * b * alphaM + c) / (b * pow(alphaM, 2) + 2 * c * alphaM + 1);
-    if (commrank == 0) {
-      cout << "lanczosCoeffs\n";
-      cout << lanczosCoeffs << endl;
-      cout << "stddev\n";
-      cout << stddev << endl;
-      cout << "rk\n";
-      cout << rk << endl;
-      cout << "alpha(+/-)   " << alphaP << "   " << alphaM << endl;
-      cout << "energy(+/-)   " << eP << "   " << eM << endl;
-      //cout << "rk\n" << rk << endl << endl;
-      //cout << "stddev\n" << stddev << endl << endl;
-    }
+    wave.optimizeWave(walk);
+    wave.writeWave();
+
+    double ham, stddev, rk;
+    getEnergyDeterministic(wave, walk, ham);
+    //getStochasticEnergyContinuousTime(wave, walk, ham, stddev, rk, schd.stochasticIter, 1.e-5);
+    if (commrank == 0) cout << "Energy of VMC wavefunction: "<<ham <<"("<<stddev<<")"<<endl;
+    
   }
+  
   /*
   else if (schd.wavefunctionType == "CPSAGP") {
     CPSSlater<AGP, Slater> wave;

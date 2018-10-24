@@ -56,7 +56,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.restart = false;
       schd.expCorrelator = false;
 
-      schd.maxIter = 50;
+      schd.maxIter = 1000;
       schd._sgdIter = 1;
       schd.method = amsgrad;
       schd.decay2 = 0.001;
@@ -69,6 +69,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.PTlambda = 0.;
       schd.epsilon = 1.e-7;
       schd.screen = 1.e-8;
+      schd.lanczosScreen = 0.5;
       schd.determinantFile = "";
       schd.wavefunctionType = "CPSSlater";
       schd.doHessian = false;
@@ -163,6 +164,9 @@ void readInput(string input, schedule& schd, bool print) {
 
 	  else if (boost::iequals(ArgName, "screentol"))
 	    schd.screen = atof(tok[1].c_str());
+
+	  else if (boost::iequals(ArgName, "lanczosscreen"))
+	    schd.lanczosScreen = atof(tok[1].c_str());
 
 	  else if (boost::iequals(ArgName, "decay1"))
 	    schd.decay1 = atof(tok[1].c_str());
