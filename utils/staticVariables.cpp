@@ -1,5 +1,6 @@
 
 #include "Determinants.h"
+#include "rDeterminants.h"
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include "Eigen/Dense"
 #include <string>
@@ -12,6 +13,9 @@
 #include "mpi.h"
 #endif
 
+int rDeterminant::nelec = 1;
+int rDeterminant::nalpha = 1;
+int rDeterminant::nbeta = 1;
 
 int Determinant::norbs = 1;
 int Determinant::nalpha = 1;

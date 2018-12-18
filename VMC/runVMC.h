@@ -28,6 +28,8 @@
 
 using functor1 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
 using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
+using functor3 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
+
 
 template<typename Wave, typename Walker>
 void runVMC(Wave& wave, Walker& walk) {
@@ -61,5 +63,19 @@ void runVMC(Wave& wave, Walker& walk) {
 }
 
 
+template<typename Wave, typename Walker>
+void runVMCRealSpace(Wave& wave, Walker& walk) {
 
+  if (schd.restart) wave.readWave();
+  VectorXd vars; wave.getVariables(vars);
+  getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
+
+  functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
+
+  if (schd.walkerBasis == REALSPACE) {
+    AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+    optimizer.optimize(vars, getStochasticGradientRealSpace, schd.restart);
+  }
+
+}
 
