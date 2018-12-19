@@ -140,8 +140,6 @@ struct EEJastrow : public GeneralTerm{
   void printVariables();
 };
 
-
-/*
 struct ENJastrow : public GeneralTerm{
  private:
   friend class boost::serialization::access;
@@ -150,108 +148,61 @@ struct ENJastrow : public GeneralTerm{
     ar & boost::serialization::base_object<GeneralTerm>(*this);
     ar & Ncoords;
     ar & Ncharge;
+    ar & alpha;
   }
-
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
   vector<double> alpha;
- public:
-  ENJastrow()
-  {
-    Ncoords = schd.Ncoords;
-    Ncharge = schd.Ncharge;
-    alpha.resize(schd.Ncoords.size(), 100.);
-  }
   
-  double exponential(const MatrixXd& Rij, const MatrixXd& RiN) const {
-    double exponent = 0.0;
-    for (int i=0; i<RiN.rows(); i++)
-      for (int j=0; j<RiN.cols(); j++) {
-        double rijbar = RiN(i,j) /(1. + alpha[j] * RiN(i,j) );
-        exponent += -Ncharge[j]* rijbar;
-    }
-    return exponent;  
-  }
+ public:
+  ENJastrow() ;
+  double exponential(const MatrixXd& rij, const MatrixXd& RiN) const;
 
   double exponentDiff(int i, const Vector3d &coord,
-                      const rDeterminant &d) {
-    double diff = 0.0;
-    for (int j=0; j<Ncoords.size(); j++) {
-      double rij = pow( pow(d.coord[i][0] - Ncoords[j][0], 2) +
-                        pow(d.coord[i][1] - Ncoords[j][1], 2) +
-                        pow(d.coord[i][2] - Ncoords[j][2], 2), 0.5);
+                      const rDeterminant &d);
 
-      double rijcopy = pow( pow(coord[0] - Ncoords[j][0], 2) +
-                            pow(coord[1] - Ncoords[j][1], 2) +
-                            pow(coord[2] - Ncoords[j][2], 2), 0.5);
-
-      diff += -Ncharge[j] * (rijcopy/(1.+alpha[j]*rijcopy) - rij/(1.+alpha[j]*rij));
-    }
-    return diff;
-  }
-
-  
-  //J = exp( sum_ij uij)
-  //\sum_j Nabla^2_i uij  
-  void GradientRatio(double &gradx, double& grady, double& gradz,
-                     const MatrixXd& Rij, const MatrixXd& RiN,
-                     const rDeterminant& d, int elecI) {
-    for (int j=0; j<Ncoords.size(); j++) {
-      gradx += -Ncharge[j]*(d.coord[elecI][0] - Ncoords[j][0])/RiN(elecI, j)/pow( 1+ alpha[j]*RiN(elecI,j), 2.);
-      grady += -Ncharge[j]*(d.coord[elecI][1] - Ncoords[j][1])/RiN(elecI, j)/pow( 1+ alpha[j]*RiN(elecI,j), 2.);
-      gradz += -Ncharge[j]*(d.coord[elecI][2] - Ncoords[j][2])/RiN(elecI, j)/pow( 1+ alpha[j]*RiN(elecI,j), 2.);
-    }
-  }
+  void InitGradient(MatrixXd& Gradient,
+                    const MatrixXd& rij,
+                    const MatrixXd& RiN,
+                    const rDeterminant& d);
 
   //J = exp( sum_ij uij)
   //\sum_j Nabla^2_i uij  
-  void LaplacianRatio(double &laplacian, const MatrixXd& Rij, const MatrixXd& RiN,
-                      const rDeterminant& d, int elecI) {
-
-    double term2 = 0.0;
-    for (int j=0; j<Ncoords.size(); j++) {
-      term2 +=  2*alpha[j]*Ncharge[j]/(pow(1+alpha[j]*RiN(elecI, j), 3));
-      term2 += -2*Ncharge[j]/RiN(elecI, j)/(pow(1+alpha[j]*RiN(elecI, j), 2));
-    }
-
-    laplacian += term2;
-    
-  }
-
-  long getNumVariables() {return Ncoords.size();}
-
-  void getVariables(Eigen::VectorXd& v, int& numVars)  {
-    for (int i=0; i<Ncoords.size(); i++)
-      v[numVars+i] = alpha[i];
-    numVars += Ncoords.size();
-  }
+  void InitLaplacian(VectorXd &laplacian,
+                     const MatrixXd& rij,
+                     const MatrixXd& RiN,
+                     const rDeterminant& d);
   
-  void updateVariables(const Eigen::VectorXd& v, int &numVars) {
-    for (int i=0; i<Ncoords.size(); i++)
-      alpha[i] = v[numVars+i] ;
-    numVars += Ncoords.size();
-  }
+  //J = exp( sum_ij uij)
+  //\sum_j Nabla^2_i uij  
+  void UpdateGradient(MatrixXd& Gradient,
+                      const MatrixXd& rij,
+                      const MatrixXd& RiN,
+                      const rDeterminant& d,
+                      const Vector3d& oldCoord,
+                      int elecI);
+
+  //J = exp( sum_ij uij)
+  //\sum_j Nabla^2_i uij  
+  void UpdateLaplacian(VectorXd &laplacian,
+                       const MatrixXd& rij,
+                       const MatrixXd& RiN,
+                       const rDeterminant& d,
+                       const Vector3d& oldCoord,
+                       int elecI);
+
+  long getNumVariables();
+
+  void getVariables(Eigen::VectorXd& v, int& numVars) ;
+  
+  void updateVariables(const Eigen::VectorXd& v, int &numVars);
 
   void OverlapWithGradient(const MatrixXd& rij, const MatrixXd& RiN,
                            const rDeterminant& d, VectorXd& grad,
-                           const double& ovlp, int& index) {
-
-    //cout << RiN(0,0)<<endl;
-    for (int j=0; j<Ncoords.size(); j++) {      
-      for (int i=0; i<RiN.rows(); i++)
-        grad[index] += Ncharge[j] * pow(RiN(i,j), 2) /pow(1 + alpha[j]*RiN(i, j), 2);
-      
-      index++;
-    }
-  }
-
-  void printVariables() {
-    cout << "ENJastrow"<<endl;
-    for (int i=0; i<Ncoords.size(); i++)
-      cout << alpha[i]<<"  ";
-    cout << endl;
-  }
-
+                           const double& ovlp, int& index);
+  
+  void printVariables();
 };
-*/
+
+
 #endif

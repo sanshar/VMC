@@ -97,7 +97,8 @@ class rWalkerHelper<Slater>
       cout << " overlap with alpha determinant not invertible" << endl;
       exit(0);
     }
-
+    cout << Laplacian[0]<<" ld  "<<DetMatrix[0]<<endl;
+    
     Laplacian[1] = MatrixXd::Zero(d.nbeta, d.nbeta);
     for (int elec=0; elec<d.nbeta; elec++) {
       schd.gBasis.eval_deriv2(d.coord[elec+d.nalpha], &aoValues[0]);
@@ -375,9 +376,9 @@ class rWalkerHelper<rJastrow>
     
     if (schd.optimizeCps) {
       int index = 0;
-      for (int t=0; t<cps.Terms.size(); t++) {
+      for (int t=0; t<cps.Terms.size(); t++) 
         cps.Terms[t]->OverlapWithGradient(Rij, RiN, d, grad, ovlp, index); 
-      }
+
     }
   }
 

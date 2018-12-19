@@ -113,7 +113,6 @@ struct rWalker<rJastrow, Slater> {
 
   void OverlapWithGradient(const Slater &ref, Eigen::VectorBlock<VectorXd> &grad) 
   {
-    return;
     grad[0] = 0.0;
     int norbs = schd.gBasis.norbs;
     int nalpha = rDeterminant::nalpha;
@@ -136,18 +135,20 @@ struct rWalker<rJastrow, Slater> {
         AoRib(elec, orb) = refHelper.aoValues[orb];
     }
 
-    int var = 1;
+    //Assuming a single determinant
+    int numDets = ref.determinants.size();
     for (int moa=0; moa<nalpha; moa++) {//alpha mo 
       for (int orb=0; orb<norbs; orb++) {//ao
-        grad[var] = refHelper.thetaInv[0].row(moa).dot(AoRia.col(orb));
-        var++;
+        grad[numDets + orb * norbs + moa] += refHelper.thetaInv[0].row(moa).dot(AoRia.col(orb));
       }
     }
 
     for (int mob=0; mob<nbeta; mob++) {//beta mo 
       for (int orb=0; orb<norbs; orb++) {//ao
-        grad[var] = refHelper.thetaInv[1].row(mob).dot(AoRib.col(orb));
-        var++;
+        if (ref.hftype == Restricted) 
+          grad[numDets + orb * norbs + mob] += refHelper.thetaInv[1].row(mob).dot(AoRib.col(orb));
+        else
+          grad[numDets + norbs*norbs + orb * norbs + mob] += refHelper.thetaInv[1].row(mob).dot(AoRib.col(orb));
       }
     }
   }
