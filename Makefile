@@ -7,7 +7,7 @@ LIBIGL=/projects/sash2458/apps/libigl/include/
 #BOOST=/projects/ilsa8974/apps/boost_1_66_0/
 #LIBIGL=/projects/ilsa8974/apps/libigl/include/
 
-FLAGS = -std=c++14 -g  -O3 -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
+FLAGS = -std=c++14 -g  -O3 -I./VMC -I./utils -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
 #FLAGS = -std=c++14 -g  -I./VMC  -I./utils -I./Wavefunctions  -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
 
 
@@ -60,16 +60,11 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/AGP.o \
 	obj/Pfaffian.o \
 	obj/Jastrow.o \
-	obj/rJastrow.o \
-	obj/rWalker.o \
-	obj/rWalkerHelper.o \
-	obj/JastrowTerms.o \
 	obj/Gutzwiller.o \
 	obj/CPS.o \
 	obj/Correlator.o \
 	obj/ShermanMorrisonWoodbury.o \
 	obj/excitationOperators.o \
-	obj/gaussianBasis.o \
 	obj/statistics.o \
 	obj/sr.o \
 	obj/VMC.o \
@@ -115,7 +110,7 @@ bin/GFMC	: $(OBJ_GFMC) executables/GFMC.cpp
 	$(CXX)   $(FLAGS) $(OPT) -o  bin/GFMC $(OBJ_GFMC) obj/GFMC.o $(LFLAGS)
 
 bin/VMC	: $(OBJ_VMC) executables/VMC.cpp
-	$(CXX)   $(FLAGS) $(OPT) -o  bin/VMC $(OBJ_VMC)  $(LFLAGS) -L/projects/sash2458/newApps/pyscf/pyscf/lib/ -lcgto -lnp_helper -L/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib/ -lcint 
+	$(CXX)   $(FLAGS) $(OPT) -o  bin/VMC $(OBJ_VMC)  $(LFLAGS)
 
 
 
