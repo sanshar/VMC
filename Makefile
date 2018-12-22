@@ -1,14 +1,14 @@
 USE_MPI = yes
 USE_INTEL = yes
-#EIGEN=/projects/sash2458/apps/eigen/
-#BOOST=/projects/sash2458/apps/boost_1_57_0/
-#LIBIGL=/projects/sash2458/apps/libigl/include/
-EIGEN=/projects/ilsa8974/apps/eigen/
-BOOST=/projects/ilsa8974/apps/boost_1_66_0/
-LIBIGL=/projects/ilsa8974/apps/libigl/include/
+EIGEN=/projects/sash2458/apps/eigen/
+BOOST=/projects/sash2458/apps/boost_1_57_0/
+LIBIGL=/projects/sash2458/apps/libigl/include/
+#EIGEN=/projects/ilsa8974/apps/eigen/
+#BOOST=/projects/ilsa8974/apps/boost_1_66_0/
+#LIBIGL=/projects/ilsa8974/apps/libigl/include/
 
-FLAGS = -std=c++14 -g  -O3 -I./VMC -I./utils -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
-#FLAGS = -std=c++14 -g   -I./utils -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
+FLAGS = -std=c++14 -g  -O3 -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
+#FLAGS = -std=c++14 -g  -I./VMC  -I./utils -I./Wavefunctions  -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
 
 
 
@@ -60,14 +60,20 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/AGP.o \
 	obj/Pfaffian.o \
 	obj/Jastrow.o \
+	obj/rJastrow.o \
+	obj/rWalker.o \
+	obj/rWalkerHelper.o \
+	obj/JastrowTerms.o \
 	obj/Gutzwiller.o \
 	obj/CPS.o \
 	obj/Correlator.o \
-	obj/ShermanMorrisonWoodbury.o\
-	obj/excitationOperators.o\
-    obj/statistics.o \
-    obj/sr.o \
-    obj/evaluateE.o 
+	obj/ShermanMorrisonWoodbury.o \
+	obj/excitationOperators.o \
+	obj/gaussianBasis.o \
+	obj/statistics.o \
+	obj/sr.o \
+	obj/VMC.o \
+	obj/evaluateE.o 
 
 
 OBJ_GFMC = obj/staticVariables.o \
@@ -92,9 +98,13 @@ obj/%.o: %.cpp
 	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
 obj/%.o: Wavefunctions/%.cpp  
 	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
+obj/%.o: Wavefunctions/RealSpace/%.cpp  
+	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
 obj/%.o: utils/%.cpp  
 	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
 obj/%.o: VMC/%.cpp  
+	$(CXX) $(FLAGS) -I./VMC $(OPT) -c $< -o $@
+obj/%.o: executables/%.cpp  
 	$(CXX) $(FLAGS) -I./VMC $(OPT) -c $< -o $@
 
 
@@ -105,8 +115,8 @@ bin/GFMC	: $(OBJ_GFMC) executables/GFMC.cpp
 	$(CXX)   $(FLAGS) $(OPT) -o  bin/GFMC $(OBJ_GFMC) obj/GFMC.o $(LFLAGS)
 
 bin/VMC	: $(OBJ_VMC) executables/VMC.cpp
-	$(CXX)   $(FLAGS) -I./VMC $(OPT) -c executables/VMC.cpp -o obj/VMC.o
-	$(CXX)   $(FLAGS) $(OPT) -o  bin/VMC $(OBJ_VMC) obj/VMC.o $(LFLAGS)
+	$(CXX)   $(FLAGS) $(OPT) -o  bin/VMC $(OBJ_VMC)  $(LFLAGS) -L/projects/sash2458/newApps/pyscf/pyscf/lib/ -lcgto -lnp_helper -L/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib/ -lcint 
+
 
 
 bin/sPT	: $(OBJ_sPT) 
