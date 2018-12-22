@@ -91,7 +91,8 @@ struct EEJastrow : public GeneralTerm{
   double beta;
   
  public:
-  EEJastrow() {alpha = 0.5; beta = 1.0;}
+  EEJastrow();
+  
   double exponential(const MatrixXd& rij, const MatrixXd& RiN) const;
 
   double exponentDiff(int i, const Vector3d &coord,

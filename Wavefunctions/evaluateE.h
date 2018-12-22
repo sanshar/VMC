@@ -560,8 +560,26 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
-
+  /*
+  cout <<"ham "<< wave.rHam(walk)<<endl;
+  cout << " --- "<<endl;
+  Vector3d coord;
+  coord[0] = 0.05763564180444569196; coord[1] = -0.27636744292815279556; coord[2] = 0.15374588492725499433; 
+  walk.updateWalker(0, coord, wave.getRef(), wave.getCorr());
   
+  coord[2] = -0.54943792362596899359; coord[1] = -0.69551137759270476035; coord[0] = 0.69417718414118723125; 
+  walk.updateWalker(1, coord, wave.getRef(), wave.getCorr());
+  cout <<"ham "<< wave.rHam(walk)<<endl;
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestCoordinates.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << walk.d;
+  }
+  exit(0);
+  */
   double ovlp = wave.Overlap(walk);
   double ham;
 
@@ -583,14 +601,18 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
   VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()),
       diagonalGrad = VectorXd::Zero(grad.rows());
 
+  vector<double> aoValues(10 * Determinant::norbs, 0.0);
+
+  
   while (iter < niter) {
     getStep(step, random, schd.realSpaceStep);
     elecToMove = iter%nelec;
     step += walk.d.coord[elecToMove];
 
+    iter ++;
     if (iter%sampleSteps == 0) {
       ham = wave.rHam(walk);
-
+      
       wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
       for (int i = 0; i < grad.rows(); i++)
       {
@@ -608,11 +630,10 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
     }
 
     
-    iter ++;
 
+    
     double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
 
-    //cout << step << endl<<walk.d.coord[elecToMove]<<endl<<ovlpRatio<<endl<<"****"<<endl;
     if (ovlpRatio*ovlpRatio > random()) {
       acceptedFrac++;
       walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
@@ -1394,6 +1415,8 @@ class getGradientWrapper
   void getGradientRealSpace(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
   {
     w.updateVariables(vars);
+    //w.printVariables();
+    //exit(0);
     w.initWalker(walk);
     if (!deterministic)
       getGradientMetropolisRealSpace(w, walk, E0, stddev, grad, rt, stochasticIter, 0.5e-3);

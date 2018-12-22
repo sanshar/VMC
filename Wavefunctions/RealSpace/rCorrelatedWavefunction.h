@@ -21,6 +21,8 @@
 #include <vector>
 #include <set>
 #include <boost/serialization/serialization.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/vector.hpp>
 #include "rWalker.h"
 #include "rWalkerHelper.h"
@@ -79,7 +81,10 @@ struct rCorrelatedWavefunction {
     double factor1 = 1.0;
     walk.corrHelper.OverlapWithGradient(walk.d, corr, grad, factor1);
     Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - corr.getNumVariables());
-    walk.OverlapWithGradient(ref, gradtail);
+    if (schd.hf == "ghf")
+      walk.OverlapWithGradientGhf(ref, gradtail);
+    else
+      walk.OverlapWithGradient(ref, gradtail);
 
   }
 
@@ -134,8 +139,8 @@ struct rCorrelatedWavefunction {
       char file[5000];
       //sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
       sprintf(file, (getfileName()+".bkp").c_str() );
-      std::ofstream outfs(file, std::ios::binary);
-      boost::archive::binary_oarchive save(outfs);
+      std::ofstream outfs(file);
+      boost::archive::text_oarchive save(outfs);
       save << *this;
       outfs.close();
     }
@@ -148,8 +153,8 @@ struct rCorrelatedWavefunction {
       char file[5000];
       //sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
       sprintf(file, (getfileName()+".bkp").c_str() );
-      std::ifstream infs(file, std::ios::binary);
-      boost::archive::binary_iarchive load(infs);
+      std::ifstream infs(file);
+      boost::archive::text_iarchive load(infs);
       load >> *this;
       infs.close();
     }
@@ -187,54 +192,67 @@ struct rCorrelatedWavefunction {
     }
 
 
-    double kinetica = 0.0;
-    //Alpha
-    {
-      MatrixXd Bij = walk.refHelper.Laplacian[0]; //i = nelec , j = norbs
+    if (schd.hf == "ghf" ) {
+      double kinetic = 0.0;
 
-      for (int i=0; i<walk.d.nalpha; i++) 
-        Bij.row(i) += 2.*walk.corrHelper.GradRatio.row(i) * walk.refHelper.Gradient[i];
+      {
+        MatrixXd Bij = walk.refHelper.Laplacian[0]; //i = nelec , j = norbs
+        
+        for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) 
+          Bij.row(i) += 2.*walk.corrHelper.GradRatio.row(i) * walk.refHelper.Gradient[i];
+        
+        for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) {
+          kinetic += Bij.row(i).dot(walk.refHelper.thetaInv[0].col(i));
+          kinetic += walk.corrHelper.LaplaceRatio[i];
+        }
+        //cout << " k "<<walk.corrHelper.LaplaceRatio[0]<<endl;
+      }
+      //return potentialij;
+      //cout << walk.corrHelper.Rij(1,0)<<"  "<<walk.corrHelper.Rij(2,0)<<"  "<<walk.corrHelper.Rij(3,0)<<"  "<<walk.corrHelper.Rij(2,1)<<"  "<<walk.corrHelper.Rij(3,1)<<"  "<<walk.corrHelper.Rij(3,2)<<endl;
+      //cout << walk.corrHelper.RiN(0,0)<<"  " << walk.corrHelper.RiN(1,0)<<"  " << walk.corrHelper.RiN(2,0)<<"  " << walk.corrHelper.RiN(3,0)<<"  " <<endl;
+      //cout << -0.5*(kinetic) <<"  "<< potentialij<<"  "<<potentiali<<"  "<< -0.5*(kinetic) + potentialij+potentiali<<endl;
+      return -0.5*(kinetic) + potentialij+potentiali;
+
+    }
+    else {
       
-      for (int i=0; i<walk.d.nalpha; i++) {
-        kinetica += Bij.row(i).dot(walk.refHelper.thetaInv[0].col(i));
-        kinetica += walk.corrHelper.LaplaceRatio[i];
+      double kinetica = 0.0;
+      //Alpha
+      {
+        MatrixXd Bij = walk.refHelper.Laplacian[0]; //i = nelec , j = norbs
+        //cout << " k "<<walk.refHelper.thetaInv[0](0,0)*Bij(0,0)<<endl;;
+        
+        for (int i=0; i<walk.d.nalpha; i++) 
+          Bij.row(i) += 2.*walk.corrHelper.GradRatio.row(i) * walk.refHelper.Gradient[i];
+        
+        //cout << " k "<<walk.corrHelper.GradRatio.row(0) <<"  "<< walk.refHelper.Gradient[0]<<endl;
+        for (int i=0; i<walk.d.nalpha; i++) {
+          kinetica += Bij.row(i).dot(walk.refHelper.thetaInv[0].col(i));
+          kinetica += walk.corrHelper.LaplaceRatio[i];
+        }
+        //cout << " k "<<walk.corrHelper.LaplaceRatio[0]<<endl;
       }
-    }
-
-    double kineticb = 0.0;
-    //Beta
-    if (walk.d.nbeta != 0)
-    {
-      MatrixXd Bij = walk.refHelper.Laplacian[1]; //i = nelec , j = norbs
-      int nalpha = walk.d.nalpha;
-
-      for (int i=0; i<walk.d.nbeta; i++) 
-        Bij.row(i) += 2*walk.corrHelper.GradRatio.row(i+nalpha) * walk.refHelper.Gradient[i+nalpha];
-
-      for (int i=0; i<walk.d.nbeta; i++) {
-        kineticb += Bij.row(i).dot(walk.refHelper.thetaInv[1].col(i));
-        kineticb += walk.corrHelper.LaplaceRatio[i+nalpha];
+      
+      double kineticb = 0.0;
+      //Beta
+      if (walk.d.nbeta != 0)
+      {
+        MatrixXd Bij = walk.refHelper.Laplacian[1]; //i = nelec , j = norbs
+        int nalpha = walk.d.nalpha;
+        //cout << " k "<<walk.refHelper.thetaInv[1](0,0)*Bij(0,0)<<endl;;
+        
+        for (int i=0; i<walk.d.nbeta; i++) 
+          Bij.row(i) += 2*walk.corrHelper.GradRatio.row(i+nalpha) * walk.refHelper.Gradient[i+nalpha];
+        
+        for (int i=0; i<walk.d.nbeta; i++) {
+          kineticb += Bij.row(i).dot(walk.refHelper.thetaInv[1].col(i));
+          kineticb += walk.corrHelper.LaplaceRatio[i+nalpha];
+        }
+        //cout << " k "<<walk.corrHelper.LaplaceRatio[1]<<endl;
       }
+      return -0.5*(kinetica+kineticb) + potentialij+potentiali;
     }
 
-    if (-0.5*(kinetica+kineticb) > 300.0) {
-      cout << walk.refHelper.Laplacian[0]<<"  "<<walk.refHelper.Laplacian[1]<<"  "<<walk.refHelper.thetaInv[0]<<"  "<<walk.refHelper.thetaInv[1]<<endl;
-      cout << walk.corrHelper.LaplaceRatio[1]<<"  "<<walk.corrHelper.LaplaceRatio[0]<<endl;
-      cout << walk.corrHelper.GradRatio.row(1)<<"  "<<walk.refHelper.Gradient[1]<<"  "<<walk.corrHelper.GradRatio.row(0)<<"  "<<walk.refHelper.Gradient[0]<<endl;
-      cout << walk.corrHelper.RiN(0,0)<<"  "<<walk.corrHelper.RiN(1,0)<<endl;
-      cout << walk.corrHelper.Rij(0,1)<<"  "<<endl;
-      cout << walk.d.coord[0]<<endl;
-      cout << walk.d.coord[1]<<endl;
-      cout << -0.5*kinetica-0.5*kineticb<<endl;
-      exit(0);
-    }
-    //return -0.5*kinetic;
-    //return potentialij;
-
-    cout << walk.d.coord[0]<<endl;
-    cout <<walk.corrHelper.RiN(0,0)<<"  "<<walk.corrHelper.RiN(1,0)<<"  "<<walk.corrHelper.Rij(0,1)<<" - "<<walk.refHelper.Laplacian[0]<<"  "<<walk.refHelper.thetaInv[0]<<endl;
-    cout << -0.5*kinetica<<"  "<<-0.5*kineticb<<"  "<<potentiali<<"  "<<potentialij<<endl;
-    return -0.5*(kinetica+kineticb) + potentialij+potentiali;
     //return potentialij;
   }
   

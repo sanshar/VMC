@@ -1,5 +1,11 @@
 #include "JastrowTerms.h"
 
+EEJastrow::EEJastrow() {
+  alpha = 0.5;
+  //beta = 0.8542627855;
+  beta = 1.0;
+}
+
 double EEJastrow::exponential(const MatrixXd& rij, const MatrixXd& RiN) const {
   double exponent = 0.0;
   for (int i=0; i<rij.rows(); i++)
@@ -14,6 +20,7 @@ double EEJastrow::exponentDiff(int i, const Vector3d &newcoord,
                                const rDeterminant &d) {
   double diff = 0.0;
   for (int j=0; j<d.nelec; j++) {
+    if (i == j) continue;
     double rij = pow( pow(d.coord[i][0] - d.coord[j][0], 2) +
                       pow(d.coord[i][1] - d.coord[j][1], 2) +
                       pow(d.coord[i][2] - d.coord[j][2], 2), 0.5);
@@ -21,7 +28,7 @@ double EEJastrow::exponentDiff(int i, const Vector3d &newcoord,
     double rijcopy = pow( pow(newcoord[0] - d.coord[j][0], 2) +
                           pow(newcoord[1] - d.coord[j][1], 2) +
                           pow(newcoord[2] - d.coord[j][2], 2), 0.5);
-    
+
     diff += alpha * (rijcopy/(1.+ beta*rijcopy) - rij/(1.+beta*rij));
   }
   return diff;
@@ -30,13 +37,14 @@ double EEJastrow::exponentDiff(int i, const Vector3d &newcoord,
 void EEJastrow::InitGradient(MatrixXd& Gradient,
                              const MatrixXd& rij,
                              const MatrixXd& RiN, const rDeterminant& d) {
-  
+
+
   for (int i=0; i<d.nelec; i++) {
     for (int j=0; j<i; j++) {
-      if (j == i) continue;
       double gx = alpha*(d.coord[i][0] - d.coord[j][0])/rij(i, j)/pow( 1+ beta*rij(i,j),2);
       double gy = alpha*(d.coord[i][1] - d.coord[j][1])/rij(i, j)/pow( 1+ beta*rij(i,j),2);
       double gz = alpha*(d.coord[i][2] - d.coord[j][2])/rij(i, j)/pow( 1+ beta*rij(i,j),2);
+
       Gradient(i,0) += gx;
       Gradient(i,1) += gy;
       Gradient(i,2) += gz;
@@ -182,7 +190,8 @@ ENJastrow::ENJastrow()
 {
   Ncoords = schd.Ncoords;
   Ncharge = schd.Ncharge;
-  alpha.resize(schd.Ncoords.size(), 1000.);
+  //alpha.resize(schd.Ncoords.size(), 500.);
+  alpha.resize(schd.Ncoords.size(), 100.);
 }
 
 double ENJastrow::exponential(const MatrixXd& rij, const MatrixXd& RiN) const {
@@ -274,8 +283,8 @@ void ENJastrow::UpdateGradient(MatrixXd& Gradient,
     
     //calculate the new contribution
     gradxij = -Ncharge[j]*(d.coord[elecI][0] - Ncoords[j][0])/RiN(elecI,j)/pow( 1+ alpha[j]*RiN(elecI, j),2);
-    gradxij = -Ncharge[j]*(d.coord[elecI][1] - Ncoords[j][1])/RiN(elecI,j)/pow( 1+ alpha[j]*RiN(elecI, j),2);
-    gradxij = -Ncharge[j]*(d.coord[elecI][2] - Ncoords[j][2])/RiN(elecI,j)/pow( 1+ alpha[j]*RiN(elecI, j),2);
+    gradyij = -Ncharge[j]*(d.coord[elecI][1] - Ncoords[j][1])/RiN(elecI,j)/pow( 1+ alpha[j]*RiN(elecI, j),2);
+    gradzij = -Ncharge[j]*(d.coord[elecI][2] - Ncoords[j][2])/RiN(elecI,j)/pow( 1+ alpha[j]*RiN(elecI, j),2);
     
     //Add the new contribution
     Gradient(elecI,0) += gradxij;
@@ -309,7 +318,7 @@ void ENJastrow::UpdateLaplacian(VectorXd &laplacian,
     //calculate the new contribution
     double newTerm = + 2*alpha[j]*Ncharge[j]/(pow(1+alpha[j]*RiN(elecI,j), 3))
         - 2*Ncharge[j]/RiN(elecI,j)/(pow(1+alpha[j]*RiN(elecI,j), 2));
-    
+
     //add the old contribution
     laplacian[elecI] += newTerm;
     
@@ -336,7 +345,7 @@ void ENJastrow::OverlapWithGradient(const MatrixXd& rij, const MatrixXd& RiN,
   
   for (int j=0; j<Ncoords.size(); j++) {      
     for (int i=0; i<RiN.rows(); i++)
-      grad[index] += 0.0*Ncharge[j] * pow(RiN(i,j), 2) /pow(1 + alpha[j]*RiN(i, j), 2);
+      grad[index] += Ncharge[j] * pow(RiN(i,j), 2) /pow(1 + alpha[j]*RiN(i, j), 2);
     
     index++;
   }

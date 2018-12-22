@@ -41,119 +41,31 @@ struct rWalker<rJastrow, Slater> {
 
   rWalker() {};
   
-  rWalker(const rJastrow &corr, const Slater &ref) 
-  {
-    initDet(ref.getHforbsA(), ref.getHforbsB());
-    refHelper = rWalkerHelper<Slater>(ref, d);
-    corrHelper = rWalkerHelper<rJastrow>(corr, d);
-  }
+  rWalker(const rJastrow &corr, const Slater &ref) ;
 
-  rWalker(const rJastrow &corr, const Slater &ref, const rDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
+  rWalker(const rJastrow &corr, const Slater &ref, const rDeterminant &pd);
 
-  rDeterminant& getDet() {return d;}
-  void readBestDeterminant(rDeterminant& d) const 
-  {
-    if (commrank == 0) {
-      char file[5000];
-      sprintf(file, "BestCoordinates.txt");
-      std::ifstream ifs(file, std::ios::binary);
-      boost::archive::binary_iarchive load(ifs);
-      load >> d;
-    }
-#ifndef SERIAL
-    boost::mpi::communicator world;
-    mpi::broadcast(world, d, 0);
-#endif
-  }
+  rDeterminant& getDet();
+  void readBestDeterminant(rDeterminant& d) const ;
 
 
-  double getDetOverlap(const Slater &ref) const
-  {
-    return refHelper.thetaDet[0][0]*refHelper.thetaDet[0][1];
-  }
+  double getDetOverlap(const Slater &ref) const;
 
   /**
    * makes det based on mo coeffs 
    */
-  void guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXd& HforbsA, const Eigen::MatrixXd& HforbsB) const 
-  {
-    auto random = std::bind(std::uniform_real_distribution<double>(-1., 1.),
-                            std::ref(generator));
-    for (int i=0; i<d.nelec; i++) {
-      d.coord[i][0] = random();
-      d.coord[i][1] = random();
-      d.coord[i][2] = random();
-    }
-  }
+  void guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXd& HforbsA, const Eigen::MatrixXd& HforbsB) const ;
 
-  void initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB) 
-  {
-    bool readDeterminant = false;
-    char file[5000];
-    sprintf(file, "BestCoordinates.txt");
-
-    {
-      ifstream ofile(file);
-      if (ofile)
-        readDeterminant = true;
-    }
-    if (readDeterminant)
-      readBestDeterminant(d);
-    else
-      guessBestDeterminant(d, HforbsA, HforbsB);
-  }
+  void initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB) ;
 
 
-  void updateWalker(int elec, Vector3d& coord, const Slater& ref, const rJastrow& corr) {
-    Vector3d oldCoord = d.coord[elec];
-    d.coord[elec] = coord;
-    corrHelper.updateWalker(elec, oldCoord, corr, d);
-    refHelper.updateWalker(elec, oldCoord, d, ref);
-  }
+  void updateWalker(int elec, Vector3d& coord, const Slater& ref, const rJastrow& corr);
 
-  void OverlapWithGradient(const Slater &ref, Eigen::VectorBlock<VectorXd> &grad) 
-  {
-    grad[0] = 0.0;
-    int norbs = schd.gBasis.norbs;
-    int nalpha = rDeterminant::nalpha;
-    int nbeta = rDeterminant::nbeta;
-    int nelec = nalpha+nbeta;
-    
-    MatrixXd AoRia = MatrixXd::Zero(nalpha, norbs);
-    MatrixXd AoRib = MatrixXd::Zero(nbeta, norbs);
-    refHelper.aoValues.resize(norbs);
-    
-    for (int elec=0; elec<nalpha; elec++) {
-      schd.gBasis.eval(d.coord[elec], &refHelper.aoValues[0]);
-      for (int orb = 0; orb<norbs; orb++)
-        AoRia(elec, orb) = refHelper.aoValues[orb];
-    }
-
-    for (int elec=0; elec<nbeta; elec++) {
-      schd.gBasis.eval(d.coord[elec+nalpha], &refHelper.aoValues[0]);
-      for (int orb = 0; orb<norbs; orb++)
-        AoRib(elec, orb) = refHelper.aoValues[orb];
-    }
-
-    //Assuming a single determinant
-    int numDets = ref.determinants.size();
-    for (int moa=0; moa<nalpha; moa++) {//alpha mo 
-      for (int orb=0; orb<norbs; orb++) {//ao
-        grad[numDets + orb * norbs + moa] += refHelper.thetaInv[0].row(moa).dot(AoRia.col(orb));
-      }
-    }
-
-    for (int mob=0; mob<nbeta; mob++) {//beta mo 
-      for (int orb=0; orb<norbs; orb++) {//ao
-        if (ref.hftype == Restricted) 
-          grad[numDets + orb * norbs + mob] += refHelper.thetaInv[1].row(mob).dot(AoRib.col(orb));
-        else
-          grad[numDets + norbs*norbs + orb * norbs + mob] += refHelper.thetaInv[1].row(mob).dot(AoRib.col(orb));
-      }
-    }
-  }
+  void OverlapWithGradient(const Slater &ref, Eigen::VectorBlock<VectorXd> &grad) ;
   
 
+  void OverlapWithGradientGhf(const Slater &ref, Eigen::VectorBlock<VectorXd> &grad) ;
+  
 };
 
 
