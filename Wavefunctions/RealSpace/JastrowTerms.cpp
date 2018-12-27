@@ -191,7 +191,8 @@ ENJastrow::ENJastrow()
   Ncoords = schd.Ncoords;
   Ncharge = schd.Ncharge;
   //alpha.resize(schd.Ncoords.size(), 500.);
-  alpha.resize(schd.Ncoords.size(), 100.);
+  //alpha.resize(schd.Ncoords.size(), 100.);
+  alpha.resize(schd.Ncoords.size(), 1.);
 }
 
 double ENJastrow::exponential(const MatrixXd& rij, const MatrixXd& RiN) const {

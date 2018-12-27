@@ -23,16 +23,19 @@
 #include <map>
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/map.hpp>
+#include <boost/serialization/shared_ptr.hpp>
+#include <boost/shared_ptr.hpp>
+#include "basis.h"
 #include "gaussianBasis.h"
+#include "slaterBasis.h"
 #include "iowrapper.h"
 
 class Correlator;
 class Determinant;
-class gaussianBasis;
 
 enum Method { sgd, amsgrad, amsgrad_sgd, sr, linearmethod };
 enum HAM {HUBBARD, ABINITIO};
-enum BASIS {REALSPACE, ORBITALS};
+enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
 
 /**
  * This stores all the input options
@@ -44,6 +47,8 @@ private:
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version)
   {
+    ar.template register_type<gaussianBasis>();
+    ar.template register_type<slaterBasis>();    
     ar & restart & deterministic
       & tol & correlatorFiles
       & wavefunctionType
@@ -76,7 +81,7 @@ private:
       & cgIter
       & stepsize
       & walkerBasis
-      & gBasis
+      & basis
       & nalpha
       & nbeta
       & norbs
@@ -88,7 +93,7 @@ private:
 public:
 //General options
   BASIS walkerBasis;                      //can be real space or local orbitals
-  gaussianBasis gBasis;
+  boost::shared_ptr<Basis> basis;
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
 

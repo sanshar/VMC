@@ -78,14 +78,7 @@ struct rCorrelatedWavefunction {
                            double &factor,
                            Eigen::VectorXd &grad) const
   {
-    double factor1 = 1.0;
-    walk.corrHelper.OverlapWithGradient(walk.d, corr, grad, factor1);
-    Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - corr.getNumVariables());
-    if (schd.hf == "ghf")
-      walk.OverlapWithGradientGhf(ref, gradtail);
-    else
-      walk.OverlapWithGradient(ref, gradtail);
-
+    walk.OverlapWithGradient(ref, corr, grad);
   }
 
   void printVariables() const
@@ -182,12 +175,12 @@ struct rCorrelatedWavefunction {
     //get potential
     for (int i=0; i<walk.d.nelec; i++)
       for (int j=i+1; j<walk.d.nelec; j++) {
-        potentialij += 1./walk.corrHelper.Rij(i,j);
+        potentialij += 1./walk.Rij(i,j);
       }
 
     for (int i=0; i<walk.d.nelec; i++) {
       for (int j=0; j<schd.Ncoords.size(); j++) {
-        potentiali -= schd.Ncharge[j]/walk.corrHelper.RiN(i,j);
+        potentiali -= schd.Ncharge[j]/walk.RiN(i,j);
       }
     }
 
@@ -251,6 +244,7 @@ struct rCorrelatedWavefunction {
         //cout << " k "<<walk.corrHelper.LaplaceRatio[1]<<endl;
       }
       return -0.5*(kinetica+kineticb) + potentialij+potentiali;
+      //return  potentialij+potentiali;
     }
 
     //return potentialij;

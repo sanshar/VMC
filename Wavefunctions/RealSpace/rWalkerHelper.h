@@ -71,6 +71,20 @@ class rWalkerHelper<Slater>
   
   void updateWalker(int elec, Vector3d& oldCoord, const rDeterminant &d,
                     int sz, int nelec, const Slater& w);
+
+  void OverlapWithGradient(const rDeterminant& d, 
+                           const Slater& w,
+                           Eigen::VectorBlock<VectorXd>& grad,
+                           const double& ovlp) ;
+
+  void OverlapWithGradient(const rDeterminant& d, 
+                           const Slater& w,
+                           Eigen::VectorBlock<VectorXd>& grad);
+  
+  void OverlapWithGradientGhf(const rDeterminant& d, 
+                           const Slater& w,
+                           Eigen::VectorBlock<VectorXd>& grad) ;
+  
 };
 
 
@@ -81,8 +95,6 @@ class rWalkerHelper<rJastrow>
  public:
   //keep this updated
   double exponential;   //exponential due to all Jastrow Terms
-  MatrixXd Rij;         //the inter-electron distances
-  MatrixXd RiN;         //electron-nucleus distances
 
   //Equation 33 of  https://doi.org/10.1063/1.4948778
   MatrixXd GradRatio; //nelec x 3 
@@ -90,16 +102,20 @@ class rWalkerHelper<rJastrow>
   VectorXd LaplaceRatio;
   
   rWalkerHelper() {};
-  rWalkerHelper(const rJastrow& cps, const rDeterminant& d);
+  rWalkerHelper(const rJastrow& cps, const rDeterminant& d,
+                MatrixXd& Rij, MatrixXd& RiN);
 
-  void InitializeGradAndLaplaceRatio(const rJastrow& cps, const rDeterminant& d);
+  void InitializeGradAndLaplaceRatio(const rJastrow& cps, const rDeterminant& d,
+                                     MatrixXd& Rij, MatrixXd& RiN);
   
   //Assumes that Rij has already been updated
   void updateGradAndLaplaceRatio(int elec, Vector3d& oldCoord,
-                                 const rJastrow& cps, const rDeterminant& d);
+                                 const rJastrow& cps, const rDeterminant& d,
+                                 MatrixXd& Rij, MatrixXd& RiN);
 
   void updateWalker(int i, Vector3d& oldcoord,
-                    const rJastrow& cps, const rDeterminant& d);
+                    const rJastrow& cps, const rDeterminant& d,
+                    MatrixXd& Rij, MatrixXd& RiN);
 
 
   //the position of the ith electron has changed
@@ -110,7 +126,8 @@ class rWalkerHelper<rJastrow>
   void OverlapWithGradient(const rDeterminant& d, 
                            const rJastrow& cps,
                            VectorXd& grad,
-                           const double& ovlp) const;
+                           const double& ovlp,
+                           MatrixXd& Rij, MatrixXd& RiN) const;
 
 };  
 

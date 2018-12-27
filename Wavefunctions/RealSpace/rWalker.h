@@ -36,6 +36,8 @@ template<>
 struct rWalker<rJastrow, Slater> {
 
   rDeterminant d;
+  MatrixXd Rij;         //the inter-electron distances
+  MatrixXd RiN;         //electron-nucleus distances  
   rWalkerHelper<rJastrow> corrHelper;
   rWalkerHelper<Slater> refHelper;
 
@@ -43,7 +45,7 @@ struct rWalker<rJastrow, Slater> {
   
   rWalker(const rJastrow &corr, const Slater &ref) ;
 
-  rWalker(const rJastrow &corr, const Slater &ref, const rDeterminant &pd);
+  //rWalker(const rJastrow &corr, const Slater &ref, const rDeterminant &pd);
 
   rDeterminant& getDet();
   void readBestDeterminant(rDeterminant& d) const ;
@@ -61,11 +63,9 @@ struct rWalker<rJastrow, Slater> {
 
   void updateWalker(int elec, Vector3d& coord, const Slater& ref, const rJastrow& corr);
 
-  void OverlapWithGradient(const Slater &ref, Eigen::VectorBlock<VectorXd> &grad) ;
+  void OverlapWithGradient(const Slater &ref, const rJastrow& cps, VectorXd &grad) ;
   
 
-  void OverlapWithGradientGhf(const Slater &ref, Eigen::VectorBlock<VectorXd> &grad) ;
-  
 };
 
 

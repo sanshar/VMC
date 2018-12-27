@@ -27,8 +27,8 @@ using namespace Eigen;
 using namespace std;
 
 rJastrow::rJastrow () {    
-  Terms.push_back(boost::shared_ptr<GeneralTerm>(new EEJastrow));
-  Terms.push_back(boost::shared_ptr<GeneralTerm>(new ENJastrow));
+  //Terms.push_back(boost::shared_ptr<GeneralTerm>(new EEJastrow));
+  //Terms.push_back(boost::shared_ptr<GeneralTerm>(new ENJastrow));
 };
 
 

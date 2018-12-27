@@ -26,7 +26,7 @@
 #include <vector>
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
-
+#include "readSlater.h"
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -111,10 +111,27 @@ void readInput(string input, schedule& schd, bool print) {
 	  if (ArgName.empty())
 	    continue;
 
-	  if (boost::iequals(ArgName, "realspace")) {
-            schd.walkerBasis = REALSPACE;
-            schd.gBasis.read();
-            readGeometry(schd.Ncoords, schd.Ncharge, schd.gBasis);
+	  if (boost::iequals(ArgName, "realspacegto")) {
+            schd.walkerBasis = REALSPACEGTO;
+            schd.basis = boost::shared_ptr<Basis>(new gaussianBasis);
+            schd.basis->read();
+            readGeometry(schd.Ncoords, schd.Ncharge, dynamic_cast<gaussianBasis&>(*schd.basis));
+          }
+	  if (boost::iequals(ArgName, "realspacesto")) {
+            schd.walkerBasis = REALSPACESTO;
+
+            //read gaussian basis just to read the nuclear charge and coordinates
+            gaussianBasis gBasis ;
+            gBasis.read();
+            readGeometry(schd.Ncoords, schd.Ncharge, gBasis);
+            
+            schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
+            map<string, Vector3d> atomList;
+            for (int i=0; i<schd.Ncoords.size(); i++) {
+              atomList[ slaterParser::AtomSymbols[schd.Ncharge[i]] ] = schd.Ncoords[i];
+            }
+            dynamic_cast<slaterBasis*>(&(*schd.basis))->atomList = atomList;
+            schd.basis->read();
           }
           
 	  else if (boost::iequals(ArgName, "restart"))

@@ -1,10 +1,12 @@
-#ifndef BASIS_HEADER_H
-#define BASIS_HEADER_H
+#ifndef GAUSSIANBASIS_HEADER_H
+#define GAUSSIANBASIS_HEADER_H
 
 #include <fstream>
 #include <vector>
 #include <Eigen/Dense>
 #include <boost/serialization/serialization.hpp>
+#include "basis.h"
+
 using namespace std;
 using namespace Eigen;
 
@@ -26,12 +28,13 @@ extern "C" {
                           int, int*, int, double*);  
 }
 
-struct gaussianBasis{
+struct gaussianBasis : public Basis {
 private:
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version)
   {
+    ar & boost::serialization::base_object<Basis>(*this);
     ar& IntegralType & norbs & shls_slice & aoloc & natm &
         atm & nbas & bas & env & non0table;
   }
