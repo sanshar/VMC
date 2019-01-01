@@ -560,30 +560,9 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
-  /*
-  cout <<"ham "<< wave.rHam(walk)<<endl;
-  cout << " --- "<<endl;
-  Vector3d coord;
-  coord[0] = 0.05763564180444569196; coord[1] = -0.27636744292815279556; coord[2] = 0.15374588492725499433; 
-  walk.updateWalker(0, coord, wave.getRef(), wave.getCorr());
-  
-  coord[2] = -0.54943792362596899359; coord[1] = -0.69551137759270476035; coord[0] = 0.69417718414118723125; 
-  walk.updateWalker(1, coord, wave.getRef(), wave.getCorr());
-  cout <<"ham "<< wave.rHam(walk)<<endl;
-  if (commrank == 0)
-  {
-    char file[5000];
-    sprintf(file, "BestCoordinates.txt");
-    std::ofstream ofs(file, std::ios::binary);
-    boost::archive::binary_oarchive save(ofs);
-    save << walk.d;
-  }
-  exit(0);
-  */
   double ovlp = wave.Overlap(walk);
   double ham;
 
-  //cout << ovlp <<endl;
   rDeterminant bestDet = walk.getDet();
   double bestovlp = ovlp;
 
@@ -614,13 +593,13 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
       ham = wave.rHam(walk);
       
       wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
+
       for (int i = 0; i < grad.rows(); i++)
       {
         diagonalGrad[i] += (localdiagonalGrad[i] - diagonalGrad[i])/(effIter+1);
         grad[i] += (ham * localdiagonalGrad[i] - grad[i])/(effIter + 1);
         localdiagonalGrad[i] = 0.0;
       }
-      
       double avgPotold = avgPot;
       avgPot += (ham - avgPot)/(effIter+1);
       S1 += (ham - avgPotold) * (ham - avgPot);
@@ -667,6 +646,9 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
   avgPot /= commsize;
   E0 = avgPot;
 
+  //cout << diagonalGrad<<endl<<endl;
+  //cout << grad<<endl;
+  //exit(0);
   diagonalGrad /= (commsize);
   grad /= (commsize);
   grad = grad - E0 * diagonalGrad;
@@ -800,6 +782,7 @@ void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &E0, doubl
   blocking(b_size, r_x, gradError, tauError);
   rk = corr_time(gradError.size(), b_size, r_x);
   //rk = calcTcorr(gradError);
+
   diagonalGrad /= (commsize);
   grad /= (commsize);
   E0 = Eloc / commsize;

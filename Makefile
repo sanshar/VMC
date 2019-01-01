@@ -71,6 +71,7 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/slaterBasis.o\
 	obj/rWalker.o \
 	obj/rWalkerHelper.o \
+	obj/rCorrelatedWavefunction.o \
 	obj/Jastrow.o \
 	obj/Gutzwiller.o \
 	obj/CPS.o \

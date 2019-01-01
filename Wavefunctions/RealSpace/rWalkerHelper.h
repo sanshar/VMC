@@ -123,11 +123,10 @@ class rWalkerHelper<rJastrow>
                       const rDeterminant &d) const;
 
 
-  void OverlapWithGradient(const rDeterminant& d, 
-                           const rJastrow& cps,
+  void OverlapWithGradient(const rJastrow& cps,
                            VectorXd& grad,
-                           const double& ovlp,
-                           MatrixXd& Rij, MatrixXd& RiN) const;
+                           const double& ovlp) const;
+
 
 };  
 

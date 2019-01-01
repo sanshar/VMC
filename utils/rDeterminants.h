@@ -36,13 +36,19 @@ struct rDeterminant {
     coord.resize(nelec);
   }
 
+  friend std::ostream& operator<<(std::ostream& os, const rDeterminant& d) {
+    for (int i=0; i<d.coord.size(); i++)
+      os << d.coord[i]<<std::endl<<std::endl;
+    return os;
+  }
+  
 private:
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version) {
     ar & coord;
   }
-
+  
 };
 
 #endif

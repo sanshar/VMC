@@ -47,6 +47,9 @@ struct rWalker<rJastrow, Slater> {
 
   //rWalker(const rJastrow &corr, const Slater &ref, const rDeterminant &pd);
 
+  void initR();
+  void initHelpers(const rJastrow &corr, const Slater &ref);
+  
   rDeterminant& getDet();
   void readBestDeterminant(rDeterminant& d) const ;
 

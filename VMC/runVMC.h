@@ -73,9 +73,22 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
   functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
 
   if (schd.walkerBasis == REALSPACESTO || schd.walkerBasis == REALSPACEGTO) {
-    AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
-    optimizer.optimize(vars, getStochasticGradientRealSpace, schd.restart);
+    if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
+      AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+      optimizer.optimize(vars, getStochasticGradientRealSpace, schd.restart);
+    }
+    else if (schd.method == sgd) {
+      SGD optimizer(schd.stepsize, schd.maxIter);
+      optimizer.optimize(vars, getStochasticGradientRealSpace, schd.restart);
+    }
+    else if (schd.method == sr) {
+      /*
+        mkdir("./Metric", 0777); 
+        mkdir("./T", 0777); 
+      */
+      SR optimizer(schd.stepsize, schd.maxIter);
+      //optimizer.optimize(vars, getStochasticGradientMetric, schd.restart);
+    }
   }
-
 }
 

@@ -65,6 +65,7 @@ void getSTOnG(int N, int L, int NG,
   
   stong_(&N, &L, &NG, &exponent[0], &coeffs[0]);
   for (int i=0; i<NG; i++) {
+    //cout << exponent[i]<<"  "<<coeffs[i]<<"  "<<zeta<<"  "<<N<<"  "<<L <<endl;
     exponent[i] *= zeta*zeta;
     coeffs[i] *= scale*pow(zeta, 1-N+L)/GTOradialNorm(exponent[i], L);
   }

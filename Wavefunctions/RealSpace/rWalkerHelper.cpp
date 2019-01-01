@@ -269,7 +269,7 @@ void rWalkerHelper<Slater>::updateWalker(int elec, Vector3d& oldCoord, const rDe
 
   VectorXd newVec = VectorXd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
-    for (int j=0; j<norbs; j++) 
+    for (int j=0; j<norbs; j++)  
       newVec(mo) += aoValues[j] * w.getHforbs(sz)(j, mo);
 
     
@@ -343,13 +343,16 @@ void rWalkerHelper<Slater>::OverlapWithGradient(const rDeterminant& d,
   for (int moa=0; moa<nalpha; moa++) {//alpha mo 
     for (int orb=0; orb<norbs; orb++) {//ao
       grad[numDets + orb * norbs + moa] += thetaInv[0].row(moa).dot(AoRia.col(orb));
+      //cout << grad[numDets + orb * norbs + moa]<<"  "<<orb<<"  "<<moa<<endl;
     }
   }
   
   for (int mob=0; mob<nbeta; mob++) {//beta mo 
     for (int orb=0; orb<norbs; orb++) {//ao
-      if (ref.hftype == Restricted) 
+      if (ref.hftype == Restricted) {
         grad[numDets + orb * norbs + mob] += thetaInv[1].row(mob).dot(AoRib.col(orb));
+        //cout << grad[numDets + orb * norbs + mob]<<"  "<<orb<<"  "<<mob<<endl;
+      }
       else
         grad[numDets + norbs*norbs + orb * norbs + mob] += thetaInv[1].row(mob).dot(AoRib.col(orb));
     }
@@ -399,10 +402,8 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
   //RIJ matrix
   //make exponential
   exponential = 0.0;
-  for (int i=0; i<d.nelec; i++) 
-    for (int t =0; t<cps.Terms.size(); t++)
-      exponential += cps.Terms[t]->exponential(Rij, RiN);
-
+  exponential = const_cast<rJastrow&>(cps).exponential(Rij, RiN);
+  
   GradRatio = MatrixXd::Zero(d.nelec,3);
   LaplaceRatio = VectorXd::Zero(d.nelec);
   LaplaceRatioIntermediate = VectorXd::Zero(d.nelec);
@@ -413,42 +414,30 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
 void rWalkerHelper<rJastrow>::InitializeGradAndLaplaceRatio(const rJastrow& cps,
                                                             const rDeterminant& d,
                                                             MatrixXd& Rij, MatrixXd& RiN) {
-  for (int t =0; t<cps.Terms.size(); t++) {
-    cps.Terms[t]->InitGradient(GradRatio, Rij, RiN, d);
-    cps.Terms[t]->InitLaplacian(LaplaceRatioIntermediate, Rij, RiN, d);
-  }
-
+  cps.InitGradient(GradRatio, Rij, RiN, d); 
+  cps.InitLaplacian(LaplaceRatioIntermediate, Rij, RiN, d);
   for (int i=0; i<d.nelec; i++) {
     LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
         pow(GradRatio(i,0), 2) +
         pow(GradRatio(i,1), 2) +
         pow(GradRatio(i,2), 2) ;
   }
+  
 }
   
-//Assumes that Rij has already been updated
-void rWalkerHelper<rJastrow>::updateGradAndLaplaceRatio(int elec, Vector3d& oldCoord,
-                                                        const rJastrow& cps, const rDeterminant& d,
-                                                        MatrixXd& Rij, MatrixXd& RiN) {
-
-  for (int t =0; t<cps.Terms.size(); t++) {
-    cps.Terms[t]->UpdateGradient(GradRatio, Rij, RiN, d, oldCoord, elec);
-    cps.Terms[t]->UpdateLaplacian(LaplaceRatioIntermediate, Rij, RiN, d, oldCoord, elec);
-  }
-
-  for (int i=0; i<d.nelec; i++) {
-    LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
-        pow(GradRatio(i,0), 2) +
-        pow(GradRatio(i,1), 2) +
-        pow(GradRatio(i,2), 2) ;
-  }
-}
 
 void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
                                            const rJastrow& cps,
                                            const rDeterminant& d,
                                            MatrixXd& Rij, MatrixXd& RiN) {
-  updateGradAndLaplaceRatio(i, oldcoord, cps, d, Rij, RiN);
+  cps.UpdateGradientAndExponent(GradRatio, Rij, RiN, d, oldcoord, i); 
+  cps.UpdateLaplacian(LaplaceRatioIntermediate, Rij, RiN, d, oldcoord, i); 
+  for (int i=0; i<d.nelec; i++) {
+    LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
+        pow(GradRatio(i,0), 2) +
+        pow(GradRatio(i,1), 2) +
+        pow(GradRatio(i,2), 2) ;
+  }
 }
 
 
@@ -456,24 +445,16 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
 double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJastrow& cps,
                                              const rDeterminant &d) const
 {
-  double diff = 0.0;
-  for (int t=0; t<cps.Terms.size(); t++) {
-    diff += cps.Terms[t]->exponentDiff(i, coord, d);
-  }
-  return exp(diff);
+  return exp(const_cast<rJastrow&>(cps).exponentDiff(i, coord, d));
 }
 
 
-void rWalkerHelper<rJastrow>::OverlapWithGradient(const rDeterminant& d, 
-                                                  const rJastrow& cps,
+void rWalkerHelper<rJastrow>::OverlapWithGradient(const rJastrow& cps,
                                                   VectorXd& grad,
-                                                  const double& ovlp,
-                                                  MatrixXd& Rij, MatrixXd& RiN) const {
+                                                  const double& ovlp) const {
+                                                  
     
   if (schd.optimizeCps) {
-    int index = 0;
-    for (int t=0; t<cps.Terms.size(); t++) 
-      cps.Terms[t]->OverlapWithGradient(Rij, RiN, d, grad, ovlp, index); 
-
+    cps.OverlapWithGradient(grad);
   }
 }

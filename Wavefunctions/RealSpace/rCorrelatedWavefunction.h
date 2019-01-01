@@ -92,6 +92,9 @@ struct rCorrelatedWavefunction {
     corr.updateVariables(v);
     Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
     ref.updateVariables(vtail);
+
+    if (schd.walkerBasis == REALSPACESTO)
+      enforceCusp();
   }
 
   void getVariables(Eigen::VectorXd &v) const
@@ -117,7 +120,6 @@ struct rCorrelatedWavefunction {
     long numVars = 0;
     numVars += getNumJastrowVariables();
     numVars += ref.getNumVariables();
-
     return numVars;
   }
 
@@ -168,90 +170,25 @@ struct rCorrelatedWavefunction {
   //This function is used with orbital basis
   double rHam(const rWalker<Corr, Reference> &walk) const
   {
-    int norbs = Determinant::norbs;
-
-    double potentialij = 0.0, potentiali=0;
-
-    //get potential
-    for (int i=0; i<walk.d.nelec; i++)
-      for (int j=i+1; j<walk.d.nelec; j++) {
-        potentialij += 1./walk.Rij(i,j);
-      }
-
-    for (int i=0; i<walk.d.nelec; i++) {
-      for (int j=0; j<schd.Ncoords.size(); j++) {
-        potentiali -= schd.Ncharge[j]/walk.RiN(i,j);
-      }
-    }
-
-
-    if (schd.hf == "ghf" ) {
-      double kinetic = 0.0;
-
-      {
-        MatrixXd Bij = walk.refHelper.Laplacian[0]; //i = nelec , j = norbs
-        
-        for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) 
-          Bij.row(i) += 2.*walk.corrHelper.GradRatio.row(i) * walk.refHelper.Gradient[i];
-        
-        for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) {
-          kinetic += Bij.row(i).dot(walk.refHelper.thetaInv[0].col(i));
-          kinetic += walk.corrHelper.LaplaceRatio[i];
-        }
-        //cout << " k "<<walk.corrHelper.LaplaceRatio[0]<<endl;
-      }
-      //return potentialij;
-      //cout << walk.corrHelper.Rij(1,0)<<"  "<<walk.corrHelper.Rij(2,0)<<"  "<<walk.corrHelper.Rij(3,0)<<"  "<<walk.corrHelper.Rij(2,1)<<"  "<<walk.corrHelper.Rij(3,1)<<"  "<<walk.corrHelper.Rij(3,2)<<endl;
-      //cout << walk.corrHelper.RiN(0,0)<<"  " << walk.corrHelper.RiN(1,0)<<"  " << walk.corrHelper.RiN(2,0)<<"  " << walk.corrHelper.RiN(3,0)<<"  " <<endl;
-      //cout << -0.5*(kinetic) <<"  "<< potentialij<<"  "<<potentiali<<"  "<< -0.5*(kinetic) + potentialij+potentiali<<endl;
-      return -0.5*(kinetic) + potentialij+potentiali;
-
-    }
-    else {
-      
-      double kinetica = 0.0;
-      //Alpha
-      {
-        MatrixXd Bij = walk.refHelper.Laplacian[0]; //i = nelec , j = norbs
-        //cout << " k "<<walk.refHelper.thetaInv[0](0,0)*Bij(0,0)<<endl;;
-        
-        for (int i=0; i<walk.d.nalpha; i++) 
-          Bij.row(i) += 2.*walk.corrHelper.GradRatio.row(i) * walk.refHelper.Gradient[i];
-        
-        //cout << " k "<<walk.corrHelper.GradRatio.row(0) <<"  "<< walk.refHelper.Gradient[0]<<endl;
-        for (int i=0; i<walk.d.nalpha; i++) {
-          kinetica += Bij.row(i).dot(walk.refHelper.thetaInv[0].col(i));
-          kinetica += walk.corrHelper.LaplaceRatio[i];
-        }
-        //cout << " k "<<walk.corrHelper.LaplaceRatio[0]<<endl;
-      }
-      
-      double kineticb = 0.0;
-      //Beta
-      if (walk.d.nbeta != 0)
-      {
-        MatrixXd Bij = walk.refHelper.Laplacian[1]; //i = nelec , j = norbs
-        int nalpha = walk.d.nalpha;
-        //cout << " k "<<walk.refHelper.thetaInv[1](0,0)*Bij(0,0)<<endl;;
-        
-        for (int i=0; i<walk.d.nbeta; i++) 
-          Bij.row(i) += 2*walk.corrHelper.GradRatio.row(i+nalpha) * walk.refHelper.Gradient[i+nalpha];
-        
-        for (int i=0; i<walk.d.nbeta; i++) {
-          kineticb += Bij.row(i).dot(walk.refHelper.thetaInv[1].col(i));
-          kineticb += walk.corrHelper.LaplaceRatio[i+nalpha];
-        }
-        //cout << " k "<<walk.corrHelper.LaplaceRatio[1]<<endl;
-      }
-      return -0.5*(kinetica+kineticb) + potentialij+potentiali;
-      //return  potentialij+potentiali;
-    }
-
-    //return potentialij;
+    cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
+    exit(0);
+    return 0;
   }
   
-  
+  void enforceCusp()
+  {
+    cout << "Should not be here. There is a specialized enforceCusp for various cases "<<endl;
+    exit(0);
+    return 0;
+  }
 };
+
+
+template<>
+double rCorrelatedWavefunction<rJastrow, Slater>::rHam(const rWalker<rJastrow, Slater>& walk) const;
+
+template<>
+void rCorrelatedWavefunction<rJastrow, Slater>::enforceCusp();
 
 
 #endif

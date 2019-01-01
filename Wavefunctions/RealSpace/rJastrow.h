@@ -38,20 +38,52 @@ class rJastrow {
   friend class boost::serialization::access;
   template<class Archive>
   void serialize (Archive & ar, const unsigned int version) {
-    ar.template register_type<EEJastrow>();
-    ar.template register_type<ENJastrow>();
-    ar & params & Terms;
+    ar & _enjastrow & _enparams & _envalues
+       & _eejastrow & _eeparams & _eevalues
+        & ENorder & EEorder & EENorder;
   }
  public:
-  std::vector<double> params; 
-  std::vector<boost::shared_ptr<GeneralTerm> > Terms;
+  int ENorder;
+  int EEorder;
+  int EENorder;
+  
+  ENJastrow _enjastrow;
+  std::vector<double> _enparams; 
+  std::vector<double> _envalues; 
+
+  EEJastrow _eejastrow;
+  std::vector<double> _eeparams; 
+  std::vector<double> _eevalues; 
+
 
   rJastrow ();
   
+  double exponential(MatrixXd& Rij, MatrixXd& RiN) ;
+  double exponentDiff(int i, Vector3d& coord, const rDeterminant& d) ;
 
-  void OverlapWithGradient(const rDeterminant& d, 
-                           VectorXd& grad,
-                           const double& ovlp) const;
+  void UpdateGradientAndExponent(MatrixXd& Gradient,
+                                 const MatrixXd& Rij,
+                                 const MatrixXd& RiN,
+                                 const rDeterminant& d,
+                                 const Vector3d& oldCoord, int i) const ;
+
+  void UpdateLaplacian(VectorXd& laplacian,
+                       const MatrixXd& Rij,
+                       const MatrixXd& RiN,
+                       const rDeterminant& d,
+                       const Vector3d& oldCoord, int i) const ;
+
+  void InitGradient(MatrixXd& Gradient,
+                    const MatrixXd& Rij,
+                    const MatrixXd& RiN,
+                    const rDeterminant& d) const ;
+
+  void InitLaplacian(VectorXd& laplacian,
+                     const MatrixXd& Rij,
+                     const MatrixXd& RiN,
+                     const rDeterminant& d) const ;
+  
+  void OverlapWithGradient( VectorXd& grad) const;
   long getNumVariables() const;
 
   void getVariables(Eigen::VectorXd &v) const;

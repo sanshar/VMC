@@ -31,6 +31,16 @@ rWalker<rJastrow, Slater>::rWalker(const rJastrow &corr, const Slater &ref)
 {
   initDet(ref.getHforbsA(), ref.getHforbsB());
 
+  initR();
+  initHelpers(corr, ref);
+}
+
+void rWalker<rJastrow, Slater>::initHelpers(const rJastrow &corr, const Slater &ref)  {
+  refHelper = rWalkerHelper<Slater>(ref, d);
+  corrHelper = rWalkerHelper<rJastrow>(corr, d, Rij, RiN);
+}
+
+void rWalker<rJastrow, Slater>::initR() {
   Rij = MatrixXd::Zero(d.nelec, d.nelec);
   for (int i=0; i<d.nelec; i++)
     for (int j=0; j<i; j++) {
@@ -52,9 +62,6 @@ rWalker<rJastrow, Slater>::rWalker(const rJastrow &corr, const Slater &ref)
       RiN(i,j) = rij;
     }
     
-
-  refHelper = rWalkerHelper<Slater>(ref, d);
-  corrHelper = rWalkerHelper<rJastrow>(corr, d, Rij, RiN);
 }
 
 //rWalker<rJastrow, Slater>::rWalker(const rJastrow &corr, const Slater &ref, const rDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
@@ -132,6 +139,7 @@ void rWalker<rJastrow, Slater>::updateWalker(int elec, Vector3d& coord, const Sl
 
   corrHelper.updateWalker(elec, oldCoord, corr, d, Rij, RiN);
   refHelper.updateWalker(elec, oldCoord, d, ref);
+
 }
 
 void rWalker<rJastrow, Slater>::OverlapWithGradient(const Slater &ref,
@@ -139,7 +147,7 @@ void rWalker<rJastrow, Slater>::OverlapWithGradient(const Slater &ref,
                                                     VectorXd &grad) 
 {
   double factor1 = 1.0;
-  corrHelper.OverlapWithGradient(d, cps, grad, factor1, Rij, RiN);
+  corrHelper.OverlapWithGradient(cps, grad, factor1);
   
   Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - cps.getNumVariables());
   if (schd.optimizeOrbs == false) return;
