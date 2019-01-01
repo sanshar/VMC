@@ -62,7 +62,7 @@ double EEJastrow::exponential(const MatrixXd& Rij, const MatrixXd& RiN,
       double rijbar = Rij(i,j) /(1. + beta*Rij(i,j) );
 
       double alpha = getAlpha(i, j);
-      exponent += alpha * rijbar / (1. + params[0]* rijbar);
+      exponent += alpha * rijbar; // (1. + params[0]* rijbar);
 
       //values[0] += -alpha*rijbar*rijbar/pow(1+params[0]*rijbar,2);
       //sum over higher orders
@@ -95,8 +95,7 @@ double EEJastrow::exponentDiff(int i, const Vector3d &newcoord,
     double rijbar = rij/(1.+ beta*rij),
         rijbarold = rijold/(1. + beta*rijold);
 
-    diff += alpha * (rijbar/(1.+params[0]*rijbar)
-                     - rijbarold/(1. + params[0]*rijbarold));
+    diff += alpha * (rijbar - rijbarold);
 
     //sum over higher orders
     for (int o = 2; o < maxOrder+1; o++) {
