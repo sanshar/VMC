@@ -402,7 +402,7 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
   //RIJ matrix
   //make exponential
   exponential = 0.0;
-  exponential = const_cast<rJastrow&>(cps).exponential(Rij, RiN);
+  exponential = const_cast<rJastrow&>(cps).exponential(d);
   
   GradRatio = MatrixXd::Zero(d.nelec,3);
   LaplaceRatio = VectorXd::Zero(d.nelec);

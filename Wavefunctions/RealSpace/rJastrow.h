@@ -38,27 +38,18 @@ class rJastrow {
   friend class boost::serialization::access;
   template<class Archive>
   void serialize (Archive & ar, const unsigned int version) {
-    ar & _enjastrow & _enparams & _envalues
-       & _eejastrow & _eeparams & _eevalues
-        & ENorder & EEorder & EENorder;
+    ar & _jastrow & _params & _gradHelper;
   }
  public:
-  int ENorder;
-  int EEorder;
-  int EENorder;
-  
-  ENJastrow _enjastrow;
-  std::vector<double> _enparams; 
-  std::vector<double> _envalues; 
 
-  EEJastrow _eejastrow;
-  std::vector<double> _eeparams; 
-  std::vector<double> _eevalues; 
+  GeneralJastrow _jastrow;
+  std::vector<double> _params; 
+  std::vector<double> _gradHelper; 
 
 
   rJastrow ();
   
-  double exponential(MatrixXd& Rij, MatrixXd& RiN) ;
+  double exponential(const rDeterminant& d) ;
   double exponentDiff(int i, Vector3d& coord, const rDeterminant& d) ;
 
   void UpdateGradientAndExponent(MatrixXd& Gradient,

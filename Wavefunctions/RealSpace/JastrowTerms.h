@@ -32,6 +32,77 @@
 using namespace Eigen;
 using namespace std;
 
+struct GeneralJastrow {
+ private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize (Archive & ar, const unsigned int version) {
+    ar & beta & I & J & m & n &o & ss & fixed ;
+  }
+ public:
+
+  vector<int> I, J, m, n, o, ss, fixed; //this description is from equation 41 of JCP 133 (142109)
+  //ss = 1 means same spin, and ss = 0 means opposite spin and ss=2 both spins
+  //fixed=1 means it will not be optimized
+  //fixed=0 means it will be optimized
+  
+  double beta;
+  vector<Vector3d>& Ncoords;
+  vector<double>&   Ncharge;
+  
+  GeneralJastrow();
+
+  double getExponentialIJ(int i, int j,
+                          const Vector3d& coordi, const Vector3d& coordj,
+                          const double* params,
+                          double * gradHelper,
+                          double factor) const;
+
+  void getGradientIJ(Vector3d& gi, Vector3d& gj, 
+                     int i, int j,
+                     const Vector3d& coordi, const Vector3d& coordj,
+                     const double* params) const;
+
+  void getLaplacianIJ(double& laplaciani, double& laplacianj,
+                      int i, int j,
+                      const Vector3d& coordi, const Vector3d& coordj,
+                      const double* params) const ;
+  
+  double exponential(const rDeterminant& d,
+                     const double * params,
+                     double * gradHelper) const;
+
+  double exponentDiff(int i, const Vector3d &coord,
+                      const rDeterminant &d,
+                      const double * params,
+                      double * values) const;
+
+  void InitGradient(MatrixXd& Gradient,
+                    const rDeterminant& d,
+                    const double * params) const;
+
+  void InitLaplacian(VectorXd &laplacian,
+                     const rDeterminant& d,
+                     const double * params) const;
+  
+  void UpdateGradient(MatrixXd& Gradient,
+                      const rDeterminant& d,
+                      const Vector3d& oldCoord,
+                      int elecI, const double * params,
+                      double* values) const;
+
+  void UpdateLaplacian(VectorXd &laplacian,
+                       const rDeterminant& d,
+                       const Vector3d& oldCoord,
+                       int elecI,
+                       const double * params) const;
+
+  void OverlapWithGradient(VectorXd& grad, int& index,
+                           const vector<double>& values) const ;
+  
+};
+
+
 
 struct EEJastrow {
  private:
