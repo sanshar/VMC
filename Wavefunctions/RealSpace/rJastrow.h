@@ -49,30 +49,18 @@ class rJastrow {
 
   rJastrow ();
   
-  double exponential(const rDeterminant& d) ;
+  double exponentialInitLaplaceGrad(const rDeterminant& d,
+                                    MatrixXd& Gradient,
+                                    VectorXd& laplacian) ;
+  
   double exponentDiff(int i, Vector3d& coord, const rDeterminant& d) ;
 
-  void UpdateGradientAndExponent(MatrixXd& Gradient,
-                                 const MatrixXd& Rij,
-                                 const MatrixXd& RiN,
-                                 const rDeterminant& d,
-                                 const Vector3d& oldCoord, int i) const ;
-
-  void UpdateLaplacian(VectorXd& laplacian,
-                       const MatrixXd& Rij,
-                       const MatrixXd& RiN,
-                       const rDeterminant& d,
-                       const Vector3d& oldCoord, int i) const ;
-
-  void InitGradient(MatrixXd& Gradient,
-                    const MatrixXd& Rij,
-                    const MatrixXd& RiN,
-                    const rDeterminant& d) const ;
-
-  void InitLaplacian(VectorXd& laplacian,
-                     const MatrixXd& Rij,
-                     const MatrixXd& RiN,
-                     const rDeterminant& d) const ;
+  void UpdateLaplaceGrad(MatrixXd& Gradient,
+                         VectorXd& laplacian,
+                         const MatrixXd& Rij,
+                         const MatrixXd& RiN,
+                         const rDeterminant& d,
+                         const Vector3d& oldCoord, int i) const ;
   
   void OverlapWithGradient( VectorXd& grad) const;
   long getNumVariables() const;

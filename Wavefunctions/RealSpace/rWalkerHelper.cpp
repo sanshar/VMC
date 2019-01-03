@@ -401,37 +401,31 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
 
   //RIJ matrix
   //make exponential
-  exponential = 0.0;
-  exponential = const_cast<rJastrow&>(cps).exponential(d);
-  
   GradRatio = MatrixXd::Zero(d.nelec,3);
   LaplaceRatio = VectorXd::Zero(d.nelec);
   LaplaceRatioIntermediate = VectorXd::Zero(d.nelec);
-  InitializeGradAndLaplaceRatio(cps, d, Rij, RiN);
-}
 
+  rJastrow& j = const_cast<rJastrow&>(cps);
+  
+  exponential = 0.0;
+  exponential = j.exponentialInitLaplaceGrad(d, GradRatio,
+                                             LaplaceRatioIntermediate);
 
-void rWalkerHelper<rJastrow>::InitializeGradAndLaplaceRatio(const rJastrow& cps,
-                                                            const rDeterminant& d,
-                                                            MatrixXd& Rij, MatrixXd& RiN) {
-  cps.InitGradient(GradRatio, Rij, RiN, d); 
-  cps.InitLaplacian(LaplaceRatioIntermediate, Rij, RiN, d);
   for (int i=0; i<d.nelec; i++) {
     LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
         pow(GradRatio(i,0), 2) +
         pow(GradRatio(i,1), 2) +
         pow(GradRatio(i,2), 2) ;
   }
-  
 }
-  
 
 void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
                                            const rJastrow& cps,
                                            const rDeterminant& d,
                                            MatrixXd& Rij, MatrixXd& RiN) {
-  cps.UpdateGradientAndExponent(GradRatio, Rij, RiN, d, oldcoord, i); 
-  cps.UpdateLaplacian(LaplaceRatioIntermediate, Rij, RiN, d, oldcoord, i); 
+  cps.UpdateLaplaceGrad(GradRatio, LaplaceRatioIntermediate,
+                        Rij, RiN, d, oldcoord, i);
+
   for (int i=0; i<d.nelec; i++) {
     LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
         pow(GradRatio(i,0), 2) +

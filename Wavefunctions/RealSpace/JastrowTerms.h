@@ -52,51 +52,37 @@ struct GeneralJastrow {
   
   GeneralJastrow();
 
-  double getExponentialIJ(int i, int j,
-                          const Vector3d& coordi, const Vector3d& coordj,
-                          const double* params,
-                          double * gradHelper,
-                          double factor) const;
+  double getExpLaplaceGradIJ(int i, int j,
+                             Vector3d& gi, Vector3d& gj,
+                             double& laplaciani,
+                             double& laplacianj,
+                             const Vector3d& coordi,
+                             const Vector3d& coordj,
+                             const double* params,
+                             double * gradHelper,
+                             double factor,
+                             bool dolaplaceGrad) const;
 
-  void getGradientIJ(Vector3d& gi, Vector3d& gj, 
-                     int i, int j,
-                     const Vector3d& coordi, const Vector3d& coordj,
-                     const double* params) const;
-
-  void getLaplacianIJ(double& laplaciani, double& laplacianj,
-                      int i, int j,
-                      const Vector3d& coordi, const Vector3d& coordj,
-                      const double* params) const ;
+  double exponentialInitLaplaceGrad(const rDeterminant& d,
+                                    MatrixXd& Gradient,
+                                    VectorXd& laplacian,
+                                    const double * params,
+                                    double * gradHelper) const;
   
-  double exponential(const rDeterminant& d,
-                     const double * params,
-                     double * gradHelper) const;
 
   double exponentDiff(int i, const Vector3d &coord,
                       const rDeterminant &d,
                       const double * params,
                       double * values) const;
 
-  void InitGradient(MatrixXd& Gradient,
-                    const rDeterminant& d,
-                    const double * params) const;
-
-  void InitLaplacian(VectorXd &laplacian,
-                     const rDeterminant& d,
-                     const double * params) const;
+  void UpdateLaplaceGrad(MatrixXd& Gradient,
+                         VectorXd& laplacian,
+                         const rDeterminant& d,
+                         const Vector3d& oldCoord,
+                         int i,
+                         const double * params,
+                         double * gradHelper) const;
   
-  void UpdateGradient(MatrixXd& Gradient,
-                      const rDeterminant& d,
-                      const Vector3d& oldCoord,
-                      int elecI, const double * params,
-                      double* values) const;
-
-  void UpdateLaplacian(VectorXd &laplacian,
-                       const rDeterminant& d,
-                       const Vector3d& oldCoord,
-                       int elecI,
-                       const double * params) const;
-
   void OverlapWithGradient(VectorXd& grad, int& index,
                            const vector<double>& values) const ;
   

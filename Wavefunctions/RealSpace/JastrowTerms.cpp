@@ -2,33 +2,101 @@
 #include "input.h"
 #include "global.h"
 
-void GradHelper(const int& n, const double& fx, const double& beta,
-                const VectorXd& di, const VectorXd& dj,
-                double& gx, double& gy, double & gz) {
 
-  double xij = di[0] - dj[0];
-  double yij = di[1] - dj[1];
-  double zij = di[2] - dj[2];
-  double rij = pow(xij*xij + yij*yij + zij*zij, 0.5);
+//fx = rbar1^n  rbar2^m rbar3^o
+//rbar1 = rik/(1+beta rij)
+//rbar2 = rjl/(1+beta ril)
+//rbar3 = rij/(1+beta rjk)
+double ExpGradLaplaceHelper(const int& n, const int& m, const int& o,
+                            const double& scale, const double& beta,
+                            const VectorXd& di, const VectorXd& dj,
+                            const VectorXd& dk, const VectorXd& dl,
+                            double &laplacei, double &laplacej,
+                            double &gxi, double &gyi, double &gzi,
+                            double &gxj, double &gyj, double &gzj,
+                            double &gradHelper, double helperscale,
+                            bool dolaplaceGrad) {
 
+  //these cannot be zero because we divide by them to obtain derivatives
+  double
+      xij=1.e-6, yij=1.e-6, zij=1.e-6, rij=1.e-6,
+      xik=1.e-6, yik=1.e-6, zik=1.e-6, rik=1.e-6,
+      xjl=1.e-6, yjl=1.e-6, zjl=1.e-6, rjl=1.e-6;
+
+  if (o != 0) {
+    xij = di[0] - dj[0];
+    yij = di[1] - dj[1];
+    zij = di[2] - dj[2];
+    rij = pow(xij*xij + yij*yij + zij*zij, 0.5);
+  }
+  
+  if (n != 0) {
+    xik = di[0] - dk[0];
+    yik = di[1] - dk[1];
+    zik = di[2] - dk[2];
+    rik = pow(xik*xik + yik*yik + zik*zik, 0.5);
+  }
+
+  if (m != 0) {
+    xjl = dj[0] - dl[0];
+    yjl = dj[1] - dl[1];
+    zjl = dj[2] - dl[2];
+    rjl = pow(xjl*xjl + yjl*yjl + zjl*zjl, 0.5);
+  }
+  
   double rijbar = rij/(1. + beta*rij);
-  double DfDr = n*fx/rijbar * 1./pow(1+beta*rij, 2);
-  gx = DfDr * xij/rij;
-  gy = DfDr * yij/rij;
-  gz = DfDr * zij/rij;
-}
+  double rikbar = rik/(1. + beta*rik);
+  double rjlbar = rjl/(1. + beta*rjl);
 
+  double value = pow(rikbar, n) * pow(rjlbar, m) * pow(rijbar, o);
+  double f = scale * value;
+  gradHelper += helperscale * value;
+  
+  if (dolaplaceGrad) {
+    // grad and laplace w.r.t to xi
+    double DfDrik = n == 0 ? 0 : n*f/rikbar * 1./pow(1+beta*rik, 2);
+    double DfDrij = o == 0 ? 0 : o*f/rijbar * 1./pow(1+beta*rij, 2);
 
-double LaplaceHelper(const int& n, const double& fx,
-                     const double& rij, const double& beta) {
+    gxi += DfDrik * xik/rik + DfDrij * xij/rij;
+    gyi += DfDrik * yik/rik + DfDrij * yij/rij;
+    gzi += DfDrik * zik/rik + DfDrij * zij/rij;
 
-  double rijbar = rij/(1. + beta*rij);
+    if (n != 0)
+    laplacei += 2 * DfDrik * (-beta/(1+beta*rik) + 1./rik)
+        + n*(n-1)*f/rikbar/rikbar/pow(1.+beta*rik, 4);  //rik term
 
-  double value = 2.*n*fx/rijbar/pow(1.+beta*rij,2) * (-beta/(1+beta*rij) + 1./rij);
-  if (n >= 2)
-    value += n*(n-1)*fx/rijbar/rijbar/pow(1.+beta*rij, 4);
+    if (o != 0)
+    laplacei += 2 * DfDrij * (-beta/(1+beta*rij) + 1./rij)
+        + o*(o-1)*f/rijbar/rijbar/pow(1.+beta*rij, 4);  //rij term
 
-  return value;
+    if (o != 0 && n != 0)
+    laplacei += 2*n*o*f/rikbar/rijbar
+        /pow(1.+beta*rik, 2)/pow(1.+beta*rij, 2) *
+        (xij*xik + yij*yik + zij*zik)/rij/rik;
+
+  
+    // grad and laplace w.r.t to xj
+    double DfDrjl = m == 0 ? 0 : m*f/rjlbar * 1./pow(1+beta*rjl, 2);
+
+    gxj += DfDrjl * xjl/rjl - DfDrij * xij/rij;
+    gyj += DfDrjl * yjl/rjl - DfDrij * yij/rij;
+    gzj += DfDrjl * zjl/rjl - DfDrij * zij/rij;
+
+    if (m != 0)
+    laplacej += 2 * DfDrjl * (-beta/(1+beta*rjl) + 1./rjl)
+        + m*(m-1)*f/rjlbar/rjlbar/pow(1.+beta*rjl, 4);  //rjl term
+
+    if (o != 0)
+    laplacej += 2 * DfDrij * (-beta/(1+beta*rij) + 1./rij)
+        + o*(o-1)*f/rijbar/rijbar/pow(1.+beta*rij, 4);  //rij term
+
+    if (o != 0 && m != 0)
+    laplacej += 2*m*o*f/rjlbar/rijbar
+        /pow(1.+beta*rjl, 2)/pow(1.+beta*rij, 2) *
+        (-xij*xjl - yij*yjl - zij*zjl)/rij/rjl;
+
+  }
+  return f;
 }
 
 
@@ -52,211 +120,72 @@ double distance(const Vector3d& r1, const Vector3d& r2) {
               pow(r1[2] - r2[2], 2) , 0.5);
 }
 
-double GeneralJastrow::getExponentialIJ(int i, int j,
-                                        const Vector3d& coordi,
-                                        const Vector3d& coordj,
-                                        const double* params,
-                                        double * gradHelper,
-                                        double factor) const {
-  double rij = distance(coordi, coordj);
-  double rijbar = rij /(1. + beta*rij );
+double GeneralJastrow::getExpLaplaceGradIJ(int i, int j,
+                                           Vector3d& gi, Vector3d& gj,
+                                           double& laplaciani,
+                                           double& laplacianj,
+                                           const Vector3d& coordi,
+                                           const Vector3d& coordj,
+                                           const double* params,
+                                           double * gradHelper,
+                                           double factor,
+                                           bool dolaplaceGrad) const {
 
-  double exponent = 0;
-  
-  //loop over all jastrows and calculate their values
+  double exponent = 0.0;
   for (int x = 0; x<I.size(); x++) {
-    
-    if (I[x] == -1 && Jx[] == -1) { //EE
-      if (electronsOfCorrectSpin(i, j, ss[x])) {
-        exponent += params[x] * pow(rijbar, o[x]);        
-        gradHelper[x] += factor*pow(rijbar, o[x]);
-      }
-    }
+    if (electronsOfCorrectSpin(i, j, ss[x])) {
 
-    else {
-      if (electronsOfCorrectSpin(i, j, ss[x])) {
-        double riI = distance(coordi, Ncoords[I[x]]);
-        double RiI = riI/(1.0 + beta * riI);
-        
-        double riJ = distance(coordj, Ncoords[J[x]]);
-        double RiJ = riJ/(1.0 + beta * riJ);
-        
-        double rjI = distance(coordj, Ncoords[I[x]]);
-        double RjI = rjI/(1.0 + beta * rjI);
-        
-        double rjJ = distance(coordj, Ncoords[J[x]]);
-        double RjJ = rjJ/(1.0 + beta * rjJ);
-        
-        exponent += params[x]* ( ( pow(RiI, m[x]) * pow(RjJ, n[x]) +
-                                   pow(RjI, m[x]) * pow(RiJ, n[x]) )
-                                 * pow(rijbar, o[x]) );
-        
-        gradHelper[x] += factor*( pow(RiI, m[x]) * pow(RjJ, n[x]) +
-                                  pow(RjI, m[x]) * pow(RiJ, n[x]) ) 
-            * pow(rijbar, o[x]) ;
-        
+      exponent += ExpGradLaplaceHelper(m[x], n[x], o[x],
+                                       params[x], beta,
+                                       coordi, coordj,
+                                       Ncoords[I[x]], Ncoords[J[x]],
+                                       laplaciani, laplacianj,
+                                       gi[0], gi[1], gi[2],
+                                       gj[0], gj[1], gj[2],
+                                       gradHelper[x], factor, dolaplaceGrad);
+
+      if (n[x] != 0 || m[x] != 0) {
+        exponent += ExpGradLaplaceHelper(n[x], m[x], o[x],
+                                         params[x], beta,
+                                         coordi, coordj,
+                                         Ncoords[J[x]], Ncoords[I[x]],
+                                         laplaciani, laplacianj,
+                                         gi[0], gi[1], gi[2],
+                                         gj[0], gj[1], gj[2],
+                                         gradHelper[x], factor,
+                                         dolaplaceGrad);
       }
     }
   }
+
   return exponent;
 }
 
-void GeneralJastrow::getGradientIJ(Vector3d& gi, Vector3d& gj, 
-                                   int i, int j,
-                                   const Vector3d& coordi,
-                                   const Vector3d& coordj,
-                                   const double* params) const {
-  gi[0] = 0; gi[1] = 0; gi[2] = 0;
-  gj[0] = 0; gj[1] = 0; gj[2] = 0;
 
-  double gx, gy, gz;
-
-  double rij = distance(coordi, coordj);
-  double rijbar = rij /(1. + beta*rij );
-
-  //loop over all jastrows and calculate their contribution
-  for (int x = 0; x<I.size(); x++) {
-    
-    if (I[x] == -1) { //not nuclear term
-      if (electronsOfCorrectSpin(i, j, ss[x])) {
-        double fx = params[x] * pow(rijbar, o[x]);
-        GradHelper(o[x], fx, beta, coordi, coordj, gx, gy, gz);
-
-        gi[0] += gx; gi[1] += gy; gi[2] += gz;
-        gj[0] -= gx; gj[1] -= gy; gj[2] -= gz;
-      }
-    }
-
-    else {
-      if (electronsOfCorrectSpin(i, j, ss[x])) {
-          double riI = distance(coordi, Ncoords[I[x]]);
-          double RiI = riI/(1.0 + beta * riI);
-
-          double riJ = distance(coordj, Ncoords[J[x]]);
-          double RiJ = riJ/(1.0 + beta * riJ);
-
-          double rjI = distance(coordj, Ncoords[I[x]]);
-          double RjI = rjI/(1.0 + beta * rjI);
-
-          double rjJ = distance(coordj, Ncoords[J[x]]);
-          double RjJ = rjJ/(1.0 + beta * rjJ);
-        
-          double f1 = pow(RiI, m[x]) * pow(RjJ, n[x]) * pow(rijbar, o[x]);
-          double f2 = pow(RjI, m[x]) * pow(RiJ, n[x]) * pow(rijbar, o[x]);
-          f1 *= params[x];
-          f2 *= params[x];
-          
-          if (m[x] != 0) {
-            GradHelper(m[x], f1, beta, coordi, Ncoords[I[x]], gx, gy, gz);
-            gi[0] += gx; gi[1] += gy; gi[2] += gz;
-
-            GradHelper(m[x], f2, beta, coordj, Ncoords[I[x]], gx, gy, gz);
-            gj[0] += gx; gj[1] += gy; gj[2] += gz;
-          }
-          
-          if (n[x] != 0) {
-            GradHelper(n[x], f1, beta, coordj, Ncoords[J[x]], gx, gy, gz);
-            gj[0] += gx; gj[1] += gy; gj[2] += gz;
-            
-            GradHelper(n[x], f2, beta, coordi, Ncoords[J[x]], gx, gy, gz);
-            gi[0] += gx; gi[1] += gy; gi[2] += gz;
-          }
-          
-          if (o[x] != 0) {
-            double g = f1+f2;
-            GradHelper(o[x], g, beta, coordi, coordj, gx, gy, gz);
-            gi[0] += gx; gi[1] += gy; gi[2] += gz;
-            gj[0] -= gx; gj[1] -= gy; gj[2] -= gz;
-          }
-          
-      }
-    }
-    
-  }
-      
-}
-
-void GeneralJastrow::getLaplacianIJ(double& laplaciani, double& laplacianj,
-                                    int i, int j,
-                                    const Vector3d& coordi,
-                                    const Vector3d& coordj,
-                                    const double* params) const {
-  double laplace;  
-
-  double rij = distance(coordi, coordj);
-  double rijbar = rij /(1. + beta*rij );
-
-      //loop over all jastrows and calculate their contribution
-  for (int x = 0; x<I.size(); x++) {
-    
-    if (I[x] == -1) { //not nuclear term
-      if (electronsOfCorrectSpin(i, j, ss[x])) {
-        double fx = params[x] * pow(rijbar, o[x]);
-        laplace = LaplaceHelper(o[x], fx, rij, beta);            
-        laplaciani += laplace;  laplacianj += laplace;
-      }
-    }
-
-    else {
-      if (electronsOfCorrectSpin(i, j, ss[x])) {
-          double riI = distance(coordi, Ncoords[I[x]]);
-          double RiI = riI/(1.0 + beta * riI);
-
-          double riJ = distance(coordj, Ncoords[J[x]]);
-          double RiJ = riJ/(1.0 + beta * riJ);
-
-          double rjI = distance(coordj, Ncoords[I[x]]);
-          double RjI = rjI/(1.0 + beta * rjI);
-
-          double rjJ = distance(coordj, Ncoords[J[x]]);
-          double RjJ = rjJ/(1.0 + beta * rjJ);
-
-          double f1 = pow(RiI, m[x]) * pow(RjJ, n[x]) * pow(rijbar, o[x]);
-          double f2 = pow(RjI, m[x]) * pow(RiJ, n[x]) * pow(rijbar, o[x]);
-          f1 *= params[x];
-          f2 *= params[x];
-            
-          if (m[x] != 0) {
-            laplace = LaplaceHelper(m[x], f1, riI, beta);
-            laplaciani += laplace;  
-
-            laplace = LaplaceHelper(m[x], f2, rjI, beta);    
-            laplacianj += laplace;
-          }
-
-          if (n[x] != 0) {
-            laplace = LaplaceHelper(n[x], f1, rjJ, beta); 
-            laplacianj += laplace;  
-
-            laplace = LaplaceHelper(n[x], f2, riJ, beta); 
-            laplaciani += laplace;
-          }
-
-          if (o[x] != 0) {
-            double g = f1+f2;
-            laplace = LaplaceHelper(o[x], g, rij, beta); 
-            laplacianj += laplace;  laplaciani += laplace;
-          }
-      }
-    }
-  }
-}
-
-
-double GeneralJastrow::exponential(const rDeterminant& d,
-                                   const double * params,
-                                   double * gradHelper) const {
+double GeneralJastrow::exponentialInitLaplaceGrad(const rDeterminant& d,
+                                                  MatrixXd& Gradient,
+                                                  VectorXd& laplacian,
+                                                  const double * params,
+                                                  double * gradHelper) const {
 
   int nalpha = rDeterminant::nalpha;
-
+  Vector3d gi, gj;
+  
   double exponent = 0.0;
   for (int i=0; i<d.nelec; i++)
     for (int j=0; j<i; j++) {
-      
-      exponent += getExponentialIJ(i, j, d.coord[i], d.coord[j],
-                                   params, gradHelper, 1.0);
+      gi.setZero(); gj.setZero();
+      exponent += getExpLaplaceGradIJ(i, j, gi, gj,
+                                      laplacian[i], laplacian[j],
+                                      d.coord[i], d.coord[j],
+                                      params, gradHelper, 1.0, true);
+      Gradient(i,0)+= gi[0]; Gradient(i,1)+= gi[1]; Gradient(i,2) += gi[2];
+      Gradient(j,0)+= gj[0]; Gradient(j,1)+= gj[1]; Gradient(j,2) += gj[2];
+      //cout << i<<"  "<<j<<"  "<<exponent <<endl;
     }
-  
+
+  //cout << exponent <<endl;
+  //exit(0);
   return exponent;  
 }
 
@@ -265,106 +194,66 @@ double GeneralJastrow::exponentDiff(int i, const Vector3d &newcoord,
                                     const double * params,
                                     double * gradHelper) const
 {
+  Vector3d gi, gj;
+  double laplacei, laplacej;
   
   double diff = 0.0;
   for (int j=0; j<d.nelec; j++) {
     if (i == j) continue;
 
-    diff += getExponentialIJ(i, j, newcoord, d.coord[j],
-                             params, gradHelper, 0.0);
-    diff -= getExponentialIJ(i, j, d.coord[i], d.coord[j],
-                             params, gradHelper, 0.0);    
+    diff += getExpLaplaceGradIJ(i, j, gi, gj, laplacei, laplacej,
+                                newcoord, d.coord[j],
+                                params, gradHelper, 0.0, false);
+    
+    diff -= getExpLaplaceGradIJ(i, j, gi, gj, laplacei, laplacej,
+                                d.coord[i], d.coord[j],
+                                params, gradHelper, 0.0, false);
   }
 
   return diff;
 }
 
 
-void GeneralJastrow::InitGradient(MatrixXd& Gradient,
-                                  const rDeterminant& d,
-                                  const double * params) const {
 
-  Vector3d gi, gj;
-
-  for (int i=0; i<d.nelec; i++) {
-    for (int j=0; j<i; j++) {
-
-      getGradientIJ( gi, gj, i, j, d.coord[i], d.coord[j], params);
-      Gradient(i,0) += gi[0];  Gradient(i,1) += gi[1];  Gradient(i,2) += gi[2];
-      Gradient(j,0) += gj[0];  Gradient(j,1) += gj[1];  Gradient(j,2) += gj[2];
-    }
-  }
-}
-
-//J = exp( sum_ij uij)
-//\sum_j Nabla^2_i uij  
-void GeneralJastrow::InitLaplacian(VectorXd &laplacian,
-                                   const rDeterminant& d,
-                                   const double * params) const {
-
-  for (int i=0; i<d.nelec; i++) {
-    for (int j=0; j<i; j++) {
-
-      getLaplacianIJ(laplacian[i], laplacian[j], i, j,
-                     d.coord[i], d.coord[j], params);
-    }    
-  }
-}
-
-void GeneralJastrow::UpdateGradient(MatrixXd& Gradient,
-                                    const rDeterminant& d,
-                                    const Vector3d& oldCoord,
-                                    int i,
-                                    const double * params,
-                                    double * gradHelper) const {
+void GeneralJastrow::UpdateLaplaceGrad(MatrixXd& Gradient,
+                                       VectorXd& laplacian,
+                                       const rDeterminant& d,
+                                       const Vector3d& oldCoord,
+                                       int i,
+                                       const double * params,
+                                       double * gradHelper) const {
   
   Vector3d gi, gj;
+  double laplacei=0., laplacej = 0. ;
 
   for (int j=0; j<d.nelec; j++) {
     if (j == i) continue;
 
-    getGradientIJ(gi, gj, i, j, d.coord[i], d.coord[j], params); 
+    laplacei = 0; laplacej = 0;
+    gi.setZero(); gj.setZero();
+    getExpLaplaceGradIJ(i, j, gi, gj,
+                        laplacei, laplacej,
+                        d.coord[i], d.coord[j],
+                        params, gradHelper, 1.0, true);
+    
     Gradient(i,0) += gi[0];  Gradient(i,1) += gi[1];  Gradient(i,2) += gi[2];
     Gradient(j,0) += gj[0];  Gradient(j,1) += gj[1];  Gradient(j,2) += gj[2];
+    laplacian[i] += laplacei;  laplacian[j] += laplacej;
 
-    getGradientIJ(gi, gj, i, j, oldCoord, d.coord[j], params); 
+    laplacei = 0; laplacej = 0;
+    gi.setZero(); gj.setZero();
+    getExpLaplaceGradIJ(i, j, gi, gj,
+                        laplacei, laplacej,
+                        oldCoord, d.coord[j],
+                        params, gradHelper, -1.0, true);
+    
     Gradient(i,0) -= gi[0];  Gradient(i,1) -= gi[1];  Gradient(i,2) -= gi[2];
     Gradient(j,0) -= gj[0];  Gradient(j,1) -= gj[1];  Gradient(j,2) -= gj[2];
-
-
-    getExponentialIJ(i, j, d.coord[i], d.coord[j],
-                     params, gradHelper, 1.0);
-
-    getExponentialIJ(i, j, oldCoord, d.coord[j],
-                     params, gradHelper, -1.0);    
-  }
-}
-
-//J = exp( sum_ij uij)
-//\sum_j Nabla^2_i uij  
-void GeneralJastrow::UpdateLaplacian(VectorXd &laplacian,
-                                     const rDeterminant& d,
-                                     const Vector3d& oldCoord,
-                                     int i,
-                                     const double * params) const {
-
-  double laplacei=0., laplacej = 0. ;
-  int minOrder = 2;
-  for (int j=0; j<d.nelec; j++) {
-    if (j == i) continue;
-
-    getLaplacianIJ(laplacei, laplacej, i, j,
-                   d.coord[i], d.coord[j], params);
-    laplacian[i] += laplacei;  laplacian[j] += laplacej;
-    laplacei = 0; laplacej = 0;
-
-    
-    getLaplacianIJ(laplacei, laplacej, i, j,
-                   oldCoord, d.coord[j], params);
     laplacian[i] -= laplacei;  laplacian[j] -= laplacej;
-    laplacei = 0; laplacej = 0;
+    
   }
 }
+
 
 void GeneralJastrow::OverlapWithGradient(VectorXd& grad, int& index,
                                          const vector<double>& gradHelper) const {
