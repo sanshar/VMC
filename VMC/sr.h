@@ -54,7 +54,7 @@ class DirectMetric
       double Tau = 0.0;
       int dim = Vectors.col(0).rows();
       S = MatrixXd::Zero(dim, dim);
-      for (int i = 0; i < Vectors.size(); i++)
+      for (int i = 0; i < Vectors.cols(); i++)
       {
         S += T(i) * Vectors.col(i) * Vectors.col(i).adjoint();
         Tau += T(i);
@@ -95,8 +95,9 @@ class DirectMetric
 #endif
       Ax /= Tau;
 
-      Ax += diagshift * x;
-    } 
+      for (int i = 1; i < Ax.rows(); i++)
+        Ax(i) += diagshift * x(i);
+  }
 };
 
 void ConjGrad(DirectMetric &A, VectorXd &b, int n, VectorXd &x);
@@ -186,15 +187,12 @@ class SR
        */
        /*
        s.BuildMetric();
-       for(int i=0; i<vars.rows(); i++)
-         s.S(i,i) += 1.e-4;
-       MatrixXd s_inv = MatrixXd::Zero(vars.rows() + 1, vars.rows() + 1);
-       PInv(s.S,s_inv);
-       x = s_inv * s.H;
+       for(int i=1; i<vars.rows(); i++)
+         s.S(i,i) += schd.sDiagShift;
+       //MatrixXd s_inv = MatrixXd::Zero(vars.rows() + 1, vars.rows() + 1);
+       //PInv(s.S,s_inv);
+       //x = s_inv * H;
        */
-       
-       //cout << s.H << endl<<endl;
-       //cout << x <<endl<<endl<<endl;;
 
        //xguess << 1.0, vars;
        //ConjGrad(s, s.H, xguess, schd.cgIter, x);

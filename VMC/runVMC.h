@@ -29,6 +29,7 @@
 using functor1 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
 using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
 using functor3 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
+using functor4 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
 
 
 template<typename Wave, typename Walker>
@@ -71,6 +72,7 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
 
   functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
+  functor4 getStochasticGradientMetricRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
 
   if (schd.walkerBasis == REALSPACESTO || schd.walkerBasis == REALSPACEGTO) {
     if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
@@ -87,7 +89,7 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
         mkdir("./T", 0777); 
       */
       SR optimizer(schd.stepsize, schd.maxIter);
-      //optimizer.optimize(vars, getStochasticGradientMetric, schd.restart);
+      optimizer.optimize(vars, getStochasticGradientMetricRealSpace, schd.restart);
     }
   }
 }
