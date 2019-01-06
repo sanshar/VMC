@@ -665,6 +665,262 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 }
 
 template<typename Wfn, typename Walker>
+void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, VectorXd& H, DirectMetric& S, double &rk, int niter, double targetError)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                          std::ref(generator));
+  double ovlp = wave.Overlap(walk);
+  double ham;
+
+  rDeterminant bestDet = walk.getDet();
+  double bestovlp = ovlp;
+
+
+  Vector3d step;
+  int elecToMove = 0, nelec = walk.d.nelec;
+
+  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = 2*nelec;
+  
+  double acceptedFrac = 0;
+  double M1 = 0., S1 = 0.;
+  int nstore = 1000000 / commsize;
+  int corrIter = min(nstore, niter/sampleSteps);
+  std::vector<double> corrError(corrIter * commsize, 0);
+
+  int numVars = grad.rows();
+  H = VectorXd::Zero(numVars + 1);
+  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()),
+      diagonalGrad = VectorXd::Zero(grad.rows());
+
+  vector<double> aoValues(10 * Determinant::norbs, 0.0);
+
+  S.T.setZero(niter/sampleSteps);
+  S.Vectors.setZero(numVars + 1, niter/sampleSteps);
+  VectorXd appended(numVars + 1);
+
+  while (iter < niter) {
+    getStep(step, random, schd.realSpaceStep);
+    elecToMove = iter%nelec;
+    step += walk.d.coord[elecToMove];
+
+    iter ++;
+    if (iter%sampleSteps == 0) {
+      ham = wave.rHam(walk);
+   
+      wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
+
+      if (effIter < niter/sampleSteps) {
+        appended << 1.0, localdiagonalGrad;
+        S.Vectors.col(effIter) = appended;
+        S.T(effIter) = 1.0;
+      }
+
+      
+      for (int i = 0; i < grad.rows(); i++)
+      {
+        diagonalGrad[i] += (localdiagonalGrad[i] - diagonalGrad[i])/(effIter+1);
+        grad[i] += (ham * localdiagonalGrad[i] - grad[i])/(effIter + 1);
+        localdiagonalGrad[i] = 0.0;
+      }
+      double avgPotold = avgPot;
+      avgPot += (ham - avgPot)/(effIter+1);
+      S1 += (ham - avgPotold) * (ham - avgPot);
+      if (effIter < corrIter)
+        corrError[effIter + commrank * corrIter] = ham;
+      effIter++;
+    }
+
+ 
+
+ 
+    double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
+
+    if (ovlpRatio*ovlpRatio > random()) {
+      acceptedFrac++;
+      walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
+
+      ovlp = ovlp*ovlpRatio;
+
+      if (abs(ovlp) > abs(bestovlp)) {
+        bestovlp = ovlp;
+        bestDet = walk.getDet();
+      }
+    }
+ 
+
+
+  }
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(diagonalGrad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  vector<double> b_size, r_x; vector<double> tauError(corrError.size(), 1.0);
+  blocking(b_size, r_x, corrError, tauError);
+  rk = corr_time(corrError.size(), b_size, r_x);
+
+
+  double n_eff = commsize * effIter;
+  S1 /= effIter;
+  stddev = sqrt((S1 * rk /n_eff));
+  avgPot /= commsize;
+  E0 = avgPot;
+
+  diagonalGrad /= (commsize);
+  grad /= (commsize);
+  grad = grad - E0 * diagonalGrad;
+
+  
+  //VectorXd appended(numVars);
+  //appended = diagonalGrad - schd.stepsize * grad;
+  H << 1.0, (diagonalGrad - schd.stepsize * grad);
+
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestCoordinates.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << bestDet;
+  }
+
+}
+
+
+
+template<typename Wfn, typename Walker>
+void getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev,
+                                           Eigen::VectorXd &grad, MatrixXd& Hessian,
+                                           MatrixXd& Smatrix, double &rk,
+                                           int niter, double targetError)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                          std::ref(generator));
+  double ovlp = wave.Overlap(walk);
+  double ham;
+
+  rDeterminant bestDet = walk.getDet();
+  double bestovlp = ovlp;
+
+
+  Vector3d step;
+  int elecToMove = 0, nelec = walk.d.nelec;
+
+  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = 2*nelec;
+  
+  double acceptedFrac = 0;
+  double M1 = 0., S1 = 0.;
+  int nstore = 1000000 / commsize;
+  int corrIter = min(nstore, niter/sampleSteps);
+  std::vector<double> corrError(corrIter * commsize, 0);
+
+  int numVars = grad.rows();
+  Hessian = MatrixXd::Zero(numVars + 1, numVars+1);
+  Smatrix = MatrixXd::Zero(numVars + 1, numVars+1);
+
+  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()),
+      hamRatio = VectorXd::Zero(grad.rows()),
+      diagonalGrad = VectorXd::Zero(grad.rows());
+
+
+  while (iter < niter) {
+    getStep(step, random, schd.realSpaceStep);
+    elecToMove = iter%nelec;
+    step += walk.d.coord[elecToMove];
+
+    iter ++;
+    if (iter%sampleSteps == 0) {
+      ham = wave.rHam(walk);
+   
+      wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
+      wave.HamOverlap(walk, hamRatio);
+      
+      Hessian.block(1,1,numVars, numVars) += (localdiagonalGrad * hamRatio.transpose() - Hessian.block(1,1,numVars,numVars))/(effIter+1);
+      Hessian.block(0,1,      1, numVars) += (hamRatio.transpose()                     - Hessian.block(0,1,      1,numVars))/(effIter+1);
+      Hessian.block(1,0,numVars,       1) += (ham*localdiagonalGrad                    - Hessian.block(1,0,numVars,      1))/(effIter+1);
+
+      Smatrix.block(1,1,numVars, numVars) += (localdiagonalGrad*localdiagonalGrad.transpose() - Smatrix.block(1,1,numVars,numVars))/(effIter+1);
+      Smatrix.block(0,1,      1, numVars) += (localdiagonalGrad.transpose()            - Smatrix.block(0,1,      1,numVars))/(effIter+1);
+      Smatrix.block(1,0,numVars,       1) += (localdiagonalGrad                        - Smatrix.block(1,0,numVars,      1))/(effIter+1);
+      
+      for (int i = 0; i < grad.rows(); i++)
+      {
+        diagonalGrad[i] += (localdiagonalGrad[i] - diagonalGrad[i])/(effIter+1);
+        grad[i] += (ham * localdiagonalGrad[i] - grad[i])/(effIter + 1);
+        localdiagonalGrad[i] = 0.0;
+        hamRatio[i] = 0;
+      }
+      double avgPotold = avgPot;
+      avgPot += (ham - avgPot)/(effIter+1);
+      S1 += (ham - avgPotold) * (ham - avgPot);
+      if (effIter < corrIter)
+        corrError[effIter + commrank * corrIter] = ham;
+      effIter++;
+    }
+
+ 
+
+ 
+    double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
+
+    if (ovlpRatio*ovlpRatio > random()) {
+      acceptedFrac++;
+      walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
+
+      ovlp = ovlp*ovlpRatio;
+
+      if (abs(ovlp) > abs(bestovlp)) {
+        bestovlp = ovlp;
+        bestDet = walk.getDet();
+      }
+    }
+ 
+
+
+  }
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(diagonalGrad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(Hessian(0,0)), Hessian.rows()*Hessian.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(Smatrix(0,0)), Smatrix.rows()*Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  vector<double> b_size, r_x; vector<double> tauError(corrError.size(), 1.0);
+  blocking(b_size, r_x, corrError, tauError);
+  rk = corr_time(corrError.size(), b_size, r_x);
+
+
+  double n_eff = commsize * effIter;
+  S1 /= effIter;
+  stddev = sqrt((S1 * rk /n_eff));
+  avgPot /= commsize;
+  E0 = avgPot;
+
+  diagonalGrad /= (commsize);
+  grad /= (commsize);
+  grad = grad - E0 * diagonalGrad;
+  Hessian = Hessian/(commsize);
+  Smatrix = Smatrix/(commsize);
+  Smatrix(0,0) = 1.0;
+  Hessian(0,0) = E0;
+
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestCoordinates.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << bestDet;
+  }
+
+}
+
+
+template<typename Wfn, typename Walker>
 void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, double &rk, int niter, double targetError)
 {
   int norbs = Determinant::norbs;
@@ -1258,7 +1514,9 @@ void getStochasticGradientMetricContinuousTime(Wfn &w, Walker& walk, double &E0,
     //double deltaT = -log(random())/(cumovlpRatio);
     double deltaT = 1.0 / (cumovlpRatio);
     double nextDetRandom = random() * cumovlpRatio;
-    int nextDet = std::lower_bound(work.ovlpRatio.begin(), (work.ovlpRatio.begin() + work.nExcitations), nextDetRandom) - work.ovlpRatio.begin();
+    int nextDet = std::lower_bound(work.ovlpRatio.begin(),
+                                   (work.ovlpRatio.begin() + work.nExcitations), nextDetRandom)
+        - work.ovlpRatio.begin();
 
     cumdeltaT += deltaT;
     cumdeltaT2 += deltaT * deltaT;
@@ -1270,9 +1528,6 @@ void getStochasticGradientMetricContinuousTime(Wfn &w, Walker& walk, double &E0,
     E0 += deltaT * (Eloc - E0) / (cumdeltaT);       //running average of energy
     //cout << "iii" << endl;
 
-    //Smatrix.block(1, 1, grad.rows(), grad.rows()) += deltaT * (localdiagonalGrad * localdiagonalGrad.transpose() - Smatrix.block(1, 1, grad.rows(), grad.rows())) / cumdeltaT;
-    //Smatrix.block(0, 1, 1, grad.rows()) += deltaT * (localdiagonalGrad.transpose() - Smatrix.block(0, 1, 1, grad.rows())) / cumdeltaT;
-    //Smatrix.block(1, 0, grad.rows(), 1) += deltaT * (localdiagonalGrad - Smatrix.block(1, 0, grad.rows(), 1)) / cumdeltaT;
     VectorXd appended(numVars + 1);
     appended << 1.0, grad_ratio;
 /*
@@ -1406,7 +1661,31 @@ class getGradientWrapper
 
     w.writeWave();
   };
+
+  void getMetricRealSpace(VectorXd &vars, VectorXd &grad, VectorXd& H, DirectMetric& S, double &E0, double &stddev, double &rt, bool deterministic)
+  {
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    if (!deterministic)
+      getGradientMetricMetropolisRealSpace(w, walk, E0, stddev, grad, H, S, rt, stochasticIter, 0.5e-3);
+
+    w.writeWave();
+  };
   
+  void getHessianRealSpace(VectorXd &vars, VectorXd &grad, MatrixXd& H,
+                           MatrixXd& S, double &E0, double &stddev,
+                           double &rt, bool deterministic)
+  {
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    if (!deterministic)
+      getGradientHessianMetropolisRealSpace(w, walk, E0, stddev, grad,
+                                            H, S, rt, stochasticIter, 0.5e-3);
+    
+    w.writeWave();
+  };
+  
+
   void getMetric(VectorXd &vars, VectorXd &grad, VectorXd &H, DirectMetric &S, double &E0, double &stddev, double &rt, bool deterministic)
   {
       w.updateVariables(vars);

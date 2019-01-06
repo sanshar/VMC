@@ -62,7 +62,7 @@ class rJastrow {
                          const rDeterminant& d,
                          const Vector3d& oldCoord, int i) const ;
   
-  void OverlapWithGradient( VectorXd& grad) const;
+  void OverlapWithGradient( VectorXd& grad, const rDeterminant& d) const;
   long getNumVariables() const;
 
   void getVariables(Eigen::VectorXd &v) const;

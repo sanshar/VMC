@@ -20,7 +20,7 @@
 
 #include "rWalkerHelper.h"
 
-rWalkerHelper<Slater>::rWalkerHelper(const Slater &w, const rDeterminant &d) 
+rWalkerHelper<rSlater>::rWalkerHelper(const rSlater &w, const rDeterminant &d) 
 {
   hftype = w.hftype;
  
@@ -35,7 +35,7 @@ rWalkerHelper<Slater>::rWalkerHelper(const Slater &w, const rDeterminant &d)
   }
 }
 
-void rWalkerHelper<Slater>::initInvDetsTables(const Slater& w, const rDeterminant &d) {
+void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDeterminant &d) {
   int norbs = Determinant::norbs;
   aoValues.resize(10*norbs, 0.0);
 
@@ -109,7 +109,7 @@ void rWalkerHelper<Slater>::initInvDetsTables(const Slater& w, const rDeterminan
 }
 
 
-void rWalkerHelper<Slater>::initInvDetsTablesGhf(const Slater& w, const rDeterminant &d) {
+void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeterminant &d) {
   int norbs = Determinant::norbs;
   aoValues.resize(10*norbs, 0.0);
 
@@ -117,10 +117,24 @@ void rWalkerHelper<Slater>::initInvDetsTablesGhf(const Slater& w, const rDetermi
   Gradient.resize(d.nelec, MatrixXd::Zero(3, d.nelec));
   Laplacian[0] = MatrixXd::Zero(d.nelec, d.nelec);
 
+  AOLaplacian = MatrixXd::Zero(d.nelec, 2*norbs);
+  AOGradient[0]  = MatrixXd::Zero(d.nelec, 2*norbs);
+  AOGradient[1]  = MatrixXd::Zero(d.nelec, 2*norbs);
+  AOGradient[2]  = MatrixXd::Zero(d.nelec, 2*norbs);
     
   for (int elec=0; elec<d.nelec; elec++) {
     schd.basis->eval_deriv2(d.coord[elec], &aoValues[0]);
 
+    for (int j=0; j<norbs; j++) {
+      int J = elec < d.nalpha ? j : j+norbs;
+      AOGradient[0](elec, J) = aoValues[1*norbs+j];
+      AOGradient[1](elec, J) = aoValues[2*norbs+j];
+      AOGradient[2](elec, J) = aoValues[3*norbs+j];
+      AOLaplacian  (elec, J) = aoValues[4*norbs+j]
+          + aoValues[7*norbs+j]
+          + aoValues[9*norbs+j] ;
+    }
+    
     for (int mo=0; mo<d.nelec; mo++) 
       for (int j=0; j<norbs; j++) {
         int J = elec < d.nalpha ? j : j+norbs;
@@ -149,14 +163,18 @@ void rWalkerHelper<Slater>::initInvDetsTablesGhf(const Slater& w, const rDetermi
   }
   else {
     cout << " overlap with GHF determinant not invertible" << endl;
+    cout << w.getHforbs(0)<<endl;
+    cout << DetMatrix[0].rows()<<"  "<<DetMatrix[0].cols()<<endl;
+    cout << DetMatrix[0]<<endl<<endl;
+    cout << thetaInv[0]<<endl<<endl;
     exit(0);
   }
 
 
 }
 
-double rWalkerHelper<Slater>::getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d,
-                                           const Slater& w) {
+double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d,
+                                           const rSlater& w) {
   if (hftype == Generalized) 
     return getDetFactorGHF(i, newCoord, 0, d.nelec, w);
   else if (i < d.nalpha)
@@ -165,8 +183,8 @@ double rWalkerHelper<Slater>::getDetFactor(int i, Vector3d& newCoord, const rDet
     return getDetFactor(i-d.nalpha, newCoord, 1, d.nbeta, w);
 }
 
-double rWalkerHelper<Slater>::getDetFactorGHF(int i, Vector3d& newCoord,
-                                              int sz, int nelec, const Slater& w) {
+double rWalkerHelper<rSlater>::getDetFactorGHF(int i, Vector3d& newCoord,
+                                              int sz, int nelec, const rSlater& w) {
   int norbs = Determinant::norbs;
   aoValues.resize(norbs);
 
@@ -183,8 +201,8 @@ double rWalkerHelper<Slater>::getDetFactorGHF(int i, Vector3d& newCoord,
   return (newVec.dot(thetaInv[sz].col(i)));
 }
   
-double rWalkerHelper<Slater>::getDetFactor(int i, Vector3d& newCoord,
-                                           int sz, int nelec, const Slater& w) {
+double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord,
+                                           int sz, int nelec, const rSlater& w) {
   int norbs = Determinant::norbs;
   aoValues.resize(norbs);
 
@@ -199,8 +217,8 @@ double rWalkerHelper<Slater>::getDetFactor(int i, Vector3d& newCoord,
   return (newVec.dot(thetaInv[sz].col(i)));
 }
 
-void rWalkerHelper<Slater>::updateWalker(int i, Vector3d& oldCoord, const rDeterminant &d,
-                                         const Slater& w) {
+void rWalkerHelper<rSlater>::updateWalker(int i, Vector3d& oldCoord, const rDeterminant &d,
+                                         const rSlater& w) {
   if (hftype == Generalized) 
     updateWalkerGHF(i, oldCoord, d, 0, d.nelec, w);
   else if (i < d.nalpha)
@@ -211,13 +229,23 @@ void rWalkerHelper<Slater>::updateWalker(int i, Vector3d& oldCoord, const rDeter
 }
 
 
-void rWalkerHelper<Slater>::updateWalkerGHF(int elec, Vector3d& oldCoord, const rDeterminant &d,
-                                            int sz, int nelec, const Slater& w) {
+void rWalkerHelper<rSlater>::updateWalkerGHF(int elec, Vector3d& oldCoord, const rDeterminant &d,
+                                            int sz, int nelec, const rSlater& w) {
   int norbs = Determinant::norbs;
   aoValues.resize(10 * norbs, 0.0);
 
   schd.basis->eval_deriv2(d.coord[elec], &aoValues[0]);
 
+  for (int j=0; j<norbs; j++) {
+      int J = elec < d.nalpha ? j : j+norbs;
+      AOGradient[0](elec, J) = aoValues[1*norbs+j];
+      AOGradient[1](elec, J) = aoValues[2*norbs+j];
+      AOGradient[2](elec, J) = aoValues[3*norbs+j];
+      AOLaplacian  (elec, J) = aoValues[4*norbs+j]
+          + aoValues[7*norbs+j]
+          + aoValues[9*norbs+j] ;
+  }
+  
   VectorXd newVec = VectorXd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
     for (int j=0; j<norbs; j++) {
@@ -257,8 +285,8 @@ void rWalkerHelper<Slater>::updateWalkerGHF(int elec, Vector3d& oldCoord, const 
 }
   
   
-void rWalkerHelper<Slater>::updateWalker(int elec, Vector3d& oldCoord, const rDeterminant &d,
-                                         int sz, int nelec, const Slater& w) {
+void rWalkerHelper<rSlater>::updateWalker(int elec, Vector3d& oldCoord, const rDeterminant &d,
+                                         int sz, int nelec, const rSlater& w) {
   int norbs = Determinant::norbs;
   aoValues.resize(10 * norbs, 0.0);
 
@@ -300,8 +328,8 @@ void rWalkerHelper<Slater>::updateWalker(int elec, Vector3d& oldCoord, const rDe
 }
 
 
-void rWalkerHelper<Slater>::OverlapWithGradient(const rDeterminant& d, 
-                                                const Slater& ref,
+void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d, 
+                                                const rSlater& ref,
                                                 Eigen::VectorBlock<VectorXd>& grad,
                                                 const double& ovlp) 
 {
@@ -311,8 +339,87 @@ void rWalkerHelper<Slater>::OverlapWithGradient(const rDeterminant& d,
     OverlapWithGradient(d, ref, grad);
 }
 
-void rWalkerHelper<Slater>::OverlapWithGradient(const rDeterminant& d, 
-                                                const Slater& ref,
+void rWalkerHelper<rSlater>::HamOverlap(const rDeterminant& d, 
+                                        const rSlater& ref,
+                                        MatrixXd& Rij,
+                                        MatrixXd& RiN,
+                                        Eigen::VectorBlock<VectorXd>& hamgrad)
+{
+
+  int norbs = schd.basis->getNorbs();
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = nalpha+nbeta;
+  int numDets = ref.determinants.size();
+
+  const MatrixXd& Bij = Laplacian[0]; //i = nelec , j = norbs
+  double kineticTot = 0.0;
+  for (int i=0; i<nelec; i++) {
+    kineticTot += thetaInv[0].row(i).dot(Bij.col(i));
+  }
+
+  double potentialij = 0.0, potentiali=0;
+
+  //get potential
+  for (int i=0; i<nelec; i++)
+    for (int j=i+1; j<nelec; j++) {
+      potentialij += 1./Rij(i,j);
+    }
+  for (int i=0; i<nelec; i++) {
+    for (int j=0; j<schd.Ncoords.size(); j++) {
+      potentiali -= schd.Ncharge[j]/RiN(i,j);
+    }
+  }
+
+  MatrixXd AoRi = MatrixXd::Zero(nelec, 2*norbs);
+  aoValues.resize(norbs);  
+  for (int elec=0; elec<nelec; elec++) {
+    schd.basis->eval(d.coord[elec], &aoValues[0]);
+    for (int orb = 0; orb<norbs; orb++) 
+      if (elec < nalpha)
+        AoRi(elec, orb) = aoValues[orb];
+      else
+        AoRi(elec, norbs+orb) = aoValues[orb];
+  }
+
+
+  //precalculate A-1 B A-1
+  MatrixXd X = thetaInv[0] * Laplacian[0] * thetaInv[0];
+  
+  for (int mo = 0; mo <nelec; mo++) {
+
+    for (int orb = 0; orb < 2*norbs; orb++) {
+      double t1 = thetaInv[0].row(mo).dot(AOLaplacian.col(orb));
+      double t2 = X          .row(mo).dot(AoRi       .col(orb));
+      double t3 = thetaInv[0].row(mo).dot(AoRi       .col(orb));
+      
+      hamgrad[numDets + orb*nelec + mo] += -0.5*(t1 - t2)
+          + (-0.5*kineticTot+potentialij+potentiali) * t3;
+
+      //hamgrad[numDets + (orb+norbs)*nelec + mo] += -0.5*(t1 - t2)
+      //+ (-0.5*kineticTot+potentialij+potentiali) * t3;
+      
+    }
+    
+  }
+
+  /*
+  //*************CHECK**********
+  MatrixXd Detder = DetMatrix[0];
+  //mo = 1 and ao = 2
+  Detder.block(0,1,nelec,1) = AOLaplacian.col(2);
+  cout << DetMatrix[0]<<endl<<endl;
+  cout << Detder<<endl<<endl;
+  cout << thetaInv[0]*DetMatrix[0]<<endl<<endl;
+  
+  cout << Detder.determinant()/DetMatrix[0].determinant()<<"  "<<thetaInv[0].row(1).dot(AOLaplacian.col(2))<<endl;
+  exit(0);
+  */
+}
+
+
+void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d, 
+                                                const rSlater& ref,
                                                 Eigen::VectorBlock<VectorXd>& grad)
 {
   grad[0] = 0.0;
@@ -342,19 +449,17 @@ void rWalkerHelper<Slater>::OverlapWithGradient(const rDeterminant& d,
   //Assuming a single determinant
   for (int moa=0; moa<nalpha; moa++) {//alpha mo 
     for (int orb=0; orb<norbs; orb++) {//ao
-      grad[numDets + orb * norbs + moa] += thetaInv[0].row(moa).dot(AoRia.col(orb));
-      //cout << grad[numDets + orb * norbs + moa]<<"  "<<orb<<"  "<<moa<<endl;
+      grad[numDets + orb * nalpha + moa] += thetaInv[0].row(moa).dot(AoRia.col(orb));
     }
   }
   
   for (int mob=0; mob<nbeta; mob++) {//beta mo 
     for (int orb=0; orb<norbs; orb++) {//ao
       if (ref.hftype == Restricted) {
-        grad[numDets + orb * norbs + mob] += thetaInv[1].row(mob).dot(AoRib.col(orb));
-        //cout << grad[numDets + orb * norbs + mob]<<"  "<<orb<<"  "<<mob<<endl;
+        grad[numDets + orb * nbeta + mob] += thetaInv[1].row(mob).dot(AoRib.col(orb));
       }
       else
-        grad[numDets + norbs*norbs + orb * norbs + mob] += thetaInv[1].row(mob).dot(AoRib.col(orb));
+        grad[numDets + nalpha*norbs + orb * nbeta + mob] += thetaInv[1].row(mob).dot(AoRib.col(orb));
     }
   }
   
@@ -362,8 +467,8 @@ void rWalkerHelper<Slater>::OverlapWithGradient(const rDeterminant& d,
 }
 
 
-void rWalkerHelper<Slater>::OverlapWithGradientGhf(const rDeterminant& d, 
-                                                const Slater& ref,
+void rWalkerHelper<rSlater>::OverlapWithGradientGhf(const rDeterminant& d, 
+                                                const rSlater& ref,
                                                 Eigen::VectorBlock<VectorXd>& grad) 
 {
   grad[0] = 0.0;
@@ -388,8 +493,8 @@ void rWalkerHelper<Slater>::OverlapWithGradientGhf(const rDeterminant& d,
   }
 
   for (int mo=0; mo<nelec; mo++) {
-    for (int orb=0; orb<2*norbs; orb++) {
-      grad[numDets + orb * 2 * norbs + mo] += thetaInv[0].row(mo).dot(AoRi.col(orb));
+    for (int orb=0; orb< 2*norbs; orb++) {
+      grad[numDets + orb * nelec + mo] += thetaInv[0].row(mo).dot(AoRi.col(orb));
     }
   }
 
@@ -445,10 +550,22 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
 
 void rWalkerHelper<rJastrow>::OverlapWithGradient(const rJastrow& cps,
                                                   VectorXd& grad,
+                                                  const rDeterminant& d,
                                                   const double& ovlp) const {
                                                   
     
   if (schd.optimizeCps) {
-    cps.OverlapWithGradient(grad);
+    cps.OverlapWithGradient(grad, d);
   }
+}
+
+void rWalkerHelper<rJastrow>::HamOverlap(const rJastrow& cps,
+                                         VectorXd& grad,
+                                         const rDeterminant& d,
+                                         const double& ovlp) const {
+                                                  
+  return;
+  //if (schd.optimizeCps) {
+  //cps.OverlapWithGradient(grad, d);
+  //}
 }

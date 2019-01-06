@@ -1,7 +1,13 @@
 #include "rCorrelatedWavefunction.h"
 
 template<>
-void rCorrelatedWavefunction<rJastrow, Slater>::enforceCusp() {
+void rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastrow, rSlater>& walk,
+                                                           Eigen::VectorXd& hamgrad) const {  
+  const_cast<rWalker<rJastrow, rSlater>&>(walk).HamOverlap(ref, corr, hamgrad);  
+}
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rSlater>::enforceCusp() {
   return;
   int natom = schd.Ncharge.size();
   int norbs = schd.basis->getNorbs();
@@ -64,7 +70,7 @@ void rCorrelatedWavefunction<rJastrow, Slater>::enforceCusp() {
 }
 
 template<>
-double rCorrelatedWavefunction<rJastrow, Slater>::rHam(const rWalker<rJastrow, Slater>& walk) const {
+double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(const rWalker<rJastrow, rSlater>& walk) const {
   int norbs = Determinant::norbs;
 
   double potentialij = 0.0, potentiali=0;

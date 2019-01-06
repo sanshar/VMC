@@ -24,7 +24,7 @@
 #include <array>
 #include "igl/slice.h"
 #include "igl/slice_into.h"
-#include "Slater.h"
+#include "rSlater.h"
 
 using namespace Eigen;
 
@@ -33,28 +33,28 @@ struct rWalker {
 };
 
 template<>
-struct rWalker<rJastrow, Slater> {
+struct rWalker<rJastrow, rSlater> {
 
   rDeterminant d;
   MatrixXd Rij;         //the inter-electron distances
   MatrixXd RiN;         //electron-nucleus distances  
   rWalkerHelper<rJastrow> corrHelper;
-  rWalkerHelper<Slater> refHelper;
+  rWalkerHelper<rSlater> refHelper;
 
   rWalker() {};
   
-  rWalker(const rJastrow &corr, const Slater &ref) ;
+  rWalker(const rJastrow &corr, const rSlater &ref) ;
 
-  //rWalker(const rJastrow &corr, const Slater &ref, const rDeterminant &pd);
+  //rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd);
 
   void initR();
-  void initHelpers(const rJastrow &corr, const Slater &ref);
+  void initHelpers(const rJastrow &corr, const rSlater &ref);
   
   rDeterminant& getDet();
   void readBestDeterminant(rDeterminant& d) const ;
 
 
-  double getDetOverlap(const Slater &ref) const;
+  double getDetOverlap(const rSlater &ref) const;
 
   /**
    * makes det based on mo coeffs 
@@ -64,10 +64,12 @@ struct rWalker<rJastrow, Slater> {
   void initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB) ;
 
 
-  void updateWalker(int elec, Vector3d& coord, const Slater& ref, const rJastrow& corr);
+  void updateWalker(int elec, Vector3d& coord, const rSlater& ref, const rJastrow& corr);
 
-  void OverlapWithGradient(const Slater &ref, const rJastrow& cps, VectorXd &grad) ;
-  
+  void OverlapWithGradient(const rSlater &ref, const rJastrow& cps, VectorXd &grad) ;
+
+  void HamOverlap(const rSlater &ref, const rJastrow& cps, VectorXd &grad) ;
+
 
 };
 

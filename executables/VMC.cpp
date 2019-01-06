@@ -40,6 +40,7 @@
 #include "Determinants.h"
 #include "rDeterminants.h"
 #include "rJastrow.h"
+#include "rSlater.h"
 #include "input.h"
 #include "integral.h"
 #include "SHCIshm.h"
@@ -193,7 +194,10 @@ int main(int argc, char *argv[])
   else {//real space VMC
     rDeterminant::nalpha = schd.nalpha;
     rDeterminant::nbeta = schd.nbeta;
+    Determinant::nalpha = schd.nalpha;
+    Determinant::nbeta = schd.nbeta;
     rDeterminant::nelec = schd.nalpha + schd.nbeta;
+    //Determinant::nelec = schd.nalpha + schd.nbeta;
     Determinant::norbs = schd.norbs;
     if (schd.nalpha< 0 ||
         schd.nbeta < 0 ||
@@ -203,7 +207,7 @@ int main(int argc, char *argv[])
     }
       
     if (schd.wavefunctionType == "JastrowSlater") {
-      rCorrelatedWavefunction<rJastrow, Slater> wave; rWalker<rJastrow, Slater> walk;
+      rCorrelatedWavefunction<rJastrow, rSlater> wave; rWalker<rJastrow, rSlater> walk;
       runVMCRealSpace(wave, walk);
     }
   }    

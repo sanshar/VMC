@@ -23,7 +23,7 @@
 #include "igl/slice.h"
 #include "igl/slice_into.h"
 #include "ShermanMorrisonWoodbury.h"
-#include "Slater.h"
+#include "rSlater.h"
 #include "rJastrow.h"
 
 template<typename Reference>
@@ -31,7 +31,7 @@ class rWalkerHelper {
 };
 
 template<>
-class rWalkerHelper<Slater>
+class rWalkerHelper<rSlater>
 {
 
  public:
@@ -43,46 +43,54 @@ class rWalkerHelper<Slater>
   std::array<MatrixXd, 2> DetMatrix;         //this is used to store the old determinant matrix
   std::array<MatrixXd, 2> Laplacian;         //each matrix L(elec, mo)
   std::vector<MatrixXd>   Gradient;          //each matrix G(3, mo) and there are nelec number of these
+  MatrixXd AOLaplacian;                      //ne X Ao matrix -> Del^2_i ao_j(r_i)
+  std::array<MatrixXd,3>  AOGradient;        //ne X Ao matrix -> Del_ia ao_j(r_i), a=x,y,z
+  
   rWalkerHelper() {};
 
-  rWalkerHelper(const Slater &w, const rDeterminant &d) ;
+  rWalkerHelper(const rSlater &w, const rDeterminant &d) ;
 
-  void initInvDetsTables(const Slater& w, const rDeterminant &d);
+  void initInvDetsTables(const rSlater& w, const rDeterminant &d);
 
 
-  void initInvDetsTablesGhf(const Slater& w, const rDeterminant &d);
+  void initInvDetsTablesGhf(const rSlater& w, const rDeterminant &d);
 
   double getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d,
-                      const Slater& w);
+                      const rSlater& w);
 
   double getDetFactorGHF(int i, Vector3d& newCoord,
-                         int sz, int nelec, const Slater& w);
+                         int sz, int nelec, const rSlater& w);
   
   double getDetFactor(int i, Vector3d& newCoord,
-                      int sz, int nelec, const Slater& w);
+                      int sz, int nelec, const rSlater& w);
 
   void updateWalker(int i, Vector3d& oldCoord, const rDeterminant &d,
-                    const Slater& w);
+                    const rSlater& w);
 
 
   void updateWalkerGHF(int elec, Vector3d& oldCoord, const rDeterminant &d,
-                       int sz, int nelec, const Slater& w);
+                       int sz, int nelec, const rSlater& w);
   
   
   void updateWalker(int elec, Vector3d& oldCoord, const rDeterminant &d,
-                    int sz, int nelec, const Slater& w);
+                    int sz, int nelec, const rSlater& w);
 
   void OverlapWithGradient(const rDeterminant& d, 
-                           const Slater& w,
+                           const rSlater& w,
                            Eigen::VectorBlock<VectorXd>& grad,
                            const double& ovlp) ;
 
+  void HamOverlap(const rDeterminant& d, 
+                  const rSlater& w,
+                  MatrixXd& Rij, MatrixXd& RiN,
+                  Eigen::VectorBlock<VectorXd>& hamgrad);
+  
   void OverlapWithGradient(const rDeterminant& d, 
-                           const Slater& w,
+                           const rSlater& w,
                            Eigen::VectorBlock<VectorXd>& grad);
   
   void OverlapWithGradientGhf(const rDeterminant& d, 
-                           const Slater& w,
+                           const rSlater& w,
                            Eigen::VectorBlock<VectorXd>& grad) ;
   
 };
@@ -125,8 +133,13 @@ class rWalkerHelper<rJastrow>
 
   void OverlapWithGradient(const rJastrow& cps,
                            VectorXd& grad,
+                           const rDeterminant& d,
                            const double& ovlp) const;
 
+  void HamOverlap(const rJastrow& cps,
+                  VectorXd& grad,
+                  const rDeterminant& d,
+                  const double& ovlp) const;
 
 };  
 

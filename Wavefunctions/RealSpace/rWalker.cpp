@@ -27,20 +27,27 @@
 
 using namespace boost;
 
-rWalker<rJastrow, Slater>::rWalker(const rJastrow &corr, const Slater &ref) 
+rWalker<rJastrow, rSlater>::rWalker(const rJastrow &corr, const rSlater &ref) 
 {
+  /*
+  if (commrank == 0) {
+    corr.printVariables();
+    ref.printVariables();
+  }
+  exit(0);
+  */
   initDet(ref.getHforbsA(), ref.getHforbsB());
 
   initR();
   initHelpers(corr, ref);
 }
 
-void rWalker<rJastrow, Slater>::initHelpers(const rJastrow &corr, const Slater &ref)  {
-  refHelper = rWalkerHelper<Slater>(ref, d);
+void rWalker<rJastrow, rSlater>::initHelpers(const rJastrow &corr, const rSlater &ref)  {
+  refHelper = rWalkerHelper<rSlater>(ref, d);
   corrHelper = rWalkerHelper<rJastrow>(corr, d, Rij, RiN);
 }
 
-void rWalker<rJastrow, Slater>::initR() {
+void rWalker<rJastrow, rSlater>::initR() {
   Rij = MatrixXd::Zero(d.nelec, d.nelec);
   for (int i=0; i<d.nelec; i++)
     for (int j=0; j<i; j++) {
@@ -64,10 +71,10 @@ void rWalker<rJastrow, Slater>::initR() {
     
 }
 
-//rWalker<rJastrow, Slater>::rWalker(const rJastrow &corr, const Slater &ref, const rDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
+//rWalker<rJastrow, rSlater>::rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
 
-rDeterminant& rWalker<rJastrow, Slater>::getDet() {return d;}
-void rWalker<rJastrow, Slater>::readBestDeterminant(rDeterminant& d) const 
+rDeterminant& rWalker<rJastrow, rSlater>::getDet() {return d;}
+void rWalker<rJastrow, rSlater>::readBestDeterminant(rDeterminant& d) const 
 {
   if (commrank == 0) {
     char file[5000];
@@ -83,7 +90,7 @@ void rWalker<rJastrow, Slater>::readBestDeterminant(rDeterminant& d) const
 }
 
 
-double rWalker<rJastrow, Slater>::getDetOverlap(const Slater &ref) const
+double rWalker<rJastrow, rSlater>::getDetOverlap(const rSlater &ref) const
 {
   return refHelper.thetaDet[0][0]*refHelper.thetaDet[0][1];
 }
@@ -91,7 +98,7 @@ double rWalker<rJastrow, Slater>::getDetOverlap(const Slater &ref) const
 /**
  * makes det based on mo coeffs 
  */
-void rWalker<rJastrow, Slater>::guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXd& HforbsA, const Eigen::MatrixXd& HforbsB) const 
+void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXd& HforbsA, const Eigen::MatrixXd& HforbsB) const 
 {
   auto random = std::bind(std::uniform_real_distribution<double>(-1., 1.),
                           std::ref(generator));
@@ -102,7 +109,7 @@ void rWalker<rJastrow, Slater>::guessBestDeterminant(rDeterminant& d, const Eige
   }
 }
 
-void rWalker<rJastrow, Slater>::initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB) 
+void rWalker<rJastrow, rSlater>::initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB) 
 {
   bool readDeterminant = false;
   char file[5000];
@@ -120,7 +127,7 @@ void rWalker<rJastrow, Slater>::initDet(const MatrixXd& HforbsA, const MatrixXd&
 }
 
 
-void rWalker<rJastrow, Slater>::updateWalker(int elec, Vector3d& coord, const Slater& ref, const rJastrow& corr) {
+void rWalker<rJastrow, rSlater>::updateWalker(int elec, Vector3d& coord, const rSlater& ref, const rJastrow& corr) {
   Vector3d oldCoord = d.coord[elec];
   d.coord[elec] = coord;
   for (int j=0; j<d.nelec; j++) {
@@ -142,18 +149,33 @@ void rWalker<rJastrow, Slater>::updateWalker(int elec, Vector3d& coord, const Sl
 
 }
 
-void rWalker<rJastrow, Slater>::OverlapWithGradient(const Slater &ref,
+void rWalker<rJastrow, rSlater>::OverlapWithGradient(const rSlater &ref,
                                                     const rJastrow& cps,
                                                     VectorXd &grad) 
 {
   double factor1 = 1.0;
-  corrHelper.OverlapWithGradient(cps, grad, factor1);
+  corrHelper.OverlapWithGradient(cps, grad, d, factor1);
   
   Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - cps.getNumVariables());
   if (schd.optimizeOrbs == false) return;
   refHelper.OverlapWithGradient(d, ref, gradtail, factor1);
 }
+
+
+void rWalker<rJastrow, rSlater>::HamOverlap(const rSlater &ref,
+                                           const rJastrow& cps,
+                                           VectorXd &hamgrad) 
+{
+  //double factor1 = 1.0;
+  //corrHelper.HamOverlap(cps, grad, d, factor1);
   
+  Eigen::VectorBlock<VectorXd> hamtail = hamgrad.tail(hamgrad.rows()
+                                                      - cps.getNumVariables());
+
+  if (schd.optimizeOrbs == false) return;
+  refHelper.HamOverlap(d, ref, Rij, RiN, hamtail);
+}
+
 
 
 

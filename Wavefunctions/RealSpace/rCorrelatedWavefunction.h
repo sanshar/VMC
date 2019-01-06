@@ -175,6 +175,14 @@ struct rCorrelatedWavefunction {
     return 0;
   }
   
+  void HamOverlap(const rWalker<rJastrow, rSlater>& walk,
+                    Eigen::VectorXd &grad) const
+  {
+    cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
+    exit(0);
+    return 0;
+  }
+  
   void enforceCusp()
   {
     cout << "Should not be here. There is a specialized enforceCusp for various cases "<<endl;
@@ -185,10 +193,14 @@ struct rCorrelatedWavefunction {
 
 
 template<>
-double rCorrelatedWavefunction<rJastrow, Slater>::rHam(const rWalker<rJastrow, Slater>& walk) const;
+double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(const rWalker<rJastrow, rSlater>& walk) const;
 
 template<>
-void rCorrelatedWavefunction<rJastrow, Slater>::enforceCusp();
+void rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastrow, rSlater>& walk,
+                                                             Eigen::VectorXd& grad) const;
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rSlater>::enforceCusp();
 
 
 #endif
