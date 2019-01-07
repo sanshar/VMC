@@ -63,6 +63,7 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/SHCIshm.o \
 	obj/Determinants.o \
 	obj/Slater.o \
+	obj/rSlater.o \
 	obj/AGP.o \
 	obj/Pfaffian.o \
 	obj/rJastrow.o \
@@ -93,6 +94,7 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/SHCIshm.o \
 	obj/Determinants.o \
 	obj/Slater.o \
+	obj/rSlater.o \
 	obj/Pfaffian.o \
 	obj/Jastrow.o \
 	obj/gaussianBasis.o\
