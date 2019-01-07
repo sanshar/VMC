@@ -42,7 +42,7 @@ class rWalkerHelper<rSlater>
   vector<double> aoValues;                   //this is used to store the ao values at some coordinate
   std::array<MatrixXd, 2> DetMatrix;         //this is used to store the old determinant matrix
   std::array<MatrixXd, 2> Laplacian;         //each matrix L(elec, mo)
-  std::vector<MatrixXd>   Gradient;          //each matrix G(3, mo) and there are nelec number of these
+  std::array<MatrixXd, 3>   Gradient;          //each matrix G(3, mo) and there are nelec number of these
   MatrixXd AOLaplacian;                      //ne X Ao matrix -> Del^2_i ao_j(r_i)
   std::array<MatrixXd,3>  AOGradient;        //ne X Ao matrix -> Del_ia ao_j(r_i), a=x,y,z
   
@@ -108,6 +108,10 @@ class rWalkerHelper<rJastrow>
   MatrixXd GradRatio; //nelec x 3 
   VectorXd LaplaceRatioIntermediate;
   VectorXd LaplaceRatio;
+
+  MatrixXd ParamLaplacian;                      //nelec X njastrow matrix -> Del^2_i J_j
+  MatrixXd ParamLaplacianIntermediate;          //nelec X njastrow matrix -> Del^2_i J_j
+  std::vector<MatrixXd>  ParamGradient;         //vector of GradRatio for each Jastrow
   
   rWalkerHelper() {};
   rWalkerHelper(const rJastrow& cps, const rDeterminant& d,

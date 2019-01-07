@@ -49,7 +49,7 @@ private:
   {
     ar.template register_type<gaussianBasis>();
     ar.template register_type<slaterBasis>();    
-    ar & restart & deterministic
+    ar & restart & fullrestart & deterministic
       & tol & correlatorFiles
       & wavefunctionType
       & maxIter
@@ -98,6 +98,7 @@ public:
   vector<double>   Ncharge;
 
   bool restart;                          //option to restart calculation
+  bool fullrestart;                          //option to restart calculation
   bool deterministic;                    //Performs a deterministic calculation   
   int printLevel;                        // How much stuff to print
   bool expCorrelator;                    //exponential correlator parameters, to enforce positivity

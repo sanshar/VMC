@@ -63,9 +63,19 @@ struct GeneralJastrow {
                              double factor,
                              bool dolaplaceGrad) const;
 
+  double getExpLaplaceGradIJperJastrow(int i, int j,
+                                       vector<MatrixXd>& gradient,
+                                       MatrixXd& laplacian,
+                                       const Vector3d& coordi,
+                                       const Vector3d& coordj,
+                                       const double* params,
+                                       double * gradHelper,
+                                       double factor,
+                                       bool dolaplaceGrad) const;
+  
   double exponentialInitLaplaceGrad(const rDeterminant& d,
-                                    MatrixXd& Gradient,
-                                    VectorXd& laplacian,
+                                    vector<MatrixXd>& paramGradient,
+                                    MatrixXd& laplacian,
                                     const double * params,
                                     double * gradHelper) const;
   
@@ -75,8 +85,8 @@ struct GeneralJastrow {
                       const double * params,
                       double * values) const;
 
-  void UpdateLaplaceGrad(MatrixXd& Gradient,
-                         VectorXd& laplacian,
+  void UpdateLaplaceGrad(vector<MatrixXd>& Gradient,
+                         MatrixXd& laplacian,
                          const rDeterminant& d,
                          const Vector3d& oldCoord,
                          int i,
@@ -84,189 +94,13 @@ struct GeneralJastrow {
                          double * gradHelper) const;
   
   void OverlapWithGradient(VectorXd& grad, int& index,
+                           const rDeterminant& d,
+                           const vector<double>& params,
                            const vector<double>& values) const ;
   
 };
 
 
-
-struct EEJastrow {
- private:
-  friend class boost::serialization::access;
-  template<class Archive>
-  void serialize (Archive & ar, const unsigned int version) {
-    ar & beta;
-  }
-  double beta;
-  
- public:
-  EEJastrow();
-  
-  double exponential(const MatrixXd& rij, const MatrixXd& RiN,
-                     int maxOrder, const double * params,
-                     double * values) const;
-
-  double exponentDiff(int i, const Vector3d &coord,
-                      const rDeterminant &d,
-                      int maxOrder, const double * params,
-                      double * values) const;
-
-  void InitGradient(MatrixXd& Gradient,
-                    const MatrixXd& rij,
-                    const MatrixXd& RiN,
-                    const rDeterminant& d,
-                    int maxOrder, const double * params) const;
-
-  void InitLaplacian(VectorXd &laplacian,
-                     const MatrixXd& rij,
-                     const MatrixXd& RiN,
-                     const rDeterminant& d,
-                     int maxOrder, const double * params) const;
-  
-  void UpdateGradient(MatrixXd& Gradient,
-                      const MatrixXd& rij,
-                      const MatrixXd& RiN,
-                      const rDeterminant& d,
-                      const Vector3d& oldCoord,
-                      int elecI, int maxOrder, const double * params,
-                      double* values) const;
-
-  void UpdateLaplacian(VectorXd &laplacian,
-                       const MatrixXd& rij,
-                       const MatrixXd& RiN,
-                       const rDeterminant& d,
-                       const Vector3d& oldCoord,
-                       int elecI,
-                       int maxOrder, const double * params) const;
-
-  void OverlapWithGradient(VectorXd& grad, int& index,
-                           int minOrder, int maxOrder,
-                           const double * values) const ;
-  
-};
-
-
-struct ENJastrow {
- private:
-  friend class boost::serialization::access;
-  template<class Archive>
-  void serialize (Archive & ar, const unsigned int version) {
-    ar & beta
-        & Ncoords
-        & Ncharge;
-  }
-  vector<Vector3d> Ncoords;
-  vector<double>   Ncharge;
-  double beta;
-  
- public:
-  ENJastrow();
-  
-  double exponential(const MatrixXd& rij, const MatrixXd& RiN,
-                     int maxOrder, const double * params,
-                     double * values) const;
-
-  double exponentDiff(int i, const Vector3d &coord,
-                      const rDeterminant &d,
-                      int maxOrder, const double * params,
-                      double * values) const;
-
-  void InitGradient(MatrixXd& Gradient,
-                    const MatrixXd& rij,
-                    const MatrixXd& RiN,
-                    const rDeterminant& d,
-                    int maxOrder, const double * params) const;
-
-  void InitLaplacian(VectorXd &laplacian,
-                     const MatrixXd& rij,
-                     const MatrixXd& RiN,
-                     const rDeterminant& d,
-                     int maxOrder, const double * params) const;
-  
-  void UpdateGradient(MatrixXd& Gradient,
-                      const MatrixXd& rij,
-                      const MatrixXd& RiN,
-                      const rDeterminant& d,
-                      const Vector3d& oldCoord,
-                      int elecI, int maxOrder, const double * params,
-                      double* values) const;
-
-  void UpdateLaplacian(VectorXd &laplacian,
-                       const MatrixXd& rij,
-                       const MatrixXd& RiN,
-                       const rDeterminant& d,
-                       const Vector3d& oldCoord,
-                       int elecI,
-                       int maxOrder, const double * params) const;
-
-  void OverlapWithGradient(VectorXd& grad, int& index,
-                           int minOrder, int maxOrder,
-                           const double * values) const ;
-  
-};
-/*
-struct ENJastrow {
- private:
-  friend class boost::serialization::access;
-  template<class Archive>
-  void serialize (Archive & ar, const unsigned int version) {
-    ar & Ncoords;
-    ar & Ncharge;
-    ar & alpha;
-  }
-  vector<Vector3d> Ncoords;
-  vector<double>   Ncharge;
-  vector<double> alpha;
-  
- public:
-  ENJastrow() ;
-  double exponential(const MatrixXd& rij, const MatrixXd& RiN) const;
-
-  double exponentDiff(int i, const Vector3d &coord,
-                      const rDeterminant &d);
-
-  void InitGradient(MatrixXd& Gradient,
-                    const MatrixXd& rij,
-                    const MatrixXd& RiN,
-                    const rDeterminant& d);
-
-  //J = exp( sum_ij uij)
-  //\sum_j Nabla^2_i uij  
-  void InitLaplacian(VectorXd &laplacian,
-                     const MatrixXd& rij,
-                     const MatrixXd& RiN,
-                     const rDeterminant& d);
-  
-  //J = exp( sum_ij uij)
-  //\sum_j Nabla^2_i uij  
-  void UpdateGradient(MatrixXd& Gradient,
-                      const MatrixXd& rij,
-                      const MatrixXd& RiN,
-                      const rDeterminant& d,
-                      const Vector3d& oldCoord,
-                      int elecI);
-
-  //J = exp( sum_ij uij)
-  //\sum_j Nabla^2_i uij  
-  void UpdateLaplacian(VectorXd &laplacian,
-                       const MatrixXd& rij,
-                       const MatrixXd& RiN,
-                       const rDeterminant& d,
-                       const Vector3d& oldCoord,
-                       int elecI);
-
-  long getNumVariables();
-
-  void getVariables(Eigen::VectorXd& v, int& numVars) ;
-  
-  void updateVariables(const Eigen::VectorXd& v, int &numVars);
-
-  void OverlapWithGradient(const MatrixXd& rij, const MatrixXd& RiN,
-                           const rDeterminant& d, VectorXd& grad,
-                           const double& ovlp, int& index);
-  
-  void printVariables();
-  };*/
 
 
 #endif

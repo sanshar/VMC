@@ -51,12 +51,16 @@ class rJastrow {
   
   double exponentialInitLaplaceGrad(const rDeterminant& d,
                                     MatrixXd& Gradient,
-                                    VectorXd& laplacian) ;
+                                    VectorXd& laplacian,
+                                    vector<MatrixXd>& paramgradient,
+                                    MatrixXd& paramlaplacian) ;
   
   double exponentDiff(int i, Vector3d& coord, const rDeterminant& d) ;
 
   void UpdateLaplaceGrad(MatrixXd& Gradient,
                          VectorXd& laplacian,
+                         vector<MatrixXd>& paramgradient,
+                         MatrixXd& paramlaplacian,
                          const MatrixXd& Rij,
                          const MatrixXd& RiN,
                          const rDeterminant& d,

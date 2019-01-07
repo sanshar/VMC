@@ -79,7 +79,7 @@ rJastrow::rJastrow () {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
 
-  int Qmax=0;
+  int Qmax=6;
 
   vector<int> I, J, m, n, o, ss, fixed;
   int Natom = schd.Ncharge.size();
@@ -164,10 +164,24 @@ rJastrow::rJastrow () {
 
 double rJastrow::exponentialInitLaplaceGrad(const rDeterminant& d,
                                             MatrixXd& Gradient,
-                                            VectorXd& laplacian) {
+                                            VectorXd& laplacian,
+                                            vector<MatrixXd>& ParamGradient,
+                                            MatrixXd& ParamLaplacian) {
   double exponent = 0.;
-  _jastrow.exponentialInitLaplaceGrad(d, Gradient, laplacian,
+  _jastrow.exponentialInitLaplaceGrad(d, ParamGradient, ParamLaplacian, 
                                       &_params[0], &_gradHelper[0]);
+
+  
+  Gradient.setZero();
+  for (int i=0; i<ParamGradient.size(); i++)
+    Gradient += ParamGradient[i];
+
+  for (int i=0; i<ParamLaplacian.rows(); i++) {
+    laplacian[i] = 0;
+    for (int j=0; j<ParamLaplacian.cols(); j++) 
+      laplacian[i] += ParamLaplacian(i,j);
+  }
+  
   return exponent;
 }
 
@@ -177,13 +191,27 @@ double rJastrow::exponentDiff(int i, Vector3d& coord, const rDeterminant& d) {
 
 void rJastrow::UpdateLaplaceGrad(MatrixXd& Gradient,
                                  VectorXd& laplacian,
+                                 vector<MatrixXd>& ParamGradient,
+                                 MatrixXd& ParamLaplacian,
                                  const MatrixXd& Rij,
                                  const MatrixXd& RiN,
                                  const rDeterminant& d,
                                  const Vector3d& oldCoord, int i) const {
 
-  _jastrow.UpdateLaplaceGrad(Gradient, laplacian, d, oldCoord, i, &_params[0]
-                            , const_cast<double *>(&_gradHelper[0]));
+  _jastrow.UpdateLaplaceGrad(ParamGradient, ParamLaplacian,
+                             d, oldCoord, i, &_params[0],
+                             const_cast<double *>(&_gradHelper[0]));
+
+  Gradient.setZero();
+  for (int i=0; i<ParamGradient.size(); i++)
+    Gradient += ParamGradient[i];
+
+  for (int i=0; i<ParamLaplacian.rows(); i++) {
+    laplacian[i] = 0;
+    for (int j=0; j<ParamLaplacian.cols(); j++) 
+      laplacian[i] += ParamLaplacian(i,j);
+  }
+  
 }
 
 

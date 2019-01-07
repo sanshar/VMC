@@ -55,6 +55,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.walkerBasis = ORBITALS;
       schd.deterministic = false;
       schd.restart = false;
+      schd.fullrestart = false;
       schd.expCorrelator = false;
       schd.nalpha = -1;
       schd.nbeta = -1;
@@ -117,7 +118,7 @@ void readInput(string input, schedule& schd, bool print) {
             schd.basis->read();
             readGeometry(schd.Ncoords, schd.Ncharge, dynamic_cast<gaussianBasis&>(*schd.basis));
           }
-	  if (boost::iequals(ArgName, "realspacesto")) {
+	  else if (boost::iequals(ArgName, "realspacesto")) {
             schd.walkerBasis = REALSPACESTO;
 
             //read gaussian basis just to read the nuclear charge and coordinates
@@ -136,6 +137,9 @@ void readInput(string input, schedule& schd, bool print) {
           
 	  else if (boost::iequals(ArgName, "restart"))
 	    schd.restart = true;
+
+	  else if (boost::iequals(ArgName, "fullrestart"))
+	    schd.fullrestart = true;
 
 	  else if (boost::iequals(ArgName, "deterministic"))
 	    schd.deterministic = true;
@@ -166,6 +170,9 @@ void readInput(string input, schedule& schd, bool print) {
 
 	  else if (boost::iequals(ArgName, "sr"))
 	    schd.method = sr;
+
+	  else if (boost::iequals(ArgName, "lm"))
+	    schd.method = linearmethod;
 
           else if (boost::iequals(ArgName, "sDiagShift"))
             schd.sDiagShift = atof(tok[1].c_str());
@@ -433,13 +440,13 @@ void readHF(MatrixXd& HfmatrixA, MatrixXd& HfmatrixB, std::string hf)
 	    dump >> HfmatrixB(i, j);
 	}
     }
-  /*
+  
   if (schd.optimizeOrbs) {
     double scale = pow(1.*HfmatrixA.rows(), 0.5);
-    HfmatrixA += 1.e-2*MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols())/scale;
-    HfmatrixB += 1.e-2*MatrixXd::Random(HfmatrixB.rows(), HfmatrixB.cols())/scale;
+    HfmatrixA += 1.e-1*MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols())/scale;
+    HfmatrixB += 1.e-1*MatrixXd::Random(HfmatrixB.rows(), HfmatrixB.cols())/scale;
   }
-  */
+
 }
 
 void readGeometry(vector<Vector3d>& Ncoords,

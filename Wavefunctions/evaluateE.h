@@ -824,7 +824,6 @@ void getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, 
       hamRatio = VectorXd::Zero(grad.rows()),
       diagonalGrad = VectorXd::Zero(grad.rows());
 
-
   while (iter < niter) {
     getStep(step, random, schd.realSpaceStep);
     elecToMove = iter%nelec;
