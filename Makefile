@@ -11,6 +11,14 @@ LIBCINT=/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib
 #BOOST=/projects/ilsa8974/apps/boost_1_66_0/
 #LIBIGL=/projects/ilsa8974/apps/libigl/include/
 
+#EIGEN=/projects/sash2458/apps/eigen/
+#BOOST=/projects/sash2458/apps/boost_1_57_0/
+#LIBIGL=/projects/sash2458/apps/libigl/include/
+#EIGEN=/projects/ilsa8974/apps/eigen/
+#BOOST=/projects/ilsa8974/apps/boost_1_66_0/
+#LIBIGL=/projects/ilsa8974/apps/libigl/include/
+
+
 OPT = -std=c++14 -g  -O3
 #OPT = -std=c++14 -g 
 FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
@@ -124,7 +132,6 @@ obj/%.o: GFMC/%.cpp
 obj/%.o: executables/%.cpp  
 	$(CXX) $(FLAGS) -I./GFMC -I./VMC $(OPT) -c $< -o $@
 
-
 all: bin/VMC bin/GFMC bin/slaterToGaussian #bin/sPT  bin/GFMC
 
 bin/GFMC	: $(OBJ_GFMC) 
@@ -137,8 +144,6 @@ bin/slaterToGaussian	:
 	icpc $(OPT) -I./utils/ -I$(BOOST) -I$(EIGEN) -c executables/slaterToGaussian.cpp -o obj/slaterToGaussian.o
 	ifort -O3 -c utils/_slaterToGaussian.f -o obj/_slaterToGaussian.o
 	icpc $(OPT) -o  bin/slaterToGaussian $(OBJ_SLATERTOGAUSSIAN) obj/slaterBasis.o -limf -lifcore
-
-
 bin/sPT	: $(OBJ_sPT) 
 	$(CXX)   $(FLAGS) $(OPT) -o  bin/sPT $(OBJ_sPT) $(LFLAGS)
 

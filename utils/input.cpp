@@ -440,7 +440,7 @@ void readHF(MatrixXd& HfmatrixA, MatrixXd& HfmatrixB, std::string hf)
 	    dump >> HfmatrixB(i, j);
 	}
     }
-  /*
+/*
   if (schd.optimizeOrbs) {
     double scale = pow(1.*HfmatrixA.rows(), 0.5);
     HfmatrixA += 1.e-1*MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols())/scale;
@@ -463,6 +463,7 @@ void readGeometry(vector<Vector3d>& Ncoords,
     Ncoords[i][1] = gBasis.env[ gBasis.atm[i*stride+2] ];
     Ncoords[i][2] = gBasis.env[ gBasis.atm[i*stride+3] ];
   }
+
 }
 
 void readPairMat(MatrixXd& pairMat) 
