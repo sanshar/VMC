@@ -386,12 +386,6 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
 
 }
 
-template<typename R>
-void getStep(Vector3d& coord, R& random, double stepsize) {
-  coord[0] = (random()-0.5)*stepsize;
-  coord[1] = (random()-0.5)*stepsize;
-  coord[2] = (random()-0.5)*stepsize;
-}
 
 template<typename Wfn, typename Walker>
 void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, double &rk, int niter, double targetError)
@@ -424,7 +418,7 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 
   
   while (iter < niter) {
-    getStep(step, random, schd.realSpaceStep);
+    walk.getSimpleStep(step, schd.realSpaceStep);
     elecToMove = iter%nelec;
     step += walk.d.coord[elecToMove];
 
@@ -543,7 +537,8 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
   VectorXd appended(numVars + 1);
 
   while (iter < niter) {
-    getStep(step, random, schd.realSpaceStep);
+    walk.getSimpleStep(step, schd.realSpaceStep);
+    //getStep(step, random, schd.realSpaceStep);
     elecToMove = iter%nelec;
     step += walk.d.coord[elecToMove];
 
@@ -638,7 +633,7 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
 
 
 template<typename Wfn, typename Walker>
-void getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev,
+double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev,
                                            Eigen::VectorXd &grad, MatrixXd& Hessian,
                                            MatrixXd& Smatrix, double &rk,
                                            int niter, double targetError)
@@ -673,8 +668,11 @@ void getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, 
       diagonalGrad = VectorXd::Zero(grad.rows());
 
   while (iter < niter) {
-    getStep(step, random, schd.realSpaceStep);
     elecToMove = iter%nelec;
+    //walk.getSimpleStep(step, schd.realSpaceStep);
+    //double proposalProb = 1.0;
+    double proposalProb = wave.getDMCMove(step, elecToMove, schd.realSpaceStep, walk);
+
     step += walk.d.coord[elecToMove];
 
     iter ++;
@@ -710,10 +708,12 @@ void getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, 
 
  
 
- 
-    double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
-
-    if (ovlpRatio*ovlpRatio > random()) {
+    //double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
+    double ovlpRatio = 1.0;
+    //cout << ovlpRatio<<"  "<<proposalProb<<endl;
+    //cout << " --- "<<endl;
+    
+    if (ovlpRatio*ovlpRatio*proposalProb > random()) {
       acceptedFrac++;
       walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
 
@@ -766,7 +766,7 @@ void getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, 
     boost::archive::binary_oarchive save(ofs);
     save << bestDet;
   }
-
+  return acceptedFrac/niter;
 }
 
 template<typename Wfn, typename Walker>
@@ -992,17 +992,19 @@ class getGradientWrapper
     w.writeWave();
   };
   
-  void getHessianRealSpace(VectorXd &vars, VectorXd &grad, MatrixXd& H,
+  double getHessianRealSpace(VectorXd &vars, VectorXd &grad, MatrixXd& H,
                            MatrixXd& S, double &E0, double &stddev,
                            double &rt, bool deterministic)
   {
+    double acceptedFrac;
     w.updateVariables(vars);
     w.initWalker(walk);
     if (!deterministic)
-      getGradientHessianMetropolisRealSpace(w, walk, E0, stddev, grad,
+      acceptedFrac = getGradientHessianMetropolisRealSpace(w, walk, E0, stddev, grad,
                                             H, S, rt, stochasticIter, 0.5e-3);
     
     w.writeWave();
+    return acceptedFrac;
   };
   
   void getMetric(VectorXd &vars, VectorXd &grad, VectorXd &H, DirectMetric &S, double &E0, double &stddev, double &rt, bool deterministic)
@@ -1022,7 +1024,7 @@ class getGradientWrapper
       w.writeWave();
   };
 
-  void getHessian(VectorXd &vars, VectorXd &grad, MatrixXd &Hessian, MatrixXd &smatrix, double &E0, double &stddev, oneInt &I1, twoInt &I2, twoIntHeatBathSHM &I2hb, double &coreE, double &rt, bool deterministic)
+  double getHessian(VectorXd &vars, VectorXd &grad, MatrixXd &Hessian, MatrixXd &smatrix, double &E0, double &stddev, oneInt &I1, twoInt &I2, twoIntHeatBathSHM &I2hb, double &coreE, double &rt, bool deterministic)
   {
     if (!deterministic)
     {
@@ -1039,6 +1041,7 @@ class getGradientWrapper
       getGradientHessianDeterministic(w, walk, E0, nalpha, nbeta, norbs, I1, I2, I2hb, coreE, grad, Hessian, Smatrix)
     }
     w.writeWave();
+    return 1.0; //the accepted fraction is 1
   };
 };
 #endif

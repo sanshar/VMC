@@ -115,7 +115,7 @@ class LM
        grad.setZero(numVars);
        x.setZero(numVars + 1);
 
-       getHessian(vars, grad, Hessian, Smatrix, E0, stddev, rt);
+       double acceptedFrac = getHessian(vars, grad, Hessian, Smatrix, E0, stddev, rt);
        write(vars);
 
        for (int i=0; i<numVars+1; i++)
@@ -172,7 +172,7 @@ class LM
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
        if (commrank == 0)
-         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %10i %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
+         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %10i %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (schd.stochasticIter) % ((getTime() - startofCalc));
        iter++;
 
      }

@@ -31,7 +31,7 @@ using functor1 = boost::function<void (VectorXd&, VectorXd&, double&, double&, d
 using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
 using functor3 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
 using functor4 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
-using functor5 = boost::function<void (VectorXd&, VectorXd&, MatrixXd&, MatrixXd&, double&, double&, double&)>;
+using functor5 = boost::function<double (VectorXd&, VectorXd&, MatrixXd&, MatrixXd&, double&, double&, double&)>;
 
 
 template<typename Wave, typename Walker>

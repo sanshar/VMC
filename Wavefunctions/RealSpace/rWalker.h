@@ -25,12 +25,17 @@
 #include "igl/slice.h"
 #include "igl/slice_into.h"
 #include "rSlater.h"
+#include <random>
 
+template<typename jastrow, typename slater> class rCorrelatedWavefunction;
 using namespace Eigen;
 
 template<typename T1, typename T2>
 struct rWalker {
 };
+
+using uniformRandom = std::function<double ()>;
+using normalRandom = std::function<double ()>;
 
 template<>
 struct rWalker<rJastrow, rSlater> {
@@ -40,8 +45,10 @@ struct rWalker<rJastrow, rSlater> {
   MatrixXd RiN;         //electron-nucleus distances  
   rWalkerHelper<rJastrow> corrHelper;
   rWalkerHelper<rSlater> refHelper;
-
-  rWalker() {};
+  uniformRandom uR;
+  std::normal_distribution<double> nR;
+  
+  rWalker();
   
   rWalker(const rJastrow &corr, const rSlater &ref) ;
 
@@ -70,6 +77,7 @@ struct rWalker<rJastrow, rSlater> {
 
   void HamOverlap(const rSlater &ref, const rJastrow& cps, VectorXd &grad) ;
 
+  void getSimpleStep(Vector3d& coord, double stepsize);
 
 };
 

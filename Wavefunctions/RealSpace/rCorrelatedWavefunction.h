@@ -189,6 +189,9 @@ struct rCorrelatedWavefunction {
     exit(0);
     return 0;
   }
+
+  double getDMCMove(Vector3d& coord, int elecI, double stepsize,
+                    rWalker<rJastrow, rSlater>& walk);
 };
 
 
@@ -201,6 +204,11 @@ void rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastr
 
 template<>
 void rCorrelatedWavefunction<rJastrow, rSlater>::enforceCusp();
+
+template<>
+double rCorrelatedWavefunction<rJastrow, rSlater>::getDMCMove(Vector3d& coord, int elecI,
+                                                             double stepsize,
+                                                             rWalker<rJastrow, rSlater>& walk);
 
 
 #endif

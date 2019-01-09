@@ -105,7 +105,7 @@ GeneralJastrow::GeneralJastrow() : Ncoords(schd.Ncoords), Ncharge(schd.Ncharge) 
   beta = 1.0;
 }
 
-bool electronsOfCorrectSpin(int i, int j, int ss) {
+bool electronsOfCorrectSpin(const int& i, const int& j, const int& ss) {
   if ( ss == 2 ||  //applies to any term
        (i/rDeterminant::nalpha == j/rDeterminant::nalpha && ss == 1) ||
        (i/rDeterminant::nalpha != j/rDeterminant::nalpha && ss == 0) ) 

@@ -24,18 +24,23 @@
 #include <boost/mpi.hpp>
 #endif
 #include "rWalker.h"
+#include "math.h"
+#include "rCorrelatedWavefunction.h"
 
 using namespace boost;
 
+rWalker<rJastrow, rSlater>::rWalker() {
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double>(.0,1.0); //0 mean and 1 stddev  
+}
+
 rWalker<rJastrow, rSlater>::rWalker(const rJastrow &corr, const rSlater &ref) 
 {
-  /*
-  if (commrank == 0) {
-    corr.printVariables();
-    ref.printVariables();
-  }
-  exit(0);
-  */
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double> (.0,1.0); //0 mean and 1 stddev  
+
   initDet(ref.getHforbsA(), ref.getHforbsB());
 
   initR();
@@ -174,6 +179,13 @@ void rWalker<rJastrow, rSlater>::HamOverlap(const rSlater &ref,
 
   if (schd.optimizeOrbs == false) return;
   refHelper.HamOverlap(d, ref, Rij, RiN, hamtail);
+}
+
+
+void rWalker<rJastrow, rSlater>::getSimpleStep(Vector3d& coord, double stepsize) {
+  coord[0] = (uR()-0.5)*stepsize;
+  coord[1] = (uR()-0.5)*stepsize;
+  coord[2] = (uR()-0.5)*stepsize;
 }
 
 
