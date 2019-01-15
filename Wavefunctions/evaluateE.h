@@ -425,7 +425,6 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
     iter ++;
     if (iter%sampleSteps == 0) {
       ham = wave.rHam(walk);
-      
       wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
 
       for (int i = 0; i < grad.rows(); i++)
@@ -447,7 +446,6 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 
     
     double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
-
     if (ovlpRatio*ovlpRatio > random()) {
       acceptedFrac++;
       walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
@@ -663,55 +661,48 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   Hessian = MatrixXd::Zero(numVars + 1, numVars+1);
   Smatrix = MatrixXd::Zero(numVars + 1, numVars+1);
 
-  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()),
-      hamRatio = VectorXd::Zero(grad.rows()),
+  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()+1),
+      hamRatio = VectorXd::Zero(grad.rows()+1),
       diagonalGrad = VectorXd::Zero(grad.rows());
 
   while (iter < niter) {
     elecToMove = iter%nelec;
-    //walk.getSimpleStep(step, schd.realSpaceStep);
-    //double proposalProb = 1.0;
-    double proposalProb = wave.getDMCMove(step, elecToMove, schd.realSpaceStep, walk);
+    walk.getSimpleStep(step, schd.realSpaceStep);
+    double proposalProb = 1.0;
+    //double proposalProb = wave.getDMCMove(step, elecToMove, schd.realSpaceStep, walk);
 
     step += walk.d.coord[elecToMove];
 
     iter ++;
     if (iter%sampleSteps == 0) {
-      ham = wave.rHam(walk);
-   
-      wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
-      wave.HamOverlap(walk, hamRatio);
+      //ham = wave.rHam(walk);
+      //wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
+      ham = wave.HamOverlap(walk, localdiagonalGrad, hamRatio);
       
-      Hessian.block(1,1,numVars, numVars) += (localdiagonalGrad * hamRatio.transpose() - Hessian.block(1,1,numVars,numVars))/(effIter+1);
-      Hessian.block(0,1,      1, numVars) += (hamRatio.transpose()                     - Hessian.block(0,1,      1,numVars))/(effIter+1);
-      Hessian.block(1,0,numVars,       1) += (ham*localdiagonalGrad                    - Hessian.block(1,0,numVars,      1))/(effIter+1);
+      Hessian.noalias() += (localdiagonalGrad * hamRatio.transpose()-Hessian)/(effIter+1);
+      Smatrix.noalias() += (localdiagonalGrad * localdiagonalGrad.transpose()-Smatrix)/(effIter+1);
 
-      Smatrix.block(1,1,numVars, numVars) += (localdiagonalGrad*localdiagonalGrad.transpose() - Smatrix.block(1,1,numVars,numVars))/(effIter+1);
-      Smatrix.block(0,1,      1, numVars) += (localdiagonalGrad.transpose()            - Smatrix.block(0,1,      1,numVars))/(effIter+1);
-      Smatrix.block(1,0,numVars,       1) += (localdiagonalGrad                        - Smatrix.block(1,0,numVars,      1))/(effIter+1);
-      
+      hamRatio[0] = 0.0; localdiagonalGrad[0] = 0.0;
       for (int i = 0; i < grad.rows(); i++)
       {
-        diagonalGrad[i] += (localdiagonalGrad[i] - diagonalGrad[i])/(effIter+1);
-        grad[i] += (ham * localdiagonalGrad[i] - grad[i])/(effIter + 1);
-        localdiagonalGrad[i] = 0.0;
-        hamRatio[i] = 0;
+        diagonalGrad[i] += (localdiagonalGrad[i+1] - diagonalGrad[i])/(effIter+1);
+        grad[i] += (ham * localdiagonalGrad[i+1] - grad[i])/(effIter + 1);
+        localdiagonalGrad[i+1] = 0.0;
+        hamRatio[i+1] = 0;
       }
+
       double avgPotold = avgPot;
       avgPot += (ham - avgPot)/(effIter+1);
       S1 += (ham - avgPotold) * (ham - avgPot);
       if (effIter < corrIter)
         Stats.push_back(ham);
-      //corrError[effIter + commrank * corrIter] = ham;
+
       effIter++;
     }
 
  
 
-    //double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
-    double ovlpRatio = 1.0;
-    //cout << ovlpRatio<<"  "<<proposalProb<<endl;
-    //cout << " --- "<<endl;
+    double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
     
     if (ovlpRatio*ovlpRatio*proposalProb > random()) {
       acceptedFrac++;
@@ -755,8 +746,6 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   grad = grad - E0 * diagonalGrad;
   Hessian = Hessian/(commsize);
   Smatrix = Smatrix/(commsize);
-  Smatrix(0,0) = 1.0;
-  Hessian(0,0) = E0;
 
   if (commrank == 0)
   {

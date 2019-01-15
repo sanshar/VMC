@@ -26,6 +26,8 @@
 #include "rWalker.h"
 #include "math.h"
 #include "rCorrelatedWavefunction.h"
+#include "global.h"
+#include "input.h"
 
 using namespace boost;
 

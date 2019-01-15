@@ -79,6 +79,8 @@ struct rWalker<rJastrow, rSlater> {
 
   void getSimpleStep(Vector3d& coord, double stepsize);
 
+  void getSphericalStep(Vector3d& coord, double stepsize);
+  
 };
 
 

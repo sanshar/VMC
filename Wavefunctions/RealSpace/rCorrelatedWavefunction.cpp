@@ -1,9 +1,14 @@
 #include "rCorrelatedWavefunction.h"
+#include "global.h"
+#include "input.h"
 
 template<>
-void rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastrow, rSlater>& walk,
-                                                           Eigen::VectorXd& hamgrad) const {  
+double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastrow, rSlater>& walk,
+                                                              Eigen::VectorXd& gradRatio,
+                                                              Eigen::VectorXd& hamRatio) const {  
 
+  gradRatio[0] = 1.0;
+  hamRatio[0] = 0.0;
 
   int norbs = schd.basis->getNorbs();
   int nalpha = rDeterminant::nalpha;
@@ -11,55 +16,38 @@ void rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastr
   int nelec = nalpha+nbeta;
   int numDets = ref.determinants.size();
 
-  MatrixXd Bij = walk.refHelper.Laplacian[0]; //i = nelec , j = norbs
-  for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) {
-    Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,0) * walk.refHelper.Gradient[0].row(i);
-    Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,1) * walk.refHelper.Gradient[1].row(i);
-    Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,2) * walk.refHelper.Gradient[2].row(i);
-  }
+  double ham = rHam(walk);
   
-  double kineticTot = 0.0;
-  for (int i=0; i<nelec; i++) {
-    kineticTot += walk.refHelper.thetaInv[0].row(i).dot(Bij.col(i));
-    kineticTot += walk.corrHelper.LaplaceRatio[i];
-  }
-
-  double potentialij = 0.0, potentiali=0;
-
-  //get potential
-  for (int i=0; i<nelec; i++)
-    for (int j=i+1; j<nelec; j++) {
-      potentialij += 1./walk.Rij(i,j);
-    }
-  for (int i=0; i<nelec; i++) {
-    for (int j=0; j<schd.Ncoords.size(); j++) {
-      potentiali -= schd.Ncharge[j]/walk.RiN(i,j);
-    }
-  }
-
   int numVars = 0;
   //*********calculate the hamoverlap for jastrows
-  if (schd.optimizeCps) {
-    numVars += corr._params.size();
-    for (int j=0; j<corr._params.size(); j++) {
-      hamgrad[j] = 0.0;
-      if (corr._jastrow.fixed[j] == 1) continue;
-      for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) {
-        Bij.row(i)  = -walk.corrHelper.ParamGradient[j](i,0) * walk.refHelper.Gradient[0].row(i);
-        Bij.row(i) += -walk.corrHelper.ParamGradient[j](i,1) * walk.refHelper.Gradient[1].row(i);
-        Bij.row(i) += -walk.corrHelper.ParamGradient[j](i,2) * walk.refHelper.Gradient[2].row(i);
 
-        hamgrad[j] += Bij.row(i).dot(walk.refHelper.thetaInv[0].col(i));
-        hamgrad[j] += -0.5* (walk.corrHelper.ParamLaplacianIntermediate(i, j) +
-                          2.*walk.corrHelper.GradRatio(i,0)*walk.corrHelper.ParamGradient[j](i,0)+
-                          2.*walk.corrHelper.GradRatio(i,1)*walk.corrHelper.ParamGradient[j](i,1)+
-                          2.*walk.corrHelper.GradRatio(i,2)*walk.corrHelper.ParamGradient[j](i,2));
+  if (schd.optimizeCps) {
+    numVars += corr._params.size()+1;
+    VectorXd Bij = VectorXd::Zero(walk.d.nelec);
+    for (int j=0; j<corr._params.size(); j++) {
+      gradRatio[j+1] += walk.corrHelper.ParamValues[j];
+      hamRatio[j+1] = 0.0;
+
+      for (int i=0; i< walk.d.nelec; i++) {
+        Bij  = -walk.corrHelper.ParamGradient[0](i,j) * walk.refHelper.Gradient[0].row(i);
+        Bij += -walk.corrHelper.ParamGradient[1](i,j) * walk.refHelper.Gradient[1].row(i);
+        Bij += -walk.corrHelper.ParamGradient[2](i,j) * walk.refHelper.Gradient[2].row(i);
+        
+        hamRatio[j+1] += Bij.dot(walk.refHelper.thetaInv[0].col(i));
+        hamRatio[j+1] += -0.5*(walk.corrHelper.ParamLaplacian(i, j) +
+                               2.*walk.corrHelper.GradRatio(i,0)*walk.corrHelper.ParamGradient[0](i,j)+
+                               2.*walk.corrHelper.GradRatio(i,1)*walk.corrHelper.ParamGradient[1](i,j)+
+                               2.*walk.corrHelper.GradRatio(i,2)*walk.corrHelper.ParamGradient[2](i,j));
       }
-      double paramVal = corr._params[j];
-      hamgrad[j] = abs(paramVal) < 1.e-10 ? 0 : hamgrad[j]/paramVal;
     }
+    hamRatio[corr.EEsameSpinIndex + 1] = 0;
+    hamRatio[corr.EEoppositeSpinIndex + 1] = 0;
+    gradRatio[corr.EEsameSpinIndex + 1] = 0;
+    gradRatio[corr.EEoppositeSpinIndex + 1] = 0;
   }
   
+  
+  //*********calculate the hamoverlap for orbitals
   if (schd.optimizeOrbs) {
     
     MatrixXd AoRi = MatrixXd::Zero(nelec, 2*norbs);
@@ -107,13 +95,12 @@ void rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastr
     for (int mo = 0; mo <nelec; mo++) {
       
       for (int orb = 0; orb < 2*norbs; orb++) {
-        
         //laplacian contribution
         {
           double t1 = thetaInv.row(mo).dot(AOLaplacian.col(orb));
           double t2 = X       .row(mo).dot(AoRi       .col(orb));
           
-          hamgrad[numVars + numDets + orb*nelec + mo] += -0.5*(t1 - t2);
+          hamRatio[numVars + numDets + orb*nelec + mo] += -0.5*(t1 - t2);
         }
 
 
@@ -122,34 +109,30 @@ void rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastr
           double t1 = thetaInv.row(mo).dot(AOGradx.col(orb));
           double t2 = Xgx     .row(mo).dot(AoRi   .col(orb));
           
-          hamgrad[numVars + numDets + orb*nelec + mo] += -(t1 - t2);
+          hamRatio[numVars + numDets + orb*nelec + mo] += -(t1 - t2);
         }
 
         {
           double t1 = thetaInv.row(mo).dot(AOGrady.col(orb));
           double t2 = Xgy     .row(mo).dot(AoRi   .col(orb));
           
-          hamgrad[numVars + numDets + orb*nelec + mo] += -(t1 - t2);
+          hamRatio[numVars + numDets + orb*nelec + mo] += -(t1 - t2);
         }
 
         {
           double t1 = thetaInv.row(mo).dot(AOGradz.col(orb));
           double t2 = Xgz     .row(mo).dot(AoRi   .col(orb));
           
-          hamgrad[numVars + numDets + orb*nelec + mo] += -(t1 - t2);
+          hamRatio[numVars + numDets + orb*nelec + mo] += -(t1 - t2);
         }
 
+        gradRatio[numVars + numDets + orb * nelec + mo] += thetaInv.row(mo).dot(AoRi.col(orb));        
       }
       
     }
   }
-
-  VectorXd grad = hamgrad;
-  grad.setZero(); double factor = 1.0;
-  OverlapWithGradient(const_cast<rWalker<rJastrow, rSlater>&>(walk), factor, grad);
-  hamgrad += (-0.5*kineticTot+
-              potentialij+
-              potentiali) * grad;
+  hamRatio += (ham) * gradRatio;
+  return ham;
 }
 
 template<>
@@ -251,6 +234,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(const rWalker<rJastrow, 
       kinetic += walk.corrHelper.LaplaceRatio[i];
     }
   }
+  //cout << kinetic<<"  "<<potentialij<<"  "<<potentiali<<endl;
   return -0.5*(kinetic) + potentialij+potentiali;
 
 }
@@ -260,7 +244,7 @@ template<>
 double rCorrelatedWavefunction<rJastrow, rSlater>::getDMCMove(Vector3d& coord, int elecI,
                                                              double stepsize,
                                                              rWalker<rJastrow, rSlater>& walk) {
-
+  /*
   double gx, gy, gz; //Gradient in x,y,z direction for for electron elecI
   double detgx, detgy, detgz;
   detgx = walk.refHelper.Gradient[0].row(elecI).dot(walk.refHelper.thetaInv[0].col(elecI));
@@ -270,7 +254,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::getDMCMove(Vector3d& coord, i
   gx = walk.corrHelper.GradRatio(elecI,0) + detgx;    
   gy = walk.corrHelper.GradRatio(elecI,1) + detgy;
   gz = walk.corrHelper.GradRatio(elecI,2) + detgz;
-
+  
   double driftSize = pow(stepsize, 0.5);
   double stepx = walk.nR(generator),
       stepy = walk.nR(generator),
@@ -283,7 +267,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::getDMCMove(Vector3d& coord, i
   coord[0] = stepx * deltainit + alphainit * gx;
   coord[1] = stepy * deltainit + alphainit * gy; 
   coord[2] = stepz * deltainit + alphainit * gz; 
-
+  
   //
   double forwardProb = exp(-(stepx*stepx + stepy*stepy + stepz*stepz)/2.)
       /pow(2*M_PI* deltainit*deltainit, 1.5);
@@ -333,17 +317,18 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::getDMCMove(Vector3d& coord, i
   double diff = 0;
   vector<double> &params = corr._params;
   vector<double> &gradHelper = corr._gradHelper;
+
   for (int j=0; j<walk.d.nelec; j++) {
     if (j == elecI) continue;
 
     //add new contribution
     diff += corr._jastrow.getExpLaplaceGradIJ(elecI, j, gi, gj, laplacei, laplacej,
                                               newCoord, walk.d.coord[j],
-                                              &params[0], &gradHelper[0], 0.0, true);
+                                              &params[0], &gradHelper[0], true);
     //remove old contribution
     diff -= corr._jastrow.getExpLaplaceGradIJ(elecI, j, gk, gj, laplacei, laplacej,
                                               walk.d.coord[elecI], walk.d.coord[j],
-                                              &params[0], &gradHelper[0], 0.0, true);
+                                              &params[0], &gradHelper[0], true);
   }
 
   //cout << endl;
@@ -366,5 +351,5 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::getDMCMove(Vector3d& coord, i
 
   r = pow(newCoord[0],2) + pow(newCoord[1],2) + pow(newCoord[2],2) ;
   return pow(ovlpRatio, 2) * reverseProb/forwardProb;
-
+  */
 }
