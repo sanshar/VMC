@@ -85,6 +85,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.ctmc = true;
       schd.cgIter = 15;
       schd.sDiagShift = 0.01;
+      schd.direct = true;
 
       while (dump.good())
 	{
@@ -142,6 +143,11 @@ void readInput(string input, schedule& schd, bool print) {
 
           else if (boost::iequals(ArgName, "cgIter"))
             schd.cgIter = atoi(tok[1].c_str());
+
+          else if (boost::iequals(ArgName, "nondirect"))
+            schd.direct = false;
+          else if (boost::iequals(ArgName, "direct"))
+            schd.direct = true;
 
 	  else if (boost::iequals(ArgName, "amsgrad_sgd"))
           {

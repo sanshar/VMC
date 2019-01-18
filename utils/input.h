@@ -70,7 +70,8 @@ private:
       & excitationLevel
       & sDiagShift
       & cgIter
-      & stepsize
+      & stepsize 
+      & direct;
       & expCorrelator;
   }
 public:
@@ -107,6 +108,7 @@ public:
   int maxIter;                     
   int avgIter;                     
   int _sgdIter;
+  bool direct; //boolean for direct application of H, S
   Method method;
   double sDiagShift;
   int cgIter;

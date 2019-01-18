@@ -1,13 +1,15 @@
 USE_MPI = yes
 USE_INTEL = yes
-EIGEN=/projects/sash2458/apps/eigen/
-BOOST=/projects/sash2458/apps/boost_1_57_0/
-LIBIGL=/projects/sash2458/apps/libigl/include/
-#EIGEN=/projects/ilsa8974/apps/eigen/
-#BOOST=/projects/ilsa8974/apps/boost_1_66_0/
-#LIBIGL=/projects/ilsa8974/apps/libigl/include/
+#EIGEN=/projects/sash2458/apps/eigen/
+#BOOST=/projects/sash2458/apps/boost_1_57_0/
+#LIBIGL=/projects/sash2458/apps/libigl/include/
+EIGEN=/projects/ilsa8974/apps/eigen/
+BOOST=/projects/ilsa8974/apps/boost_1_66_0
+LIBIGL=/projects/ilsa8974/apps/libigl/include
+SUNDIALS=/projects/ilsa8974/apps/sundials-3.1.0/stage/include
+STAN=/projects/ilsa8974/apps/math
 
-FLAGS = -std=c++14 -g  -O3 -I./VMC -I./utils -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
+FLAGS = -std=c++14 -g -O3 -w -I./VMC -I./utils -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${LIBIGL} -I${SUNDIALS} -I${STAN} -I/opt/local/include/openmpi-mp/ #-DComplex
 #FLAGS = -std=c++14 -g  -I./VMC  -I./utils -I./Wavefunctions  -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
 
 
@@ -67,6 +69,7 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/excitationOperators.o \
 	obj/statistics.o \
 	obj/sr.o \
+	obj/LocalEnergy.o \
 	obj/VMC.o \
 	obj/evaluateE.o 
 
@@ -85,7 +88,6 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/excitationOperators.o\
 	obj/ShermanMorrisonWoodbury.o\
 	obj/statistics.o \
-	obj/sr.o \
 	obj/Correlator.o
 
 

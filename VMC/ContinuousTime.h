@@ -19,10 +19,6 @@
 #include "mpi.h"
 #endif
 
-using namespace Eigen;
-using namespace std;
-using namespace boost;
-
 template<typename Wfn, typename Walker>
 class ContinuousTime
 {
@@ -35,7 +31,7 @@ class ContinuousTime
   double T, Eloc, ovlp;
   double S1, oldEnergy;
   double cumT, cumT2;
-  VectorXd grad_ratio;
+  Eigen::VectorXd grad_ratio;
   int nsample;
   Statistics Stats; //this is only used to calculate autocorrelation length
   Determinant bestDet;
@@ -158,13 +154,13 @@ class ContinuousTime
     w->OverlapWithGradient(*walk, ovlp, grad_ratio);
   }
   
-  void UpdateGradient(VectorXd &grad, VectorXd &grad_ratio_bar)
+  void UpdateGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar)
   {
     grad_ratio_bar += T * (grad_ratio - grad_ratio_bar) / cumT;
     grad += T * (grad_ratio * Eloc - grad) / cumT;
   }
 
-  void FinishGradient(VectorXd &grad, VectorXd &grad_ratio_bar, const double &Energy)
+  void FinishGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, const double &Energy)
   {
 #ifndef SERIAL
     MPI_Allreduce(MPI_IN_PLACE, (grad_ratio_bar.data()), grad_ratio_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -175,20 +171,60 @@ class ContinuousTime
     grad = (grad - Energy * grad_ratio_bar);
   }
 
+  void LocalEnergyGradient()
+  {
+    LocalEnergySolver Solver(walk->d);
+    Eigen::VectorXd vars;
+    w->getVariables(vars);
+    double ElocTest;
+    stan::math::gradient(Solver, vars, ElocTest, grad_local_energy);
+
+    //below is very expensive and used only for debugging
+/*
+    cout << Eloc << "\t|\t" << ElocTest << endl << endl;
+    Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(vars.size());
+    for (int i = 0; i < vars.size(); ++i)
+    {
+      double dt = 0.00001;
+      Eigen::VectorXd varsdt = vars;
+      varsdt(i) += dt;
+      finiteGradEloc(i) = (Solver(varsdt) - ElocTest) / dt;
+    }
+    for (int i = 0; i < vars.size(); ++i)
+    {
+      cout << finiteGradEloc(i) << "\t" << grad_local_energy(i) << endl;
+    }
+*/
+  }
+
   void UpdateSR(DirectMetric &S)
   {
-    VectorXd appended(numVars + 1);
+    Eigen::VectorXd appended(numVars + 1);
     appended << 1.0, grad_ratio;
-    S.Vectors.push_back(appended);
-    S.T.push_back(T);
+    if (schd.direct)
+    {
+      S.Vectors.push_back(appended);
+      S.T.push_back(T);
+    }
+    else
+    {
+      S.Smatrix += T * (appended * appended.adjoint() - S.Smatrix) / cumT;
+    }
   }
   
-  void FinishSR(const VectorXd &grad, const VectorXd &grad_ratio_bar, VectorXd &H)
+  void FinishSR(const Eigen::VectorXd &grad, const Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &H, DirectMetric &S)
   {
     H.setZero(grad.rows() + 1);
-    VectorXd appended(grad.rows());
+    Eigen::VectorXd appended(grad.rows());
     appended = grad_ratio_bar - schd.stepsize * grad;
     H << 1.0, appended;
+    if (!(schd.direct))
+    {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (S.Smatrix.data()), S.Smatrix.rows() * S.Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      S.Smatrix /= commsize;
+    }
   }
 };
 #endif

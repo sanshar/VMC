@@ -96,7 +96,7 @@ void getGradientMetricDeterministic(Wfn &w, Walker &walk, double &Energy, Vector
   }
   D.FinishEnergy(Energy);
   D.FinishGradient(grad, grad_ratio_bar, Energy);
-  D.FinishSR(grad, grad_ratio_bar, H);
+  D.FinishSR(grad, grad_ratio_bar, H, S);
 }
 
 template<typename Wfn, typename Walker>
@@ -268,7 +268,7 @@ void getStochasticGradientMetricContinuousTime(Wfn &w, Walker& walk, double &Ene
   }
   CTMC.FinishEnergy(Energy, stddev, rk);
   CTMC.FinishGradient(grad, grad_ratio_bar, Energy);
-  CTMC.FinishSR(grad, grad_ratio_bar, H);
+  CTMC.FinishSR(grad, grad_ratio_bar, H, S);
   CTMC.FinishBestDet();
 }
 
