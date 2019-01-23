@@ -8,6 +8,8 @@ VMCPATH="../../bin/VMC vmc.dat"
 CIPATH="../../bin/VMC ci.dat"
 LANCZOSPATH="../../bin/VMC lanczos.dat"
 GFMCPATH="../../bin/GFMC gfmc.dat"
+DIRECTPATH="../../bin/VMC direct.dat"
+NONDIRECTPATH="../../bin/VMC nondirect.dat"
 here=`pwd`
 tol=1.0e-7
 clean=0
@@ -115,9 +117,19 @@ fi
 
 cd $here/h10sr/
 ../clean.sh
-printf "...running h10 sr\n"
-$MPICOMMAND $VMCPATH > vmc.out
-python ../testEnergy.py 'vmc' $tol
+printf "...running h10 sr direct\n"
+$MPICOMMAND $DIRECTPATH > direct.out
+python ../testEnergy.py 'direct' $tol
+if [ $clean == 1 ]
+then    
+    ../clean.sh
+fi
+
+cd $here/h10sr/
+../clean.sh
+printf "...running h10 sr nondirect\n"
+$MPICOMMAND $NONDIRECTPATH > nondirect.out
+python ../testEnergy.py 'nondirect' $tol
 if [ $clean == 1 ]
 then    
     ../clean.sh

@@ -19,10 +19,6 @@
 #include "mpi.h"
 #endif
 
-using namespace Eigen;
-using namespace std;
-using namespace boost;
-
 template<typename Wfn, typename Walker>
 class Deterministic
 {
@@ -31,11 +27,11 @@ class Deterministic
   Walker walk;
   long numVars;
   int norbs, nalpha, nbeta;
-  vector<Determinant> allDets;
+  std::vector<Determinant> allDets;
   workingArray work;
   double ovlp, Eloc;
   double Overlap;
-  VectorXd grad_ratio;
+  Eigen::VectorXd grad_ratio;
 
   Deterministic(Wfn _w, Walker _walk) : w(_w), walk(_walk)
   {
@@ -75,13 +71,13 @@ class Deterministic
     w.OverlapWithGradient(walk, ovlp, grad_ratio);
   }
 
-  void UpdateGradient(VectorXd &grad, VectorXd &grad_ratio_bar)
+  void UpdateGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar)
   {
     grad += grad_ratio * Eloc * ovlp * ovlp;
     grad_ratio_bar += grad_ratio * ovlp * ovlp;
   }
 
-  void FinishGradient(VectorXd &grad, VectorXd &grad_ratio_bar, const double &Energy)
+  void FinishGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, const double &Energy)
   {
 #ifndef SERIAL
     MPI_Allreduce(MPI_IN_PLACE, (grad_ratio_bar.data()), grad_ratio_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -89,21 +85,61 @@ class Deterministic
 #endif
     grad = (grad - Energy * grad_ratio_bar) / Overlap;
   }
+
+  void LocalEnergyGradient()
+  {
+    LocalEnergySolver Solver(walk.d);
+    Eigen::VectorXd vars;
+    w.getVariables(vars);
+    double ElocTest;
+    stan::math::gradient(Solver, vars, ElocTest, grad_local_energy);
+    
+    //below is very expensive and used only for debugging
+/*
+    cout << Eloc << "\t|\t" << ElocTest << endl << endl;
+    VectorXd finiteGradEloc = VectorXd::Zero(vars.size());
+    for (int i = 0; i < vars.size(); ++i)
+    {
+      double dt = 0.00001;
+      VectorXd varsdt = vars;
+      varsdt(i) += dt;
+      finiteGradEloc(i) = (Solver(varsdt) - ElocTest) / dt;
+    }
+    for (int i = 0; i < vars.size(); ++i)
+    {
+      cout << finiteGradEloc(i) << "\t" << grad_local_energy(i) << endl;
+    }
+*/
+  }
   
   void UpdateSR(DirectMetric &S)
   {
-    VectorXd appended(numVars);
+    Eigen::VectorXd appended(numVars);
     appended << 1.0, grad_ratio;
-    S.Vectors.push_back(appended);
-    S.T.push_back(ovlp * ovlp);
+    if (schd.direct)
+    {
+      S.Vectors.push_back(appended);
+      S.T.push_back(ovlp * ovlp);
+    }
+    else
+    {
+      S.Smatrix += (ovlp * ovlp) * appended * appended.adjoint();
+    }
   }
   
-  void FinishSR(const VectorXd &grad, const VectorXd &grad_ratio_bar, VectorXd &H)
+  void FinishSR(const Eigen::VectorXd &grad, const Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &H, DirectMetric S)
   {
     H.setZero(numVars + 1);
-    VectorXd appended(numVars);
+    Eigen::VectorXd appended(numVars);
     appended = grad_ratio_bar - schd.stepsize * grad;
     H << 1.0, appended;
+    if (!(schd.direct))
+    {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (S.Smatrix.data()), S.Smatrix.rows() * S.Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      S.Smatrix /= Overlap;
+    }
   }
 };
 #endif

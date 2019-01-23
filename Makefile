@@ -85,12 +85,22 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/Gutzwiller.o \
 	obj/CPS.o \
 	obj/Correlator.o \
+<<<<<<< HEAD
 	obj/ShermanMorrisonWoodbury.o\
 	obj/excitationOperators.o\
     obj/statistics.o \
     obj/sr.o \
     obj/VMC.o \
     obj/evaluateE.o 
+=======
+	obj/ShermanMorrisonWoodbury.o \
+	obj/excitationOperators.o \
+	obj/statistics.o \
+	obj/sr.o \
+	obj/LocalEnergy.o \
+	obj/VMC.o \
+	obj/evaluateE.o 
+>>>>>>> fde39a7caedf60c8039a457ac3f2dd37ddbad252
 
 OBJ_SLATERTOGAUSSIAN = obj/slaterToGaussian.o \
 	obj/_slaterToGaussian.o
@@ -113,7 +123,6 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/excitationOperators.o\
 	obj/ShermanMorrisonWoodbury.o\
 	obj/statistics.o \
-	obj/sr.o \
 	obj/Correlator.o
 
 

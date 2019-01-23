@@ -43,25 +43,25 @@ class DirectMetric
     vector<double> T;
     vector<VectorXd> Vectors;
     double diagshift;
-    MatrixXd S;
+    MatrixXd Smatrix;
     DirectMetric(double _diagshift) : diagshift(_diagshift) {}
 
     void BuildMetric()
     {
       double Tau = 0.0;
       int dim = Vectors[0].rows();
-      S = MatrixXd::Zero(dim, dim);
+      Smatrix = MatrixXd::Zero(dim, dim);
       for (int i = 0; i < Vectors.size(); i++)
       {
-        S += T[i] * Vectors[i] * Vectors[i].adjoint();
+        Smatrix += T[i] * Vectors[i] * Vectors[i].adjoint();
         Tau += T[i];
       }
 
 #ifndef SERIAL
       MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(S(0,0)), S.rows() * S.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(Smatrix(0,0)), Smatrix.rows() * Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-      S /= Tau; 
+      Smatrix /= Tau; 
     }
       
     
@@ -166,8 +166,15 @@ class SR
        grad.setZero(numVars);
        x.setZero(numVars + 1);
        H.setZero(numVars + 1);
-       S.Vectors.clear();
-       S.T.clear();
+       if (schd.direct)
+       {
+         S.Vectors.clear();
+         S.T.clear();
+       }
+       else
+       {
+         S.Smatrix.setZero(numVars + 1, numVars + 1);
+       }
 
        getMetric(vars, grad, H, S, E0, stddev, rt);
        write(vars);
@@ -178,9 +185,9 @@ class SR
        /*
        S.BuildMetric();
        for(int i=0; i<vars.rows(); i++)
-         S.S(i,i) += 1.e-4;
+         S.Smatrix(i,i) += 1.e-4;
        MatrixXd s_inv = MatrixXd::Zero(vars.rows() + 1, vars.rows() + 1);
-       PIn(S.S,s_inv);
+       PIn(S.Smatrix,s_inv);
        x = s_inv * s.H;
        */
        
@@ -189,12 +196,28 @@ class SR
 
        //xguess << 1.0, vars;
 
-       x[0] = 1.0;
-       ConjGrad(S, H, schd.cgIter, x);
-       
-       for (int i = 0; i < vars.rows(); i++)
+       if (schd.direct)
        {
-         vars(i) += (x(i+1) / x(0));
+         x[0] = 1.0;
+         ConjGrad(S, H, schd.cgIter, x);
+       }
+       else
+       {
+         if (commrank == 0)
+         {
+           MatrixXd SInv = MatrixXd::Zero(numVars + 1, numVars + 1);
+           PInv(S.Smatrix, SInv);
+           x = SInv * H;
+         }
+       }
+       
+       if (commrank == 0)
+       {
+         //update vars
+         for (int i = 0; i < vars.rows(); i++)
+         {
+           vars(i) += (x(i+1) / x(0));
+         }
        }
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
