@@ -8,12 +8,14 @@
 #include "sr.h"
 #include "global.h"
 #include "evaluateE.h"
+#include "LocalEnergy.h"
 #include <iostream>
 #include <fstream>
 #include <boost/serialization/serialization.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <algorithm>
+#include <stan/math.hpp>
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -26,12 +28,12 @@ class ContinuousTime
   Wfn *w;
   Walker *walk;
   long numVars;
-  int norbs, nalpha, nbeta;
+  int iter, norbs, nalpha, nbeta;
   workingArray work;
   double T, Eloc, ovlp;
   double S1, oldEnergy;
-  double cumT, cumT2;
-  Eigen::VectorXd grad_ratio;
+  double cumT, cumT2, cumT_everyrk;
+  Eigen::VectorXd grad_ratio, grad_Eloc;
   int nsample;
   Statistics Stats; //this is only used to calculate autocorrelation length
   Determinant bestDet;
@@ -51,13 +53,15 @@ class ContinuousTime
     nalpha = Determinant::nalpha;
     nbeta = Determinant::nbeta;
     bestDet = walk->getDet();
-    cumT = 0.0, cumT2 = 0.0, S1 = 0.0, oldEnergy = 0.0, bestOvlp = 0.0; 
+    cumT = 0.0, cumT2 = 0.0, cumT_everyrk = 0.0, S1 = 0.0, oldEnergy = 0.0, bestOvlp = 0.0; 
+    iter = 0;
   }
 
   void LocalEnergy()
   {
     Eloc = 0.0, ovlp = 0.0;
     w->HamAndOvlp(*walk, ovlp, Eloc, work);
+    iter++;
   }
 
   void MakeMove()
@@ -110,8 +114,16 @@ class ContinuousTime
   
   void FinishEnergy(double &Energy, double &stddev, double &rk)
   {
-    Stats.Block();
-    rk = Stats.BlockCorrTime();
+    try 
+    {
+      Stats.Block();
+      rk = Stats.BlockCorrTime();
+    }
+    catch (const runtime_error &error)
+    {
+      Stats.CorrFunc();
+      rk = Stats.IntCorrTime();
+    }
 /*
     if (commrank == 0)
     {
@@ -171,17 +183,21 @@ class ContinuousTime
     grad = (grad - Energy * grad_ratio_bar);
   }
 
-  void LocalEnergyGradient()
+  void LocalEnergyGradient(int rk)
   {
-    LocalEnergySolver Solver(walk->d);
-    Eigen::VectorXd vars;
-    w->getVariables(vars);
-    double ElocTest;
-    stan::math::gradient(Solver, vars, ElocTest, grad_local_energy);
+    if ((iter + 1) % rk == 0)
+    {
+      LocalEnergySolver Solver(walk->d);
+      Eigen::VectorXd vars;
+      w->getVariables(vars);
+      //cout << Eloc;
+      Eloc = 0.0;
+      stan::math::gradient(Solver, vars, Eloc, grad_Eloc);
+    }
+    //cout << "\t|\t" << Eloc << endl;
 
     //below is very expensive and used only for debugging
 /*
-    cout << Eloc << "\t|\t" << ElocTest << endl << endl;
     Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(vars.size());
     for (int i = 0; i < vars.size(); ++i)
     {
@@ -192,7 +208,7 @@ class ContinuousTime
     }
     for (int i = 0; i < vars.size(); ++i)
     {
-      cout << finiteGradEloc(i) << "\t" << grad_local_energy(i) << endl;
+      cout << finiteGradEloc(i) << "\t" << grad_Eloc(i) << endl;
     }
 */
   }
@@ -225,6 +241,30 @@ class ContinuousTime
 #endif
       S.Smatrix /= commsize;
     }
+  }
+
+  void UpdateVariance(double &Variance, Eigen::VectorXd &grad_Eloc_bar, Eigen::VectorXd &Eloc_grad_Eloc_bar, int rk)
+  {
+    if ((iter + 1) % rk == 0)
+    {
+      cumT_everyrk += T;
+      Variance += T * (Eloc * Eloc - Variance) / cumT_everyrk;
+      grad_Eloc_bar += T * (grad_Eloc - grad_Eloc_bar) / cumT_everyrk;
+      Eloc_grad_Eloc_bar += T * (Eloc * grad_Eloc - Eloc_grad_Eloc_bar) / cumT_everyrk;
+    }
+  }
+
+  void FinishVariance(const double &Energy, double &Variance, Eigen::VectorXd &grad, const Eigen::VectorXd &grad_Eloc_bar, const Eigen::VectorXd &Eloc_grad_Eloc_bar)
+  {
+    Variance = Variance - Energy * Energy;
+    grad = 2.0 * (Eloc_grad_Eloc_bar - Energy * grad_Eloc_bar);
+    //grad = 2.0 * Eloc_grad_Eloc_bar;
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (grad.data()), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &Variance, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      grad /= commsize;
+      Variance /= commsize;
+#endif
   }
 };
 #endif

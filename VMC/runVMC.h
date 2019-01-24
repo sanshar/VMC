@@ -28,6 +28,8 @@
 
 using functor1 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
 using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
+using functor3 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&, double&)>;
+
 
 template<typename Wave, typename Walker>
 void runVMC(Wave& wave, Walker& walk) {
@@ -37,6 +39,7 @@ void runVMC(Wave& wave, Walker& walk) {
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
   functor1 getStochasticGradient = boost::bind(&getGradientWrapper<Wave, Walker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
   functor2 getStochasticGradientMetric = boost::bind(&getGradientWrapper<Wave, Walker>::getMetric, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
+  functor3 getStochasticGradientVariance = boost::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
 
   if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
     AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
@@ -57,9 +60,9 @@ void runVMC(Wave& wave, Walker& walk) {
   else if (schd.method == linearmethod) {
     
   }
-  
+  else if (schd.method == var)
+  {
+    AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+    optimizer.optimizeVariance(vars, getStochasticGradientVariance, schd.restart);
+  } 
 }
-
-
-
-

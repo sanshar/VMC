@@ -145,14 +145,18 @@ void BuildOrbitalVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Det
             Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> O;
             igl::slice(HF[sz], rowClosed, colClosed, O);
 
-            Eigen::FullPivLU<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>> lua(O);
             Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> OInv;
+/*
+            Eigen::FullPivLU<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>> lua(O);
             OInv = lua.inverse();
+*/
+            OInv = stan::math::inverse(O);
 
             Eigen::Map<Eigen::VectorXi> rowOpen(&openOrbs[sz][0], openOrbs[sz].size());
             Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> HfO;
             igl::slice(HF[sz], rowOpen, colClosed, HfO);
-            R[sz] = HfO * OInv;
+            //R[sz] = HfO * OInv;
+            R[sz] = stan::math::multiply(HfO, OInv);
         }
      }
      else if (schd.hf == "ghf")
@@ -165,16 +169,20 @@ void BuildOrbitalVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Det
          Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> O;
          igl::slice(HF[0], rowClosed, colClosed, O);
 
-         Eigen::FullPivLU<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>> lua(O);
          Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> OInv;
+/*
+         Eigen::FullPivLU<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>> lua(O);
          OInv = lua.inverse();
+*/
+         OInv = stan::math::inverse(O);
 
          Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> HfO;
          std::vector<int> rowVec;
          concatenateGhf(openOrbs[0], openOrbs[1], rowVec);
          Eigen::Map<Eigen::VectorXi> rowOpen(&rowVec[0], rowVec.size());
          igl::slice(HF[0], rowOpen, colClosed, HfO);
-         R[0] = HfO * OInv;
+         //R[0] = HfO * OInv;
+         R[0] = stan::math::multiply(HfO, OInv);
          R[1] = R[0];
      }
 }
@@ -309,8 +317,11 @@ void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const De
     //calculate thetaInv 
     Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> theta;
     igl::slice(pairMat, closed, closed, theta);
+/*
     Eigen::FullPivLU<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>> lua(theta);
     thetaInv = lua.inverse();
+*/
+    thetaInv = stan::math::inverse(theta);
 
     //map open into eigen object
     Eigen::Map<Eigen::VectorXi> openAlpha(&openOrbs[0][0], openOrbs[0].size());

@@ -138,6 +138,9 @@ void readInput(string input, schedule& schd, bool print) {
 	  else if (boost::iequals(ArgName, "sr"))
 	    schd.method = sr;
 
+	  else if (boost::iequals(ArgName, "variance"))
+            schd.method = var;
+
           else if (boost::iequals(ArgName, "sDiagShift"))
             schd.sDiagShift = atof(tok[1].c_str());
 

@@ -272,6 +272,28 @@ void getStochasticGradientMetricContinuousTime(Wfn &w, Walker& walk, double &Ene
   CTMC.FinishBestDet();
 }
 
+template<typename Wfn, typename Walker>
+void getStochasticGradientVarianceContinuousTime(Wfn &w, Walker &walk, double &Variance, double &Energy, double &stddev, VectorXd &grad, double &rk, int niter)
+{
+  ContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
+  Energy = 0.0, Variance = 0.0, stddev = 0.0;
+  grad.setZero();
+  VectorXd grad_Eloc_bar = VectorXd::Zero(grad.rows());
+  VectorXd Eloc_grad_Eloc_bar = VectorXd::Zero(grad.rows());
+  for (int iter = 0; iter < niter; iter++)
+  {
+    CTMC.LocalEnergy();
+    CTMC.LocalEnergyGradient(std::round(rk)); 
+    CTMC.MakeMove();
+    CTMC.UpdateEnergy(Energy);
+    CTMC.UpdateVariance(Variance, grad_Eloc_bar, Eloc_grad_Eloc_bar, std::round(rk));
+    CTMC.UpdateBestDet();
+  }
+  CTMC.FinishEnergy(Energy, stddev, rk);
+  CTMC.FinishVariance(Energy, Variance, grad, grad_Eloc_bar, Eloc_grad_Eloc_bar);
+  CTMC.FinishBestDet();
+}
+
 template<typename Wfn, typename Walker> 
 void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::VectorXd &lanczosCoeffs, Eigen::VectorXd &stddev, Eigen::VectorXd &rk, int niter, double targetError)
 {
@@ -591,9 +613,7 @@ class getGradientWrapper
       w.updateVariables(vars);
       w.initWalker(walk);
       if (!deterministic)
-      {
         getStochasticGradientMetricContinuousTime(w, walk, E0, stddev, grad, H, S, rt, stochasticIter);
-      }
       else
       {
         stddev = 0.0;
@@ -601,6 +621,26 @@ class getGradientWrapper
       	getGradientMetricDeterministic(w, walk, E0, grad, H, S);
       }
       w.writeWave();
+  };
+  
+  void getVariance(VectorXd &vars, VectorXd &grad, double &Var, double &E0, double &stddev, double &rt, bool deterministic)
+  {
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    if (!deterministic)
+    {
+      if (rt == 0.0)
+        getStochasticGradientContinuousTime(w, walk, E0, stddev, grad, rt, stochasticIter);
+      else 
+        getStochasticGradientVarianceContinuousTime(w, walk, Var, E0, stddev, grad, rt, stochasticIter);
+    }
+    else
+    {
+      stddev = 0.0;
+      rt = 1.0;
+      cout << "Deterministic variance not yet implemented" << endl;
+    }
+    w.writeWave();
   };
 
   void getHessian(VectorXd &vars, VectorXd &grad, MatrixXd &Hessian, MatrixXd &smatrix, double &E0, double &stddev, oneInt &I1, twoInt &I2, twoIntHeatBathSHM &I2hb, double &coreE, double &rt, bool deterministic)

@@ -26,7 +26,7 @@
 
 class Correlator;
 class Determinant;
-enum Method { sgd, amsgrad, amsgrad_sgd, sr, linearmethod };
+enum Method { sgd, amsgrad, amsgrad_sgd, sr, linearmethod, var };
 enum HAM {HUBBARD, ABINITIO};
 
 
@@ -71,7 +71,7 @@ private:
       & sDiagShift
       & cgIter
       & stepsize 
-      & direct;
+      & direct
       & expCorrelator;
   }
 public:
