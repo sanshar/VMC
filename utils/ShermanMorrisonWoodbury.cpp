@@ -21,7 +21,9 @@
 #include <numeric>
 #include <Eigen/Eigenvalues>
 #include "ShermanMorrisonWoodbury.h"
+#include <iostream>
 
+using namespace std;
 /**
  * This takes an inverse and determinant of a matrix formed by a subset of
  * columns and rows of Hforbs
@@ -176,6 +178,26 @@ void calculateInverseDeterminantWithRowChange(const Eigen::MatrixXd &inverseIn, 
   igl::slice(inverseOutWrong, Eigen::VectorXi::LinSpaced(ColVec.rows(), 0, ColVec.rows() - 1), orderVec, inverseOut);
 }
 
+void calculateInverseDeterminantWithRowChange(Eigen::MatrixXd &inverse, double &detValue,
+                                              Eigen::MatrixXd &DetMatrix,
+                                              int oldRowI, Eigen::VectorXd &newRow)
+{
+
+  Eigen::VectorXd oldRow = 1.* DetMatrix.row(oldRowI);  
+  DetMatrix.row(oldRowI) = newRow;
+  newRow = newRow - oldRow;
+
+  Eigen::VectorXd U = Eigen::VectorXd::Zero(newRow.rows());
+  U(oldRowI) = 1.0;
+      
+  Eigen::MatrixXd inverseU = inverse * U;
+  Eigen::MatrixXd Vinverse = newRow.transpose() * inverse;
+  double  detFactor = 1 + newRow.dot( inverseU.col(0));
+
+  inverse +=  - (inverseU * Vinverse)/detFactor;
+  detValue = detValue * detFactor;
+
+}
 
 double calcPfaffian(const Eigen::MatrixXd &mat)
 {

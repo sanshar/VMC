@@ -26,7 +26,7 @@
 #include <vector>
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
-#include "readSlater.h"
+
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -52,14 +52,10 @@ void readInput(string input, schedule& schd, bool print) {
 
       ifstream dump(input.c_str());
 
-      schd.walkerBasis = ORBITALS;
       schd.deterministic = false;
       schd.restart = false;
-      schd.fullrestart = false;
       schd.expCorrelator = false;
-      schd.nalpha = -1;
-      schd.nbeta = -1;
-      
+
       schd.maxIter = 50;
       schd.avgIter = 0;
       schd._sgdIter = 1;
@@ -67,8 +63,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.decay2 = 0.001;
       schd.decay1 = 0.1;
       schd.stepsize = 0.001;
-      schd.realSpaceStep = 0.1;
-      
+
       schd.stochasticIter = 1e4;
       schd.integralSampleSize = 10;
       schd.seed = getTime();
@@ -113,34 +108,8 @@ void readInput(string input, schedule& schd, bool print) {
 	  if (ArgName.empty())
 	    continue;
 
-	  if (boost::iequals(ArgName, "realspacegto")) {
-            schd.walkerBasis = REALSPACEGTO;
-            schd.basis = boost::shared_ptr<Basis>(new gaussianBasis);
-            schd.basis->read();
-            readGeometry(schd.Ncoords, schd.Ncharge, dynamic_cast<gaussianBasis&>(*schd.basis));
-          }
-	  else if (boost::iequals(ArgName, "realspacesto")) {
-            schd.walkerBasis = REALSPACESTO;
-
-            //read gaussian basis just to read the nuclear charge and coordinates
-            gaussianBasis gBasis ;
-            gBasis.read();
-            readGeometry(schd.Ncoords, schd.Ncharge, gBasis);
-            
-            schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
-            map<string, Vector3d> atomList;
-            for (int i=0; i<schd.Ncoords.size(); i++) {
-              atomList[ slaterParser::AtomSymbols[schd.Ncharge[i]] ] = schd.Ncoords[i];
-            }
-            dynamic_cast<slaterBasis*>(&(*schd.basis))->atomList = atomList;
-            schd.basis->read();
-          }
-          
-	  else if (boost::iequals(ArgName, "restart"))
+	  if (boost::iequals(ArgName, "restart"))
 	    schd.restart = true;
-
-	  else if (boost::iequals(ArgName, "fullrestart"))
-	    schd.fullrestart = true;
 
 	  else if (boost::iequals(ArgName, "deterministic"))
 	    schd.deterministic = true;
@@ -160,42 +129,26 @@ void readInput(string input, schedule& schd, bool print) {
 	  //else if (boost::iequals(ArgName, "rmsprop"))
           //schd.method = rmsprop;
 
-	  else if (boost::iequals(ArgName, "realspacestep"))
-	    schd.realSpaceStep = atof(tok[1].c_str());
-          
 	  else if (boost::iequals(ArgName, "ptlambda"))
 	    schd.PTlambda = atof(tok[1].c_str());
 
 	  else if (boost::iequals(ArgName, "amsgrad"))
 	    schd.method = amsgrad;
 
+	  else if (boost::iequals(ArgName, "direct"))
+	    schd.direct = true;
+
+	  else if (boost::iequals(ArgName, "nondirect"))
+	    schd.direct = false;
+
 	  else if (boost::iequals(ArgName, "sr"))
 	    schd.method = sr;
-
-	  else if (boost::iequals(ArgName, "variance"))
-            schd.method = var;
-	  else if (boost::iequals(ArgName, "lm"))
-	    schd.method = linearmethod;
 
           else if (boost::iequals(ArgName, "sDiagShift"))
             schd.sDiagShift = atof(tok[1].c_str());
 
           else if (boost::iequals(ArgName, "cgIter"))
             schd.cgIter = atoi(tok[1].c_str());
-
-	  else if (boost::iequals(ArgName, "norbs"))
-            schd.norbs = atoi(tok[1].c_str());
-
-	  else if (boost::iequals(ArgName, "nalpha"))
-            schd.nalpha = atoi(tok[1].c_str());
-
-	  else if (boost::iequals(ArgName, "nbeta"))
-            schd.nbeta = atoi(tok[1].c_str());
-
-          else if (boost::iequals(ArgName, "nondirect"))
-            schd.direct = false;
-          else if (boost::iequals(ArgName, "direct"))
-            schd.direct = true;
 
 	  else if (boost::iequals(ArgName, "amsgrad_sgd"))
           {
@@ -451,27 +404,10 @@ void readHF(MatrixXd& HfmatrixA, MatrixXd& HfmatrixB, std::string hf)
 /*
   if (schd.optimizeOrbs) {
     double scale = pow(1.*HfmatrixA.rows(), 0.5);
-    HfmatrixA += 1.e-1*MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols())/scale;
-    HfmatrixB += 1.e-1*MatrixXd::Random(HfmatrixB.rows(), HfmatrixB.cols())/scale;
+    HfmatrixA += 1.e-2*MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols())/scale;
+    HfmatrixB += 1.e-2*MatrixXd::Random(HfmatrixB.rows(), HfmatrixB.cols())/scale;
   }
-  */
-}
-
-void readGeometry(vector<Vector3d>& Ncoords,
-                  vector<double>  & Ncharge,
-                  gaussianBasis& gBasis) {
-  int N = gBasis.natm;
-  Ncoords.resize(N);
-  Ncharge.resize(N);
-
-  int stride = gBasis.atm.size()/N;
-  for (int i=0; i<N; i++) {
-    Ncharge[i] = gBasis.atm[i*stride];
-    Ncoords[i][0] = gBasis.env[ gBasis.atm[i*stride+1] ];
-    Ncoords[i][1] = gBasis.env[ gBasis.atm[i*stride+2] ];
-    Ncoords[i][2] = gBasis.env[ gBasis.atm[i*stride+3] ];
-  }
-
+*/
 }
 
 void readPairMat(MatrixXd& pairMat) 

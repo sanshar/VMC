@@ -42,6 +42,14 @@ namespace boost {
       }
 
     template<class Archive>
+      void serialize(Archive & ar, Vector3d& a, const unsigned int version)
+      {
+	if(a.rows() == 3)
+	  a.resize(3);
+        ar & a[0] & a[1] & a[2];
+      }
+  
+    template<class Archive>
       void serialize(Archive & ar, MatrixXd& a, const unsigned int version)
       {
 	int dim1 = a.rows(), dim2 = a.cols();

@@ -23,18 +23,12 @@
 #include <map>
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/map.hpp>
-#include <boost/serialization/shared_ptr.hpp>
-#include <boost/shared_ptr.hpp>
-#include "basis.h"
-#include "gaussianBasis.h"
-#include "slaterBasis.h"
-#include "iowrapper.h"
 
 class Correlator;
 class Determinant;
-enum Method { sgd, amsgrad, amsgrad_sgd, sr, linearmethod, var };
+enum Method { sgd, amsgrad, amsgrad_sgd, sr, linearmethod };
 enum HAM {HUBBARD, ABINITIO};
-enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
+
 
 /**
  * This stores all the input options
@@ -46,9 +40,7 @@ private:
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version)
   {
-    ar.template register_type<gaussianBasis>();
-    ar.template register_type<slaterBasis>();    
-    ar & restart & fullrestart & deterministic
+    ar & restart & deterministic
       & tol & correlatorFiles
       & wavefunctionType
       & maxIter
@@ -78,36 +70,18 @@ private:
       & excitationLevel
       & sDiagShift
       & cgIter
-      & stepsize 
-      & walkerBasis
-      & basis
-      & nalpha
-      & nbeta
-      & norbs
-      & realSpaceStep
-      & Ncoords
-      & Ncharge
       & direct
+      & stepsize
       & expCorrelator;
   }
 public:
 //General options
-  BASIS walkerBasis;                      //can be real space or local orbitals
-  boost::shared_ptr<Basis> basis;
-  vector<Vector3d> Ncoords;
-  vector<double>   Ncharge;
-
   bool restart;                          //option to restart calculation
-  bool fullrestart;                          //option to restart calculation
   bool deterministic;                    //Performs a deterministic calculation   
   int printLevel;                        // How much stuff to print
   bool expCorrelator;                    //exponential correlator parameters, to enforce positivity
 
 //input file to define the correlator parts of the wavefunction
-  int nalpha;
-  int nbeta;
-  int norbs;
-  
   std::string wavefunctionType;
   std::map<int, std::string> correlatorFiles;
   std::string determinantFile;
@@ -124,8 +98,7 @@ public:
   bool optimizeOrbs;
   bool optimizeCps;
   HAM Hamiltonian;
-  double realSpaceStep;
-  
+
 //Deprecated options for optimizers
 //because now we just use the python implementation
   double tol;  
@@ -135,11 +108,11 @@ public:
   int maxIter;                     
   int avgIter;                     
   int _sgdIter;
-  bool direct; //boolean for direct application of H, S
   Method method;
   double sDiagShift;
   int cgIter;
   bool ctmc;
+  bool direct;
 
   /*
   bool davidsonPrecondition;
@@ -217,9 +190,4 @@ void readCorrelator(const std::pair<int, std::string>& p,
  */
 void readDeterminants(std::string input, std::vector<Determinant>& determinants,
         std::vector<double>& ciExpansion);
-
-void readGeometry(vector<Vector3d>& Ncoords,
-                  vector<double>  & Ncharge,
-                  gaussianBasis& gBasis);
-
 #endif

@@ -25,6 +25,7 @@
 #include "boost/format.hpp"
 #include <fstream>
 #include "Determinants.h"
+#include "rDeterminants.h"
 #ifndef SERIAL
 #include <boost/mpi/environment.hpp>
 #include <boost/mpi/communicator.hpp>
@@ -212,6 +213,7 @@ void readIntegralsAndInitializeDeterminantStaticVariables(string fcidump) {
   Determinant::nalpha = nalpha;
   Determinant::nbeta = nbeta;
 
+  
   //initialize the heatbath integrals
   std::vector<int> allorbs;
   for (int i = 0; i < norbs; i++)

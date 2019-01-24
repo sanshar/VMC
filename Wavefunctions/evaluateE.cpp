@@ -91,10 +91,10 @@ double calcTcorr(vector<double> &v)
   //for (int i=0; i<v.size(); i++) c[i] = 0.0;
   int l = v.size() - 1;
 
-  int i = commrank+1;
-  for (; i < l; i+=commsize)
-  //int i = 1;
-  //for (; i < l; i++)
+  //int i = commrank+1;
+  //for (; i < l; i+=commsize)
+  int i = 1;
+  for (; i < l; i++)
   {
     c[i] = 0.0;
     double norm = 0.0;
@@ -105,9 +105,9 @@ double calcTcorr(vector<double> &v)
     };
     c[i] = c[i] / norm / var;
   };
- #ifndef SERIAL
-  MPI_Allreduce(MPI_IN_PLACE, &c[0], v.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
+  //#ifndef SERIAL
+      //MPI_Allreduce(MPI_IN_PLACE, &c[0], v.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  //#endif
 
   rk = 1.0;
 

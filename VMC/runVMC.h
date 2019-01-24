@@ -25,21 +25,26 @@
 #include "amsgrad.h"
 #include "sgd.h"
 #include "sr.h"
+#include "linearMethod.h"
 
 using functor1 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
 using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
-using functor3 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&, double&)>;
+using functor0 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&, double&)>;
+using functor3 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
+using functor4 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
+using functor5 = boost::function<double (VectorXd&, VectorXd&, MatrixXd&, MatrixXd&, double&, double&, double&)>;
 
 
 template<typename Wave, typename Walker>
 void runVMC(Wave& wave, Walker& walk) {
 
-  if (schd.restart) wave.readWave();
+  if (schd.restart || schd.fullrestart)
+    wave.readWave();
   VectorXd vars; wave.getVariables(vars);
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
   functor1 getStochasticGradient = boost::bind(&getGradientWrapper<Wave, Walker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
   functor2 getStochasticGradientMetric = boost::bind(&getGradientWrapper<Wave, Walker>::getMetric, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
-  functor3 getStochasticGradientVariance = boost::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
+  functor0 getStochasticGradientVariance = boost::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
 
   if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
     AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
@@ -50,10 +55,6 @@ void runVMC(Wave& wave, Walker& walk) {
     optimizer.optimize(vars, getStochasticGradient, schd.restart);
   }
   else if (schd.method == sr) {
-/*
-    mkdir("./Metric", 0777); 
-    mkdir("./T", 0777); 
-*/
     SR optimizer(schd.stepsize, schd.maxIter);
     optimizer.optimize(vars, getStochasticGradientMetric, schd.restart);
   }
@@ -65,4 +66,38 @@ void runVMC(Wave& wave, Walker& walk) {
     AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
     optimizer.optimizeVariance(vars, getStochasticGradientVariance, schd.restart);
   } 
+}
+
+
+template<typename Wave, typename Walker>
+void runVMCRealSpace(Wave& wave, Walker& walk) {
+
+  if (schd.restart || schd.fullrestart)
+    wave.readWave();
+
+  VectorXd vars; wave.getVariables(vars);
+  getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
+
+  functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
+  functor4 getStochasticGradientMetricRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
+  functor5 getStochasticGradientHessianRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
+
+  if (schd.walkerBasis == REALSPACESTO || schd.walkerBasis == REALSPACEGTO) {
+    if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
+      AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+      optimizer.optimize(vars, getStochasticGradientRealSpace, schd.restart);
+    }
+    else if (schd.method == sgd) {
+      SGD optimizer(schd.stepsize, schd.maxIter);
+      optimizer.optimize(vars, getStochasticGradientRealSpace, schd.restart);
+    }
+    else if (schd.method == sr) {
+      SR optimizer(schd.stepsize, schd.maxIter);
+      optimizer.optimize(vars, getStochasticGradientMetricRealSpace, schd.restart);
+    }
+    else if (schd.method == linearmethod) {
+      LM optimizer(schd.stepsize, schd.maxIter);
+      optimizer.optimize(vars, getStochasticGradientHessianRealSpace, schd.restart);
+    }
+  }
 }

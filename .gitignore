@@ -1,0 +1,32 @@
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Packages #
+############
+*.7z
+*.dmg
+#*.gz the .gz file is used to distribute Dice
+*.iso
+*.jar
+*.rar
+#*.tar
+*.zip
+
+# HTML Build #
+##############
+#*docs/_build/*
+
+# Other #
+#########
+*.swp
+*.doctree
+output*.dat
+*.out
+*.bkp
+BestDeterminant.txt

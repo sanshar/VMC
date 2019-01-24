@@ -54,6 +54,10 @@ void calculateInverseDeterminantWithRowChange(const Eigen::MatrixXd &inverseIn, 
                                                                const Eigen::Map<Eigen::VectorXi> &ColVec,
                                                                std::vector<int> &RowIn, const Eigen::MatrixXd &Hforbs);
 
+void calculateInverseDeterminantWithRowChange(Eigen::MatrixXd &inverse, double &detValue,
+                                              Eigen::MatrixXd &DetMatrix,
+                                              int oldRowI, Eigen::VectorXd &newRow);
+    
 double calcPfaffian(const Eigen::MatrixXd &mat); 
 
 
