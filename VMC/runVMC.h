@@ -26,13 +26,15 @@
 #include "sgd.h"
 #include "sr.h"
 #include "linearMethod.h"
+#include "variance.h"
 
 using functor1 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
 using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
-using functor0 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&, double&)>;
+using functor0 = boost::function<void (VectorXd&, VectorXd&, DirectVarianceHessian &, double&, double&, double&, double&)>;
 using functor3 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
-using functor4 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
+//using functor4 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
 using functor5 = boost::function<double (VectorXd&, VectorXd&, MatrixXd&, MatrixXd&, double&, double&, double&)>;
+using functor6 = boost::function<void (VectorXd&, VectorXd&, DirectLM&, double&, double&, double&)>;
 
 
 template<typename Wave, typename Walker>
@@ -44,7 +46,9 @@ void runVMC(Wave& wave, Walker& walk) {
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
   functor1 getStochasticGradient = boost::bind(&getGradientWrapper<Wave, Walker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
   functor2 getStochasticGradientMetric = boost::bind(&getGradientWrapper<Wave, Walker>::getMetric, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
-  functor0 getStochasticGradientVariance = boost::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
+  functor0 getStochasticGradientVariance = boost::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
+  functor5 getStochasticGradientHessian = boost::bind(&getGradientWrapper<Wave, Walker>::getHessian, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
+  functor6 getStochasticGradientHessianDirect = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianDirect, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
 
   if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
     AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
@@ -58,13 +62,23 @@ void runVMC(Wave& wave, Walker& walk) {
     SR optimizer(schd.stepsize, schd.maxIter);
     optimizer.optimize(vars, getStochasticGradientMetric, schd.restart);
   }
-  else if (schd.method == linearmethod) {
-    
+  else if (schd.method == linearmethod)
+  {
+    if (!schd.direct)
+    {
+      LM optimizer(schd.stepsize, schd.maxIter);
+      optimizer.optimize(vars, getStochasticGradientHessian, schd.restart); 
+    }
+    else
+    {
+      directLM optimizer(schd.maxIter);
+      optimizer.optimize(vars, getStochasticGradientHessianDirect, schd.restart);
+    }
   }
   else if (schd.method == var)
   {
-    AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
-    optimizer.optimizeVariance(vars, getStochasticGradientVariance, schd.restart);
+    Variance optimizer(schd.stepsize, schd.maxIter);
+    optimizer.optimize(vars, getStochasticGradientVariance, schd.restart);
   } 
 }
 
@@ -79,7 +93,7 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
 
   functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
-  functor4 getStochasticGradientMetricRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
+  functor2 getStochasticGradientMetricRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
   functor5 getStochasticGradientHessianRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
 
   if (schd.walkerBasis == REALSPACESTO || schd.walkerBasis == REALSPACEGTO) {

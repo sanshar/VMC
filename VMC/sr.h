@@ -155,29 +155,21 @@ class SR
 #endif
      }
      int numVars = vars.rows();
-     VectorXd grad, x, H;
-     DirectMetric S(schd.sDiagShift);
-     double E0, stddev, rt;
      while (iter < maxIter)
      {
-       E0 = 0.0;
-       stddev = 0.0;
-       rt = 0.0;
-       grad.setZero(numVars);
+       VectorXd grad = VectorXd::Zero(numVars);
+       VectorXd x, H;
+       DirectMetric S(schd.sDiagShift);
+       double E0 = 0.0, stddev = 0.0, rt = 0.0;
        x.setZero(numVars + 1);
-       H.setZero(numVars + 1);
-       if (schd.direct)
+       if (!schd.direct)
        {
-         S.Vectors.clear();
-         S.T.clear();
-       }
-       else
-       {
-         S.Smatrix.setZero(numVars + 1, numVars + 1);
+         S.Smatrix = schd.sDiagShift * MatrixXd::Identity(numVars + 1, numVars + 1);
        }
 
        getMetric(vars, grad, H, S, E0, stddev, rt);
        write(vars);
+       auto VMC_time = (getTime() - startofCalc);
 
        /*
          FOR DEBUGGING PURPOSE
@@ -223,7 +215,7 @@ class SR
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
        if (commrank == 0)
-         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %10i %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
+         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.2f %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (VMC_time) % ((getTime() - startofCalc));
        iter++;
      }
    }

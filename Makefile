@@ -2,14 +2,13 @@ F77 = mpif77
 USE_MPI = yes
 USE_INTEL = yes
 
-EIGEN=/projects/sash2458/apps/eigen/
-BOOST=/projects/sash2458/apps/boost_1_57_0/
-LIBIGL=/projects/sash2458/apps/libigl/include/
-PYSCF=/projects/sash2458/newApps/pyscf/pyscf/lib/
-LIBCINT=/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib
-#EIGEN=/projects/ilsa8974/apps/eigen/
-#BOOST=/projects/ilsa8974/apps/boost_1_66_0/
-#LIBIGL=/projects/ilsa8974/apps/libigl/include/
+EIGEN=/projects/ilsa8974/apps/eigen/
+BOOST=/projects/ilsa8974/apps/boost_1_66_0/
+LIBIGL=/projects/ilsa8974/apps/libigl/include/
+PYSCF=/projects/ilsa8974/apps/pyscf/pyscf/lib/
+LIBCINT=/projects/ilsa8974/apps/pyscf/pyscf/lib/deps/lib
+SUNDIALS=/projects/ilsa8974/apps/sundials-3.1.0/stage/include
+STAN=/projects/ilsa8974/apps/math
 
 #EIGEN=/projects/sash2458/apps/eigen/
 #BOOST=/projects/sash2458/apps/boost_1_57_0/
@@ -19,9 +18,9 @@ LIBCINT=/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib
 #LIBIGL=/projects/ilsa8974/apps/libigl/include/
 
 
-OPT = -std=c++14 -g  -O3
+OPT = -std=c++14 -g -w -O3
 #OPT = -std=c++14 -g 
-FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
+FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I/opt/local/include/openmpi-mp/ #-DComplex
 
 
 LFLAGS = -L${PYSCF} -lcgto -lnp_helper -L${LIBCINT} -lcint
@@ -85,22 +84,13 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/Gutzwiller.o \
 	obj/CPS.o \
 	obj/Correlator.o \
-<<<<<<< HEAD
-	obj/ShermanMorrisonWoodbury.o\
-	obj/excitationOperators.o\
-    obj/statistics.o \
-    obj/sr.o \
-    obj/VMC.o \
-    obj/evaluateE.o 
-=======
 	obj/ShermanMorrisonWoodbury.o \
 	obj/excitationOperators.o \
 	obj/statistics.o \
 	obj/sr.o \
+	obj/linearMethod.o \
 	obj/LocalEnergy.o \
 	obj/VMC.o \
-	obj/evaluateE.o 
->>>>>>> fde39a7caedf60c8039a457ac3f2dd37ddbad252
 
 OBJ_SLATERTOGAUSSIAN = obj/slaterToGaussian.o \
 	obj/_slaterToGaussian.o
@@ -119,11 +109,10 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/slaterBasis.o\
 	obj/Gutzwiller.o \
 	obj/CPS.o \
-	obj/evaluateE.o \
 	obj/excitationOperators.o\
 	obj/ShermanMorrisonWoodbury.o\
 	obj/statistics.o \
-	obj/Correlator.o
+	obj/Correlator.o \
 
 
 obj/%.o: %.cpp  

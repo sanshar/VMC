@@ -204,15 +204,15 @@ void getHfRelIndices(int i, int &relI, int a, int &relA, bool sz, const Determin
 }
 
 template<typename T>
-T JastrowSlaterLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &R)
+T JastrowSlaterLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &R)
 {
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
     int nbeta = Determinant::nbeta;
-    workingArray work;
-    work.setCounterToZero();
-    generateAllScreenedSingleExcitation(D, schd.epsilon, schd.screen, work, false);
-    generateAllScreenedDoubleExcitation(D, schd.epsilon, schd.screen, work, false);
+    //workingArray work;
+    //work.setCounterToZero();
+    //generateAllScreenedSingleExcitation(D, schd.epsilon, schd.screen, work, false);
+    //generateAllScreenedDoubleExcitation(D, schd.epsilon, schd.screen, work, false);
     T Eloc = D.Energy(I1, I2, coreE);
     for (int l = 0; l < work.nExcitations; l++)
     {
@@ -275,14 +275,29 @@ T JastrowSlaterLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen::D
     return Eloc;
 }    
 template
-double JastrowSlaterLocalEnergy(const Determinant &D, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<double, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
+double JastrowSlaterLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<double, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
 template
-stan::math::var JastrowSlaterLocalEnergy(const Determinant &D, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
+stan::math::var JastrowSlaterLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
 
 
 //functions for pfaffian vars
 template <typename T>
-void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &fMat, int &numVars)
+T calcPfaffian(const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &mat)
+{
+  Eigen::HessenbergDecomposition<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>> hd(mat);
+  Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> triDiag = hd.matrixH();
+  T pfaffian = 1.;
+  int i = 0;
+  while (i < mat.rows() - 1) {
+    pfaffian *= triDiag(i, i+1);
+    i++; i++;
+  }
+  return pfaffian;
+}
+
+
+template <typename T>
+void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, T &thetaPfaff, std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable, int &numVars)
 {
     //read pair matrix
     int norbs = Determinant::norbs;
@@ -305,7 +320,8 @@ void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const De
     int nclosed = closedOrbs[0].size() + closedOrbs[1].size();
     int nopen = openOrbs[0].size() + openOrbs[1].size();
 
-    //resize fMat
+    //fMat
+    Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> fMat;
     fMat.setZero(nopen * nclosed, nclosed);
 
     //map closed into eigen object
@@ -322,6 +338,8 @@ void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const De
     thetaInv = lua.inverse();
 */
     thetaInv = stan::math::inverse(theta);
+    //thetaPfaff = calcPfaffian(theta);
+    thetaPfaff = 1.0;
 
     //map open into eigen object
     Eigen::Map<Eigen::VectorXi> openAlpha(&openOrbs[0][0], openOrbs[0].size());
@@ -330,6 +348,7 @@ void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const De
     Eigen::VectorXi open(nopen);
     open << openAlpha, (openBeta.array() + norbs).matrix();
        
+/*
     Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> fRow;
     Eigen::VectorXi rowSlice(1), colSlice(nclosed);                     
     for (int i = 0; i < closed.size(); i++)
@@ -343,11 +362,16 @@ void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const De
             fMat.block(i * open.size() + a, 0, 1, closed.size()) = fRow;
         }
     }   
+*/ 
+    igl::slice(pairMat, open, closed, fMat);
+    rTable[0] = fMat * thetaInv;
+    rTable[1] = - rTable[0] * fMat.transpose();
 }
+
 template
-void BuildPfaffianVars(const Eigen::Matrix<double, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &fMat, int &numVars);
-template 
-void BuildPfaffianVars(const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &fMat, int &numVars);
+void BuildPfaffianVars(const Eigen::Matrix<double, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, double &thetaPfaff, std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable, int &numVars);
+template
+void BuildPfaffianVars(const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, stan::math::var &thetaPfaff, std::array<Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable, int &numVars);
 
 //functions for pfaffian local energy evaluation
 void getPfaffRelIndices(int i, int &relI, int a, int &relA, bool sz, const Determinant &D)
@@ -361,7 +385,7 @@ void getPfaffRelIndices(int i, int &relI, int a, int &relA, bool sz, const Deter
 }
 
 template<typename T>
-T JastrowPfaffianLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> thetaInv, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> fMat)
+T JastrowPfaffianLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, const T &thetaPfaff, const std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable)
 {
     int norbs = Determinant::norbs;
     //fill open closed orbs
@@ -371,10 +395,10 @@ T JastrowPfaffianLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen:
     int nclosed = closedOrbs[0].size() + closedOrbs[1].size();
     int nopen = openOrbs[0].size() + openOrbs[1].size();
 
-    workingArray work;
-    work.setCounterToZero();
-    generateAllScreenedSingleExcitation(D, schd.epsilon, schd.screen, work, false);
-    generateAllScreenedDoubleExcitation(D, schd.epsilon, schd.screen, work, false);
+    //workingArray work;
+    //work.setCounterToZero();
+    //generateAllScreenedSingleExcitation(D, schd.epsilon, schd.screen, work, false);
+    //generateAllScreenedDoubleExcitation(D, schd.epsilon, schd.screen, work, false);
     T Eloc = D.Energy(I1, I2, coreE);
     for (int l = 0; l < work.nExcitations; l++)
     {
@@ -396,7 +420,8 @@ T JastrowPfaffianLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen:
             else    //beta
                 sz1 = 1;
             getPfaffRelIndices(i / 2, ri, a / 2, ra, sz1, D);
-            ovlpRatio *= fMat.row(ri * nopen + ra) * thetaInv.col(ri);
+            //ovlpRatio *= fMat.row(ri * nopen + ra) * thetaInv.col(ri);
+            ovlpRatio *= (rTable[0](ra, ri) * thetaPfaff) / thetaPfaff;
         }
         else //double excitations
         {
@@ -428,23 +453,37 @@ T JastrowPfaffianLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen:
             if (ri < rj)
             {
                 crossTerm = pairMat(b / 2 + sz2 * norbs, a / 2 + sz1 * norbs);
+/*
                 T term1 = fMat.row(ri * nopen + ra) * thetaInv.col(ri);
                 T term2 = fMat.row(rj * nopen + rb) * thetaInv.col(rj);
                 T term3 = fMat.row(rj * nopen + rb) * thetaInv.col(ri);
                 T term4 = fMat.row(ri * nopen + ra) * thetaInv.col(rj);
+*/
+                T term1 = rTable[0](ra, ri); 
+                T term2 = rTable[0](rb, rj);
+                T term3 = rTable[0](rb, ri);
+                T term4 = rTable[0](ra, rj);
                 summand1 = term1 * term2 - term3 * term4;
-                T term5 = fMat.row(ri * nopen + ra) * thetaInv * (-fMat.transpose().col(rj * nopen + rb));
+                //T term5 = fMat.row(ri * nopen + ra) * thetaInv * (-fMat.transpose().col(rj * nopen + rb));
+                T term5 = rTable[1](ra, rb);
                 summand2 = thetaInv(ri, rj) * (term5 + crossTerm);
              }
              else
              { 
                  crossTerm = pairMat(a / 2 + sz1 * norbs, b / 2 + sz2 * norbs);
+/*
                  T term1 = fMat.row(rj * nopen + rb) * thetaInv.col(rj);
                  T term2 = fMat.row(ri * nopen + ra) * thetaInv.col(ri);
                  T term3 = fMat.row(ri * nopen + ra) * thetaInv.col(rj);
                  T term4 = fMat.row(rj * nopen + rb) * thetaInv.col(ri);
+*/
+                T term1 = rTable[0](rb, rj); 
+                T term2 = rTable[0](ra, ri);
+                T term3 = rTable[0](ra, rj);
+                T term4 = rTable[0](rb, ri);
                  summand1 = term1 * term2 - term3 * term4;
-                 T term5 = fMat.row(rj * nopen + rb) * thetaInv * (-fMat.transpose().col(ri * nopen + ra));
+                 //T term5 = fMat.row(rj * nopen + rb) * thetaInv * (-fMat.transpose().col(ri * nopen + ra));
+                T term5 = rTable[1](rb, ra);
                  summand2 = thetaInv(rj, ri) * (term5 + crossTerm);
              }
              ovlpRatio *= (summand1 + summand2);
@@ -454,6 +493,6 @@ T JastrowPfaffianLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen:
     return Eloc;
 }
 template
-double JastrowPfaffianLocalEnergy(const Determinant &D, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<double, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> thetaInv, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> fMat);
+double JastrowPfaffianLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<double, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, const double &thetaPfaff, const std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable);
 template
-stan::math::var JastrowPfaffianLocalEnergy(const Determinant &D, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> thetaInv, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> fMat);
+stan::math::var JastrowPfaffianLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, const stan::math::var &thetaPfaff, const std::array<Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable);

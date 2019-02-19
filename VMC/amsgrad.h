@@ -149,13 +149,17 @@ class AMSGrad
                     }
                     else if(schd.method == amsgrad_sgd)
                     {
-                        if (iter < schd._sgdIter)
+                        if (iter < schd.sgdIter)
                         {
                             vars[i] -= 0.1 * grad[i];
                         }
                         else
                         {
-                            vars[i] -= stepsize * mom1[i] / (pow(mom2[i], 0.5) + 1.e-8);
+                            double delta = stepsize * mom1[i] / (pow(mom2[i], 0.5) + 1.e-8);  
+                            vars[i] -= delta;
+                            stepNorm += delta * delta;
+                            dotProduct += delta * deltaVars[i];
+                            deltaVars[i] = delta;
                         }
                     }                        
                 }
@@ -184,63 +188,6 @@ class AMSGrad
             std::cout << "Average over last " << avgIter << " iterations" << endl;
             std::cout << format("0 %14.8f (%8.2e) %14.8f %8.1f %10i %8.2f\n")  % E0 % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
           }
-        }
-    }
-
-   template<typename Function>
-    void optimizeVariance(VectorXd &vars, Function& getVariance, bool restart)
-    {
-        if (restart)
-        {
-            if (commrank == 0)
-                read(vars);
-#ifndef SERIAL
-	    boost::mpi::communicator world;
-	    boost::mpi::broadcast(world, *this, 0);
-	    boost::mpi::broadcast(world, vars, 0);
-#endif
-        }
-        else if (mom1.rows() == 0)
-        {
-            mom1 = VectorXd::Zero(vars.rows());
-            mom2 = VectorXd::Zero(vars.rows());
-        }
-
-        VectorXd grad = VectorXd::Zero(vars.rows());
-        VectorXd avgVars = VectorXd::Zero(vars.rows());
-        VectorXd deltaVars = VectorXd::Zero(vars.rows());
-
-        double E0, variance, stddev, rt = 0.0;
-        getVariance(vars, grad, variance, E0, stddev, rt);
-        double stepNorm = 0., angle = 0.;
-        while (iter < maxIter)
-        {
-            getVariance(vars, grad, variance, E0, stddev, rt);
-            write(vars);
-            double oldNorm = stepNorm, dotProduct = 0.;
-            stepNorm = 0.;
-
-            if (commrank == 0)
-            {
-                for (int i = 0; i < vars.rows(); i++)
-                {
-                    mom1[i] = decay_mom1 * grad[i] + (1. - decay_mom1) * mom1[i];
-                    mom2[i] = max(mom2[i], decay_mom2 * grad[i]*grad[i] + (1. - decay_mom2) * mom2[i]);   
-                    double delta = stepsize * mom1[i] / (pow(mom2[i], 0.5) + 1.e-8);  
-                    vars[i] -= delta;
-                    stepNorm += delta * delta;
-                    dotProduct += delta * deltaVars[i];
-                    deltaVars[i] = delta;
-                }
-                stepNorm = pow(stepNorm, 0.5);
-                if (oldNorm != 0) angle = acos(dotProduct/stepNorm/oldNorm) * 180 / 3.14159265;
-            }
-#ifndef SERIAL
-            MPI_Bcast(&vars[0], vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
-            if (commrank == 0)
-                  std::cout << format("%5i %14.8f (%8.2e) %14.8f %14.8f %8.1f %10i  %6.6f %8.2f %8.2f\n") % iter % E0 % stddev % variance % (grad.norm()) % (rt) % (schd.stochasticIter) % (stepNorm) % (angle) % ((getTime() - startofCalc));
-            iter++;
         }
     }
 };

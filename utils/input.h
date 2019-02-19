@@ -58,7 +58,7 @@ private:
       & decay2
       & method
       & stochasticIter
-      & _sgdIter
+      & sgdIter
       & integralSampleSize
       & seed
       & PTlambda
@@ -77,6 +77,7 @@ private:
       & nGeneration
       & excitationLevel
       & sDiagShift
+      & hDiagShift
       & cgIter
       & stepsize 
       & walkerBasis
@@ -134,10 +135,11 @@ public:
   double decay2;   
   int maxIter;                     
   int avgIter;                     
-  int _sgdIter;
+  int sgdIter;
   bool direct; //boolean for direct application of H, S
   Method method;
   double sDiagShift;
+  double hDiagShift;
   int cgIter;
   bool ctmc;
 

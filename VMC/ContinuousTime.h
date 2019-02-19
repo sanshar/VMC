@@ -6,6 +6,8 @@
 #include "workingArray.h"
 #include "statistics.h"
 #include "sr.h"
+#include "linearMethod.h"
+#include "variance.h"
 #include "global.h"
 #include "evaluateE.h"
 #include "LocalEnergy.h"
@@ -183,11 +185,38 @@ class ContinuousTime
     grad = (grad - Energy * grad_ratio_bar);
   }
 
+  void LocalEnergyGradient()
+  {
+    LocalEnergySolver Solver(walk->d, work);
+    Eigen::VectorXd vars;
+    w->getVariables(vars);
+    //cout << Eloc;
+    Eloc = 0.0;
+    stan::math::gradient(Solver, vars, Eloc, grad_Eloc);
+    //cout << "\t|\t" << Eloc << endl;
+
+    //below is very expensive and used only for debugging
+/*
+    Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(vars.size());
+    for (int i = 0; i < vars.size(); ++i)
+    {
+      double dt = 0.00001;
+      Eigen::VectorXd varsdt = vars;
+      varsdt(i) += dt;
+      finiteGradEloc(i) = (Solver(varsdt) - ElocTest) / dt;
+    }
+    for (int i = 0; i < vars.size(); ++i)
+    {
+      cout << finiteGradEloc(i) << "\t" << grad_Eloc(i) << endl;
+    }
+*/
+  }
+
   void LocalEnergyGradient(int rk)
   {
     if ((iter + 1) % rk == 0)
     {
-      LocalEnergySolver Solver(walk->d);
+      LocalEnergySolver Solver(walk->d, work);
       Eigen::VectorXd vars;
       w->getVariables(vars);
       //cout << Eloc;
@@ -227,6 +256,30 @@ class ContinuousTime
       S.Smatrix += T * (appended * appended.adjoint() - S.Smatrix) / cumT;
     }
   }
+
+/*
+  void UpdateSR(double &Energy_everyrk, VectorXd &grad_everyrk, VectorXd &grad_ratio_bar_everyrk, DirectMetric &S, int rk)
+  {
+    if ((iter + 1) % rk == 0)
+    {
+      cumT_everyrk += T;
+      Energy_everyrk += T * (Eloc - Energy_everyrk) / cumT_everyrk;
+      grad_ratio_bar_everyrk += T * (grad_ratio - grad_ratio_bar_everyrk) / cumT_everyrk;
+      grad_everyrk += T * (grad_ratio * Eloc - grad_everyrk) / cumT_everyrk;
+      Eigen::VectorXd appended(numVars + 1);
+      appended << 1.0, grad_ratio;
+      if (schd.direct)
+      {
+        S.Vectors.push_back(appended);
+        S.T.push_back(T);
+      }
+      else
+      {
+        S.Smatrix += T * (appended * appended.adjoint() - S.Smatrix) / cumT_everyrk;
+      }
+    }
+  }
+*/
   
   void FinishSR(const Eigen::VectorXd &grad, const Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &H, DirectMetric &S)
   {
@@ -243,28 +296,114 @@ class ContinuousTime
     }
   }
 
-  void UpdateVariance(double &Variance, Eigen::VectorXd &grad_Eloc_bar, Eigen::VectorXd &Eloc_grad_Eloc_bar, int rk)
+/*
+  void FinishSR(double &Energy, Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &H, DirectMetric &S)
+  {
+#ifndef SERIAL
+    MPI_Allreduce(MPI_IN_PLACE, &Energy, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, (grad_ratio_bar.data()), grad_ratio_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, (grad.data()), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    Energy /= commsize;
+    grad /= commsize;
+    grad_ratio_bar /= commsize;
+#endif
+    grad = (grad - Energy * grad_ratio_bar);
+    H.setZero(grad.rows() + 1);
+    VectorXd appended(grad.rows());
+    appended = grad_ratio_bar - schd.stepsize * grad;
+    H << 1.0, appended;
+    if (!(schd.direct))
+    {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (S.Smatrix.data()), S.Smatrix.rows() * S.Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      S.Smatrix /= commsize;
+    }
+  }
+*/
+
+  void UpdateLM(DirectLM &H)
+  {
+    Eigen::VectorXd Gappended(numVars + 1), Happended(numVars + 1), Htemp(numVars);
+    Gappended << 0.0, grad_ratio;
+    Htemp = grad_Eloc + Eloc * grad_ratio;
+    Happended << 0.0, Htemp;
+    H.H.push_back(Happended);
+    H.G.push_back(Gappended);
+    H.T.push_back(T);
+    H.Eloc.push_back(Eloc);
+  }
+
+  void UpdateLM(DirectLM &H, int rk)
+  {
+    if ((iter + 1) % rk == 0)
+    {
+      Eigen::VectorXd Gappended(numVars + 1), Happended(numVars + 1), Htemp(numVars);
+      Gappended << 0.0, grad_ratio;
+      Htemp = grad_Eloc + Eloc * grad_ratio;
+      Happended << 0.0, Htemp;
+      H.H.push_back(Happended);
+      H.G.push_back(Gappended);
+      H.T.push_back(T);
+      H.Eloc.push_back(Eloc);
+    }
+  }
+
+  void UpdateLM(Eigen::MatrixXd &Hmatrix, Eigen::MatrixXd &Smatrix)
+  {
+    Eigen::VectorXd Gappended(numVars + 1), Happended(numVars + 1), Htemp(numVars);
+    Gappended << 1.0, grad_ratio;
+    Htemp = grad_Eloc + Eloc * grad_ratio;
+    Happended << Eloc, Htemp;
+    Smatrix += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT;
+    Hmatrix += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT;
+  }
+
+  void FinishLM(Eigen::MatrixXd &Hmatrix, Eigen::MatrixXd &Smatrix)
+  {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (Smatrix.data()), Smatrix.rows() * Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, (Hmatrix.data()), Hmatrix.rows() * Hmatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      Smatrix /= commsize;
+      Hmatrix /= commsize;
+  }
+
+  void UpdateVariance(double &Variance, double &Energy_everyrk, Eigen::VectorXd &grad_Eloc_bar, Eigen::VectorXd &Eloc_grad_Eloc_bar, Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &Eloc_grad_ratio_bar, DirectVarianceHessian &H, int rk)
   {
     if ((iter + 1) % rk == 0)
     {
       cumT_everyrk += T;
       Variance += T * (Eloc * Eloc - Variance) / cumT_everyrk;
+      Energy_everyrk += T * (Eloc - Energy_everyrk) / cumT_everyrk;
       grad_Eloc_bar += T * (grad_Eloc - grad_Eloc_bar) / cumT_everyrk;
       Eloc_grad_Eloc_bar += T * (Eloc * grad_Eloc - Eloc_grad_Eloc_bar) / cumT_everyrk;
+      grad_ratio_bar += T * (grad_ratio - grad_ratio_bar) / cumT_everyrk;
+      Eloc_grad_ratio_bar += T * (Eloc * grad_ratio - Eloc_grad_ratio_bar) / cumT_everyrk;
+      H.grad_Eloc.push_back(grad_Eloc);
+      H.T.push_back(T);
     }
   }
 
-  void FinishVariance(const double &Energy, double &Variance, Eigen::VectorXd &grad, const Eigen::VectorXd &grad_Eloc_bar, const Eigen::VectorXd &Eloc_grad_Eloc_bar)
+  void FinishVariance(double &Variance, double &Energy_everyrk, Eigen::VectorXd &grad_Eloc_bar, Eigen::VectorXd &Eloc_grad_Eloc_bar, Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &Eloc_grad_ratio_bar, Eigen::VectorXd &grad, DirectVarianceHessian &H)
   {
-    Variance = Variance - Energy * Energy;
-    grad = 2.0 * (Eloc_grad_Eloc_bar - Energy * grad_Eloc_bar);
-    //grad = 2.0 * Eloc_grad_Eloc_bar;
 #ifndef SERIAL
-      MPI_Allreduce(MPI_IN_PLACE, (grad.data()), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &Variance, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      grad /= commsize;
+      MPI_Allreduce(MPI_IN_PLACE, &Energy_everyrk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, (grad_Eloc_bar.data()), grad_Eloc_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, (Eloc_grad_Eloc_bar.data()), Eloc_grad_Eloc_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, (grad_ratio_bar.data()), grad_ratio_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, (Eloc_grad_ratio_bar.data()), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      Energy_everyrk /= commsize;
       Variance /= commsize;
+      grad_Eloc_bar /= commsize;
+      Eloc_grad_Eloc_bar /= commsize;
+      grad_ratio_bar /= commsize;
+      Eloc_grad_ratio_bar /= commsize;
 #endif
-  }
+    Variance -= Energy_everyrk * Energy_everyrk;
+    H.grad_Energy = 2.0 * (Eloc_grad_ratio_bar - Energy_everyrk * grad_ratio_bar);
+    grad = 2.0 * (Eloc_grad_Eloc_bar - Energy_everyrk * grad_Eloc_bar);
+  } 
 };
 #endif

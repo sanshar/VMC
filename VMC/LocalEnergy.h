@@ -11,20 +11,21 @@ template<typename T>
 void BuildOrbitalVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &R, int &numVars);
 
 template<typename T>
-T JastrowSlaterLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
+T JastrowSlaterLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
 
 template <typename T>
-void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &fMat, int &numVars);
+void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, T &thetaPfaff, std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable, int &numVars);
 
 template<typename T>
-T JastrowPfaffianLocalEnergy(const Determinant &D, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> thetaInv, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> fMat);
+T JastrowPfaffianLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, const T &thetaPfaff, const std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable);
 
 class LocalEnergySolver
 {
     public:
     Determinant D;
+    workingArray &work;
 
-    LocalEnergySolver(const Determinant &_D) : D(_D) {}
+    LocalEnergySolver(const Determinant &_D, workingArray &_work) : D(_D), work(_work) {}
 
     template <typename T>
     T operator()(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars) const
@@ -51,7 +52,7 @@ class LocalEnergySolver
           BuildOrbitalVars<T> (vars, D, R, numVars);
 
           //Local energy evaluation
-          return JastrowSlaterLocalEnergy<T> (D, J, Jmid, R);
+          return JastrowSlaterLocalEnergy<T> (D, work, J, Jmid, R);
         }
         else if (schd.wavefunctionType == "JastrowPfaffian")
         {
@@ -63,11 +64,13 @@ class LocalEnergySolver
           BuildJastrowVars<T> (vars, D, J, Jmid, numVars);
       
           //Pfaffian vars
-          Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> pairMat, thetaInv, fMat;
-          BuildPfaffianVars<T> (vars, D, pairMat, thetaInv, fMat, numVars); 
+          Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> pairMat, thetaInv;
+          T thetaPfaff;
+          std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> rTable;
+          BuildPfaffianVars<T> (vars, D, pairMat, thetaInv, thetaPfaff, rTable, numVars); 
       
           //Local energy evaluation
-          return JastrowPfaffianLocalEnergy<T> (D, J, Jmid, pairMat, thetaInv, fMat); 
+          return JastrowPfaffianLocalEnergy<T> (D, work, J, Jmid, pairMat, thetaInv, thetaPfaff, rTable); 
         }
     }
 };

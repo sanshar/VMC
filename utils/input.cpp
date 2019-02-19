@@ -62,7 +62,7 @@ void readInput(string input, schedule& schd, bool print) {
       
       schd.maxIter = 50;
       schd.avgIter = 0;
-      schd._sgdIter = 1;
+      schd.sgdIter = 1;
       schd.method = amsgrad;
       schd.decay2 = 0.001;
       schd.decay1 = 0.1;
@@ -89,8 +89,8 @@ void readInput(string input, schedule& schd, bool print) {
       schd.excitationLevel = 1;
       schd.ctmc = true;
       schd.cgIter = 15;
-      schd.sDiagShift = 0.01;
       schd.direct = true;
+      schd.tol = 1.e-8;
 
       while (dump.good())
 	{
@@ -170,15 +170,24 @@ void readInput(string input, schedule& schd, bool print) {
 	    schd.method = amsgrad;
 
 	  else if (boost::iequals(ArgName, "sr"))
+          {
+            schd.sDiagShift = 0.01;
+            schd.stepsize = 0.1;
 	    schd.method = sr;
-
+          }
 	  else if (boost::iequals(ArgName, "variance"))
             schd.method = var;
 	  else if (boost::iequals(ArgName, "lm"))
+          {
+            schd.sDiagShift = 0.0;
+            schd.hDiagShift = 1.e-2;
+            schd.stepsize = 1.0;
 	    schd.method = linearmethod;
-
+          }
           else if (boost::iequals(ArgName, "sDiagShift"))
             schd.sDiagShift = atof(tok[1].c_str());
+          else if (boost::iequals(ArgName, "hDiagShift"))
+            schd.hDiagShift = atof(tok[1].c_str());
 
           else if (boost::iequals(ArgName, "cgIter"))
             schd.cgIter = atoi(tok[1].c_str());
@@ -198,10 +207,10 @@ void readInput(string input, schedule& schd, bool print) {
             schd.direct = true;
 
 	  else if (boost::iequals(ArgName, "amsgrad_sgd"))
-          {
 	    schd.method = amsgrad_sgd;
-            schd._sgdIter = atoi(tok[1].c_str());
-          }
+
+	  else if (boost::iequals(ArgName, "sgdIter"))
+            schd.sgdIter = atoi(tok[1].c_str());
           
       else if (boost::iequals(ArgName, "jastrowslater"))
 	    schd.wavefunctionType = "JastrowSlater";
@@ -450,11 +459,12 @@ void readHF(MatrixXd& HfmatrixA, MatrixXd& HfmatrixB, std::string hf)
     }
 /*
   if (schd.optimizeOrbs) {
-    double scale = pow(1.*HfmatrixA.rows(), 0.5);
-    HfmatrixA += 1.e-1*MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols())/scale;
-    HfmatrixB += 1.e-1*MatrixXd::Random(HfmatrixB.rows(), HfmatrixB.cols())/scale;
+    //double scale = pow(1.*HfmatrixA.rows(), 0.5);
+    double scale = 0.1 * HfmatrixA.max();
+    HfmatrixA += scale * MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols());
+    HfmatrixB += scale * MatrixXd::Random(HfmatrixB.rows(), HfmatrixB.cols());
   }
-  */
+*/
 }
 
 void readGeometry(vector<Vector3d>& Ncoords,
