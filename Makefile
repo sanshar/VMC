@@ -75,7 +75,7 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/AGP.o \
 	obj/Pfaffian.o \
 	obj/rJastrow.o \
-	obj/JastrowTerms.o \
+	obj/JastrowTermsHardCoded.o \
 	obj/gaussianBasis.o\
 	obj/slaterBasis.o\
 	obj/rWalker.o \
