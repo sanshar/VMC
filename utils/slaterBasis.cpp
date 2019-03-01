@@ -22,50 +22,13 @@ void slaterBasis::read() {
   string fname = "slaterBasis.json";
   slaterParser sp(fname);
 
-  sp.readBasis(atomList, *this);
+  sp.readBasis(atomName, atomCoord, *this);
 
   norbs = 0;
   //we will use cartesian basis
   for (int i=0; i<atomicBasis.size(); i++) {
     norbs += atomicBasis[i].norbs;
   }
-
-  /*
-  double d = 0.01;
-  Vector3d coord;  coord[0]  = 1./2.; coord[1]  = 2./2.; coord [2] = 1.0/2.;
-  Vector3d coordp; coordp[0] = 1.; coordp[1] = 2.; coordp[2] = 1.0+d;
-  Vector3d coordm; coordm[0] = 1.; coordm[1] = 2.; coordm[2] = 1.0-d;
-  
-  vector<double> aovalues(10*norbs);
-  vector<double> aovaluesp(10*norbs);
-  vector<double> aovaluesm(10*norbs);
-  
-  eval_deriv2(coord, &aovalues[0]);
-  eval_deriv2(coordp, &aovaluesp[0]);
-  eval_deriv2(coordm, &aovaluesm[0]);
-
-  for (int i=0; i<10; i++) {
-    for (int j=0; j<norbs; j++) {
-      cout << aovalues[i*norbs + j]<<"  ";
-    }
-    cout << endl<<endl;
-  }
-  eval(coord, &aovalues[0]);
-  for (int j=0; j<norbs; j++) {
-    cout << aovalues[0*norbs + j]<<"  ";
-  }
-  exit(0);
-  
-  for (int j=0; j<norbs; j++) {
-    cout << (aovaluesp[j] - aovaluesm[j])/2./d/aovalues[j] <<"  "<<aovalues[3*norbs+j]/aovalues[j]<<endl;
-  }
-  cout << endl<<endl;
-  for (int j=0; j<norbs; j++) {
-    cout << (aovaluesp[j] -2*aovalues[j]+ aovaluesm[j])/d/d/aovalues[j] <<"  "<<aovalues[9*norbs+j]/aovalues[j]<<endl;
-  }
-
-  exit(0);
-  */
 }
 
 
@@ -73,9 +36,11 @@ int slaterBasis::getNorbs() {return norbs;}
 
 
 void slaterBasis::eval(const Vector3d& x, double* values) {
-  for (int i=0; i<atomicBasis.size(); i++) {
-    auto aBasis = atomicBasis[i];
 
+  int index = 0;  
+  for (int i=0; i<atomicBasis.size(); i++) {
+    
+    auto aBasis = atomicBasis[i];
     double xN = x[0] - aBasis.coord[0],
         yN = x[1] - aBasis.coord[1],
         zN = x[2] - aBasis.coord[2];
@@ -84,7 +49,6 @@ void slaterBasis::eval(const Vector3d& x, double* values) {
                        pow(zN, 2), 0.5);
 
 
-    int index = 0;
     //for each basis in aBasis evaluate the value
     for (int j=0; j<aBasis.exponents.size(); j++) {
       int l = aBasis.NL[2*j+1];

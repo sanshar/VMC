@@ -23,11 +23,13 @@
 #include <boost/mpi/communicator.hpp>
 #include <boost/mpi.hpp>
 #endif
+#include <boost/math/special_functions/gamma.hpp>
 #include "rWalker.h"
 #include "math.h"
 #include "rCorrelatedWavefunction.h"
 #include "global.h"
 #include "input.h"
+#include "math.h"
 
 using namespace boost;
 
@@ -75,7 +77,18 @@ void rWalker<rJastrow, rSlater>::initR() {
 
       RiN(i,j) = rij;
     }
-    
+
+  RNM = MatrixXd::Zero(schd.Ncoords.size(), schd.Ncoords.size());
+  for (int i=0; i<schd.Ncoords.size(); i++) {
+    for (int j=i+1; j<schd.Ncoords.size(); j++) {
+      double rij = pow( pow(schd.Ncoords[i][0] - schd.Ncoords[j][0], 2) +
+                        pow(schd.Ncoords[i][1] - schd.Ncoords[j][1], 2) +
+                        pow(schd.Ncoords[i][2] - schd.Ncoords[j][2], 2), 0.5);
+      
+      RNM(i,j) = rij;
+      RNM(j,i) = rij;
+    }
+  }
 }
 
 //rWalker<rJastrow, rSlater>::rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
@@ -183,11 +196,421 @@ void rWalker<rJastrow, rSlater>::HamOverlap(const rSlater &ref,
   refHelper.HamOverlap(d, ref, Rij, RiN, hamtail);
 }
 
+void rWalker<rJastrow, rSlater>::getStep(Vector3d& coord, int elecI,
+                                         double stepsize, const rSlater& ref,
+                                         const rJastrow& corr,double&ovlpRatio,
+                                         double& proposalProb) {
+  if (schd.rStepType == SIMPLE)
+    return getSimpleStep(coord, stepsize, ovlpRatio, proposalProb);
+  
+  else if (schd.rStepType == GAUSSIAN)
+    return getGaussianStep(coord, elecI, stepsize, ovlpRatio, proposalProb);
 
-void rWalker<rJastrow, rSlater>::getSimpleStep(Vector3d& coord, double stepsize) {
+  else if (schd.rStepType == DMC)
+    return doDMCMove(coord, elecI, stepsize, ref, corr,
+                      ovlpRatio, proposalProb);
+  
+  else if (schd.rStepType == SPHERICAL)
+    return getSphericalStep(coord, elecI, stepsize, ref,
+                            ovlpRatio, proposalProb);
+}
+
+void rWalker<rJastrow, rSlater>::getSimpleStep(Vector3d& coord,  double stepsize,
+                                               double& ovlpRatio, double& proposalProb) {
   coord[0] = (uR()-0.5)*stepsize;
   coord[1] = (uR()-0.5)*stepsize;
   coord[2] = (uR()-0.5)*stepsize;
+  proposalProb = 1.0;
+  ovlpRatio = -1.0;
+}
+
+void rWalker<rJastrow, rSlater>::getGaussianStep(Vector3d& coord, int elecI, double stepsize,
+                                                   double& ovlpRatio, double& proposalProb) {
+  double stepx = nR(generator),
+      stepy = nR(generator),
+      stepz = nR(generator);
+  coord[0] = stepx * stepsize;
+  coord[1] = stepy * stepsize;
+  coord[2] = stepz * stepsize;
+  proposalProb = 1.0;
+  ovlpRatio = -1.0;
+}
+
+double SphericalSteps::distance(Vector3d& r1, Vector3d& r2) {
+  return pow( (r1[0]-r2[0])*(r1[0]-r2[0])+
+              (r1[1]-r2[1])*(r1[1]-r2[1])+
+              (r1[2]-r2[2])*(r1[2]-r2[2]), 0.5);
+}
+
+int SphericalSteps::findTheNearestNucleus(Vector3d& ri, double& riN) {
+  int closestNucleus = 0;
+  riN = distance(ri, schd.Ncoords[0]);
+  int Natom = schd.Ncoords.size();
+  
+  for (int N=1; N<Natom; N++) {
+    double diN = distance(ri, schd.Ncoords[N]); 
+
+    if ( diN < riN) {
+      closestNucleus = N;
+      riN = diN;
+    }
+  }
+  return closestNucleus;
+}
+
+void SphericalSteps::RotateTowards(Vector3d& R, Vector3d& ri, Vector3d& rf) {
+  double rlen = pow(R[0]*R[0]+R[1]*R[1]+R[2]*R[2], 0.5);
+  double rxylen = pow(R[0]*R[0]+R[1]*R[1], 0.5);
+  Vector3d axis( -R[1]/rxylen, R[0]/rxylen,  0.);
+  double angle = acos(R[2]/rlen);
+  AngleAxis<double> aa(angle, axis);
+  
+  rf = aa * ri;
+  return;
+}
+
+
+void rWalker<rJastrow, rSlater>::getGradient(int elecI, Vector3d& grad) {
+
+  double detgx, detgy, detgz;
+  detgx = refHelper.Gradient[0].row(elecI).dot(refHelper.thetaInv[0].col(elecI));
+  detgy = refHelper.Gradient[1].row(elecI).dot(refHelper.thetaInv[0].col(elecI));
+  detgz = refHelper.Gradient[2].row(elecI).dot(refHelper.thetaInv[0].col(elecI));
+
+  grad[0] = corrHelper.GradRatio(elecI,0) + detgx;    
+  grad[1] = corrHelper.GradRatio(elecI,1) + detgy;
+  grad[2] = corrHelper.GradRatio(elecI,2) + detgz;
+
+}
+
+double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI, Vector3d& newCoord,
+                                                                      Vector3d& grad,
+                                                                      const rSlater& ref){
+
+
+  int norbs = Determinant::norbs;
+  vector<double>& aoValues = refHelper.aoValues;
+  aoValues.resize(10*norbs, 0.0);
+  schd.basis->eval_deriv2(newCoord, &aoValues[0]);
+
+  double Detratio=0, gxnew=0, gynew=0, gznew=0;
+  for (int mo=0; mo<d.nelec; mo++) {
+
+    double moVal = 0, moGx=0, moGy=0, moGz=0;
+    for (int j=0; j<norbs; j++) {
+      int J = elecI < rDeterminant::nalpha ? j : j+norbs;
+      moVal += aoValues[        j] * ref.getHforbs(0)(J, mo);
+      moGx  += aoValues[norbs+  j] * ref.getHforbs(0)(J, mo);
+      moGy  += aoValues[2*norbs+j] * ref.getHforbs(0)(J, mo);
+      moGz  += aoValues[3*norbs+j] * ref.getHforbs(0)(J, mo);
+    }
+    
+    Detratio += moVal * refHelper.thetaInv[0](mo, elecI);        
+    gxnew    += moGx  * refHelper.thetaInv[0](mo, elecI);        
+    gynew    += moGy  * refHelper.thetaInv[0](mo, elecI);        
+    gznew    += moGz  * refHelper.thetaInv[0](mo, elecI);        
+  }
+  
+  gxnew /= Detratio;
+  gynew /= Detratio;
+  gznew /= Detratio;
+
+  //cout << gxnew <<" update det "<<endl;
+  //Do the new gx, gy, gz for the Jastrows
+  double diff = 0;
+  Vector3d gi, gplus, gminus; gplus.setZero();
+  gminus.setZero();
+  grad = corrHelper.GradRatio.row(elecI);
+  grad[0] += gxnew; grad[1] += gynew; grad[2] += gznew;
+  
+  int Qmax = corrHelper.Qmax; VectorXd& params = corrHelper.jastrowParams;
+  int EEsameSpinIndex       = corrHelper.EEsameSpinIndex,
+      EEoppositeSpinIndex   = corrHelper.EEoppositeSpinIndex,
+      ENIndex               = corrHelper.ENIndex,
+      EENsameSpinIndex      = corrHelper.EENsameSpinIndex,
+      EENoppositeSpinIndex  = corrHelper.EENoppositeSpinIndex;
+
+  diff -= JastrowENValueGrad(elecI, Qmax, d.coord, gminus,  params, ENIndex);
+  for (int j=0; j<d.nelec; j++) {
+    if (j == elecI) continue;
+
+    diff -= JastrowEEValueGrad(elecI, j, Qmax,d.coord, gminus,  params, EEsameSpinIndex, 1);
+    diff -= JastrowEEValueGrad(elecI, j, Qmax,d.coord, gminus,  params, EEoppositeSpinIndex, 0);
+
+    diff -= JastrowEENValueGrad(elecI, j, Qmax,d.coord, gminus,  params, EENsameSpinIndex, 1);
+    diff -= JastrowEENValueGrad(elecI, j, Qmax,d.coord, gminus,params, EENoppositeSpinIndex, 0);
+  }
+
+  Vector3d bkp = d.coord[elecI];
+  d.coord[elecI] = newCoord;
+  diff += JastrowENValueGrad(elecI, Qmax, d.coord, gplus,  params, ENIndex);
+  for (int j=0; j<d.nelec; j++) {
+    if (j == elecI) continue;
+    
+    diff += JastrowEEValueGrad(elecI, j, Qmax,d.coord, gplus,  params, EEsameSpinIndex, 1);
+    diff += JastrowEEValueGrad(elecI, j, Qmax,d.coord, gplus,  params, EEoppositeSpinIndex, 0);
+
+    diff += JastrowEENValueGrad(elecI, j, Qmax,d.coord, gplus, params, EENsameSpinIndex, 1);
+    diff += JastrowEENValueGrad(elecI, j, Qmax,d.coord, gplus, params, EENoppositeSpinIndex, 0);
+  }
+  d.coord[elecI] = bkp;
+
+  //cout << grad[0] - gxnew + gplus[0] - gminus[0] <<endl;
+  
+  grad += (gplus - gminus);
+      
+  double ovlpRatio = Detratio * exp(diff);
+
+  return ovlpRatio;
+}
+
+
+
+
+void SphericalSteps::initializeU(Vector3d& grad, double& eta,
+                                 double& a, Vector3d& di, int N) {
+  Vector3d riN  = di - schd.Ncoords[N];
+  double riInit = sqrt(riN.dot(riN));
+  double gradR  = riN.dot(grad)/riInit; //gradient in radial direction
+  double Z      = schd.Ncharge[N];   //the change of the nearest nucleus
+
+  //solve the quadratic equation for eta
+  double A = - riInit;
+  double B = (Z - gradR) * riInit;
+  double C =  -Z - gradR * (1 - Z * riInit);
+
+  double temp = B*B - 4*A*C;
+
+  //non complex and atleast one of the roots is positive
+  if (temp > 0.0 && ( (-B + sqrt(temp))/2/A >= 0. ||
+                      (-B - sqrt(temp))/2/A >= 0. ) ) {
+    double root1 = (-B + sqrt(temp))/2/A,
+        root2 = (-B - sqrt(temp))/2/A;
+    eta = min(root1, root2) < 0 ? max(root1, root2) : min(root1, root2);
+    a   = -Z + eta;
+  }
+  else if (gradR < 0) {
+    eta = -gradR;
+    a = 0.0;
+  }
+  else {
+    eta = 1.0;
+    a = (gradR + 1)/(1 - riInit - gradR * riInit);
+  }
+  
+}
+
+
+//the function is r^0.5 (1+ar) exp(-eta r)
+double SphericalSteps::RejectionSampleR(double& eta, double& a, double& dR, double& RiN,
+                                        uniformRandom& uR) {
+  double rmin = RiN/dR, rmax = RiN*dR;
+  double root1, root2;
+  
+  double umax = 0.0; //we need the max of the function r^0.5 (1 + ar) * exp(-eta r)
+
+  {
+    //take derivative of the function and set it to zero to obtain a quadratic function
+    double A = - 2 * a * eta,
+        B = (3 * a - 2 * eta),
+        C = 1;
+
+    root1 =  (-B + sqrt(B*B - 4*A*C))/2/A,
+    root2 =  (-B - sqrt(B*B - 4*A*C))/2/A;
+
+    if (a == 0) {
+      root1 = 0.;
+      root2 = 1.0/2/eta;
+    }
+    else if (eta == 0) {
+      root1 = 0.;
+      root2 = -1./3./a;
+    }
+    
+    double urmin = abs(pow(rmin, 0.5) * (1. + a* rmin) * exp(-eta *rmin));
+    double urmax = abs(pow(rmax, 0.5) * (1. + a* rmax) * exp(-eta *rmax));
+    umax = max(urmin, urmax);
+
+    if (root1 > rmin && root1 < rmax) {
+      double uroot1 = abs(pow(root1, 0.5) * (1. + a* root1) * exp(-eta *root1));
+      umax = max(uroot1, umax);
+    }
+    if (root2 > rmin && root2 < rmax) {
+      double uroot2 = abs(pow(root2, 0.5) * (1. + a* root2) * exp(-eta *root2));
+      umax = max(uroot2, umax);
+    }    
+  }
+  
+  while (true) {
+    double rtry = rmin + (rmax - rmin) * uR();
+
+    double urtry = abs(pow(rtry, 0.5) * (1. + a* rtry) * exp(-eta *rtry));
+
+    if (uR() < urtry/umax) {//accept
+      return rtry;
+    }
+  }
+}
+
+double SphericalSteps::SamplePhi(double& rif, double& thetaf, Vector3d& ri, Vector3d& gradi,
+                                 int N, uniformRandom& uR) {
+
+  return uR() * 2 * M_PI;
+}
+
+double SphericalSteps::G(double& eta, double& a, double x, double y) {
+  return (boost::math::tgamma_lower(1.5, x) - boost::math::tgamma_lower(1.5,y))/pow(eta, 1.5) +
+      a* (boost::math::tgamma_lower(2.5, x) - boost::math::tgamma_lower(2.5,y))/pow(eta, 2.5) ;
+}
+
+
+double SphericalSteps::volume(double& a, double& eta, double& Ri, double& dR, double& thetam) {
+  double phitheta = (1 - cos(thetam)) * 2 * M_PI;
+
+  if (Ri/dR < -1.0/a && -1.0/a < Ri*dR)
+    return (abs(G(eta, a, Ri*dR*eta, -eta/a)) + abs(G(eta, a, -eta/a, Ri*eta/dR)))*phitheta;    
+  else
+    return abs(G(eta, a, Ri*dR*eta, Ri*eta/dR))*phitheta;
+}
+
+//JCP, 109, 2630
+void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double stepsize,
+                                           const rSlater& ref, const rJastrow& corr, double& ovlpRatio,
+                                           double& proposalProb) {
+
+  Vector3d gradi; //gradient at initial point
+  //obtain the gradient
+  getGradient(elecI, gradi);
+
+  double driftSize = pow(stepsize, 0.5);
+  double stepx = nR(generator), stepy = nR(generator), stepz = nR(generator);
+
+  double kappa = stepsize;
+  double gnorm = pow(gradi[0]*gradi[0] + gradi[1]*gradi[1] + gradi[2]*gradi[2], 0.5);
+  double alphainit = kappa/gnorm, deltainit = sqrt(alphainit);
+
+  coord[0] = stepx * deltainit + alphainit * gradi[0];
+  coord[1] = stepy * deltainit + alphainit * gradi[1];
+  coord[2] = stepz * deltainit + alphainit * gradi[2];
+
+  double forwardProb = exp(-(stepx*stepx + stepy*stepy + stepz*stepz)/2.)
+      /pow(2*M_PI* deltainit*deltainit, 1.5);
+
+  Vector3d newCoord = d.coord[elecI] + coord;
+
+
+  //now calculate the reverse probability
+
+  Vector3d gradInew;
+  ovlpRatio = pow(getGradientAfterSingleElectronMove(elecI, newCoord, gradInew, ref),2);
+
+  double gnormnew = pow(gradInew[0]*gradInew[0]+gradInew[1]*gradInew[1]+gradInew[2]*gradInew[2], 0.5);
+  double alphanew = kappa/gnormnew, deltanew = sqrt(alphanew);//kappa1/gnormnew;
+  //double alphanew = stepsize, deltanew = driftSize;
+  
+  //calculate the stepx/y/z needed to go back
+  stepx = (-coord[0] - alphanew * gradInew[0])/deltanew;
+  stepy = (-coord[1] - alphanew * gradInew[1])/deltanew;
+  stepz = (-coord[2] - alphanew * gradInew[2])/deltanew;
+  
+  double reverseProb = exp(-(stepx*stepx + stepy*stepy + stepz*stepz)/2.)
+      /pow(2*M_PI*deltanew*deltanew, 1.5);
+  
+  proposalProb =  reverseProb/forwardProb;
+  
+}
+
+//
+void rWalker<rJastrow, rSlater>::getSphericalStep(Vector3d& coord, int elecI, double stepsize,
+                                                  const rSlater& ref, double& ovlpRatio,
+                                                  double& proposalProb) {
+
+  double dR = 5.0, thetaParam1 = M_PI/2; 
+  Vector3d newRi; int closestNucleus; double probOfMove, probOfReverseMove;
+  double volumeOfReverseMove = 1.0;
+
+  {
+    double RiN;
+    closestNucleus = SphericalSteps::findTheNearestNucleus(d.coord[elecI], RiN);
+
+    Vector3d gradi; //gradient at initial point
+    getGradient(elecI, gradi);
+    
+    //initialize radial function U
+    double eta, a;
+    SphericalSteps::initializeU(gradi, eta, a, d.coord[elecI], closestNucleus);
+
+    //sample r
+    double newRiN = SphericalSteps::RejectionSampleR(eta, a, dR, RiN, uR);
+    
+    //sample theta
+    double newTheta = acos ( 1 - uR() * (1 - cos(thetaParam1)) );
+    
+    //sample phi
+    double newPhi = SphericalSteps::SamplePhi(newRiN, newTheta, d.coord[elecI],
+                                              gradi, closestNucleus, uR);
+    
+    //find the new electron coordinate if RiN is the z-axis
+    Vector3d riRelativeToN( newRiN * sin(newTheta) * cos(newPhi),
+                            newRiN * sin(newTheta) * sin(newPhi),
+                            newRiN * cos(newTheta)) ;
+
+    Vector3d vIN = d.coord[elecI] - schd.Ncoords[closestNucleus];
+
+    //now rotate to obtain coordinate relative to true origin
+    SphericalSteps::RotateTowards(vIN, riRelativeToN, newRi);
+    newRi +=  schd.Ncoords[closestNucleus];
+
+    double Sforward = abs( pow(newRiN, -1.5) * (1 + a * newRiN) * exp(-eta * newRiN)) ;
+    probOfMove = Sforward/SphericalSteps::volume(a, eta, RiN, dR, thetaParam1);
+  }
+
+  {
+    double dInewNnew; //new position
+    int newclosestNucleus = SphericalSteps::findTheNearestNucleus(newRi, dInewNnew);
+    double Z = schd.Ncharge[newclosestNucleus];
+
+    
+    Vector3d vIoldNnew = d.coord[elecI] - schd.Ncoords[newclosestNucleus];
+    Vector3d vInewNnew = newRi          - schd.Ncoords[newclosestNucleus];
+    double theta = acos(vIoldNnew.dot(vInewNnew)/
+                        sqrt( vIoldNnew.dot(vIoldNnew) * vInewNnew.dot(vInewNnew)));
+
+    //first check if the move is possible
+    double dIoldNnew = SphericalSteps::distance(d.coord[elecI], schd.Ncoords[newclosestNucleus]);
+    
+    if (theta > thetaParam1) {//move not possible
+      volumeOfReverseMove = 0.0;
+    }
+    else if (dIoldNnew > dInewNnew*dR || dIoldNnew < dInewNnew/dR) {//move not possible
+      volumeOfReverseMove = 0.0;
+    }
+    else {
+
+      Vector3d gradInew;
+      ovlpRatio = pow(getGradientAfterSingleElectronMove(elecI, newRi, gradInew, ref),2);
+
+      double eta, a;
+      SphericalSteps::initializeU(gradInew, eta, a, newRi, newclosestNucleus);
+
+      double Sback = abs( pow(dIoldNnew, -1.5) * (1 + a * dIoldNnew) * exp(-eta * dIoldNnew)) ;
+
+      volumeOfReverseMove = SphericalSteps::volume(a, eta, dInewNnew, dR, thetaParam1);
+      probOfReverseMove = Sback/volumeOfReverseMove;
+      
+    }
+  }
+
+  coord = newRi - d.coord[elecI];
+
+  if (abs(volumeOfReverseMove) < 1.e-20) {
+    //cout << "I should not be here "<<endl;
+    //cout << volumeOfReverseMove<<endl; exit(0);
+    proposalProb = 0.0;
+  }
+  else
+    proposalProb = probOfReverseMove / probOfMove;
+    
 }
 
 

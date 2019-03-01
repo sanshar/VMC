@@ -22,18 +22,20 @@ int main(int argc, char* argv[]) {
   string fname = "slaterBasis.json";
   slaterParser sp(fname);
 
-  string atomName;
+  string aName;
   cout << "Atom name: "<<endl;
-  cin >> atomName;
+  cin >> aName;
   //string atomName = "B";
   //this is like the geometry
-  map<string, Vector3d> atomList;
+  vector<string> atomName;
+  vector<Vector3d> atomCoord;
   Vector3d coord; coord[0] =0.; coord[1] = 0.; coord[2] = 0.;
-  atomList[atomName] = coord;
-
+  atomCoord[0] = coord;
+  atomName[0] = aName;
   
   slaterBasis STO;  
-  STO.atomList = atomList;
+  STO.atomName = atomName;
+  STO.atomCoord = atomCoord;
   STO.read();
   
 
@@ -48,7 +50,7 @@ int main(int argc, char* argv[]) {
       double zeta = sh.exponents[j];
       getSTOnG(sh.NL[2*j], sh.NL[2*j+1], NG, zeta, 1.0, gtoexp, gtocoeff);
 
-      cout << atomName<<"  "<<sp.angularMomItoS[sh.NL[2*j+1]]<<endl;
+      cout << atomName[0]<<"  "<<sp.angularMomItoS[sh.NL[2*j+1]]<<endl;
       for (int k=0; k<NG; k++) {
         cout << boost::format("%14.8f  %14.8f\n") % gtoexp[k] % gtocoeff[k];
       }

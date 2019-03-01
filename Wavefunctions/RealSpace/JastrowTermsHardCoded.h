@@ -46,6 +46,15 @@ double JastrowEEValue(int i, int j, int maxQ,
 
 //input take the maximum exponent Q (rij^o). o = 1...maxQ
 //returns an array of values, gx, gy, gz
+double JastrowEEValueGrad(int i, int j, int maxQ,
+                          const vector<Vector3d>& r,
+                          Vector3d& grad,
+                          const VectorXd& params,
+                          int startIndex,
+                          int ss);
+
+//input take the maximum exponent Q (rij^o). o = 1...maxQ
+//returns an array of values, gx, gy, gz
 void JastrowEE(int i, int j, int maxQ,
                const vector<Vector3d>& r,
                VectorXd& values, MatrixXd& gx,
@@ -60,6 +69,12 @@ double JastrowENValue(int i, int maxQ,
                       const vector<Vector3d>& r,
                       const VectorXd& params,
                       int startIndex) ;
+
+double JastrowENValueGrad(int i, int maxQ,
+                          const vector<Vector3d>& r,
+                          Vector3d& grad,
+                          const VectorXd& params,
+                          int startIndex);
 
 //input take the maximum exponent Q (rij^o). o = 1...maxQ
 //returns an array of values, gx, gy, gz
@@ -79,6 +94,12 @@ double JastrowEENValue(int i, int j, int maxQ,
                        int startIndex,
                        int ss) ;
 
+double JastrowEENValueGrad(int i, int j, int maxQ,
+                         const vector<Vector3d>& r,
+                         Vector3d& grad,
+                         const VectorXd& params,
+                         int startIndex,
+                         int ss);
 
 // (riN^m  jN^n + rjN^m riN^n) rij^o
 // m + n + o <= maxQ

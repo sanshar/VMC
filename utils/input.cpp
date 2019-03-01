@@ -90,6 +90,8 @@ void readInput(string input, schedule& schd, bool print) {
       schd.ctmc = true;
       schd.cgIter = 15;
       schd.sDiagShift = 0.01;
+      
+      schd.rStepType = SPHERICAL;
 
       while (dump.good())
 	{
@@ -125,18 +127,28 @@ void readInput(string input, schedule& schd, bool print) {
             gaussianBasis gBasis ;
             gBasis.read();
             readGeometry(schd.Ncoords, schd.Ncharge, gBasis);
-            
             schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
             map<string, Vector3d> atomList;
             for (int i=0; i<schd.Ncoords.size(); i++) {
-              atomList[ slaterParser::AtomSymbols[schd.Ncharge[i]] ] = schd.Ncoords[i];
+              dynamic_cast<slaterBasis*>(&(*schd.basis))->atomName.push_back(slaterParser::AtomSymbols[schd.Ncharge[i]]);
+              dynamic_cast<slaterBasis*>(&(*schd.basis))->atomCoord.push_back(schd.Ncoords[i]);
             }
-            dynamic_cast<slaterBasis*>(&(*schd.basis))->atomList = atomList;
+            //dynamic_cast<slaterBasis*>(&(*schd.basis))->atomList = atomList;
             schd.basis->read();
+
           }
           
 	  else if (boost::iequals(ArgName, "restart"))
 	    schd.restart = true;
+
+          else if (boost::iequals(ArgName, "rsimplestep"))
+	    schd.rStepType = SIMPLE;          
+          else if (boost::iequals(ArgName, "rsphericalStep"))
+	    schd.rStepType = SPHERICAL;
+          else if (boost::iequals(ArgName, "rdmcStep"))
+	    schd.rStepType = DMC;
+          else if (boost::iequals(ArgName, "rgaussian"))
+	    schd.rStepType = GAUSSIAN;
 
 	  else if (boost::iequals(ArgName, "fullrestart"))
 	    schd.fullrestart = true;
@@ -459,9 +471,9 @@ void readGeometry(vector<Vector3d>& Ncoords,
   int stride = gBasis.atm.size()/N;
   for (int i=0; i<N; i++) {
     Ncharge[i] = gBasis.atm[i*stride];
-    Ncoords[i][0] = gBasis.env[ gBasis.atm[i*stride+1] ];
-    Ncoords[i][1] = gBasis.env[ gBasis.atm[i*stride+2] ];
-    Ncoords[i][2] = gBasis.env[ gBasis.atm[i*stride+3] ];
+    Ncoords[i][0] = gBasis.env[ gBasis.atm[i*stride+1] +0];
+    Ncoords[i][1] = gBasis.env[ gBasis.atm[i*stride+1] +1];
+    Ncoords[i][2] = gBasis.env[ gBasis.atm[i*stride+1] +2];
   }
 
 }

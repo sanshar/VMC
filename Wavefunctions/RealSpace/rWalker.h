@@ -41,6 +41,7 @@ template<>
 struct rWalker<rJastrow, rSlater> {
 
   rDeterminant d;
+  MatrixXd RNM;
   MatrixXd Rij;         //the inter-electron distances
   MatrixXd RiN;         //electron-nucleus distances  
   rWalkerHelper<rJastrow> corrHelper;
@@ -77,11 +78,47 @@ struct rWalker<rJastrow, rSlater> {
 
   void HamOverlap(const rSlater &ref, const rJastrow& cps, VectorXd &grad) ;
 
-  void getSimpleStep(Vector3d& coord, double stepsize);
+  void getStep(Vector3d& coord, int elecI, double stepsize,
+               const rSlater& ref, const rJastrow& corr, double& ovlpRatio,
+               double& proposalProb) ;
+               
+  void getSimpleStep(Vector3d& coord,  double stepsize, double& ovlpRatio, double& proposalProb);
 
-  void getSphericalStep(Vector3d& coord, double stepsize);
+  void getSphericalStep(Vector3d& coord, int elecToMove, double stepsize, const rSlater& ref,
+                        double& ovlpRatio, double& proposalProb);
+  void doDMCMove(Vector3d& coord, int elecI, double stepsize,
+                 const rSlater& ref, const rJastrow& corr, double& ovlpRatio,
+                 double& proposalProb) ;
+  void getGaussianStep(Vector3d& coord, int elecToMove, double stepsize,
+                       double& ovlpRatio, double& proposalProb);
+
+  void getGradient(int elecI, Vector3d& grad) ;
+  double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad,
+                                            const rSlater& ref) ;
+  double getGradientAfterSingleElectronMovetemp(int elecI, Vector3d& move, Vector3d& grad,
+                                            const rSlater& ref) ;
   
 };
 
+
+struct SphericalSteps {
+  static double distance(Vector3d& r1, Vector3d& r2);
+
+  static int findTheNearestNucleus(Vector3d& ri, double& riN);
+
+  static void RotateTowards(Vector3d& R, Vector3d& ri, Vector3d& rf);
+
+  static void initializeU(Vector3d& grad, double& eta,
+                          double& a, Vector3d& di, int N);
+
+  static double RejectionSampleR(double& eta, double& a, double& dR, double& RiN,
+                                 uniformRandom& uR) ;
+
+  static double SamplePhi(double& rif, double& thetaf, Vector3d& ri, Vector3d& grad,
+                          int N, uniformRandom& uR);
+  static double G(double& eta, double& a, double x, double y) ;
+  static double volume(double& a, double& eta, double& Ri, double& dR, double& thetam);
+  
+};
 
 #endif

@@ -207,10 +207,5 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJas
 template<>
 void rCorrelatedWavefunction<rJastrow, rSlater>::enforceCusp();
 
-template<>
-double rCorrelatedWavefunction<rJastrow, rSlater>::getDMCMove(Vector3d& coord, int elecI,
-                                                             double stepsize,
-                                                             rWalker<rJastrow, rSlater>& walk);
-
 
 #endif

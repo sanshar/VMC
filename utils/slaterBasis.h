@@ -51,7 +51,9 @@ struct slaterBasisOnAtom{
 struct slaterBasis : public Basis{
   int norbs;
   vector<slaterBasisOnAtom> atomicBasis;  
-  map<string, Vector3d> atomList;
+  vector<string> atomName;
+  vector<Vector3d> atomCoord;
+  //map<string, Vector3d> atomList;
   
   void read();
   int getNorbs();
@@ -72,7 +74,7 @@ struct slaterBasis : public Basis{
   void serialize(Archive & ar, const unsigned int version)
   {
     ar & boost::serialization::base_object<Basis>(*this);
-    ar & norbs & atomicBasis & atomList;
+    ar & norbs & atomicBasis & atomName & atomCoord;
   }
 };
 
