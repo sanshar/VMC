@@ -25,6 +25,7 @@
 #include "ShermanMorrisonWoodbury.h"
 #include "rSlater.h"
 #include "rJastrow.h"
+#include "JastrowTermsHardCoded.h"
 
 template<typename Reference>
 class rWalkerHelper {
@@ -101,17 +102,25 @@ template<>
 class rWalkerHelper<rJastrow>
 {
  public:
-  //keep this updated
-  double exponential;   //exponential due to all Jastrow Terms
-
+  int Qmax;
+  int EEsameSpinIndex,
+      EEoppositeSpinIndex,
+      ENIndex,
+      EENsameSpinIndex,
+      EENoppositeSpinIndex;
+  
   //Equation 33 of  https://doi.org/10.1063/1.4948778
+  double   exponential;
   MatrixXd GradRatio; //nelec x 3 
   VectorXd LaplaceRatioIntermediate;
   VectorXd LaplaceRatio;
 
+  VectorXd ParamValues;
   MatrixXd ParamLaplacian;                      //nelec X njastrow matrix -> Del^2_i J_j
-  MatrixXd ParamLaplacianIntermediate;          //nelec X njastrow matrix -> Del^2_i J_j
   std::vector<MatrixXd>  ParamGradient;         //vector of GradRatio for each Jastrow
+  MatrixXd workMatrix;
+  VectorXd jastrowParams;
+
   
   rWalkerHelper() {};
   rWalkerHelper(const rJastrow& cps, const rDeterminant& d,

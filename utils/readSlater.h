@@ -45,16 +45,18 @@ struct slaterParser {
     boost::property_tree::read_json(ss, pt);
   };  
 
-  void readBasis(map<string, Vector3d>& atomList,
+  void readBasis(vector<string>& atomList,
+                 vector<Vector3d>& atomCoord,
                  slaterBasis& STO) {
     
     //loop over all the atoms
-    for (auto it = atomList.begin(); it != atomList.end(); it++) {
-      string atom = it->first;
+    //for (auto it = atomList.begin(); it != atomList.end(); it++) {
+    for (int i=0; i<atomList.size(); i++) {
+      string atom = atomList[i];
       auto v = pt.get_child(atom);
       
       slaterBasisOnAtom shell;
-      shell.coord = it->second;
+      shell.coord = atomCoord[i];
       shell.norbs = 0;
       
       auto data = v.begin()->second;

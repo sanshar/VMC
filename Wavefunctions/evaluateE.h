@@ -418,7 +418,7 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
-  double ovlp = wave.Overlap(walk);
+  double ovlp = pow(wave.Overlap(walk), 2);
   double ham;
 
   rDeterminant bestDet = walk.getDet();
@@ -430,7 +430,7 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 
   Statistics Stats;
   
-  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = 2*nelec;
+  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = nelec;
   double acceptedFrac = 0;
   double M1 = 0., S1 = 0.;
   int nstore = 1000000 / commsize;
@@ -442,16 +442,17 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 
   vector<double> aoValues(10 * Determinant::norbs, 0.0);
 
-  
+  double ovlpRatio = -1.0, proposalProb;
   while (iter < niter) {
-    walk.getSimpleStep(step, schd.realSpaceStep);
     elecToMove = iter%nelec;
+    walk.getStep(step, elecToMove, schd.realSpaceStep,
+                 wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
+
     step += walk.d.coord[elecToMove];
 
     iter ++;
-    if (iter%sampleSteps == 0) {
+    if (iter%sampleSteps == 0 && iter > 0.01*niter) {
       ham = wave.rHam(walk);
-      
       wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
 
       for (int i = 0; i < grad.rows(); i++)
@@ -471,10 +472,10 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 
     
 
+    if (ovlpRatio < -0.5)
+      ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2);
     
-    double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
-
-    if (ovlpRatio*ovlpRatio > random()) {
+    if (ovlpRatio*proposalProb > random()) {
       acceptedFrac++;
       walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
 
@@ -532,7 +533,7 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
-  double ovlp = wave.Overlap(walk);
+  double ovlp = pow(wave.Overlap(walk), 2);
   double ham;
 
   rDeterminant bestDet = walk.getDet();
@@ -562,10 +563,12 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
   S.Vectors.resize(niter/sampleSteps, VectorXd::Zero(numVars + 1));
   VectorXd appended(numVars + 1);
 
+  double ovlpRatio = -1.0, proposalProb;
   while (iter < niter) {
-    walk.getSimpleStep(step, schd.realSpaceStep);
-    //getStep(step, random, schd.realSpaceStep);
     elecToMove = iter%nelec;
+    walk.getStep(step, elecToMove, schd.realSpaceStep,
+                 wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
+
     step += walk.d.coord[elecToMove];
 
     iter ++;
@@ -598,10 +601,10 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
 
  
 
- 
-    double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
+    if (ovlpRatio < -0.5)
+      ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk),2);
 
-    if (ovlpRatio*ovlpRatio > random()) {
+    if (ovlpRatio*proposalProb > random()) {
       acceptedFrac++;
       walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
 
@@ -666,18 +669,19 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
-  double ovlp = wave.Overlap(walk);
+
+  double ovlp =  1.0;//wave.Overlap(walk);;
   double ham;
 
   rDeterminant bestDet = walk.getDet();
-  double bestovlp = ovlp;
+  double bestovlp = ovlp; //cout << bestovlp <<endl;
 
 
   Statistics Stats;
   Vector3d step;
   int elecToMove = 0, nelec = walk.d.nelec;
 
-  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = 2*nelec;
+  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = nelec;
   
   double acceptedFrac = 0;
   double M1 = 0., S1 = 0.;
@@ -689,61 +693,52 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   Hessian = MatrixXd::Zero(numVars + 1, numVars+1);
   Smatrix = MatrixXd::Zero(numVars + 1, numVars+1);
 
-  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()),
-      hamRatio = VectorXd::Zero(grad.rows()),
+  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()+1),
+      hamRatio = VectorXd::Zero(grad.rows()+1),
       diagonalGrad = VectorXd::Zero(grad.rows());
 
+  double ovlpRatio = -1.0, proposalProb;
   while (iter < niter) {
     elecToMove = iter%nelec;
-    //walk.getSimpleStep(step, schd.realSpaceStep);
-    //double proposalProb = 1.0;
-    double proposalProb = wave.getDMCMove(step, elecToMove, schd.realSpaceStep, walk);
+
+    walk.getStep(step, elecToMove, schd.realSpaceStep,
+                 wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
 
     step += walk.d.coord[elecToMove];
 
     iter ++;
-    if (iter%sampleSteps == 0) {
-      ham = wave.rHam(walk);
-   
-      wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
-      wave.HamOverlap(walk, hamRatio);
-      
-      Hessian.block(1,1,numVars, numVars) += (localdiagonalGrad * hamRatio.transpose() - Hessian.block(1,1,numVars,numVars))/(effIter+1);
-      Hessian.block(0,1,      1, numVars) += (hamRatio.transpose()                     - Hessian.block(0,1,      1,numVars))/(effIter+1);
-      Hessian.block(1,0,numVars,       1) += (ham*localdiagonalGrad                    - Hessian.block(1,0,numVars,      1))/(effIter+1);
+    if (iter%sampleSteps == 0 && iter > 0.01*niter) {
+      ham = wave.HamOverlap(walk, localdiagonalGrad, hamRatio);
 
-      Smatrix.block(1,1,numVars, numVars) += (localdiagonalGrad*localdiagonalGrad.transpose() - Smatrix.block(1,1,numVars,numVars))/(effIter+1);
-      Smatrix.block(0,1,      1, numVars) += (localdiagonalGrad.transpose()            - Smatrix.block(0,1,      1,numVars))/(effIter+1);
-      Smatrix.block(1,0,numVars,       1) += (localdiagonalGrad                        - Smatrix.block(1,0,numVars,      1))/(effIter+1);
-      
+      Hessian.noalias() += (localdiagonalGrad * hamRatio.transpose()-Hessian)/(effIter+1);
+      Smatrix.noalias() += (localdiagonalGrad * localdiagonalGrad.transpose()-Smatrix)/(effIter+1);
+
+      hamRatio[0] = 0.0; localdiagonalGrad[0] = 0.0;
       for (int i = 0; i < grad.rows(); i++)
       {
-        diagonalGrad[i] += (localdiagonalGrad[i] - diagonalGrad[i])/(effIter+1);
-        grad[i] += (ham * localdiagonalGrad[i] - grad[i])/(effIter + 1);
-        localdiagonalGrad[i] = 0.0;
-        hamRatio[i] = 0;
+        diagonalGrad[i] += (localdiagonalGrad[i+1] - diagonalGrad[i])/(effIter+1);
+        grad[i] += (ham * localdiagonalGrad[i+1] - grad[i])/(effIter + 1);
+        localdiagonalGrad[i+1] = 0.0;
+        hamRatio[i+1] = 0;
       }
       double avgPotold = avgPot;
       avgPot += (ham - avgPot)/(effIter+1);
       S1 += (ham - avgPotold) * (ham - avgPot);
       if (effIter < corrIter)
         Stats.push_back(ham);
-      //corrError[effIter + commrank * corrIter] = ham;
+
       effIter++;
     }
 
  
-
-    //double ovlpRatio = wave.getOverlapFactor(elecToMove, step, walk);
-    double ovlpRatio = 1.0;
-    //cout << ovlpRatio<<"  "<<proposalProb<<endl;
-    //cout << " --- "<<endl;
+    if (ovlpRatio < -0.5) 
+      ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2);
     
-    if (ovlpRatio*ovlpRatio*proposalProb > random()) {
+    if (ovlpRatio*proposalProb > random()) {
       acceptedFrac++;
       walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
 
-      ovlp = ovlp*ovlpRatio;
+      ovlp = ovlp*sqrt(ovlpRatio);
 
       if (abs(ovlp) > abs(bestovlp)) {
         bestovlp = ovlp;
@@ -765,9 +760,6 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
 
   Stats.Block();
   rk = Stats.BlockCorrTime();
-  //vector<double> b_size, r_x; vector<double> tauError(corrError.size(), 1.0);
-  //block(b_size, r_x, corrError, tauError);
-  //rk = corrTime(b_size, r_x);
 
 
   double n_eff = commsize * effIter;
@@ -781,8 +773,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   grad = grad - E0 * diagonalGrad;
   Hessian = Hessian/(commsize);
   Smatrix = Smatrix/(commsize);
-  Smatrix(0,0) = 1.0;
-  Hessian(0,0) = E0;
+
 
   if (commrank == 0)
   {
@@ -792,6 +783,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
     boost::archive::binary_oarchive save(ofs);
     save << bestDet;
   }
+
   return acceptedFrac/niter;
 }
 

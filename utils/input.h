@@ -35,6 +35,7 @@ class Determinant;
 enum Method { sgd, amsgrad, amsgrad_sgd, sr, linearmethod, var };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
+enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
 
 /**
  * This stores all the input options
@@ -89,7 +90,8 @@ private:
       & Ncoords
       & Ncharge
       & direct
-      & expCorrelator;
+      & expCorrelator
+      & rStepType;
   }
 public:
 //General options
@@ -104,6 +106,8 @@ public:
   int printLevel;                        // How much stuff to print
   bool expCorrelator;                    //exponential correlator parameters, to enforce positivity
 
+  RSTEPTYPE rStepType;
+  
 //input file to define the correlator parts of the wavefunction
   int nalpha;
   int nbeta;

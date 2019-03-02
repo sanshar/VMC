@@ -28,7 +28,7 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <string>
-#include "JastrowTerms.h"
+#include "JastrowTermsHardCoded.h"
 
 /*
  * Jastrow is a product of correlators 
@@ -38,35 +38,22 @@ class rJastrow {
   friend class boost::serialization::access;
   template<class Archive>
   void serialize (Archive & ar, const unsigned int version) {
-    ar & _jastrow & _params & _gradHelper;
+    ar & _params & Qmax & EEsameSpinIndex & EEoppositeSpinIndex & ENIndex & EENsameSpinIndex
+        & EENoppositeSpinIndex;
   }
  public:
 
-  GeneralJastrow _jastrow;
   std::vector<double> _params; 
-  std::vector<double> _gradHelper; 
-
+  int Qmax;
+  int EEsameSpinIndex,
+      EEoppositeSpinIndex,
+      ENIndex,
+      EENsameSpinIndex,
+      EENoppositeSpinIndex;
+  
 
   rJastrow ();
   
-  double exponentialInitLaplaceGrad(const rDeterminant& d,
-                                    MatrixXd& Gradient,
-                                    VectorXd& laplacian,
-                                    vector<MatrixXd>& paramgradient,
-                                    MatrixXd& paramlaplacian) ;
-  
-  double exponentDiff(int i, Vector3d& coord, const rDeterminant& d) ;
-
-  void UpdateLaplaceGrad(MatrixXd& Gradient,
-                         VectorXd& laplacian,
-                         vector<MatrixXd>& paramgradient,
-                         MatrixXd& paramlaplacian,
-                         const MatrixXd& Rij,
-                         const MatrixXd& RiN,
-                         const rDeterminant& d,
-                         const Vector3d& oldCoord, int i) const ;
-  
-  void OverlapWithGradient( VectorXd& grad, const rDeterminant& d) const;
   long getNumVariables() const;
 
   void getVariables(Eigen::VectorXd &v) const;
