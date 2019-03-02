@@ -1,5 +1,6 @@
 #correlator 5 correlators.txt
 JastrowSlater
+complex
 maxIter 10
 stochasticIter 1000
 seed 1

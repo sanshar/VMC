@@ -23,6 +23,7 @@
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/vector.hpp>
 #include "Walker.h"
+#include "workingArray.h"
 
 class oneInt;
 class twoInt;
@@ -156,8 +157,9 @@ struct CorrelatedWavefunction {
   void updateVariables(Eigen::VectorXd &v) 
   {
     corr.updateVariables(v);
-    Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
-    ref.updateVariables(vtail);
+    //Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
+    //ref.updateVariables(vtail);
+    ref.updateVariables(v.tail(v.rows() - corr.getNumVariables()));
   }
 
   void getVariables(Eigen::VectorXd &v) const
@@ -254,11 +256,26 @@ struct CorrelatedWavefunction {
       //double ovlpRatio = getOverlapFactor(I, J, A, B, walk, dbig, dbigcopy, false);
 
       ham += tia * ovlpRatio;
-      //cout << ex1 << "  " << ex2 << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << endl;
+      if (schd.debug) cout << ex1 << "  " << ex2 << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << endl;
 
       work.ovlpRatio[i] = ovlpRatio;
     }
   }
+
+  void OverlapWithLocalEnergyGradient(const Walker<Corr, Reference> &walk, workingArray &work, Eigen::VectorXd &gradEloc) const
+  {
+    walk.OverlapWithLocalEnergyGradient(corr, ref, work, gradEloc);
+    if (schd.optimizeCps == false)
+    {
+      int numCPSvars = corr.getNumVariables();
+      gradEloc.head(numCPSvars).setZero();
+    }
+    if (schd.optimizeOrbs == false)
+    {
+      int numRefVars = ref.getNumVariables();
+      gradEloc.tail(numRefVars).setZero();
+    }
+  }  
 
   void HamAndOvlpLanczos(const Walker<Corr, Reference> &walk,
                          Eigen::VectorXd &lanczosCoeffsSample,

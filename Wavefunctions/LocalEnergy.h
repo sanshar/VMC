@@ -3,21 +3,22 @@
 #include <Eigen/Dense>
 #include "Determinants.h"
 #include "global.h"
+#include "Complex.h"
 
 template<typename T>
 void BuildJastrowVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, int &numVars);
 
 template<typename T>
-void BuildOrbitalVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &R, int &numVars);
+void BuildOrbitalVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, std::array<Complex<T>, 2> &thetaDet, std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R, int &numVars);
 
 template<typename T>
-T JastrowSlaterLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
+T JastrowSlaterLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<T>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
 
 template <typename T>
-void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, T &thetaPfaff, std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable, int &numVars);
+void BuildPfaffianVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Determinant &D, Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic> &pairMat, Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, Complex<T> &thetaPfaff, std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable, int &numVars);
 
 template<typename T>
-T JastrowPfaffianLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, const T &thetaPfaff, const std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable);
+T JastrowPfaffianLocalEnergy(const Determinant &D, const workingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic> &pairMat, const Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic> &thetaInv, const Complex<T> &thetaPfaff, const std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> &rTable);
 
 class LocalEnergySolver
 {
@@ -48,11 +49,12 @@ class LocalEnergySolver
           numVars += ciExpansion.size();
 
           //orbital vars
-          std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> R;
-          BuildOrbitalVars<T> (vars, D, R, numVars);
+          std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> R;
+          std::array<Complex<T>, 2> thetaDet;
+          BuildOrbitalVars<T> (vars, D, thetaDet, R, numVars);
 
           //Local energy evaluation
-          return JastrowSlaterLocalEnergy<T> (D, work, J, Jmid, R);
+          return JastrowSlaterLocalEnergy<T> (D, work, J, Jmid, thetaDet, R);
         }
         else if (schd.wavefunctionType == "JastrowPfaffian")
         {
@@ -64,9 +66,9 @@ class LocalEnergySolver
           BuildJastrowVars<T> (vars, D, J, Jmid, numVars);
       
           //Pfaffian vars
-          Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> pairMat, thetaInv;
-          T thetaPfaff;
-          std::array<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 2> rTable;
+          Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic> pairMat, thetaInv;
+          Complex<T> thetaPfaff;
+          std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> rTable;
           BuildPfaffianVars<T> (vars, D, pairMat, thetaInv, thetaPfaff, rTable, numVars); 
       
           //Local energy evaluation

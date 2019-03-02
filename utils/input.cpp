@@ -59,13 +59,17 @@ void readInput(string input, schedule& schd, bool print) {
       schd.expCorrelator = false;
       schd.nalpha = -1;
       schd.nbeta = -1;
-      
+      schd.ifComplex = false;
+      schd.uagp = false;
       schd.maxIter = 50;
       schd.avgIter = 0;
       schd.sgdIter = 1;
       schd.method = amsgrad;
       schd.decay2 = 0.001;
       schd.decay1 = 0.1;
+      schd.alpha = 0.001;
+      schd.beta = 1.;
+      schd.momentum = 0.;
       schd.stepsize = 0.001;
       schd.realSpaceStep = 0.1;
       
@@ -81,6 +85,9 @@ void readInput(string input, schedule& schd, bool print) {
       schd.hf = "rhf";
       schd.optimizeOrbs = true;
       schd.optimizeCps = true;
+      schd.printVars = false;
+      schd.printGrad = false;
+      schd.debug = false;
       schd.Hamiltonian = ABINITIO;
       schd.nwalk = 100;
       schd.tau = 0.001;
@@ -93,6 +100,10 @@ void readInput(string input, schedule& schd, bool print) {
       schd.tol = 1.e-8;
       schd.sDiagShift = 0.01;
       schd.rStepType = SPHERICAL;
+      schd.tol = 1.e-3;
+      schd.decay = 0.5;
+      //schd.gradTol = 0.2;
+      schd.sgdStepsize = 0.1;
 
       while (dump.good())
 	{
@@ -157,10 +168,16 @@ void readInput(string input, schedule& schd, bool print) {
 	  else if (boost::iequals(ArgName, "deterministic"))
 	    schd.deterministic = true;
 	  
-          else if (boost::iequals(ArgName, "expCorrelator"))
+      else if (boost::iequals(ArgName, "expCorrelator"))
 	    schd.expCorrelator = true;
+          
+      else if (boost::iequals(ArgName, "complex"))
+	    schd.ifComplex = true;
 
-	  //else if (boost::iequals(ArgName, "adam"))
+      else if (boost::iequals(ArgName, "uagp"))
+	    schd.uagp = true;
+	  
+      //else if (boost::iequals(ArgName, "adam"))
           //schd.method = adam;
 
 	  else if (boost::iequals(ArgName, "sgd"))
@@ -188,14 +205,18 @@ void readInput(string input, schedule& schd, bool print) {
 	    schd.method = sr;
           }
 	  else if (boost::iequals(ArgName, "variance"))
-            schd.method = var;
+            schd.method = varLM;
 	  else if (boost::iequals(ArgName, "lm"))
           {
             schd.sDiagShift = 0.0;
             schd.hDiagShift = 1.e-2;
-            schd.stepsize = 1.0;
+            schd.decay = 0.8;
 	    schd.method = linearmethod;
           }
+          else if (boost::iequals(ArgName, "decay"))
+            schd.decay = atof(tok[1].c_str());
+          else if (boost::iequals(ArgName, "sgdStepsize"))
+            schd.sgdStepsize = atof(tok[1].c_str());
           else if (boost::iequals(ArgName, "sDiagShift"))
             schd.sDiagShift = atof(tok[1].c_str());
           else if (boost::iequals(ArgName, "hDiagShift"))
@@ -218,11 +239,31 @@ void readInput(string input, schedule& schd, bool print) {
           else if (boost::iequals(ArgName, "direct"))
             schd.direct = true;
 
+	  else if (boost::iequals(ArgName, "ftrl"))
+	    schd.method = ftrl;
+      
 	  else if (boost::iequals(ArgName, "amsgrad_sgd"))
 	    schd.method = amsgrad_sgd;
 
 	  else if (boost::iequals(ArgName, "sgdIter"))
             schd.sgdIter = atoi(tok[1].c_str());
+      
+      else if (boost::iequals(ArgName, "printvars"))
+	    schd.printVars = true;
+      else if (boost::iequals(ArgName, "printopt"))
+	    schd.printOpt = true;
+      
+      else if (boost::iequals(ArgName, "printgrad"))
+	    schd.printGrad = true;
+      
+      else if (boost::iequals(ArgName, "test"))
+	    schd.wavefunctionType = "test";
+      
+      else if (boost::iequals(ArgName, "gutzwillerslater"))
+	    schd.wavefunctionType = "GutzwillerSlater";
+      
+      else if (boost::iequals(ArgName, "gutzwillerpfaffian"))
+	    schd.wavefunctionType = "GutzwillerPfaffian";
           
       else if (boost::iequals(ArgName, "jastrowslater"))
 	    schd.wavefunctionType = "JastrowSlater";
@@ -274,10 +315,24 @@ void readInput(string input, schedule& schd, bool print) {
       
       else if (boost::iequals(ArgName, "lanczosjastrowpfaffian"))
 	    schd.wavefunctionType = "LanczosJastrowPfaffian";
+      
+      else if (boost::iequals(ArgName, "slaterrdm"))
+	    schd.wavefunctionType = "slaterRDM";
+      
+      else if (boost::iequals(ArgName, "agprdm"))
+	    schd.wavefunctionType = "agpRDM";
+      
+      else if (boost::iequals(ArgName, "pfaffianrdm"))
+	    schd.wavefunctionType = "pfaffianRDM";
+      
       else if (boost::iequals(ArgName, "ctmc"))
 	    schd.ctmc = true;
+      
       else if (boost::iequals(ArgName, "metropolis"))
 	    schd.ctmc = false;
+      
+      else if (boost::iequals(ArgName, "debug"))
+	    schd.debug = true;
 	  
 	  else if (boost::iequals(ArgName, "tol"))
 	    schd.tol = atof(tok[1].c_str());
@@ -290,6 +345,15 @@ void readInput(string input, schedule& schd, bool print) {
 
 	  else if (boost::iequals(ArgName, "decay2"))
 	    schd.decay2 = atof(tok[1].c_str());
+	  
+      else if (boost::iequals(ArgName, "alpha"))
+	    schd.alpha = atof(tok[1].c_str());
+
+	  else if (boost::iequals(ArgName, "beta"))
+	    schd.beta = atof(tok[1].c_str());
+	  
+      else if (boost::iequals(ArgName, "momentum"))
+	    schd.momentum = atof(tok[1].c_str());
 
 	  else if (boost::iequals(ArgName, "epsilon"))
 	    schd.epsilon = atof(tok[1].c_str());
@@ -472,7 +536,7 @@ void readHF(MatrixXd& HfmatrixA, MatrixXd& HfmatrixB, std::string hf)
 /*
   if (schd.optimizeOrbs) {
     //double scale = pow(1.*HfmatrixA.rows(), 0.5);
-    double scale = 0.1 * HfmatrixA.max();
+    double scale = 0.05 * HfmatrixA.maxCoeff();
     HfmatrixA += scale * MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols());
     HfmatrixB += scale * MatrixXd::Random(HfmatrixB.rows(), HfmatrixB.cols());
   }
@@ -502,6 +566,26 @@ void readPairMat(MatrixXd& pairMat)
   for (int i = 0; i < pairMat.rows(); i++) {
     for (int j = 0; j < pairMat.rows(); j++){
       dump >> pairMat(i, j);
+    }
+  }
+}
+
+void readMat(MatrixXd& mat, std::string fileName) 
+{
+  ifstream dump(fileName);
+  for (int i = 0; i < mat.rows(); i++) {
+    for (int j = 0; j < mat.cols(); j++){
+      dump >> mat(i, j);
+    }
+  }
+}
+
+void readMat(MatrixXcd& mat, std::string fileName) 
+{
+  ifstream dump(fileName);
+  for (int i = 0; i < mat.rows(); i++) {
+    for (int j = 0; j < mat.cols(); j++){
+      dump >> mat(i, j);
     }
   }
 }

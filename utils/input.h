@@ -32,7 +32,7 @@
 
 class Correlator;
 class Determinant;
-enum Method { sgd, amsgrad, amsgrad_sgd, sr, linearmethod, var };
+enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod, varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
@@ -55,11 +55,15 @@ private:
       & maxIter
       & avgIter
       & printLevel
+      & debug
       & decay1
       & decay2
+      & alpha
+      & beta
       & method
       & stochasticIter
       & sgdIter
+      & momentum
       & integralSampleSize
       & seed
       & PTlambda
@@ -70,6 +74,8 @@ private:
       & hf
       & optimizeOrbs
       & optimizeCps
+      & printVars
+      & printGrad
       & Hamiltonian
       & ctmc
       & nwalk
@@ -80,6 +86,9 @@ private:
       & sDiagShift
       & hDiagShift
       & cgIter
+      & gradTol
+      & sgdStepsize
+      & decay
       & stepsize 
       & walkerBasis
       & basis
@@ -90,8 +99,10 @@ private:
       & Ncoords
       & Ncharge
       & direct
-      & expCorrelator
-      & rStepType;
+      & rStepType
+      & ifComplex
+      & uagp
+      & expCorrelator;
   }
 public:
 //General options
@@ -105,6 +116,9 @@ public:
   bool deterministic;                    //Performs a deterministic calculation   
   int printLevel;                        // How much stuff to print
   bool expCorrelator;                    //exponential correlator parameters, to enforce positivity
+  bool debug;
+  bool ifComplex;                        //breaks and restores complex conjugation symmetry 
+  bool uagp;                             //brakes S^2 symmetry in uagp
 
   RSTEPTYPE rStepType;
   
@@ -128,6 +142,9 @@ public:
   std::string hf;
   bool optimizeOrbs;
   bool optimizeCps;
+  bool printVars;
+  bool printOpt;
+  bool printGrad;
   HAM Hamiltonian;
   double realSpaceStep;
   
@@ -136,7 +153,10 @@ public:
   double tol;  
   double stepsize;
   double decay1;
-  double decay2;   
+  double decay2;
+  double alpha;
+  double beta;
+  double momentum;
   int maxIter;                     
   int avgIter;                     
   int sgdIter;
@@ -144,6 +164,9 @@ public:
   Method method;
   double sDiagShift;
   double hDiagShift;
+  double decay;
+  double gradTol;
+  double sgdStepsize;
   int cgIter;
   bool ctmc;
 
@@ -193,6 +216,11 @@ void readPairMat(Eigen::MatrixXd& pairMat);
  *    schd :    this is the object of class schedule that is populated by the options
  *    print:    How much to print
  */
+
+void readMat(Eigen::MatrixXd& mat, std::string fileName);
+
+void readMat(Eigen::MatrixXcd& mat, std::string fileName);
+
 void readInput(const std::string input, schedule& schd, bool print=true);
 
 /**
