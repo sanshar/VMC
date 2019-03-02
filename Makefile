@@ -11,14 +11,14 @@ SUNDIALS=/projects/ilsa8974/apps/sundials-3.1.0/stage/include
 STAN=/projects/ilsa8974/apps/math
 
 #EIGEN=/projects/sash2458/apps/eigen/
-#BOOST=/projects/sash2458/apps/boost_1_57_0/
+#BOOST=/projects/sash2458/newApps/boost_1_67_0/
 #LIBIGL=/projects/sash2458/apps/libigl/include/
-#EIGEN=/projects/ilsa8974/apps/eigen/
-#BOOST=/projects/ilsa8974/apps/boost_1_66_0/
-#LIBIGL=/projects/ilsa8974/apps/libigl/include/
+#PYSCF=/projects/sash2458/newApps/pyscf/pyscf/lib/
+#LIBCINT=/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib
 
 
-OPT = -std=c++14 -g -w -O3
+
+OPT = -std=c++14 -w -g -O3
 #OPT = -std=c++14 -g 
 FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I/opt/local/include/openmpi-mp/ #-DComplex
 

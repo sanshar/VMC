@@ -26,6 +26,7 @@
 #include <utility>
 #include "iowrapper.h"
 #include <boost/interprocess/managed_shared_memory.hpp>
+#include <boost/serialization/vector.hpp>
 #include "global.h"
 
 using namespace std;
