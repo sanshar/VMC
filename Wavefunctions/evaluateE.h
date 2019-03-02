@@ -25,6 +25,7 @@
 #include "workingArray.h"
 #include "statistics.h"
 #include "sr.h"
+#include "linearMethod.h"
 #include "global.h"
 #include "Deterministic.h"
 #include "ContinuousTime.h"
@@ -60,6 +61,81 @@ void getEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
     D.UpdateEnergy(Energy);
   }
   D.FinishEnergy(Energy);
+}
+
+template<typename Wfn, typename Walker> void getOneRdmDeterministic(Wfn &w, Walker& walk, MatrixXd &oneRdm, bool sz)
+{
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+
+  vector<Determinant> allDets;
+  generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+
+  double Overlap = 0;
+  oneRdm = MatrixXd::Constant(norbs, norbs, 0.); 
+  MatrixXd localOneRdm = MatrixXd::Constant(norbs, norbs, 0.); 
+
+  for (int i = commrank; i < allDets.size(); i += commsize) {
+    w.initWalker(walk, allDets[i]);
+    localOneRdm.setZero(norbs, norbs);
+    vector<int> open;
+    vector<int> closed;
+    allDets[i].getOpenClosed(sz, open, closed);
+    for (int p = 0; p < closed.size(); p++) {
+      localOneRdm(closed[p], closed[p]) = 1.;
+      for (int q = 0; q < open.size() && open[q] < closed[p]; q++) {
+        localOneRdm(closed[p], open[q]) = w.getOverlapFactor(2*closed[p] + sz, 2*open[q] + sz, walk, 0);
+      }
+    }
+    double ovlp = w.Overlap(walk);
+    Overlap += ovlp * ovlp;
+    oneRdm += ovlp * ovlp * localOneRdm;
+  }
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(Overlap), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, oneRdm.data(), norbs*norbs, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  oneRdm = oneRdm / Overlap;
+}
+
+template<typename Wfn, typename Walker> void getDensityCorrelationsDeterministic(Wfn &w, Walker& walk, MatrixXd &corr)
+{
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+
+  vector<Determinant> allDets;
+  generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+
+  double Overlap = 0;
+  corr = MatrixXd::Constant(2*norbs, 2*norbs, 0.);
+  MatrixXd localCorr = MatrixXd::Constant(2*norbs, 2*norbs, 0.); 
+
+  for (int i = commrank; i < allDets.size(); i += commsize) {
+    w.initWalker(walk, allDets[i]);
+    localCorr.setZero(2*norbs, 2*norbs);
+    vector<int> open;
+    vector<int> closed;
+    allDets[i].getOpenClosed(open, closed);
+    for (int p = 0; p < closed.size(); p++) {
+      localCorr(closed[p], closed[p]) = 1.;
+      for (int q = 0; q < p; q++) {
+        int P = max(closed[p], closed[q]), Q = min(closed[p], closed[q]);
+        localCorr(P, Q) = 1.;
+      }
+    }
+    double ovlp = w.Overlap(walk);
+    Overlap += ovlp * ovlp;
+    corr += ovlp * ovlp * localCorr;
+  }
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(Overlap), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, corr.data(), 4*norbs*norbs, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  corr = corr / Overlap;
 }
   
 template<typename Wfn, typename Walker>
@@ -273,17 +349,14 @@ void getStochasticGradientMetricContinuousTime(Wfn &w, Walker& walk, double &Ene
   CTMC.FinishBestDet();
 }
 
+/*
 template<typename Wfn, typename Walker>
-void getStochasticGradientVarianceContinuousTime(Wfn &w, Walker &walk, double &Variance, double &Energy, double &stddev, VectorXd &grad, DirectVarianceHessian &H, double &rk, int niter)
+void getStochasticGradientVarianceContinuousTime(Wfn &w, Walker &walk, double &Variance, double &Energy, double &stddev, VectorXd &grad, DirectVarLM &H, double &rk, int niter)
 {
   ContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
   Energy = 0.0, Variance = 0.0, stddev = 0.0;
-  double Energy_everyrk = 0.0;
   grad.setZero();
-  VectorXd Eloc_grad_ratio_bar = VectorXd::Zero(grad.rows());
   VectorXd grad_ratio_bar = VectorXd::Zero(grad.rows());
-  VectorXd grad_Eloc_bar = VectorXd::Zero(grad.rows());
-  VectorXd Eloc_grad_Eloc_bar = VectorXd::Zero(grad.rows());
   for (int iter = 0; iter < niter; iter++)
   {
     CTMC.LocalEnergy();
@@ -291,16 +364,181 @@ void getStochasticGradientVarianceContinuousTime(Wfn &w, Walker &walk, double &V
     CTMC.LocalEnergyGradient(rk); 
     CTMC.MakeMove();
     CTMC.UpdateEnergy(Energy);
-    CTMC.UpdateVariance(Variance, Energy_everyrk, grad_Eloc_bar, Eloc_grad_Eloc_bar, grad_ratio_bar, Eloc_grad_ratio_bar, H, rk);
+    CTMC.UpdateGradient(grad, grad_ratio_bar);
+    CTMC.UpdateVariance(Variance, H, rk);
     CTMC.UpdateBestDet();
   }
   CTMC.FinishEnergy(Energy, stddev, rk);
-  CTMC.FinishVariance(Variance, Energy_everyrk, grad_Eloc_bar, Eloc_grad_Eloc_bar, grad_ratio_bar, Eloc_grad_ratio_bar, grad, H);
+  CTMC.FinishGradient(grad, grad_ratio_bar, Energy);
+  CTMC.FinishVariance(Variance, Energy);
   CTMC.FinishBestDet();
+}
+*/
+
+template<typename Wfn, typename Walker> 
+void getStochasticOneRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &oneRdm, bool sz, int niter)
+{
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                          std::ref(generator));
+
+  workingArray work;
+  int iter = 0;
+  double ovlp = 0.;
+
+  oneRdm = MatrixXd::Constant(norbs, norbs, 0.); 
+  MatrixXd localOneRdm = MatrixXd::Constant(norbs, norbs, 0.); 
+  double bestOvlp = 0.;
+
+  double cumdeltaT = 0., cumdeltaT2 = 0.;
+  w.initWalker(walk);
+  Determinant bestDet = walk.d;
+
+  while (iter < niter) {
+    work.setCounterToZero();
+    generateAllScreenedSingleExcitation(walk.d, schd.epsilon, schd.screen,
+                                        work, false);  
+    generateAllScreenedDoubleExcitation(walk.d, schd.epsilon, schd.screen,
+                                        work, false);  
+    double cumovlpRatio = 0;
+    for (int i = 0; i < work.nExcitations; i++) {
+      int ex1 = work.excitation1[i], ex2 = work.excitation2[i];
+      double tia = work.HijElement[i];
+      int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
+      int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
+      cumovlpRatio += abs(w.getOverlapFactor(I, J, A, B, walk, false));
+      work.ovlpRatio[i] = cumovlpRatio;
+    }
+    double deltaT = 1.0 / (cumovlpRatio);
+    double nextDetRandom = random() * cumovlpRatio;
+    int nextDet = std::lower_bound(work.ovlpRatio.begin(), (work.ovlpRatio.begin() + work.nExcitations), nextDetRandom) - work.ovlpRatio.begin();
+    cumdeltaT += deltaT;
+    double ratio = deltaT / cumdeltaT;
+    
+    localOneRdm.setZero(norbs, norbs);
+    vector<int> open;
+    vector<int> closed;
+    walk.d.getOpenClosed(sz, open, closed);
+    for (int p = 0; p < closed.size(); p++) {
+      localOneRdm(closed[p], closed[p]) = 1.;
+      for (int q = 0; q < open.size() && open[q] < closed[p]; q++) {
+        localOneRdm(closed[p], open[q]) = w.getOverlapFactor(2*closed[p] + sz, 2*open[q] + sz, walk, 0);
+      }
+    }
+    oneRdm += deltaT * (localOneRdm - oneRdm) / (cumdeltaT); //running average of energy
+
+    iter++;
+    walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    double ovlp = w.Overlap(walk);
+    if (abs(ovlp) > bestOvlp)
+    {
+      bestOvlp = abs(ovlp);
+      bestDet = walk.getDet();
+    }
+  }
+
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, oneRdm.data(), norbs*norbs, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  oneRdm = oneRdm / commsize;
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestDeterminant.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << bestDet;
+  }
 }
 
 template<typename Wfn, typename Walker> 
-void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::VectorXd &lanczosCoeffs, Eigen::VectorXd &stddev, Eigen::VectorXd &rk, int niter, double targetError)
+void getStochasticDensityCorrelationsContinuousTime(Wfn &w, Walker &walk, MatrixXd &corr, int niter)
+{
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                          std::ref(generator));
+
+  workingArray work;
+  int iter = 0;
+  double ovlp = 0.;
+
+  corr = MatrixXd::Constant(2*norbs, 2*norbs, 0.);
+  MatrixXd localCorr = MatrixXd::Constant(2*norbs, 2*norbs, 0.); 
+  double bestOvlp = 0.;
+
+  double cumdeltaT = 0., cumdeltaT2 = 0.;
+  w.initWalker(walk);
+  Determinant bestDet = walk.d;
+
+  while (iter < niter) {
+    work.setCounterToZero();
+    generateAllScreenedSingleExcitation(walk.d, schd.epsilon, schd.screen,
+                                        work, false);  
+    generateAllScreenedDoubleExcitation(walk.d, schd.epsilon, schd.screen,
+                                        work, false);  
+    double cumovlpRatio = 0;
+    for (int i = 0; i < work.nExcitations; i++) {
+      int ex1 = work.excitation1[i], ex2 = work.excitation2[i];
+      double tia = work.HijElement[i];
+      int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
+      int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
+      cumovlpRatio += abs(w.getOverlapFactor(I, J, A, B, walk, false));
+      work.ovlpRatio[i] = cumovlpRatio;
+    }
+    double deltaT = 1.0 / (cumovlpRatio);
+    double nextDetRandom = random() * cumovlpRatio;
+    int nextDet = std::lower_bound(work.ovlpRatio.begin(), (work.ovlpRatio.begin() + work.nExcitations), nextDetRandom) - work.ovlpRatio.begin();
+    cumdeltaT += deltaT;
+    double ratio = deltaT / cumdeltaT;
+    
+    localCorr.setZero(2*norbs, 2*norbs);
+    vector<int> open;
+    vector<int> closed;
+    walk.d.getOpenClosed(open, closed);
+    for (int p = 0; p < closed.size(); p++) {
+      localCorr(closed[p], closed[p]) = 1.;
+      for (int q = 0; q < p; q++) {
+        int P = max(closed[p], closed[q]), Q = min(closed[p], closed[q]);
+        localCorr(P, Q) = 1.;
+      }
+    }
+    corr += deltaT * (localCorr - corr) / (cumdeltaT); //running average of energy
+
+    iter++;
+    walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    double ovlp = w.Overlap(walk);
+    if (abs(ovlp) > bestOvlp)
+    {
+      bestOvlp = abs(ovlp);
+      bestDet = walk.getDet();
+    }
+  }
+
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, corr.data(), 4*norbs*norbs, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  corr = corr / commsize;
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestDeterminant.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << bestDet;
+  }
+}
+
+template<typename Wfn, typename Walker> 
+void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::VectorXd &lanczosCoeffs, Eigen::VectorXd &stddev,
+                                       Eigen::VectorXd &rk, int niter, double targetError)
 {
   int norbs = Determinant::norbs;
   int nalpha = Determinant::nalpha;
@@ -869,6 +1107,35 @@ void getStochasticGradientMetropolis(Wfn &w, Walker &walk, double &Energy, doubl
   M.FinishGradient(grad, grad_ratio_bar, Energy);
 }
 
+//############################################################CorrelatedSampling Evaluation############################################################################
+template<typename Wfn, typename Walker>
+void CorrelatedSampling(int niter, std::vector<Eigen::VectorXd> &V, std::vector<double> &E)
+{
+  CorrelatedSamplingContinuousTime<Wfn, Walker> CSCT(V);
+  E.assign(V.size(), 0.0);
+  for (int iter = 0; iter < niter; iter++)
+  {
+    CSCT.LocalEnergy();
+    CSCT.MakeMove();
+    CSCT.UpdateEnergy(E);
+  }
+  CSCT.FinishEnergy(E);
+}
+
+template<typename Wfn, typename Walker>
+class CorrSampleWrapper
+{
+  public:
+    int sIter;
+    
+    CorrSampleWrapper(int _niter) : sIter(_niter) {}
+
+    void run(std::vector<Eigen::VectorXd> &V, std::vector<double> &E)
+    {
+      CorrelatedSampling<Wfn, Walker>(sIter, V, E);
+    };
+};
+
 template <typename Wfn, typename Walker>
 class getGradientWrapper
 {
@@ -959,7 +1226,8 @@ class getGradientWrapper
       w.writeWave();
   };
   
-  void getVariance(VectorXd &vars, VectorXd &grad, DirectVarianceHessian &H, double &Var, double &E0, double &stddev, double &rt, bool deterministic)
+/*
+  void getVariance(VectorXd &vars, VectorXd &grad, DirectVarLM &H, double &Var, double &E0, double &stddev, double &rt, bool deterministic)
   {
     w.updateVariables(vars);
     w.initWalker(walk);
@@ -978,6 +1246,7 @@ class getGradientWrapper
     }
     w.writeWave();
   };
+*/
 
   double getHessian(VectorXd &vars, VectorXd &grad, MatrixXd &Hmatrix, MatrixXd &Smatrix, double &E0, double &stddev, double &rt, bool deterministic)
   {

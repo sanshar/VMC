@@ -3,6 +3,7 @@
 #include <boost/serialization/serialization.hpp>
 #include "iowrapper.h"
 #include "global.h"
+#include "input.h"
 #include <iterator>
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
@@ -15,7 +16,7 @@
 #include <boost/mpi.hpp>
 #endif
 
-void conj_grad(const DirectLM &A, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, Eigen::VectorXd &x)
+void ConjGrad(const DirectLM &A, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, Eigen::VectorXd &x)
 {
   double tol = 1.e-10;
 
@@ -153,6 +154,8 @@ void AppendVectorToSubspace(const DirectLM &H, const Eigen::VectorXd &z, Eigen::
 
     H.multiplyS(zcopy, Sz);
     double beta = std::sqrt(zcopy.dot(Sz));
+    if (std::isnan(beta))
+      beta = 1.e10;
     Eigen::VectorXd v_m = zcopy / beta;
 
     Eigen::VectorXd Hv_m;
@@ -172,8 +175,8 @@ void AppendVectorToSubspace(const DirectLM &H, const Eigen::VectorXd &z, Eigen::
 void SelfAdjointGeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int n)
 {
   int dim = H.G[0].rows(); //dimension of problem
-  int restart = std::max((int) (0.1 * dim), 20); //20 - 30
-  int q = 4; //number of vectors to restart subspace
+  int restart = std::max((int) (0.05 * dim), 20); //20 - 30
+  int q = 5; //number of vectors to restart subspace
   //int q = std::max((int) (0.04 * dim), 5); //5 - 10
   
   Eigen::MatrixXd V, HV, SV;  //matrices storing action of vector on sample space
@@ -246,10 +249,27 @@ if (commrank == 0)
     }
     old_theta = theta;
     z = Eigen::VectorXd::Unit(dim, 0);
-    conj_grad(H, u, theta, -r, n, z);
+    ConjGrad(H, u, theta, -r, n, z);
     AppendVectorToSubspace(H, z, V, HV, SV);
   }
 }                                       
+
+void CanonicalTransform(const Eigen::MatrixXd &Smatrix, Eigen::MatrixXd &X)
+{
+  X.setZero(Smatrix.rows(), Smatrix.cols());
+  Eigen::SelfAdjointEigenSolver<MatrixXd> oes(Smatrix);
+  int index = 0;
+  for (int i = 0; i < X.cols(); i++)
+  {
+    double eigval = oes.eigenvalues()(i);
+    if (abs(eigval) > 1.e-8)
+    {
+      X.col(index) = oes.eigenvectors().col(i) / sqrt(eigval);
+      index++;
+    }
+  }
+  X.conservativeResize(Smatrix.rows(), index);
+} 
 
 void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
 {
@@ -260,7 +280,7 @@ void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
   std::vector<int> idx(a.size());
   std::iota(idx.begin(), idx.end(), 0);
   // sort indexes based on comparing values in a
-  std::sort(idx.begin(), idx.end(), [&a](int i1, int i2) {return a[i1] < a[i2];});
+  std::sort(idx.begin(), idx.end(), [&a](int i1, int i2) -> bool {return a[i1] < a[i2];});
   for (int i = 0; i < idx.size(); i++)
   {
     D(i) = Dcopy(idx[i]);
@@ -268,10 +288,11 @@ void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
   }   
 }
 
-void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int n, double tol)
+void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int cgIter, double tol)
 {
   int dim = H.G[0].rows(); //dimension of problem
-  int restart = std::max((int) (0.1 * dim), 20); //20 - 30
+  int restart = std::max((int) (0.05 * dim), 30); //20 - 30
+  //int restart = 35;
   int q = 5; //number of vectors to restart subspace
   //int q = std::max((int) (0.04 * dim), 5); //5 - 10
   
@@ -280,28 +301,28 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
   AppendVectorToSubspace(H, z, V, HV, SV);
 
   double tau = target;
-  double old_r2 = 1.0;
+  double old_rNorm = 1.0;
   int iter = 0;
-/*
-  if (commrank == 0)
-  {
-     cout << endl << "iter: " << iter << endl;
-     cout <<"target: " << tau << endl;
-     cout <<"r2: " <<  old_r2 << endl;
-  }
-*/
   while(1)
   {
     iter++;
     Eigen::MatrixXd A = V.adjoint() * HV;
     Eigen::MatrixXd B = V.adjoint() * SV;
+/*
+    Eigen::MatrixXd X;
+    CanonicalTransform(B, X);
+    Eigen::MatrixXd A_prime = X.adjoint() * A * X;
+    Eigen::EigenSolver<MatrixXd> es(A_prime);
+*/
     Eigen::GeneralizedEigenSolver<MatrixXd> es(A, B);
     Eigen::VectorXd D = es.eigenvalues().real();
+    //Eigen::MatrixXd U = (X * es.eigenvectors()).real();
     Eigen::MatrixXd U = es.eigenvectors().real();
     SortEig(D, U);
     int index = FindBound(D, tau);
 
-    if (V.cols() == restart)
+    //restart subspace
+    if (V.cols() > restart)
     {
       Eigen::MatrixXd N = U.block(0, index, U.rows(), q);
       V = V * N;
@@ -309,8 +330,14 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
       SV = SV * N;
       A = V.adjoint() * HV;
       B = V.adjoint() * SV;
+/*
+      CanonicalTransform(B, X);
+      A_prime = X.adjoint() * A * X;
+      es.compute(A_prime);
+*/
       es.compute(A, B);
       D = es.eigenvalues().real();
+      //U = (X * es.eigenvectors()).real();
       U = es.eigenvectors().real();
       SortEig(D, U);
       index = FindBound(D, tau);
@@ -322,32 +349,29 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
     Eigen::VectorXd u_H = HV * s;
     Eigen::VectorXd u_S = SV * s;
     Eigen::VectorXd r = u_H - theta * u_S;
-    double r2 = r.squaredNorm();
+    double rNorm = r.norm();
 
-/*
-if (commrank == 0)
-{
-    cout << endl << "____________iter____________" << iter << endl;
-    cout << "best guess so far: " << tau << endl;
-    cout << "r2: " <<  r2 << endl;
-    //cout << "thetadiff: " << std::abs(theta - old_theta) << endl;
-    //cout << D.transpose() << endl << endl;
-}
-*/
-
-    if (r2 < old_r2)
+    if (commrank == 0 && schd.printOpt)
+    {
+      cout << endl << "____________" << iter << "____________" << endl;
+      cout << "best guess so far: " << tau << endl;
+      cout << "residual norm: " <<  rNorm << endl;
+      cout << "size of subspace: " << V.cols() << endl;
+    }
+  
+    if (rNorm < old_rNorm)
     {
       tau = theta;
-      old_r2 = r2;
+      old_rNorm = rNorm;
     } 
-    if ((r2 < tol) || std::isnan(theta))
+    if ((rNorm < tol) || std::isnan(theta))
     {
       lambda = theta;
       v = u;
       return;
     }
     z = Eigen::VectorXd::Unit(dim, 0);
-    conj_grad(H, u, theta, -r, n, z);
+    ConjGrad(H, u, theta, -r, cgIter, z);
     AppendVectorToSubspace(H, z, V, HV, SV);
   }
 }

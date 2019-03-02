@@ -5,19 +5,19 @@
 #include "Determinants.h"
 #include "workingArray.h"
 #include "statistics.h"
-#include "sr.h"
-#include "linearMethod.h"
-#include "variance.h"
+//#include "sr.h"
+//#include "linearMethod.h"
+//#include "variance.h"
 #include "global.h"
-#include "evaluateE.h"
-#include "LocalEnergy.h"
+//#include "evaluateE.h"
+//#include "LocalEnergy.h"
 #include <iostream>
 #include <fstream>
 #include <boost/serialization/serialization.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <algorithm>
-#include <stan/math.hpp>
+//#include <stan/math.hpp>
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -27,8 +27,8 @@ template<typename Wfn, typename Walker>
 class ContinuousTime
 {
   public:
-  Wfn *w;
-  Walker *walk;
+  Wfn &w;
+  Walker &walk;
   long numVars;
   int iter, norbs, nalpha, nbeta;
   workingArray work;
@@ -47,14 +47,14 @@ class ContinuousTime
     return dist(generator);
   }
     
-  ContinuousTime(Wfn &_w, Walker &_walk, int niter) : w(&_w), walk(&_walk)
+  ContinuousTime(Wfn &_w, Walker &_walk, int niter) : w(_w), walk(_walk)
   {
     nsample = min(niter, 200000);
-    numVars = w->getNumVariables();
+    numVars = w.getNumVariables();
     norbs = Determinant::norbs;
     nalpha = Determinant::nalpha;
     nbeta = Determinant::nbeta;
-    bestDet = walk->getDet();
+    bestDet = walk.getDet();
     cumT = 0.0, cumT2 = 0.0, cumT_everyrk = 0.0, S1 = 0.0, oldEnergy = 0.0, bestOvlp = 0.0; 
     iter = 0;
   }
@@ -62,8 +62,12 @@ class ContinuousTime
   void LocalEnergy()
   {
     Eloc = 0.0, ovlp = 0.0;
-    w->HamAndOvlp(*walk, ovlp, Eloc, work);
+    w.HamAndOvlp(walk, ovlp, Eloc, work);
     iter++;
+    if (schd.debug) {
+      cout << walk << endl;
+      cout << "ham  " << Eloc << "  ovlp  " << ovlp << endl << endl;
+    }
   }
 
   void MakeMove()
@@ -79,7 +83,7 @@ class ContinuousTime
     int nextDet = lower_bound(work.ovlpRatio.begin(), work.ovlpRatio.begin() + work.nExcitations, nextDetRand) - work.ovlpRatio.begin();
     cumT += T;
     cumT2 += T * T;
-    walk->updateWalker(w->getRef(), w->getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
   }
 
   void UpdateBestDet()
@@ -87,7 +91,7 @@ class ContinuousTime
     if (abs(ovlp) > bestOvlp)
     {
       bestOvlp = abs(ovlp);
-      bestDet = walk->getDet();
+      bestDet = walk.getDet();
     }
   }
   
@@ -100,6 +104,7 @@ class ContinuousTime
       std::ofstream ofs(file, std::ios::binary);
       boost::archive::binary_oarchive save(ofs);
       save << bestDet;
+      if (schd.printLevel > 7) cout << bestDet << endl;
     }
   }
 
@@ -165,7 +170,7 @@ class ContinuousTime
   void LocalGradient()
   {
     grad_ratio.setZero(numVars);
-    w->OverlapWithGradient(*walk, ovlp, grad_ratio);
+    w.OverlapWithGradient(walk, ovlp, grad_ratio);
   }
   
   void UpdateGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar)
@@ -187,59 +192,15 @@ class ContinuousTime
 
   void LocalEnergyGradient()
   {
-    LocalEnergySolver Solver(walk->d, work);
-    Eigen::VectorXd vars;
-    w->getVariables(vars);
-    //cout << Eloc;
-    Eloc = 0.0;
-    stan::math::gradient(Solver, vars, Eloc, grad_Eloc);
-    //cout << "\t|\t" << Eloc << endl;
-
-    //below is very expensive and used only for debugging
-/*
-    Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(vars.size());
-    for (int i = 0; i < vars.size(); ++i)
-    {
-      double dt = 0.00001;
-      Eigen::VectorXd varsdt = vars;
-      varsdt(i) += dt;
-      finiteGradEloc(i) = (Solver(varsdt) - ElocTest) / dt;
-    }
-    for (int i = 0; i < vars.size(); ++i)
-    {
-      cout << finiteGradEloc(i) << "\t" << grad_Eloc(i) << endl;
-    }
-*/
+    w.OverlapWithLocalEnergyGradient(walk, work, grad_Eloc);
   }
 
   void LocalEnergyGradient(int rk)
   {
     if ((iter + 1) % rk == 0)
     {
-      LocalEnergySolver Solver(walk->d, work);
-      Eigen::VectorXd vars;
-      w->getVariables(vars);
-      //cout << Eloc;
-      Eloc = 0.0;
-      stan::math::gradient(Solver, vars, Eloc, grad_Eloc);
+      w.OverlapWithLocalEnergyGradient(walk, work, grad_Eloc);
     }
-    //cout << "\t|\t" << Eloc << endl;
-
-    //below is very expensive and used only for debugging
-/*
-    Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(vars.size());
-    for (int i = 0; i < vars.size(); ++i)
-    {
-      double dt = 0.00001;
-      Eigen::VectorXd varsdt = vars;
-      varsdt(i) += dt;
-      finiteGradEloc(i) = (Solver(varsdt) - ElocTest) / dt;
-    }
-    for (int i = 0; i < vars.size(); ++i)
-    {
-      cout << finiteGradEloc(i) << "\t" << grad_Eloc(i) << endl;
-    }
-*/
   }
 
   void UpdateSR(DirectMetric &S)
@@ -369,12 +330,22 @@ class ContinuousTime
       Hmatrix /= commsize;
   }
 
-  void UpdateVariance(double &Variance, double &Energy_everyrk, Eigen::VectorXd &grad_Eloc_bar, Eigen::VectorXd &Eloc_grad_Eloc_bar, Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &Eloc_grad_ratio_bar, DirectVarianceHessian &H, int rk)
+/*
+  void UpdateVariance(double &Variance, DirectVarLM &H, int rk)
   {
+    Variance += T * (Eloc * Eloc - Variance) / cumT;
     if ((iter + 1) % rk == 0)
     {
       cumT_everyrk += T;
-      Variance += T * (Eloc * Eloc - Variance) / cumT_everyrk;
+      Eigen::VectorXd Gappended(numVars + 1), Happended(numVars + 1);
+      Gappended << 0.0, grad_ratio;
+      Happended << 0.0, grad_Eloc;
+      H.H.push_back(Happended);
+      H.G.push_back(Gappended);
+      H.T.push_back(T);
+      H.Eloc.push_back(Eloc);
+
+      //Variance += T * (Eloc * Eloc - Variance) / cumT_everyrk;
       Energy_everyrk += T * (Eloc - Energy_everyrk) / cumT_everyrk;
       grad_Eloc_bar += T * (grad_Eloc - grad_Eloc_bar) / cumT_everyrk;
       Eloc_grad_Eloc_bar += T * (Eloc * grad_Eloc - Eloc_grad_Eloc_bar) / cumT_everyrk;
@@ -384,9 +355,17 @@ class ContinuousTime
       H.T.push_back(T);
     }
   }
+*/
 
-  void FinishVariance(double &Variance, double &Energy_everyrk, Eigen::VectorXd &grad_Eloc_bar, Eigen::VectorXd &Eloc_grad_Eloc_bar, Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &Eloc_grad_ratio_bar, Eigen::VectorXd &grad, DirectVarianceHessian &H)
+/*
+  void FinishVariance(double &Variance, double &Energy)
   {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &Variance, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      Variance /= commsize;
+      Variance -= Energy * Energy;
+    
 #ifndef SERIAL
       MPI_Allreduce(MPI_IN_PLACE, &Variance, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &Energy_everyrk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -405,5 +384,114 @@ class ContinuousTime
     H.grad_Energy = 2.0 * (Eloc_grad_ratio_bar - Energy_everyrk * grad_ratio_bar);
     grad = 2.0 * (Eloc_grad_Eloc_bar - Energy_everyrk * grad_Eloc_bar);
   } 
+*/
+};
+
+template<typename Wfn, typename Walker>
+class CorrelatedSamplingContinuousTime
+{
+  public:
+  int nWave;
+  std::vector<Wfn> Wave;
+  std::vector<Walker> Walk;
+  std::vector<double> Eloc; 
+  std::vector<double> T; //only the 0th element is a vmc weight, the rest are (Y_i)^2 / (Y_0)^2
+  std::vector<double> cumT;
+  workingArray RefWork, work;
+  
+  double random()
+  {
+    uniform_real_distribution<double> dist(0, 1);
+    return dist(generator);
+  }
+
+  CorrelatedSamplingContinuousTime(std::vector<Eigen::VectorXd> &V)
+  {
+    nWave = V.size();
+    Eloc.assign(nWave, 0.0);
+    T.assign(nWave, 0.0);
+    cumT.assign(nWave, 0.0);
+    for (int i = 0; i < nWave; i++)
+    {
+      Wfn wave;
+      Walker walk;
+      wave.updateVariables(V[i]);
+      wave.initWalker(walk);
+      Wave.push_back(wave);
+      Walk.push_back(walk);
+    }
+  }
+
+  void LocalEnergy()
+  {
+    Eloc[0] = 0.0;
+    double RefOverlap = 0.0;
+    Wave[0].HamAndOvlp(Walk[0], RefOverlap, Eloc[0], RefWork);
+    for (int i = 1; i < nWave; i++)
+    {
+      Eloc[i] = 0.0;
+      double Overlap = 0.0;
+      Wave[i].HamAndOvlp(Walk[i], Overlap, Eloc[i], work);
+      T[i] = (Overlap * Overlap) / (RefOverlap * RefOverlap);
+      cumT[i] += T[i];
+    }
+/*
+if (schd.printOpt && commrank == 0)
+{
+  cout << "0.2: " << Walk[1].getDet() << " " << Eloc[1] << endl;
+  cout << "0.6: " << Walk[0].getDet() << " " << Eloc[0] << endl;
+  cout << "1.0: " << Walk[2].getDet() << " " << Eloc[2] << endl;
+  cout << endl;
+}
+*/ 
+  }
+
+  void MakeMove()
+  {
+    //make move with respect to reference
+    double cumOvlp = 0.0;
+    for (int i = 0; i < RefWork.nExcitations; i++)
+    {
+      cumOvlp += abs(RefWork.ovlpRatio[i]);
+      RefWork.ovlpRatio[i] = cumOvlp;
+    }
+    double nextDetRand = random() * cumOvlp;
+    int nextDet = lower_bound(RefWork.ovlpRatio.begin(), RefWork.ovlpRatio.begin() + RefWork.nExcitations, nextDetRand) - RefWork.ovlpRatio.begin();
+    //update all walkers
+    T[0] = 1.0 / cumOvlp;
+    cumT[0] += T[0];
+    for (int i = 0; i < nWave; i++)
+    {
+      Walk[i].updateWalker(Wave[i].getRef(), Wave[i].getCorr(), RefWork.excitation1[nextDet], RefWork.excitation2[nextDet]);
+    }
+  }
+
+  void UpdateEnergy(std::vector<double> &E)
+  {
+    for (int i = 0; i < E.size(); i++)
+    {
+      E[i] += T[i] * Eloc[i];
+    }
+  } 
+
+  void FinishEnergy(std::vector<double> &E)
+  {
+#ifndef SERIAL
+    MPI_Allreduce(MPI_IN_PLACE, &(E[0]), E.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(cumT[0]), cumT.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif 
+    std::transform(E.begin(), E.end(), cumT.begin(), E.begin(), [](double val1, double val2) -> double { return val1 /= val2; });
+    //just incase any of the energies are nan
+    //std::transform(E.begin(), E.end(), E.begin(), [](double val) -> double { return std::isnan(val) ? 0.0 : val; });
+    for (int i = 0; i < E.size(); i++)
+    {
+      if (commrank == 0 && std::isnan(E[i]))
+      {
+        cout << "nan energy value encountered during correlated sampling" << endl;
+        exit(0);
+      }  
+    }
+  }
+
 };
 #endif

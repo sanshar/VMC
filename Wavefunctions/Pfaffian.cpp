@@ -40,24 +40,27 @@ using namespace Eigen;
 Pfaffian::Pfaffian() 
 {
   int norbs = Determinant::norbs;
-  //pairMat = MatrixXd::Identity(norbs, norbs) + MatrixXd::Random(norbs, norbs);
-  pairMat = MatrixXd::Zero(2 * norbs, 2 * norbs);
-  readPairMat(pairMat);
+  pairMat = MatrixXcd::Zero(2*norbs, 2*norbs);
+  readMat(pairMat, "pairMat.txt");
+  if (schd.ifComplex && pairMat.imag().isZero(0)) pairMat.imag() = 0.01 * MatrixXd::Random(2*norbs, 2*norbs);
+  pairMat = (pairMat - pairMat.transpose().eval()) / 2;
 }
 
 void Pfaffian::getVariables(Eigen::VectorBlock<VectorXd> &v) const
 { 
   int norbs = Determinant::norbs;
   for (int i = 0; i < 2 * norbs; i++) {
-    for (int j = 0; j < 2 * norbs; j++) 
-      v[2 * i * norbs + j] = pairMat(i, j);
+    for (int j = 0; j < 2 * norbs; j++) { 
+      v[4 * i * norbs + 2 * j] = pairMat(i, j).real();
+      v[4 * i * norbs + 2 * j + 1] = pairMat(i, j).imag();
+    }
   }
 }
 
 long Pfaffian::getNumVariables() const
 {
   int norbs = Determinant::norbs;
-  return 4 * norbs * norbs;
+  return 8 * norbs * norbs;
 }
 
 void Pfaffian::updateVariables(const Eigen::VectorBlock<VectorXd> &v) 
@@ -65,12 +68,11 @@ void Pfaffian::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
   int norbs = Determinant::norbs;  
   for (int i = 0; i < 2 * norbs; i++) {
     for (int j = 0; j < 2 * norbs; j++) { 
-      pairMat(i, j) = v[2 * i * norbs + j];
-      //pairMat(j, i) = pairMat(i,j);  
+      pairMat(i, j) = std::complex<double>(v[4 * i * norbs + 2 * j], v[4 * i * norbs + 2 * j + 1]);
+      //pairMat(j, i) = pairMat(i,j);
     }
   }
-  MatrixXd transpose = pairMat.transpose();
-  pairMat = (pairMat - transpose)/2;
+  pairMat = (pairMat - pairMat.transpose().eval())/2;
 }
 
 void Pfaffian::printVariables() const

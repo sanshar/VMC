@@ -40,24 +40,27 @@ using namespace Eigen;
 AGP::AGP() 
 {
   int norbs = Determinant::norbs;
-  //pairMat = MatrixXd::Identity(norbs, norbs) + MatrixXd::Random(norbs, norbs);
-  pairMat = MatrixXd::Zero(norbs, norbs);
-  readPairMat(pairMat);
+  pairMat = MatrixXcd::Zero(norbs, norbs);
+  readMat(pairMat, "pairMat.txt");
+  if (schd.ifComplex && pairMat.imag().isZero(0)) pairMat.imag() = 0.01 * MatrixXd::Random(norbs, norbs);
+  pairMat = (pairMat + pairMat.transpose().eval()) / 2;
 }
 
 void AGP::getVariables(Eigen::VectorBlock<VectorXd> &v) const
 { 
   int norbs = Determinant::norbs;
   for (int i = 0; i < norbs; i++) {
-    for (int j = 0; j < norbs; j++) 
-      v[i * norbs + j] = pairMat(i, j);
+    for (int j = 0; j < norbs; j++) { 
+      v[2 * i * norbs + 2 * j] = pairMat(i, j).real();
+      v[2 * i * norbs + 2 * j + 1] = pairMat(i, j).imag();
+    }
   }
 }
 
 long AGP::getNumVariables() const
 {
   int norbs = Determinant::norbs;
-  return norbs * norbs;
+  return 2 * norbs * norbs;
 }
 
 void AGP::updateVariables(const Eigen::VectorBlock<VectorXd> &v) 
@@ -65,12 +68,11 @@ void AGP::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
   int norbs = Determinant::norbs;  
   for (int i = 0; i < norbs; i++) {
     for (int j = 0; j < norbs; j++) { 
-      pairMat(i, j) = v[i * norbs + j];
-      //pairMat(j, i) = pairMat(i,j);  
+      pairMat(i, j) = std::complex<double>(v[2 * i * norbs + 2 * j], v[2 * i * norbs + 2 * j + 1]);
+      //pairMat(j, i) = pairMat(i,j);
     }
   }
-  MatrixXd transpose = pairMat.transpose();
-  pairMat = (pairMat + transpose)/2;
+  if (!schd.uagp) pairMat = (pairMat + pairMat.transpose().eval())/2;
 }
 
 void AGP::printVariables() const

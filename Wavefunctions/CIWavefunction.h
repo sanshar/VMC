@@ -212,7 +212,6 @@ template <typename Wfn, typename Walker, typename OpType>
     return totalOvlp;
   }
 
-
   void HamAndOvlp(Walker &walk,
                   double &ovlp, double &ham, 
                   workingArray& work, bool fillExcitations=true)
@@ -244,6 +243,12 @@ template <typename Wfn, typename Walker, typename OpType>
       ham += tia * ovlpdetcopy / ovlp;
       work.ovlpRatio[i] = ovlpdetcopy/ovlp;
     }
+  }
+ 
+  void OverlapWithLocalEnergyGradient(const Walker &walk, workingArray &work, Eigen::VectorXd &gradEloc) const
+  {
+    cout << "Local Energy Gradient not implemented for CI" << endl;
+    exit(0);
   }
 
   void initWalker(Walker& walk)

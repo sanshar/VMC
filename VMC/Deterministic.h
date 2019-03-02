@@ -48,6 +48,10 @@ class Deterministic
     ovlp = 0.0, Eloc = 0.0;
     w.initWalker(walk, D);
     w.HamAndOvlp(walk, ovlp, Eloc, work, false);  
+    if (schd.debug) {
+      cout << walk << endl;
+      cout << "ham  " << Eloc << "  ovlp  " << ovlp << endl << endl;
+    }
   }
   
   void UpdateEnergy(double &Energy)

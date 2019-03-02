@@ -190,6 +190,57 @@ int main(int argc, char *argv[])
       wave.optimizeWave(walk);
       wave.writeWave();
     }
+
+  else if (schd.wavefunctionType == "slaterRDM") {
+    CorrelatedWavefunction<Jastrow, Slater> wave; Walker<Jastrow, Slater> walk;
+    wave.readWave();
+    MatrixXd oneRdm0, oneRdm1, corr;
+    //getOneRdmDeterministic(wave, walk, oneRdm0, 0);
+    //getOneRdmDeterministic(wave, walk, oneRdm1, 1);
+    //getDensityCorrelationsDeterministic(wave, walk, corr);
+    getStochasticOneRdmContinuousTime(wave, walk, oneRdm0, 0, schd.stochasticIter);
+    getStochasticOneRdmContinuousTime(wave, walk, oneRdm1, 1, schd.stochasticIter);
+    getStochasticDensityCorrelationsContinuousTime(wave, walk, corr, schd.stochasticIter);
+    if (commrank == 0) {
+      cout << "oneRdm0\n" << oneRdm0 << endl << endl;
+      cout << "oneRdm1\n" << oneRdm1 << endl << endl;
+      cout << "Density correlations\n" << corr << endl << endl;
+    }
+  }
+  
+  else if (schd.wavefunctionType == "agpRDM") {
+    CorrelatedWavefunction<Jastrow, AGP> wave; Walker<Jastrow, AGP> walk;
+    wave.readWave();
+    MatrixXd oneRdm0, oneRdm1, corr;
+    //getOneRdmDeterministic(wave, walk, oneRdm0, 0);
+    //getOneRdmDeterministic(wave, walk, oneRdm1, 1);
+    //getDensityCorrelationsDeterministic(wave, walk, corr);
+    getStochasticOneRdmContinuousTime(wave, walk, oneRdm0, 0, schd.stochasticIter);
+    getStochasticOneRdmContinuousTime(wave, walk, oneRdm1, 1, schd.stochasticIter);
+    getStochasticDensityCorrelationsContinuousTime(wave, walk, corr, schd.stochasticIter);
+    if (commrank == 0) {
+      cout << "oneRdm0\n" << oneRdm0 << endl << endl;
+      cout << "oneRdm1\n" << oneRdm1 << endl << endl;
+      cout << "Density correlations\n" << corr << endl << endl;
+    }
+  }
+  
+  else if (schd.wavefunctionType == "pfaffianRDM") {
+    CorrelatedWavefunction<Jastrow, Pfaffian> wave; Walker<Jastrow, Pfaffian> walk;
+    wave.readWave();
+    MatrixXd oneRdm0, oneRdm1, corr;
+    //getOneRdmDeterministic(wave, walk, oneRdm0, 0);
+    //getOneRdmDeterministic(wave, walk, oneRdm1, 1);
+    //getDensityCorrelationsDeterministic(wave, walk, corr);
+    getStochasticOneRdmContinuousTime(wave, walk, oneRdm0, 0, schd.stochasticIter);
+    getStochasticOneRdmContinuousTime(wave, walk, oneRdm1, 1, schd.stochasticIter);
+    getStochasticDensityCorrelationsContinuousTime(wave, walk, corr, schd.stochasticIter);
+    if (commrank == 0) {
+      cout << "oneRdm0\n" << oneRdm0 << endl << endl;
+      cout << "oneRdm1\n" << oneRdm1 << endl << endl;
+      cout << "Density correlations\n" << corr << endl << endl;
+    }
+  }
   }
   else {//real space VMC
     rDeterminant::nalpha = schd.nalpha;
@@ -205,13 +256,71 @@ int main(int argc, char *argv[])
       cout << "need to supply nalpha and nbeta electrons in the input."<<endl;
       exit(0);
     }
+  }
       
-    if (schd.wavefunctionType == "JastrowSlater") {
-      rCorrelatedWavefunction<rJastrow, rSlater> wave; rWalker<rJastrow, rSlater> walk;
-      runVMCRealSpace(wave, walk);
-    }
-  }    
-  
+  //else if (schd.wavefunctionType == "LanczosCPSSlater") {
+  //  //CIWavefunction<CPSSlater, HFWalker, Operator> wave;
+  //  CPSSlater wave; HFWalker walk;
+  //  wave.readWave();
+  //  wave.initWalker(walk); 
+  //  Eigen::VectorXd stddev = Eigen::VectorXd::Zero(4);
+  //  Eigen::VectorXd rk = Eigen::VectorXd::Zero(4);
+  //  //double rk = 0;
+  //  Eigen::VectorXd lanczosCoeffs = Eigen::VectorXd::Zero(4);
+  //  double alpha = 0.1;
+  //  if (schd.deterministic) getLanczosCoeffsDeterministic(wave, walk, alpha, lanczosCoeffs);
+  //  else getLanczosCoeffsContinuousTime(wave, walk, alpha, lanczosCoeffs, stddev, rk, schd.stochasticIter, 1.e-5);
+  //  //getLanczosMatrixContinuousTime(wave, walk, lanczosMat, stddev, rk, schd.stochasticIter, 1.e-5);
+  //  double a = lanczosCoeffs[2]/lanczosCoeffs[3];
+  //  double b = lanczosCoeffs[1]/lanczosCoeffs[3];
+  //  double c = lanczosCoeffs[0]/lanczosCoeffs[3];
+  //  double delta = pow(a, 2) + 4 * pow(b, 3) - 6 * a * b * c - 3 * pow(b * c, 2) + 4 * a * pow(c, 3);
+  //  double numP = a - b * c + pow(delta, 0.5);
+  //  double numM = a - b * c - pow(delta, 0.5);
+  //  double denom = 2 * pow(b, 2) - 2 * a * c;
+  //  double alphaP = numP/denom;
+  //  double alphaM = numM/denom;
+  //  double eP = (a * pow(alphaP, 2) + 2 * b * alphaP + c) / (b * pow(alphaP, 2) + 2 * c * alphaP + 1);
+  //  double eM = (a * pow(alphaM, 2) + 2 * b * alphaM + c) / (b * pow(alphaM, 2) + 2 * c * alphaM + 1);
+  //  if (commrank == 0) {
+  //    cout << "lanczosCoeffs\n";
+  //    cout << lanczosCoeffs << endl;
+  //    cout << "stddev\n";
+  //    cout << stddev << endl;
+  //    cout << "rk\n";
+  //    cout << rk << endl;
+  //    cout << "alpha(+/-)   " << alphaP << "   " << alphaM << endl;
+  //    cout << "energy(+/-)   " << eP << "   " << eM << endl;
+  //    //cout << "rk\n" << rk << endl << endl;
+  //    //cout << "stddev\n" << stddev << endl << endl;
+  //  }
+
+  //  //vector<double> alpha{0., 0.1, 0.2, -0.1, -0.2}; 
+  //  //vector<double> Ealpha{0., 0., 0., 0., 0.}; 
+  //  //double stddev, rk;
+  //  //for (int i = 0; i < alpha.size(); i++) {
+  //  //  vars[0] = alpha[i];
+  //  //  wave.updateVariables(vars);
+  //  //  wave.initWalker(walk);
+  //  //  getStochasticEnergyContinuousTime(wave, walk, Ealpha[i], stddev, rk, schd.stochasticIter, 1.e-5);
+  //  //  if (commrank == 0) cout << alpha[i] << "   " << Ealpha[i] << "   " << stddev << endl;
+  //  //}
+
+  //  //getGradientWrapper<CIWavefunction<CPSSlater, HFWalker, Operator>, HFWalker> wrapper(wave, walk, schd.stochasticIter);
+  //  //getGradientWrapper<Lanczos<CPSSlater, HFWalker>, HFWalker> wrapper(wave, walk, schd.stochasticIter);
+  //  //  functor1 getStochasticGradient = boost::bind(&getGradientWrapper<Lanczos<CPSSlater, HFWalker>, HFWalker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
+
+  //  //if (schd.method == amsgrad) {
+  //  //  AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter);
+  //  //  //functor1 getStochasticGradient = boost::bind(&getGradientWrapper<CIWavefunction<CPSSlater, HFWalker, Operator>, HFWalker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
+  //  //  optimizer.optimize(vars, getStochasticGradient, schd.restart);
+  //  //  //if (commrank == 0) wave.printVariables();
+  //  //}
+  //  //else if (schd.method == sgd) {
+  //  //  SGD optimizer(schd.stepsize, schd.maxIter);
+  //  //  optimizer.optimize(vars, getStochasticGradient, schd.restart);
+  //  //}
+  //}
 
   boost::interprocess::shared_memory_object::remove(shciint2.c_str());
   boost::interprocess::shared_memory_object::remove(shciint2shm.c_str());

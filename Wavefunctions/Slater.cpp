@@ -61,24 +61,29 @@ void Slater::initHforbs()
   int norbs = Determinant::norbs;
   int size; //dimension of the mo coeff matrix
   //initialize hftype and hforbs
-  if (schd.hf == "rhf") {
-    hftype = HartreeFock::Restricted;
-    //hftype = 0;
-    size = norbs;
-  }
-  else if (schd.hf == "uhf") {
+  if (schd.hf == "uhf") {
     hftype = HartreeFock::UnRestricted;
-    //hftype = 1;
-    size = norbs;
+    MatrixXcd Hforbs = MatrixXcd::Zero(norbs, 2*norbs);
+    readMat(Hforbs, "hf.txt");
+    if (schd.ifComplex && Hforbs.imag().isZero(0)) Hforbs.imag() = 0.01 * MatrixXd::Random(norbs, 2*norbs);
+    HforbsA = Hforbs.block(0, 0, norbs, norbs);
+    HforbsB = Hforbs.block(0, norbs, norbs, norbs);
   }
-  else if (schd.hf == "ghf") {
-    hftype = HartreeFock::Generalized;
-    //hftype = 2;
-    size = 2*norbs;
+  else {
+    if (schd.hf == "rhf") {
+      hftype = HartreeFock::Restricted;
+      size = norbs;
+    }
+    else if (schd.hf == "ghf") {
+      hftype = HartreeFock::Generalized;
+      size = 2*norbs;
+    }
+    MatrixXcd Hforbs = MatrixXcd::Zero(size, size);
+    readMat(Hforbs, "hf.txt");
+    if (schd.ifComplex && Hforbs.imag().isZero(0)) Hforbs.imag() = 0.01 * MatrixXd::Random(size, size);
+    HforbsA = Hforbs;
+    HforbsB = Hforbs;
   }
-  HforbsA = MatrixXd::Zero(size, size);
-  HforbsB = MatrixXd::Zero(size, size);
-  readHF(HforbsA, HforbsB, schd.hf);
 }
 
 void Slater::initDets() 
@@ -88,7 +93,7 @@ void Slater::initDets()
   int nbeta = Determinant::nbeta;
   
   //initialize slater determinants
-  if (boost::iequals(schd.determinantFile, "")) {
+  if (boost::iequals(schd.determinantFile, "") || boost::iequals(schd.determinantFile, "bestDet")) {
     determinants.resize(1);
     ciExpansion.resize(1, 1.0);
     if (schd.hf == "rhf" || schd.hf == "uhf") {
@@ -117,49 +122,6 @@ void Slater::initDets()
   }
 }
 
-/*
-double Slater::Overlap(const HFWalker &walk) const
-{
-  return walk.getDetOverlap(*this);
-}
-
-double Slater::OverlapRatio(int i, int a, const HFWalker& walk, bool doparity) const 
-{
-  return walk.getDetFactor(i, a, *this);
-}
-
-double Slater::OverlapRatio(int I, int J, int A, int B, const HFWalker& walk, bool doparity) const 
-{
-  //single excitation
-  if (J == 0 && B == 0) return OverlapRatio(I, A, walk, doparity);  
-  return walk.getDetFactor(I, J, A, B, *this);
-}
-
-void Slater::OverlapWithGradient(const HFWalker & walk,
-                                 const double &factor,
-                                 Eigen::VectorBlock<VectorXd> &grad) const
-{  
-  int norbs = Determinant::norbs;
-  double detovlp = walk.getDetOverlap(*this);
-  for (int k = 0; k < ciExpansion.size(); k++)
-    grad[k] += walk.getIndividualDetOverlap(k) / detovlp;
-  if (determinants.size() <= 1 && schd.optimizeOrbs) {
-    //if (hftype == UnRestricted)
-    VectorXd gradOrbitals;
-    if (hftype == UnRestricted) {
-      gradOrbitals = VectorXd::Zero(2*HforbsA.rows()*HforbsA.rows());
-      walk.OverlapWithGradient(*this, gradOrbitals, detovlp);
-    }
-    else {
-      gradOrbitals = VectorXd::Zero(HforbsA.rows()*HforbsA.rows());
-      if (hftype == Restricted) walk.OverlapWithGradient(*this, gradOrbitals, detovlp);
-      else walk.OverlapWithGradientGhf(*this, gradOrbitals, detovlp);
-    }
-    for (int i=0; i<gradOrbitals.size(); i++)
-      grad[ciExpansion.size() + i] += gradOrbitals[i];
-  }
-}
-*/
 void Slater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
 { 
   int norbs = Determinant::norbs;  
@@ -167,23 +129,25 @@ void Slater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
     v[i] = ciExpansion[i];
   int numDeterminants = determinants.size();
   if (hftype == Generalized) {
-  //if (hftype == 2) {
     for (int i = 0; i < 2*norbs; i++) {
-      for (int j = 0; j < 2*norbs; j++) 
-          v[numDeterminants + 2 * i * norbs + j] = HforbsA(i, j);
+      for (int j = 0; j < 2*norbs; j++) { 
+          v[numDeterminants + 4 * i * norbs + 2 * j] = HforbsA(i, j).real();
+          v[numDeterminants + 4 * i * norbs + 2 * j + 1] = HforbsA(i, j).imag();
+      }
     }
   }
   else {
     for (int i = 0; i < norbs; i++) {
       for (int j = 0; j < norbs; j++) {
         if (hftype == Restricted) {
-        //if (hftype == 0) {
-          v[numDeterminants + i * norbs + j] = HforbsA(i, j);
-          //v[numDeterminants + i * norbs + j] = HforbsB(i, j);
+          v[numDeterminants + 2 * i * norbs + 2 * j] = HforbsA(i, j).real();
+          v[numDeterminants + 2 * i * norbs + 2 * j + 1] = HforbsA(i, j).imag();
         }
         else {
-          v[numDeterminants + i * norbs + j] = HforbsA(i, j);
-          v[numDeterminants + norbs * norbs + i * norbs + j] = HforbsB(i, j);
+          v[numDeterminants + 2 * i * norbs + 2 * j] = HforbsA(i, j).real();
+          v[numDeterminants + 2 * i * norbs + 2 * j + 1] = HforbsA(i, j).imag();
+          v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j] = HforbsB(i, j).real();
+          v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j + 1] = HforbsB(i, j).imag();
         }
       }
     }
@@ -196,9 +160,9 @@ long Slater::getNumVariables() const
   numVars += determinants.size();
   if (hftype == UnRestricted)
   //if (hftype == 1)
-    numVars += 2 * HforbsA.rows() * HforbsA.rows();
+    numVars += 4 * HforbsA.rows() * HforbsA.rows();
   else
-    numVars += HforbsA.rows() * HforbsA.rows();
+    numVars += 2 * HforbsA.rows() * HforbsA.rows();
   return numVars;
 }
 
@@ -209,11 +173,10 @@ void Slater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
     ciExpansion[i] = v[i];
   int numDeterminants = determinants.size();
   if (hftype == Generalized) {
-  //if (hftype == 2) {
     for (int i = 0; i < 2*norbs; i++) {
       for (int j = 0; j < 2*norbs; j++) {
-          HforbsA(i, j) = v[numDeterminants + 2 * i * norbs + j];
-          HforbsB(i, j) = v[numDeterminants + 2 * i * norbs + j];
+          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 4 * i * norbs + 2 * j], v[numDeterminants + 4 * i * norbs + 2 * j + 1]);
+          HforbsB(i, j) = HforbsA(i, j);
       }
     } 
   }
@@ -221,13 +184,12 @@ void Slater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
     for (int i = 0; i < norbs; i++) {
       for (int j = 0; j < norbs; j++) {
         if (hftype == Restricted) {
-        //if (hftype == 0) {
-          HforbsA(i, j) = v[numDeterminants + i * norbs + j];
-          HforbsB(i, j) = v[numDeterminants + i * norbs + j];
+          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * i * norbs + 2 * j + 1]);
+          HforbsB(i, j) = HforbsA(i, j);
         }
         else {
-          HforbsA(i, j) = v[numDeterminants + i * norbs + j];
-          HforbsB(i, j) = v[numDeterminants + norbs * norbs + i * norbs + j];
+          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * i * norbs + 2 * j + 1]);
+          HforbsB(i, j) = std::complex<double>(v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j + 1]);
         }
       }
     }
@@ -260,39 +222,5 @@ void Slater::printVariables() const
   cout << endl;
 
 }
-
-
-//void Slater::getDetMatrix(Determinant &d, Eigen::MatrixXd &DetAlpha, Eigen::MatrixXd &DetBeta)
-//{
-//  //alpha and beta orbitals of the walker determinant d
-//  std::vector<int> alpha, beta;
-//  d.getAlphaBeta(alpha, beta);
-//  int nalpha = alpha.size(), nbeta = beta.size();
-//
-//  //alpha and beta orbitals of the reference determinant
-//  std::vector<int> alphaRef, betaRef;
-//  determinants[0].getAlphaBeta(alphaRef, betaRef);
-//
-//  Eigen::Map<VectorXi> RowAlpha(&alpha[0], alpha.size()),
-//      RowBeta (&beta [0], beta .size()),
-//      ColAlpha(&alphaRef[0], alphaRef.size()),
-//      ColBeta (&betaRef[0], betaRef.size());
-//
-//  DetAlpha = MatrixXd::Zero(nalpha, nalpha);
-//  DetBeta = MatrixXd::Zero(nbeta, nbeta);
-//
-//  igl::slice(HforbsA, RowAlpha, ColAlpha, DetAlpha);
-//  igl::slice(HforbsB, RowBeta, ColBeta, DetBeta);
-//  
-//  return;
-//}
-
-//This is expensive and not recommended
-//double Slater::Overlap(Determinant &d)
-//{
-//  Eigen::MatrixXd DetAlpha, DetBeta;
-//  getDetMatrix(d, DetAlpha, DetBeta);
-//  return DetAlpha.determinant() * DetBeta.determinant();
-//}
 
 

@@ -91,6 +91,7 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/linearMethod.o \
 	obj/LocalEnergy.o \
 	obj/VMC.o \
+	obj/Complex.o \
 
 OBJ_SLATERTOGAUSSIAN = obj/slaterToGaussian.o \
 	obj/_slaterToGaussian.o
@@ -103,6 +104,7 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/Determinants.o \
 	obj/Slater.o \
 	obj/rSlater.o \
+	obj/AGP.o \
 	obj/Pfaffian.o \
 	obj/Jastrow.o \
 	obj/gaussianBasis.o\
