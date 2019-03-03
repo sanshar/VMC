@@ -1,0 +1,12 @@
+jastrowslater
+ghf
+maxIter 20
+stochasticIter 400000
+
+realspacesto
+nalpha 2
+nbeta 2
+norbs 17
+
+lm
+
