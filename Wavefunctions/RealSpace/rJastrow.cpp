@@ -34,7 +34,7 @@ using namespace std;
 
 
 rJastrow::rJastrow () {
-  Qmax=3;
+  Qmax=6;
 
   EEsameSpinIndex = 0;
   EEoppositeSpinIndex = Qmax;

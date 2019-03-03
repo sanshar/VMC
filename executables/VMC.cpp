@@ -256,6 +256,10 @@ int main(int argc, char *argv[])
       cout << "need to supply nalpha and nbeta electrons in the input."<<endl;
       exit(0);
     }
+    if (schd.wavefunctionType == "JastrowSlater") {
+      rCorrelatedWavefunction<rJastrow, rSlater> wave; rWalker<rJastrow, rSlater> walk;
+      runVMCRealSpace(wave, walk);
+    }
   }
       
   //else if (schd.wavefunctionType == "LanczosCPSSlater") {
