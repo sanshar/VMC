@@ -99,16 +99,14 @@ class SR
     template <class Archive>
     void serialize(Archive &ar, const unsigned int version)
     {
-        ar & stepsize
-            & iter;
+        ar & iter;
     }
 
   public:
-    double stepsize;
     int maxIter;
     int iter;
 
-    SR(double pstepsize=0.01, int pmaxIter=1000) : stepsize(pstepsize), maxIter(pmaxIter)
+    SR(int _maxIter=1000) : maxIter(_maxIter)
     {
         iter = 0;
     }
@@ -117,7 +115,7 @@ class SR
     {
         if (commrank == 0)
         {
-	    char file[5000];
+	    char file[50];
             sprintf(file, "sr.bkp");
             std::ofstream ofs(file, std::ios::binary);
             boost::archive::binary_oarchive save(ofs);

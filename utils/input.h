@@ -32,7 +32,7 @@
 
 class Correlator;
 class Determinant;
-enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod, varLM };
+enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod}; //varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
@@ -90,6 +90,7 @@ private:
       & sgdStepsize
       & decay
       & stepsize 
+      & stepsizes
       & walkerBasis
       & basis
       & nalpha
@@ -102,6 +103,7 @@ private:
       & rStepType
       & ifComplex
       & uagp
+      & CorrSampleFrac
       & expCorrelator;
   }
 public:
@@ -152,6 +154,7 @@ public:
 //because now we just use the python implementation
   double tol;  
   double stepsize;
+  std::vector<double> stepsizes;
   double decay1;
   double decay2;
   double alpha;
@@ -164,6 +167,7 @@ public:
   Method method;
   double sDiagShift;
   double hDiagShift;
+  double CorrSampleFrac;
   double decay;
   double gradTol;
   double sgdStepsize;

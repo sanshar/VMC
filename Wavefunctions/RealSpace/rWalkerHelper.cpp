@@ -92,6 +92,7 @@ void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeter
   if (lu.isInvertible()) {
     thetaInv[0] = lu.inverse();
     thetaDet[0][0] = lu.determinant();
+    thetaDet[0][1] = 1.0;
   }
   else {
     cout << " overlap with GHF determinant not invertible" << endl;

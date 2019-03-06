@@ -1,5 +1,6 @@
 jastrowslater
 ghf
+complex
 maxIter 5
 stochasticIter 1000
 seed 5

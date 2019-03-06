@@ -84,6 +84,11 @@ void Slater::initHforbs()
     HforbsA = Hforbs;
     HforbsB = Hforbs;
   }
+  if (schd.ifComplex == false)
+  {
+    HforbsA.imag().setZero();
+    HforbsB.imag().setZero();
+  }
 }
 
 void Slater::initDets() 
@@ -193,6 +198,11 @@ void Slater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
         }
       }
     }
+  }
+  if (schd.ifComplex == false)
+  {
+    HforbsA.imag().setZero();
+    HforbsB.imag().setZero();
   }
 }
 

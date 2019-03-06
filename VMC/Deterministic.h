@@ -6,7 +6,7 @@
 #include "workingArray.h"
 #include "statistics.h"
 #include "sr.h"
-#include "evaluateE.h"
+#include "linearMethod.h"
 #include "global.h"
 #include <iostream>
 #include <fstream>
@@ -23,17 +23,17 @@ template<typename Wfn, typename Walker>
 class Deterministic
 {
   public:
-  Wfn w;
-  Walker walk;
+  Wfn &w;
+  Walker &walk;
   long numVars;
   int norbs, nalpha, nbeta;
   std::vector<Determinant> allDets;
   workingArray work;
   double ovlp, Eloc;
   double Overlap;
-  Eigen::VectorXd grad_ratio;
+  Eigen::VectorXd grad_ratio, grad_Eloc;
 
-  Deterministic(Wfn _w, Walker _walk) : w(_w), walk(_walk)
+  Deterministic(Wfn &_w, Walker &_walk) : w(_w), walk(_walk)
   {
     numVars = w.getNumVariables();
     norbs = Determinant::norbs;
@@ -92,28 +92,7 @@ class Deterministic
 
   void LocalEnergyGradient()
   {
-    LocalEnergySolver Solver(walk.d);
-    Eigen::VectorXd vars;
-    w.getVariables(vars);
-    double ElocTest;
-    stan::math::gradient(Solver, vars, ElocTest, grad_local_energy);
-    
-    //below is very expensive and used only for debugging
-/*
-    cout << Eloc << "\t|\t" << ElocTest << endl << endl;
-    VectorXd finiteGradEloc = VectorXd::Zero(vars.size());
-    for (int i = 0; i < vars.size(); ++i)
-    {
-      double dt = 0.00001;
-      VectorXd varsdt = vars;
-      varsdt(i) += dt;
-      finiteGradEloc(i) = (Solver(varsdt) - ElocTest) / dt;
-    }
-    for (int i = 0; i < vars.size(); ++i)
-    {
-      cout << finiteGradEloc(i) << "\t" << grad_local_energy(i) << endl;
-    }
-*/
+    w.OverlapWithLocalEnergyGradient(walk, work, grad_Eloc);
   }
   
   void UpdateSR(DirectMetric &S)
@@ -144,6 +123,38 @@ class Deterministic
 #endif
       S.Smatrix /= Overlap;
     }
+  }
+
+  void UpdateLM(DirectLM &H)
+  {
+    Eigen::VectorXd Gappended(numVars + 1), Happended(numVars + 1), Htemp(numVars);
+    Gappended << 0.0, grad_ratio;
+    Htemp = grad_Eloc + Eloc * grad_ratio;
+    Happended << 0.0, Htemp;
+    H.H.push_back(Happended);
+    H.G.push_back(Gappended);
+    H.T.push_back(ovlp * ovlp);
+    H.Eloc.push_back(Eloc);
+  }
+
+  void UpdateLM(Eigen::MatrixXd &Hmatrix, Eigen::MatrixXd &Smatrix)
+  {
+    Eigen::VectorXd Gappended(numVars + 1), Happended(numVars + 1), Htemp(numVars);
+    Gappended << 1.0, grad_ratio;
+    Htemp = grad_Eloc + Eloc * grad_ratio;
+    Happended << Eloc, Htemp;
+    Smatrix += (ovlp * ovlp) * (Gappended * Gappended.adjoint());
+    Hmatrix += (ovlp * ovlp) * (Gappended * Happended.adjoint());
+  }
+
+  void FinishLM(Eigen::MatrixXd &Hmatrix, Eigen::MatrixXd &Smatrix)
+  {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (Smatrix.data()), Smatrix.rows() * Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, (Hmatrix.data()), Hmatrix.rows() * Hmatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      Smatrix /= Overlap;
+      Hmatrix /= Overlap;
   }
 };
 #endif

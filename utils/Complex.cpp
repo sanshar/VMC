@@ -88,78 +88,78 @@ stan::math::var Complex<stan::math::var>::squaredNorm() const;
 
 //unary operators
 template<typename T>
-Complex<T> &Complex<T>::operator=(Complex<T> z)
+Complex<T> &Complex<T>::operator=(const Complex<T> &z)
 {
     Real = z.Real;
     Imag = z.Imag;
     return *this;
 }
 template
-Complex<double> &Complex<double>::operator=(Complex<double> z);
+Complex<double> &Complex<double>::operator=(const Complex<double> &z);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator=(Complex<stan::math::var> z);
+Complex<stan::math::var> &Complex<stan::math::var>::operator=(const Complex<stan::math::var> &z);
 
 template<typename T>
-Complex<T> &Complex<T>::operator=(T x)
+Complex<T> &Complex<T>::operator=(const T &x)
 {
     Real = x;
     Imag = 0.0;
     return *this;
 }
 template
-Complex<double> &Complex<double>::operator=(double x);
+Complex<double> &Complex<double>::operator=(const double &x);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator=(stan::math::var x);
+Complex<stan::math::var> &Complex<stan::math::var>::operator=(const stan::math::var &x);
 
 template<typename T>
-Complex<T> &Complex<T>::operator=(std::complex<double> z)
+Complex<T> &Complex<T>::operator=(const std::complex<double> &z)
 {
     Real = z.real();
     Imag = z.imag();
     return *this;
 }
 template
-Complex<double> &Complex<double>::operator=(std::complex<double> z);
+Complex<double> &Complex<double>::operator=(const std::complex<double> &z);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator=(std::complex<double> z);
+Complex<stan::math::var> &Complex<stan::math::var>::operator=(const std::complex<double> &z);
 
 template<typename T>
-Complex<T> &Complex<T>::operator+=(Complex<T> z)
+Complex<T> &Complex<T>::operator+=(const Complex<T> &z)
 {
     Real += z.Real;
     Imag += z.Imag;
     return *this;
 }
 template
-Complex<double> &Complex<double>::operator+=(Complex<double> z);
+Complex<double> &Complex<double>::operator+=(const Complex<double> &z);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator+=(Complex<stan::math::var> z);
+Complex<stan::math::var> &Complex<stan::math::var>::operator+=(const Complex<stan::math::var> &z);
 
 template<typename T>
-Complex<T> &Complex<T>::operator-=(Complex<T> z)
+Complex<T> &Complex<T>::operator-=(const Complex<T> &z)
 {
     Real -= z.Real;
     Imag -= z.Imag;
     return *this;
 }
 template
-Complex<double> &Complex<double>::operator-=(Complex<double> z);
+Complex<double> &Complex<double>::operator-=(const Complex<double> &z);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator-=(Complex<stan::math::var> z);
+Complex<stan::math::var> &Complex<stan::math::var>::operator-=(const Complex<stan::math::var> &z);
 
 template<typename T>
-Complex<T> &Complex<T>::operator-=(T x)
+Complex<T> &Complex<T>::operator-=(const T &x)
 {
     Real -= x;
     return *this;
 }
 template
-Complex<double> &Complex<double>::operator-=(double x);
+Complex<double> &Complex<double>::operator-=(const double &x);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator-=(stan::math::var x);
+Complex<stan::math::var> &Complex<stan::math::var>::operator-=(const stan::math::var &x);
 
 template<typename T>
-Complex<T> &Complex<T>::operator*=(Complex<T> z)
+Complex<T> &Complex<T>::operator*=(const Complex<T> &z)
 {
     T a = Real, b = Imag, c = z.Real, d = z.Imag;
     Real = a * c - b * d;
@@ -167,34 +167,35 @@ Complex<T> &Complex<T>::operator*=(Complex<T> z)
     return *this;
 }
 template
-Complex<double> &Complex<double>::operator*=(Complex<double> z);
+Complex<double> &Complex<double>::operator*=(const Complex<double> &z);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator*=(Complex<stan::math::var> z);
+Complex<stan::math::var> &Complex<stan::math::var>::operator*=(const Complex<stan::math::var> &z);
 
 template<typename T>
-Complex<T> &Complex<T>::operator/=(Complex<T> z)
+Complex<T> &Complex<T>::operator/=(const Complex<T> &z)
 {
     assert(z.Real || z.Imag);
     T a = Real, b = Imag, c = z.Real, d = z.Imag;
-    Real = (a * c + b * d) / z.squaredNorm();
-    Imag = (b * c - a * d) / z.squaredNorm();
+    T r2 = z.squaredNorm();
+    Real = (a * c + b * d) / r2;
+    Imag = (b * c - a * d) / r2;
     return *this;
 }
 template
-Complex<double> &Complex<double>::operator/=(Complex<double> z);
+Complex<double> &Complex<double>::operator/=(const Complex<double> &z);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator/=(Complex<stan::math::var> z);
+Complex<stan::math::var> &Complex<stan::math::var>::operator/=(const Complex<stan::math::var> &z);
 
 template<typename T>
-Complex<T> &Complex<T>::operator/=(T x)
+Complex<T> &Complex<T>::operator/=(const T &x)
 {
     Complex<T> z(x);
     return *this /= z;
 }
 template
-Complex<double> &Complex<double>::operator/=(double x);
+Complex<double> &Complex<double>::operator/=(const double &x);
 template
-Complex<stan::math::var> &Complex<stan::math::var>::operator/=(stan::math::var x);
+Complex<stan::math::var> &Complex<stan::math::var>::operator/=(const stan::math::var &x);
 
 //binary operations
 template<typename T>
@@ -208,103 +209,109 @@ template
 std::ostream &operator<<(std::ostream &os, const Complex<stan::math::var> &z);
 
 template<typename T>
-bool operator==(Complex<T> LHS, Complex<T> RHS)
+bool operator==(const Complex<T> &LHS, const Complex<T> &RHS)
 {
     return (LHS.real() == RHS.real() && LHS.imag() == RHS.imag());
 }
 template
-bool operator==(Complex<double> LHS, Complex<double> RHS);
+bool operator==(const Complex<double> &LHS, const Complex<double> &RHS);
 template
-bool operator==(Complex<stan::math::var> LHS, Complex<stan::math::var> RHS);
+bool operator==(const Complex<stan::math::var> &LHS, const Complex<stan::math::var> &RHS);
 
 template<typename T>
-bool operator!=(Complex<T> LHS, Complex<T> RHS)
+bool operator!=(const Complex<T> &LHS, const Complex<T> &RHS)
 {
     return !(LHS == RHS);
 }
 template
-bool operator!=(Complex<double> LHS, Complex<double> RHS);
+bool operator!=(const Complex<double> &LHS, const Complex<double> &RHS);
 template
-bool operator!=(Complex<stan::math::var> LHS, Complex<stan::math::var> RHS);
+bool operator!=(const Complex<stan::math::var> &LHS, const Complex<stan::math::var> &RHS);
 
 template<typename T>
-Complex<T> operator+(Complex<T> LHS, Complex<T> RHS)
+Complex<T> operator+(const Complex<T> &LHS, const Complex<T> &RHS)
 {
-    return LHS += RHS;
+    Complex<T> zcopy(LHS);
+    return zcopy += RHS;
 }
 template
-Complex<double> operator+(Complex<double> LHS, Complex<double> RHS);
+Complex<double> operator+(const Complex<double> &LHS, const Complex<double> &RHS);
 template
-Complex<stan::math::var> operator+(Complex<stan::math::var> LHS, Complex<stan::math::var> RHS);
+Complex<stan::math::var> operator+(const Complex<stan::math::var> &LHS, const Complex<stan::math::var> &RHS);
 
 template<typename T>
-Complex<T> operator-(Complex<T> LHS, Complex<T> RHS)
+Complex<T> operator-(const Complex<T> &LHS, const Complex<T> &RHS)
 {
-    return LHS -= RHS;
+    Complex<T> zcopy(LHS);
+    return zcopy -= RHS;
 }
 template
-Complex<double> operator-(Complex<double> LHS, Complex<double> RHS);
+Complex<double> operator-(const Complex<double> &LHS, const Complex<double> &RHS);
 template
-Complex<stan::math::var> operator-(Complex<stan::math::var> LHS, Complex<stan::math::var> RHS);
+Complex<stan::math::var> operator-(const Complex<stan::math::var> &LHS, const Complex<stan::math::var> &RHS);
 
 template<typename T>
-Complex<T> operator-(Complex<T> LHS, T RHS)
+Complex<T> operator-(const Complex<T> &LHS, const T &RHS)
 {
-    return LHS -= RHS;
+    Complex<T> zcopy(LHS);
+    return zcopy -= RHS;
 }
 template
-Complex<double> operator-(Complex<double> LHS, double RHS);
+Complex<double> operator-(const Complex<double> &LHS, const double &RHS);
 template
-Complex<stan::math::var> operator-(Complex<stan::math::var> LHS, stan::math::var RHS);
+Complex<stan::math::var> operator-(const Complex<stan::math::var> &LHS, const stan::math::var &RHS);
 
 template<typename T>
-Complex<T> operator-(T LHS, Complex<T> RHS)
+Complex<T> operator-(const T &LHS, const Complex<T> &RHS)
 {
-    Complex<T> z(LHS);
-    return z -= RHS;
+    Complex<T> zcopy(LHS);
+    return zcopy -= RHS;
 }
 template
-Complex<double> operator-(double LHS, Complex<double> RHS);
+Complex<double> operator-(const double &LHS, const Complex<double> &RHS);
 template
-Complex<stan::math::var> operator-(stan::math::var LHS, Complex<stan::math::var> RHS);
+Complex<stan::math::var> operator-(const stan::math::var &LHS, const Complex<stan::math::var> &RHS);
 
 template<typename T>
-Complex<T> operator*(Complex<T> LHS, Complex<T> RHS)
+Complex<T> operator*(const Complex<T> &LHS, const Complex<T> &RHS)
 {
-    return LHS *= RHS;
+    Complex<T> zcopy(LHS);
+    return zcopy *= RHS;
 }
 template
-Complex<double> operator*(Complex<double> LHS, Complex<double> RHS);
+Complex<double> operator*(const Complex<double> &LHS, const Complex<double> &RHS);
 template
-Complex<stan::math::var> operator*(Complex<stan::math::var> LHS, Complex<stan::math::var> RHS);
+Complex<stan::math::var> operator*(const Complex<stan::math::var> &LHS, const Complex<stan::math::var> &RHS);
 
 template<typename T>
-Complex<T> operator/(Complex<T> LHS, Complex<T> RHS)
+Complex<T> operator/(const Complex<T> &LHS, const Complex<T> &RHS)
 {
-    return LHS /= RHS;
+    Complex<T> zcopy(LHS);
+    return zcopy /= RHS;
 }
 template
-Complex<double> operator/(Complex<double> LHS, Complex<double> RHS);
+Complex<double> operator/(const Complex<double> &LHS, const Complex<double> &RHS);
 template
-Complex<stan::math::var> operator/(Complex<stan::math::var> LHS, Complex<stan::math::var> RHS);
+Complex<stan::math::var> operator/(const Complex<stan::math::var> &LHS, const Complex<stan::math::var> &RHS);
 
 template<typename T>
-Complex<T> operator/(T LHS, Complex<T> RHS)
+Complex<T> operator/(const T &LHS, const Complex<T> &RHS)
 {
-    Complex<T> z(LHS);
-    return z /= RHS;
+    Complex<T> zcopy(LHS);
+    return zcopy /= RHS;
 }
 template
-Complex<double> operator/(double LHS, Complex<double> RHS);
+Complex<double> operator/(const double &LHS, const Complex<double> &RHS);
 template
-Complex<stan::math::var> operator/(stan::math::var LHS, Complex<stan::math::var> RHS);
+Complex<stan::math::var> operator/(const stan::math::var &LHS, const Complex<stan::math::var> &RHS);
 
 template<typename T>
-Complex<T> operator/(Complex<T> LHS, T RHS)
+Complex<T> operator/(const Complex<T> &LHS, const T &RHS)
 {
-    return LHS /= RHS;
+    Complex<T> zcopy(LHS);
+    return zcopy /= RHS;
 }
 template
-Complex<double> operator/(Complex<double> LHS, double RHS);
+Complex<double> operator/(const Complex<double> &LHS, const double &RHS);
 template
-Complex<stan::math::var> operator/(Complex<stan::math::var> LHS, stan::math::var RHS);
+Complex<stan::math::var> operator/(const Complex<stan::math::var> &LHS, const stan::math::var &RHS);

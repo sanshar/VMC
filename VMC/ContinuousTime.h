@@ -433,17 +433,10 @@ class CorrelatedSamplingContinuousTime
       double Overlap = 0.0;
       Wave[i].HamAndOvlp(Walk[i], Overlap, Eloc[i], work);
       T[i] = (Overlap * Overlap) / (RefOverlap * RefOverlap);
+      if (std::isnan(T[i])) T[i] = 0.0;
+      if (std::isnan(Eloc[i])) Eloc[i] = 0.0;
       cumT[i] += T[i];
     }
-/*
-if (schd.printOpt && commrank == 0)
-{
-  cout << "0.2: " << Walk[1].getDet() << " " << Eloc[1] << endl;
-  cout << "0.6: " << Walk[0].getDet() << " " << Eloc[0] << endl;
-  cout << "1.0: " << Walk[2].getDet() << " " << Eloc[2] << endl;
-  cout << endl;
-}
-*/ 
   }
 
   void MakeMove()

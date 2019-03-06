@@ -177,67 +177,51 @@ void getGradientMetricDeterministic(Wfn &w, Walker &walk, double &Energy, Vector
 }
 
 template<typename Wfn, typename Walker>
-void getGradientHessianDeterministic(Wfn &w, Walker& walk, double &E0, int &nalpha, int &nbeta, int &norbs, oneInt &I1, twoInt &I2, twoIntHeatBathSHM &I2hb, double &coreE, VectorXd &grad, MatrixXd& Hessian, MatrixXd &Smatrix)
+void getGradientHessianDeterministic(Wfn &w, Walker& walk, double &Energy, VectorXd &grad, MatrixXd& Hmatrix, MatrixXd &Smatrix)
 {
-  vector<Determinant> allDets;
-  generateAllDeterminants(allDets, norbs, nalpha, nbeta);
-
-  vector<double> ovlpRatio;
-  vector<size_t> excitation1, excitation2;
-  vector<double> HijElements;
-  int nExcitations;
-
-  double Overlap = 0, Energy = 0;
+  Deterministic <Wfn, Walker> D(w, walk);
+  int numVars = grad.rows();
+  Energy = 0.0;
   grad.setZero();
-  VectorXd diagonalGrad = VectorXd::Zero(grad.rows());
-  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows());
-  VectorXd localgrad = VectorXd::Zero(grad.rows());
-  double temp = 0.;
-
-  for (int i = commrank; i < allDets.size(); i += commsize)
+  Eigen::VectorXd grad_ratio_bar = VectorXd::Zero(numVars);
+  Hmatrix = MatrixXd::Zero(numVars + 1, numVars+1);
+  Smatrix = MatrixXd::Zero(numVars + 1, numVars+1);
+  for (int i = commrank; i < D.allDets.size(); i += commsize)
   {
-    w.initWalker(walk, allDets[i]);
-    double ovlp = 0, ham = 0;
-
-    {
-      E0 = 0.;
-      double scale = 1.0;
-      localgrad.setZero();
-      localdiagonalGrad.setZero();
-      w.HamAndOvlpGradient(walk, ovlp, ham, localgrad, I1, I2, I2hb, coreE, ovlpRatio,
-                           excitation1, excitation2, HijElements, nExcitations, true, false);
-
-      double tmpovlp = 1.0;
-      w.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
-    }
-    //grad += localgrad * ovlp * ovlp;
-    grad += localdiagonalGrad * ham * ovlp * ovlp;
-    diagonalGrad += localdiagonalGrad * ovlp * ovlp;
-    Overlap += ovlp * ovlp;
-    Energy += ham * ovlp * ovlp;
-
-    Hessian.block(1, 1, grad.rows(), grad.rows()) += localgrad * localdiagonalGrad.transpose() * ovlp * ovlp;
-    Smatrix.block(1, 1, grad.rows(), grad.rows()) += localdiagonalGrad * localdiagonalGrad.transpose() * ovlp * ovlp;
-    Hessian.block(0, 1, 1, grad.rows()) += ovlp * ovlp * localgrad.transpose();
-    Hessian.block(1, 0, grad.rows(), 1) += ovlp * ovlp * localgrad;
-    Smatrix.block(0, 1, 1, grad.rows()) += ovlp * ovlp * localdiagonalGrad.transpose();
-    Smatrix.block(1, 0, grad.rows(), 1) += ovlp * ovlp * localdiagonalGrad;
+    D.LocalEnergy(D.allDets[i]);
+    D.LocalGradient();
+    D.LocalEnergyGradient();
+    D.UpdateEnergy(Energy);
+    D.UpdateGradient(grad, grad_ratio_bar);
+    D.UpdateLM(Hmatrix, Smatrix);
   }
-#ifndef SERIAL
-  MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &(diagonalGrad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &(Overlap), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &(Energy), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &(Hessian(0,0)), Hessian.rows()*Hessian.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &(Smatrix(0,0)), Hessian.rows()*Hessian.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
+  D.FinishEnergy(Energy);
+  D.FinishGradient(grad, grad_ratio_bar, Energy);
+  D.FinishLM(Hmatrix, Smatrix);
+}
 
-  E0 = Energy / Overlap;
-  grad = (grad - E0 * diagonalGrad) / Overlap;
-  Hessian = Hessian/Overlap;
-  Smatrix = Smatrix/Overlap;
-  Smatrix(0,0) = 1.0;
-  Hessian(0,0) = E0;
+template<typename Wfn, typename Walker>
+void getGradientHessianDirectDeterministic(Wfn &w, Walker& walk, double &Energy, VectorXd &grad, DirectLM &h)
+{
+  Deterministic<Wfn, Walker> D(w, walk);
+  int numVars = grad.rows();
+  Energy = 0.0;
+  grad.setZero();
+  Eigen::VectorXd grad_ratio_bar = VectorXd::Zero(numVars);
+  h.T.clear();
+  h.G.clear();
+  h.H.clear();
+  for (int i = commrank; i < D.allDets.size(); i += commsize)
+  {
+    D.LocalEnergy(D.allDets[i]);
+    D.LocalGradient();
+    D.LocalEnergyGradient();
+    D.UpdateEnergy(Energy);
+    D.UpdateGradient(grad, grad_ratio_bar);
+    D.UpdateLM(h);
+  }
+  D.FinishEnergy(Energy);
+  D.FinishGradient(grad, grad_ratio_bar, Energy);
 }
 
 template<typename Wfn, typename Walker> 
@@ -1067,11 +1051,11 @@ void getStochasticGradientHessianDirectContinuousTime(Wfn &w, Walker& walk, doub
   {
     CTMC.LocalEnergy();
     CTMC.LocalGradient();
-    CTMC.LocalEnergyGradient(rk);
+    CTMC.LocalEnergyGradient(std::round(rk));
     CTMC.MakeMove();
     CTMC.UpdateEnergy(Energy);
     CTMC.UpdateGradient(grad, grad_ratio_bar);
-    CTMC.UpdateLM(h, rk);
+    CTMC.UpdateLM(h, std::round(rk));
     CTMC.UpdateBestDet();
   }
   CTMC.FinishEnergy(Energy, stddev, rk);
@@ -1099,7 +1083,7 @@ void getStochasticGradientMetropolis(Wfn &w, Walker &walk, double &Energy, doubl
   M.FinishGradient(grad, grad_ratio_bar, Energy);
 }
 
-//############################################################CorrelatedSampling Evaluation############################################################################
+//############################################################Correlated Sampling Evaluation############################################################################
 template<typename Wfn, typename Walker>
 void CorrelatedSampling(int niter, std::vector<Eigen::VectorXd> &V, std::vector<double> &E)
 {
@@ -1115,6 +1099,81 @@ void CorrelatedSampling(int niter, std::vector<Eigen::VectorXd> &V, std::vector<
 }
 
 template<typename Wfn, typename Walker>
+void CorrelatedSamplingRealSpace(int niter, std::vector<Eigen::VectorXd> &V, std::vector<double> &E)
+{
+  int nWave = V.size();
+  std::vector<Wfn> Wave;
+  std::vector<Walker> Walk;
+  std::vector<double> Eloc(nWave, 0.0);
+  std::vector<double> T(nWave, 0.0);
+  std::vector<double> cumT(nWave, 0.0);
+  for (int i = 0; i < nWave; i++)
+  {
+    Wfn wave;
+    Walker walk;
+    wave.updateVariables(V[i]);
+    wave.initWalker(walk);
+    Wave.push_back(wave);
+    Walk.push_back(walk);
+  }
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+  Vector3d step;
+  int nelec = Walk[0].d.nelec;
+  double effIter = 0; 
+  double acceptedFrac = 0;
+  for (int iter = 0; iter < niter; iter++)
+  {
+    int elecToMove = iter % nelec;
+    double ovlpRatio, proposalProb;
+    Walk[0].getStep(step, elecToMove, schd.realSpaceStep, Wave[0].getRef(), Wave[0].getCorr(), ovlpRatio, proposalProb);
+    if (ovlpRatio < -0.5) 
+      ovlpRatio = pow(Wave[0].getOverlapFactor(elecToMove, step, Walk[0]), 2); 
+    step += Walk[0].d.coord[elecToMove];
+    if ((iter + 1) % nelec == 0 && (iter + 1) > 0.01 * niter)
+    {
+      effIter++;
+      Eloc[0] = Wave[0].rHam(Walk[0]);
+      T[0] = 1.0;
+      cumT[0] += T[0];
+      double RefOverlap = Wave[0].Overlap(Walk[0]);
+      for (int i = 1; i < nWave; i++)
+      {
+        Eloc[i] = Wave[i].rHam(Walk[i]);
+        double Overlap = Wave[i].Overlap(Walk[i]);
+        T[i] = (Overlap * Overlap) / (RefOverlap * RefOverlap);
+        if (std::isnan(T[i])) { T[i] = 0.0; }
+        if (std::isnan(Eloc[i])) { Eloc[i] = 0.0; }
+        cumT[i] += T[i];
+      } 
+      for (int i = 0; i < E.size(); i++)
+      {
+        E[i] += T[i] * Eloc[i];
+      }
+    }
+    if (ovlpRatio * proposalProb > random())
+    {
+      for (int i = 0; i < nWave; i++)
+      {
+        Walk[i].updateWalker(elecToMove, step, Wave[i].getRef(), Wave[i].getCorr());
+      }
+    }
+  }
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(E[0]), E.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(cumT[0]), cumT.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+  std::transform(E.begin(), E.end(), cumT.begin(), E.begin(), [](double val1, double val2) -> double { return val1 /= val2; });
+    for (int i = 0; i < E.size(); i++)
+    {
+      if (commrank == 0 && std::isnan(E[i]))
+      {
+        cout << "nan energy value encountered during correlated sampling" << endl;
+        exit(0);
+      }  
+    }
+}
+
+template<typename Wfn, typename Walker>
 class CorrSampleWrapper
 {
   public:
@@ -1125,6 +1184,11 @@ class CorrSampleWrapper
     void run(std::vector<Eigen::VectorXd> &V, std::vector<double> &E)
     {
       CorrelatedSampling<Wfn, Walker>(sIter, V, E);
+    };
+
+    void runRealSpace(std::vector<Eigen::VectorXd> &V, std::vector<double> &E)
+    {
+      CorrelatedSamplingRealSpace<Wfn, Walker>(sIter, V, E);
     };
 };
 
@@ -1252,13 +1316,13 @@ class getGradientWrapper
     {
       stddev = 0.0;
       rt = 1.0;
-      cout << "deterministic not yet implemented" << endl;
+      getGradientHessianDeterministic(w, walk, E0, grad, Hmatrix, Smatrix);
     }
     w.writeWave();
     return 1.0; //the accepted fraction is 1
   };
 
-  void getHessianDirect(VectorXd &vars, VectorXd &grad, DirectLM &H, double &E0, double &stddev, double &rt, bool deterministic)
+  double getHessianDirect(VectorXd &vars, VectorXd &grad, DirectLM &H, double &E0, double &stddev, double &rt, bool deterministic)
   {
     w.updateVariables(vars);
     w.initWalker(walk);
@@ -1275,9 +1339,10 @@ class getGradientWrapper
     {
       stddev = 0.0;
       rt = 1.0;
-      cout << "deterministic not yet implemented" << endl;
+      getGradientHessianDirectDeterministic(w, walk, E0, grad, H);
     }
     w.writeWave();
+    return 1.0;
   };
 };
 #endif

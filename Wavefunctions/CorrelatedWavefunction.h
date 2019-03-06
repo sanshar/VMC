@@ -156,10 +156,12 @@ struct CorrelatedWavefunction {
 
   void updateVariables(Eigen::VectorXd &v) 
   {
-    corr.updateVariables(v);
+    if (schd.optimizeCps == true)
+      corr.updateVariables(v);
     //Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
     //ref.updateVariables(vtail);
-    ref.updateVariables(v.tail(v.rows() - corr.getNumVariables()));
+    if (schd.optimizeOrbs == true)
+      ref.updateVariables(v.tail(v.rows() - corr.getNumVariables()));
   }
 
   void getVariables(Eigen::VectorXd &v) const
@@ -265,15 +267,20 @@ struct CorrelatedWavefunction {
   void OverlapWithLocalEnergyGradient(const Walker<Corr, Reference> &walk, workingArray &work, Eigen::VectorXd &gradEloc) const
   {
     walk.OverlapWithLocalEnergyGradient(corr, ref, work, gradEloc);
+    int numCpsVars = corr.getNumVariables();
+    int numRefVars = ref.getNumVariables();
+    int numVars = getNumVariables();
     if (schd.optimizeCps == false)
-    {
-      int numCPSvars = corr.getNumVariables();
-      gradEloc.head(numCPSvars).setZero();
-    }
+      gradEloc.head(numCpsVars).setZero();
     if (schd.optimizeOrbs == false)
-    {
-      int numRefVars = ref.getNumVariables();
       gradEloc.tail(numRefVars).setZero();
+    if (schd.ifComplex == false)
+    {
+      for (int i = 0; i < numRefVars; i++)
+      {
+        if (i % 2 == 1)
+          gradEloc(i + numCpsVars) = 0.0;
+      }
     }
   }  
 

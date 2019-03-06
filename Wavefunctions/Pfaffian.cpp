@@ -44,6 +44,8 @@ Pfaffian::Pfaffian()
   readMat(pairMat, "pairMat.txt");
   if (schd.ifComplex && pairMat.imag().isZero(0)) pairMat.imag() = 0.01 * MatrixXd::Random(2*norbs, 2*norbs);
   pairMat = (pairMat - pairMat.transpose().eval()) / 2;
+  if (schd.ifComplex == false)
+    pairMat.imag().setZero();
 }
 
 void Pfaffian::getVariables(Eigen::VectorBlock<VectorXd> &v) const
@@ -73,6 +75,8 @@ void Pfaffian::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
     }
   }
   pairMat = (pairMat - pairMat.transpose().eval())/2;
+  if (schd.ifComplex == false)
+    pairMat.imag().setZero();
 }
 
 void Pfaffian::printVariables() const

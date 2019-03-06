@@ -27,17 +27,17 @@ class Complex
     T squaredNorm() const;
 
     //unary operators
-    Complex<T> &operator=(Complex<T> z);
-    Complex<T> &operator=(T x);
-    Complex<T> &operator=(std::complex<double> z);
-    Complex<T> &operator+=(Complex<T> z);
+    Complex<T> &operator=(const Complex<T> &z);
+    Complex<T> &operator=(const T &x);
+    Complex<T> &operator=(const std::complex<double> &z);
+    Complex<T> &operator+=(const Complex<T> &z);
     //Complex<T> &operator+=(T x);
-    Complex<T> &operator-=(Complex<T> z);
-    Complex<T> &operator-=(T x);
-    Complex<T> &operator*=(Complex<T> z);
+    Complex<T> &operator-=(const Complex<T> &z);
+    Complex<T> &operator-=(const T &x);
+    Complex<T> &operator*=(const Complex<T> &z);
     //Complex<T> &operator*=(T x);
-    Complex<T> &operator/=(Complex<T> z);
-    Complex<T> &operator/=(T x);
+    Complex<T> &operator/=(const Complex<T> &z);
+    Complex<T> &operator/=(const T &x);
 };
 //unary operators
 template<typename T>
@@ -50,25 +50,25 @@ Complex<T> operator-(const Complex<T> &z)
 template<typename T>
 std::ostream &operator<<(std::ostream &os, const Complex<T> &z);
 template<typename T>
-bool operator==(Complex<T> LHS, Complex<T> RHS);
+bool operator==(const Complex<T> &LHS, const Complex<T> &RHS);
 template<typename T>
-bool operator!=(Complex<T> LHS, Complex<T> RHS);
+bool operator!=(const Complex<T> &LHS, const Complex<T> &RHS);
 template<typename T>
-Complex<T> operator+(Complex<T> LHS, Complex<T> RHS);
+Complex<T> operator+(const Complex<T> &LHS, const Complex<T> &RHS);
 template<typename T>
-Complex<T> operator-(Complex<T> LHS, Complex<T> RHS);
+Complex<T> operator-(const Complex<T> &LHS, const Complex<T> &RHS);
 template<typename T>
-Complex<T> operator-(Complex<T> LHS, T RHS);
+Complex<T> operator-(const Complex<T> &LHS, const T &RHS);
 template<typename T>
-Complex<T> operator-(T LHS, Complex<T> RHS);
+Complex<T> operator-(const T &LHS, const Complex<T> &RHS);
 template<typename T>
-Complex<T> operator*(Complex<T> LHS, Complex<T> RHS);
+Complex<T> operator*(const Complex<T> &LHS, const Complex<T> &RHS);
 template<typename T>
-Complex<T> operator/(Complex<T> LHS, Complex<T> RHS);
+Complex<T> operator/(const Complex<T> &LHS, const Complex<T> &RHS);
 template<typename T>
-Complex<T> operator/(Complex<T> LHS, T RHS);
+Complex<T> operator/(const Complex<T> &LHS, const T &RHS);
 template<typename T>
-Complex<T> operator/(T LHS, Complex<T> RHS);
+Complex<T> operator/(const T &LHS, const Complex<T> &RHS);
 
 //Eigen compatability
 template<typename T>

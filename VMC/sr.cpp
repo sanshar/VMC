@@ -14,7 +14,7 @@ using namespace boost;
 
 void ConjGrad(DirectMetric &A, VectorXd &b, int n, VectorXd &x)
 {
-  double tol = 1.e-10;
+  double tol = 1.e-8;
 
   VectorXd Ap = VectorXd::Zero(x.rows());
   A.multiply(x, Ap);
