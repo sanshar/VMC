@@ -924,13 +924,21 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
     elecToMove = iter%nelec;
 
     walk.getStep(step, elecToMove, schd.realSpaceStep,
-                 wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
+                 wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
 
     step += walk.d.coord[elecToMove];
 
     iter ++;
     if (iter%sampleSteps == 0 && iter > 0.01*niter) {
       ham = wave.HamOverlap(walk, localdiagonalGrad, hamRatio);
+
+VectorXd gradRatio = VectorXd::Zero(numVars + 1);
+wave.OverlapWithGradient(walk, ovlp, gradRatio);
+double Eloc = wave.rHam(walk);
+cout << "Eloc: " << ham << " " << Eloc << endl;
+cout << "gradRatio" << endl;
+cout << localdiagonalGrad.transpose() << endl << endl;
+cout << gradRatio.transpose() << endl << endl;
 
       Hessian.noalias() += (localdiagonalGrad * hamRatio.transpose()-Hessian)/(effIter+1);
       Smatrix.noalias() += (localdiagonalGrad * localdiagonalGrad.transpose()-Smatrix)/(effIter+1);

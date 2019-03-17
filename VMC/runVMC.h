@@ -136,7 +136,6 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
     else if (schd.method == linearmethod) {
       LM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.decay);
       optimizer.optimize(vars, getStochasticGradientHessianRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
-      //optimizer.optimize(vars, getStochasticGradientHessianRealSpace, schd.restart);
     }
   }
 }

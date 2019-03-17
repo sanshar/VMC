@@ -151,12 +151,12 @@ void AppendVectorToSubspace(const DirectLM &H, const Eigen::VectorXd &z, Eigen::
       double alpha = V.col(i).dot(Sz);
       zcopy = zcopy - alpha * V.col(i);
     }
-
     H.multiplyS(zcopy, Sz);
-    double beta = std::sqrt(zcopy.dot(Sz));
-    if (std::isnan(beta))
-      beta = 1.e10;
-    Eigen::VectorXd v_m = zcopy / beta;
+    double beta = zcopy.dot(Sz);
+    if (beta < 0.0)
+      beta *= -1.0;
+    beta = std::sqrt(beta);
+    Eigen::VectorXd v_m = zcopy / (beta + 1.e-8);
 
     Eigen::VectorXd Hv_m;
     H.multiplyH(v_m, Hv_m);
@@ -305,6 +305,7 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
   int iter = 0;
   while(1)
   {
+    //solve subspace problem
     iter++;
     Eigen::MatrixXd A = V.adjoint() * HV;
     Eigen::MatrixXd B = V.adjoint() * SV;
@@ -315,9 +316,15 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
     int index = FindBound(D, tau);
     double theta = D(index);
     Eigen::VectorXd s = U.col(index);
+    Eigen::VectorXd u = V * s;
+    Eigen::VectorXd u_H = HV * s;
+    Eigen::VectorXd u_S = SV * s;
+    Eigen::VectorXd r = u_H - theta * u_S;
+    double rNorm = r.norm();
     //if eigensolver fails
-    if (std::isnan(theta) || std::isinf(theta))
+    if (std::isnan(rNorm) || std::isinf(rNorm))
     {
+      if (commrank == 0 && schd.printOpt) cout << "EIGENSOLVER FAIL" << endl;
       Eigen::MatrixXd X;
       CanonicalTransform(B, X);
       Eigen::MatrixXd A_prime = X.adjoint() * A * X;
@@ -328,13 +335,13 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
       index = FindBound(D, tau);
       theta = D(index);
       s = U.col(index);
+      u = V * s;
+      u_H = HV * s;
+      u_S = SV * s;
+      r = u_H - theta * u_S;
+      rNorm = r.norm();
     }
-
-    Eigen::VectorXd u = V * s;
-    Eigen::VectorXd u_H = HV * s;
-    Eigen::VectorXd u_S = SV * s;
-    Eigen::VectorXd r = u_H - theta * u_S;
-    double rNorm = r.norm();
+    //solve for correction vector
     z = Eigen::VectorXd::Unit(dim, 0);
     ConjGrad(H, u, theta, -r, cgIter, z);
 
@@ -347,11 +354,13 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
       cout << "size of subspace: " << V.cols() << endl;
     }
   
+    //update best guess
     if (rNorm < old_rNorm)
     {
       tau = theta;
       old_rNorm = rNorm;
     } 
+    //check for convergence
     if (rNorm < tol)
     {
       lambda = theta;
