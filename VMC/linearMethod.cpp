@@ -262,7 +262,7 @@ void CanonicalTransform(const Eigen::MatrixXd &Smatrix, Eigen::MatrixXd &X)
   for (int i = 0; i < X.cols(); i++)
   {
     double eigval = oes.eigenvalues()(i);
-    if (abs(eigval) > 1.e-8)
+    if (abs(eigval) > 1.e-10)
     {
       X.col(index) = oes.eigenvectors().col(i) / sqrt(eigval);
       index++;
@@ -291,8 +291,8 @@ void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
 void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int cgIter, double tol)
 {
   int dim = H.G[0].rows(); //dimension of problem
-  int restart = std::max((int) (0.05 * dim), 30); //20 - 30
-  //int restart = 35;
+  //int restart = std::max((int) (0.05 * dim), 30); //20 - 30
+  int restart = 30;
   int q = 5; //number of vectors to restart subspace
   //int q = std::max((int) (0.04 * dim), 5); //5 - 10
   
@@ -308,52 +308,40 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
     iter++;
     Eigen::MatrixXd A = V.adjoint() * HV;
     Eigen::MatrixXd B = V.adjoint() * SV;
-/*
-    Eigen::MatrixXd X;
-    CanonicalTransform(B, X);
-    Eigen::MatrixXd A_prime = X.adjoint() * A * X;
-    Eigen::EigenSolver<MatrixXd> es(A_prime);
-*/
     Eigen::GeneralizedEigenSolver<MatrixXd> es(A, B);
     Eigen::VectorXd D = es.eigenvalues().real();
-    //Eigen::MatrixXd U = (X * es.eigenvectors()).real();
     Eigen::MatrixXd U = es.eigenvectors().real();
     SortEig(D, U);
     int index = FindBound(D, tau);
-
-    //restart subspace
-    if (V.cols() > restart)
-    {
-      Eigen::MatrixXd N = U.block(0, index, U.rows(), q);
-      V = V * N;
-      HV = HV * N;
-      SV = SV * N;
-      A = V.adjoint() * HV;
-      B = V.adjoint() * SV;
-/*
-      CanonicalTransform(B, X);
-      A_prime = X.adjoint() * A * X;
-      es.compute(A_prime);
-*/
-      es.compute(A, B);
-      D = es.eigenvalues().real();
-      //U = (X * es.eigenvectors()).real();
-      U = es.eigenvectors().real();
-      SortEig(D, U);
-      index = FindBound(D, tau);
-    }
-
     double theta = D(index);
     Eigen::VectorXd s = U.col(index);
+    //if eigensolver fails
+    if (std::isnan(theta) || std::isinf(theta))
+    {
+      Eigen::MatrixXd X;
+      CanonicalTransform(B, X);
+      Eigen::MatrixXd A_prime = X.adjoint() * A * X;
+      Eigen::EigenSolver<MatrixXd> es(A_prime);
+      Eigen::VectorXd D = es.eigenvalues().real();
+      Eigen::MatrixXd U = X * es.eigenvectors().real();
+      SortEig(D, U);
+      index = FindBound(D, tau);
+      theta = D(index);
+      s = U.col(index);
+    }
+
     Eigen::VectorXd u = V * s;
     Eigen::VectorXd u_H = HV * s;
     Eigen::VectorXd u_S = SV * s;
     Eigen::VectorXd r = u_H - theta * u_S;
     double rNorm = r.norm();
+    z = Eigen::VectorXd::Unit(dim, 0);
+    ConjGrad(H, u, theta, -r, cgIter, z);
 
     if (commrank == 0 && schd.printOpt)
     {
       cout << endl << "____________" << iter << "____________" << endl;
+      cout << "theta: " << theta << endl;
       cout << "best guess so far: " << tau << endl;
       cout << "residual norm: " <<  rNorm << endl;
       cout << "size of subspace: " << V.cols() << endl;
@@ -364,14 +352,20 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
       tau = theta;
       old_rNorm = rNorm;
     } 
-    if ((rNorm < tol) || std::isnan(theta))
+    if (rNorm < tol)
     {
       lambda = theta;
       v = u;
       return;
     }
-    z = Eigen::VectorXd::Unit(dim, 0);
-    ConjGrad(H, u, theta, -r, cgIter, z);
+    //restart subspace
+    if (V.cols() >= restart)
+    {
+      Eigen::MatrixXd N = U.block(0, index, U.rows(), q);
+      V = V * N;
+      HV = HV * N;
+      SV = SV * N;
+    }
     AppendVectorToSubspace(H, z, V, HV, SV);
   }
 }

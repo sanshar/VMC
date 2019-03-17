@@ -56,8 +56,14 @@ void runVMC(Wave& wave, Walker& walk) {
   CorrSampleFunctor runCorrelatedSampling = boost::bind(&CorrSampleWrapper<Wave, Walker>::run, &wrap, _1, _2);
 
   if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
-    AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
-    optimizer.optimize(vars, getStochasticGradient, schd.restart);
+      if (schd.stepsizes.empty()) {
+        AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+        optimizer.optimize(vars, getStochasticGradient, schd.restart);
+      }
+      else {
+        AMSGrad optimizer(schd.stepsizes, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+        optimizer.optimize(vars, getStochasticGradient, runCorrelatedSampling, schd.restart); 
+      }
   }
   else if (schd.method == sgd) {
     SGD optimizer(schd.stepsize, schd.momentum, schd.maxIter);

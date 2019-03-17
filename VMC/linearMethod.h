@@ -46,7 +46,7 @@ class LM
     template <class Archive>
     void serialize(Archive &ar, const unsigned int version)
     {
-        ar & stepsizes & iter & decay;
+        ar & iter;
     }
 
   public:
@@ -273,6 +273,8 @@ class DirectLM
 
   void multiplyS(const VectorXd &x, VectorXd &Sx) const
   {
+    VectorXd xcopy(x);
+    xcopy(0) = 0.0;
     double Tau = 0.0;
     int dim = x.rows();
     Sx.setZero(dim);
@@ -280,22 +282,25 @@ class DirectLM
     for (int i = 0; i < G.size(); i++)
     {
       Tau += T[i];
-      Sx += T[i] * (G[i] * G[i].dot(x) - Sx) / Tau;
-      G_bar += T[i] * (G[i] - G_bar) / Tau;
+      Sx += T[i] * (G[i] * G[i].dot(x));
+      G_bar += T[i] * G[i];
     }
 #ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &(Sx(0)), Sx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &(G_bar(0)), G_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-      Sx /= commsize;
-      G_bar /= commsize;
+      Sx /= Tau;
+      G_bar /= Tau;
       Sx -= G_bar * G_bar.dot(x);
       Sx(0) += x(0); 
-      Sx += sdiagshift * x;
+      Sx += sdiagshift * xcopy;
   } 
 
   void multiplyH(const VectorXd &x, VectorXd &Hx) const
   {
+    VectorXd xcopy(x);
+    xcopy(0) = 0.0;
     double Tau = 0.0;
     double Energy = 0.0;
     int dim = x.rows();
@@ -331,11 +336,13 @@ class DirectLM
       Hx(0) += Energy * x(0);
       Hx(0) += (H_bar - Energy * G_bar).dot(x); 
       Hx += (G_Eloc_bar - Energy * G_bar) * x(0); 
-      Hx += hdiagshift * x;
+      Hx += hdiagshift * xcopy;
   } 
 
   void multiplyH_thetaS(const VectorXd &x, double theta, VectorXd &Ax) const //Ax = (H - theta * S)x
   {
+    VectorXd xcopy(x);
+    xcopy(0) = 0.0;
     double Tau = 0.0;
     double Energy = 0.0;
     int dim = x.rows();
@@ -375,14 +382,14 @@ class DirectLM
       Sx /= Tau;
       Sx -= G_bar * G_bar.dot(x);
       Sx(0) += x(0); 
-      Sx += sdiagshift * x;
+      Sx += sdiagshift * xcopy;
       Hx -= G_Eloc_bar * G_bar.dot(x);
       Hx -= G_bar * H_bar.dot(x);
       Hx += Energy * G_bar * G_bar.dot(x);
       Hx(0) += Energy * x(0);
       Hx(0) += (H_bar - Energy * G_bar).dot(x); 
       Hx += (G_Eloc_bar - Energy * G_bar) * x(0); 
-      Hx += hdiagshift * x;
+      Hx += hdiagshift * xcopy;
       Ax = Hx - theta * Sx;
   }
 
@@ -422,15 +429,14 @@ class directLM
     template <class Archive>
     void serialize(Archive &ar, const unsigned int version)
     {
-        ar & maxIter & iter & rt & numLMiter & doLM & mom1 & mom2 & LMStep & LMDecay & AMSGradStep & AMSGradDecay1 & AMSGradDecay2;
+        ar & iter & rt & mom1 & mom2;
     }
 
   public:
     int iter;
     int maxIter;
-    int numLMiter = 0;
-    double rt = 0.0;
-    bool doLM = false;
+    int numLMiter;
+    double rt;
     std::vector<double> LMStep;
     double hdiagshift, LMDecay;
     int AMSGradIter;
@@ -438,9 +444,11 @@ class directLM
     VectorXd mom1;
     VectorXd mom2;
 
-    directLM(int _maxIter, std::vector<double> _LMStep, double _hdiagshift, double _LMDecay, int _AMSGradIter, double _AMSGradStep = 0.001, double _AMSGradDecay1 = 0.1, double _AMSGradDecay2 = 0.001) : maxIter(_maxIter), LMStep(_LMStep), hdiagshift(_hdiagshift), LMDecay(_LMDecay), AMSGradIter(_AMSGradIter), AMSGradStep(_AMSGradStep), AMSGradDecay1(_AMSGradDecay1), AMSGradDecay2(_AMSGradDecay2)
+    directLM(int _maxIter, std::vector<double> _LMStep, double _hdiagshift, double _LMDecay, int _AMSGradIter = 100, double _AMSGradStep = 0.001, double _AMSGradDecay1 = 0.1, double _AMSGradDecay2 = 0.001) : maxIter(_maxIter), LMStep(_LMStep), hdiagshift(_hdiagshift), LMDecay(_LMDecay), AMSGradIter(_AMSGradIter), AMSGradStep(_AMSGradStep), AMSGradDecay1(_AMSGradDecay1), AMSGradDecay2(_AMSGradDecay2)
     {
         iter = 0;
+        numLMiter = 0;
+        rt = 0.0;
     }
 
     void write(VectorXd& vars)
@@ -452,6 +460,9 @@ class directLM
             std::ofstream ofs(file, std::ios::binary);
             boost::archive::binary_oarchive save(ofs);
             save << *this;
+            save << mom1;
+            save << mom2;
+            save << rt;
             save << vars;
             ofs.close();
         }
@@ -464,8 +475,11 @@ class directLM
 	    char file[50];
             sprintf(file, "directLM.bkp");
             std::ifstream ifs(file, std::ios::binary);
-	    boost::archive::binary_iarchive load(ifs);
+	        boost::archive::binary_iarchive load(ifs);
             load >> *this;
+            load >> mom1;
+            load >> mom2;
+            load >> rt;
             load >> vars;
             ifs.close();
         }
@@ -492,20 +506,19 @@ class directLM
      }
      while (iter < maxIter)
      {
-       if (iter >= AMSGradIter)
-         doLM = true;
+       if (iter < AMSGradIter)
+         rt = 0.0;
        double E0 = 0.0;
        double stddev = 0.0;
        VectorXd grad = VectorXd::Zero(numVars);
        DirectLM h(hdiagshift * std::pow(schd.decay, numLMiter), 0.0);
 
-       if (!doLM)
-         rt = 0.0;
        getHessian(vars, grad, h, E0, stddev, rt);
        write(vars);
-       auto VMC_time = (getTime() - startofCalc);
+       double VMC_time = (getTime() - startofCalc);
+       double LM_time = VMC_time;
 
-       if (!doLM)
+       if (iter < AMSGradIter)
        {
          for (int i = 0; i < vars.rows(); i++)
          {
@@ -520,9 +533,11 @@ class directLM
          numLMiter++;
          double lambda;
          VectorXd x(numVars + 1);
-         VectorXd guess(numVars + 1);
-         guess << 1.0, -(0.01 * grad);
+         //VectorXd guess(numVars + 1);
+         //guess << 1.0, -(0.01 * grad);
+         VectorXd guess = VectorXd::Unit(numVars + 1, 0);
          GeneralizedJacobiDavidson(h, E0, guess, lambda, x, schd.cgIter, schd.tol);
+         LM_time = (getTime() - startofCalc);
          VectorXd update = x.tail(numVars) / x(0);
          //correlated sampling
          std::vector<Eigen::VectorXd> V(LMStep.size(), vars);
@@ -531,14 +546,6 @@ class directLM
          {
            V[i] += LMStep[i] * update;
          }
-           
-/*
-         V[0] += 0.1 * x.tail(numVars) / x(0);
-         V[1] += 0.01 * x.tail(numVars) / x(0);
-         V[2] += 0.05 * x.tail(numVars) / x(0);
-         V[3] += 0.5 * x.tail(numVars) / x(0);
-         V[4] += 1.0 * x.tail(numVars) / x(0);
-*/
          runCorrelatedSampling(V, E);
          int index = 0;
          for (int i = 0; i < E.size(); i++)
@@ -556,19 +563,12 @@ class directLM
            }
            cout << endl;
          }
-/*
-         for (int i = 0; i < vars.rows(); i++)
-         {
-           double dP = x(i + 1) / x(0);
-           vars(i) += schd.stepsize * dP;
-         }
-*/
        } 
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
        if (commrank == 0)
-         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.2f %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (VMC_time) % ((getTime() - startofCalc));
+         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.2f %8.2f %8.2f \n") % iter % E0 % stddev % (grad.norm()) % (rt) % (VMC_time) % (LM_time) % ((getTime() - startofCalc));
        iter++;
      }
    }

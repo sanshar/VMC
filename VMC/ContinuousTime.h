@@ -433,9 +433,18 @@ class CorrelatedSamplingContinuousTime
       double Overlap = 0.0;
       Wave[i].HamAndOvlp(Walk[i], Overlap, Eloc[i], work);
       T[i] = (Overlap * Overlap) / (RefOverlap * RefOverlap);
-      if (std::isnan(T[i])) T[i] = 0.0;
-      if (std::isnan(Eloc[i])) Eloc[i] = 0.0;
-      cumT[i] += T[i];
+      if (std::isnan(T[i]) || std::isnan(Eloc[i]))
+      {
+          if (commrank == 0 && schd.printOpt)
+          {
+            cout << "nan val for wfn " << i << endl;
+            cout << Eloc[i] << endl;
+            cout << Overlap * Overlap << endl;
+            cout << RefOverlap * RefOverlap << endl << endl;
+          }
+          Eloc[i] = 0.0;
+          T[i] = 0.0;
+      }
     }
   }
 
@@ -452,9 +461,10 @@ class CorrelatedSamplingContinuousTime
     int nextDet = lower_bound(RefWork.ovlpRatio.begin(), RefWork.ovlpRatio.begin() + RefWork.nExcitations, nextDetRand) - RefWork.ovlpRatio.begin();
     //update all walkers
     T[0] = 1.0 / cumOvlp;
-    cumT[0] += T[0];
-    for (int i = 0; i < nWave; i++)
-    {
+    Walk[0].updateWalker(Wave[0].getRef(), Wave[0].getCorr(), RefWork.excitation1[nextDet], RefWork.excitation2[nextDet]);
+    for (int i = 1; i < nWave; i++)
+    {  
+      T[i] *= T[0];
       Walk[i].updateWalker(Wave[i].getRef(), Wave[i].getCorr(), RefWork.excitation1[nextDet], RefWork.excitation2[nextDet]);
     }
   }
@@ -464,6 +474,7 @@ class CorrelatedSamplingContinuousTime
     for (int i = 0; i < E.size(); i++)
     {
       E[i] += T[i] * Eloc[i];
+      cumT[i] += T[i];
     }
   } 
 
@@ -475,7 +486,8 @@ class CorrelatedSamplingContinuousTime
 #endif 
     std::transform(E.begin(), E.end(), cumT.begin(), E.begin(), [](double val1, double val2) -> double { return val1 /= val2; });
     //just incase any of the energies are nan
-    //std::transform(E.begin(), E.end(), E.begin(), [](double val) -> double { return std::isnan(val) ? 0.0 : val; });
+    std::transform(E.begin(), E.end(), E.begin(), [](double val) -> double { return std::isnan(val) ? 0.0 : val; });
+    /*
     for (int i = 0; i < E.size(); i++)
     {
       if (commrank == 0 && std::isnan(E[i]))
@@ -484,6 +496,7 @@ class CorrelatedSamplingContinuousTime
         exit(0);
       }  
     }
+    */
   }
 
 };

@@ -103,7 +103,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.decay = 0.6;
       //schd.gradTol = 0.2;
       schd.sgdStepsize = 0.1;
-      schd.CorrSampleFrac = 0.15;
+      schd.CorrSampleFrac = 0.20;
 
       while (dump.good())
 	{
@@ -212,7 +212,7 @@ void readInput(string input, schedule& schd, bool print) {
             schd.sDiagShift = 0.0;
             schd.hDiagShift = 1.e-2;
             schd.decay = 0.75;
-	    schd.cgIter = 15;
+	        schd.cgIter = 15;
             schd.tol = 1.e-3;
             schd.stepsizes = {0.1, 0.01, 0.05, 0.5, 1.0};
           }

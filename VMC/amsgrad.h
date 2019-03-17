@@ -49,6 +49,7 @@ class AMSGrad
 
   public:
     double stepsize;
+    std::vector<double> stepsizes; //if doing correlated sampling
     double decay_mom1;
     double decay_mom2;
 
@@ -59,9 +60,12 @@ class AMSGrad
     VectorXd mom1;
     VectorXd mom2;
 
-    AMSGrad(double pstepsize=0.001,
-             double pdecay_mom1=0.1, double pdecay_mom2=0.001,  
-            int pmaxIter=1000, int pavgIter=0) : stepsize(pstepsize), decay_mom1(pdecay_mom1), decay_mom2(pdecay_mom2), maxIter(pmaxIter), avgIter(pavgIter)
+    AMSGrad(double pstepsize=0.001, double pdecay_mom1=0.1, double pdecay_mom2=0.001, int pmaxIter=1000, int pavgIter=0) : stepsize(pstepsize), decay_mom1(pdecay_mom1), decay_mom2(pdecay_mom2), maxIter(pmaxIter), avgIter(pavgIter)
+    {
+        iter = 0;
+    }
+
+    AMSGrad(std::vector<double> pstepsizes, double pdecay_mom1=0.1, double pdecay_mom2=0.001, int pmaxIter=1000, int pavgIter=0) : stepsizes(pstepsizes), decay_mom1(pdecay_mom1), decay_mom2(pdecay_mom2), maxIter(pmaxIter), avgIter(pavgIter)
     {
         iter = 0;
     }
@@ -71,7 +75,7 @@ class AMSGrad
         if (commrank == 0)
         {
             char file[5000];
-            sprintf(file, "amgrad.bkp");
+            sprintf(file, "AMSGrad.bkp");
             std::ofstream ofs(file, std::ios::binary);
             boost::archive::binary_oarchive save(ofs);
             save << *this;
@@ -87,7 +91,7 @@ class AMSGrad
         if (commrank == 0)
         {
             char file[5000];
-            sprintf(file, "amgrad.bkp");
+            sprintf(file, "AMSGrad.bkp");
             std::ifstream ifs(file, std::ios::binary);
             boost::archive::binary_iarchive load(ifs);
             load >> *this;
@@ -164,7 +168,6 @@ class AMSGrad
                 stepNorm = pow(stepNorm, 0.5);
                 if (oldNorm != 0) angle = acos(dotProduct/stepNorm/oldNorm) * 180 / 3.14159265;
             }
-
 #ifndef SERIAL
             MPI_Bcast(&vars[0], vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
@@ -187,6 +190,77 @@ class AMSGrad
             std::cout << format("0 %14.8f (%8.2e) %14.8f %8.1f %10i %8.2f\n")  % E0 % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
           }
         }
+    }
+
+   template<typename Function1, typename Function2>
+    void optimize(VectorXd &vars, Function1& getGradient, Function2 &runCorrelatedSampling, bool restart)
+    {
+        if (restart)
+        {
+            if (commrank == 0)
+                read(vars);
+#ifndef SERIAL
+	    boost::mpi::communicator world;
+	    boost::mpi::broadcast(world, *this, 0);
+	    boost::mpi::broadcast(world, vars, 0);
+#endif
+        }
+        else if (mom1.rows() == 0)
+        {
+            mom1 = VectorXd::Zero(vars.rows());
+            mom2 = VectorXd::Zero(vars.rows());
+        }
+
+        VectorXd grad = VectorXd::Zero(vars.rows());
+        double stepNorm = 0., angle = 0.;
+        while (iter < maxIter)
+        {
+            double E0, stddev = 0.0, rt = 1.0;
+            getGradient(vars, grad, E0, stddev, rt);
+            write(vars);
+            VectorXd update = VectorXd::Zero(vars.rows());
+
+            for (int i = 0; i < vars.rows(); i++)
+            {
+                mom1[i] = decay_mom1 * grad[i] + (1. - decay_mom1) * mom1[i];
+                mom2[i] = max(mom2[i], decay_mom2 * grad[i]*grad[i] + (1. - decay_mom2) * mom2[i]);   
+                update[i] = mom1[i] / (pow(mom2[i], 0.5) + 1.e-8);  
+            }
+            //correlated sampling
+            std::vector<Eigen::VectorXd> V(stepsizes.size(), vars);
+            std::vector<double> E(stepsizes.size(), 0.0);
+            for (int i = 0; i < V.size(); i++)
+            {
+              V[i] -= stepsizes[i] * update;
+            }
+            runCorrelatedSampling(V, E);
+            int index = 0;
+            for (int i = 0; i < E.size(); i++)
+            {
+              if (E[i] < E[index])
+                index = i;              
+            }
+            vars = V[index];
+            if (schd.printOpt && commrank == 0)
+            {
+              cout << "Correlated Sampling: " << endl;
+              for (int i = 0; i < E.size(); i++)
+              {
+                cout << stepsizes[i] << " " << E[i] << "|";
+              }
+              cout << endl;
+            }
+#ifndef SERIAL
+            MPI_Bcast(&vars[0], vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+
+            if (commrank == 0)
+            {
+              std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %10i  %6.6f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
+            }
+            iter++;
+        }
+        
     }
 };
 #endif

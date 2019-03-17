@@ -1134,20 +1134,29 @@ void CorrelatedSamplingRealSpace(int niter, std::vector<Eigen::VectorXd> &V, std
       effIter++;
       Eloc[0] = Wave[0].rHam(Walk[0]);
       T[0] = 1.0;
-      cumT[0] += T[0];
       double RefOverlap = Wave[0].Overlap(Walk[0]);
       for (int i = 1; i < nWave; i++)
       {
         Eloc[i] = Wave[i].rHam(Walk[i]);
         double Overlap = Wave[i].Overlap(Walk[i]);
         T[i] = (Overlap * Overlap) / (RefOverlap * RefOverlap);
-        if (std::isnan(T[i])) { T[i] = 0.0; }
-        if (std::isnan(Eloc[i])) { Eloc[i] = 0.0; }
-        cumT[i] += T[i];
+        if (std::isnan(T[i]) || std::isnan(Eloc[i]))
+        {
+          if (commrank == 0 && schd.printOpt)
+          {
+            cout << "nan val" << endl;
+            cout << Eloc[i] << endl;
+            cout << Overlap * Overlap << endl;
+            cout << RefOverlap * RefOverlap << endl << endl;
+          }
+            T[i] = 0.0;
+            Eloc[i] = 0.0;
+        }
       } 
       for (int i = 0; i < E.size(); i++)
       {
         E[i] += T[i] * Eloc[i];
+        cumT[i] += T[i];
       }
     }
     if (ovlpRatio * proposalProb > random())
@@ -1163,6 +1172,9 @@ void CorrelatedSamplingRealSpace(int niter, std::vector<Eigen::VectorXd> &V, std
   MPI_Allreduce(MPI_IN_PLACE, &(cumT[0]), cumT.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
   std::transform(E.begin(), E.end(), cumT.begin(), E.begin(), [](double val1, double val2) -> double { return val1 /= val2; });
+    //just incase any of the energies are nan
+    std::transform(E.begin(), E.end(), E.begin(), [](double val) -> double { return std::isnan(val) ? 0.0 : val; });
+    /*
     for (int i = 0; i < E.size(); i++)
     {
       if (commrank == 0 && std::isnan(E[i]))
@@ -1171,6 +1183,7 @@ void CorrelatedSamplingRealSpace(int niter, std::vector<Eigen::VectorXd> &V, std
         exit(0);
       }  
     }
+    */
 }
 
 template<typename Wfn, typename Walker>
