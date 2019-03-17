@@ -1,0 +1,15 @@
+JastrowSlater
+ghf
+complex
+
+maxIter 10
+stochasticIter 1000
+seed 1
+
+#printOpt
+lm
+nondirect
+hDiagShift 0.1
+decay 0.5
+tol 1.e-3
+CorrSampleFrac 0.15

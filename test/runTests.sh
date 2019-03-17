@@ -25,7 +25,7 @@ python ../testEnergy.py 'vmc' $tol
 #$MPICOMMAND $LANCZOSPATH > lanczos.out
 #python ../testEnergy.py 'lanczos' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -35,7 +35,7 @@ printf "...running hubbard_1x10 ghf\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -45,7 +45,7 @@ printf "...running hubbard_1x10 agp\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -58,7 +58,7 @@ printf "...running hubbard_1x14 ci\n"
 $MPICOMMAND $CIPATH > ci.out
 python ../testEnergy.py 'ci' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -68,7 +68,7 @@ printf "...running hubbard_1x22\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -78,7 +78,7 @@ printf "...running hubbard_1x50\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -88,7 +88,7 @@ printf "...running hubbard_1x6\n"
 $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -101,7 +101,7 @@ printf "...running hubbard_18_tilt gfmc\n"
 $MPICOMMAND $GFMCPATH > gfmc.out
 python ../testEnergy.py 'gfmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -111,7 +111,7 @@ fi
 #$MPICOMMAND $VMCPATH > vmc.out
 #python ../testEnergy.py 'vmc' $tol
 #if [ $clean == 1 ]
-#then    
+#then
 #    ../clean.sh
 #fi
 
@@ -121,7 +121,7 @@ printf "...running h4 ghf complex\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -135,10 +135,23 @@ printf "...running h10 sr direct\n"
 $MPICOMMAND $DIRECTPATH > direct.out
 python ../testEnergy.py 'direct' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
+cd $here/h10lm/
+../clean.sh
+printf "...running h10 lm nondirect\n"
+$MPICOMMAND $NONDIRECTPATH > nondirect.out
+python ../testEnergy.py 'nondirect' $tol
+../clean.sh
+printf "...running h10 lm direct\n"
+$MPICOMMAND $DIRECTPATH > direct.out
+python ../testEnergy.py 'direct' $tol
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
 
 cd $here/h4_pfaffian_complex/
 ../clean.sh
@@ -146,7 +159,7 @@ printf "...running h4 pfaffian complex\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -156,7 +169,7 @@ fi
 #$MPICOMMAND $VMCPATH > vmc.out
 #python ../testEnergy.py 'vmc' $tol
 #if [ $clean == 1 ]
-#then    
+#then
 #    ../clean.sh
 #fi
 
@@ -166,7 +179,7 @@ printf "...running h10 pfaffian\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -176,7 +189,7 @@ printf "...running h20\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -186,7 +199,7 @@ printf "...running h20 ghf\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
@@ -196,7 +209,7 @@ printf "...running c2\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]
-then    
+then
     ../clean.sh
 fi
 
