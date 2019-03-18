@@ -657,19 +657,16 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
   double M1 = 0., S1 = 0.;
   int nstore = 1000000 / commsize;
   int corrIter = min(nstore, niter/sampleSteps);
-  std::vector<double> corrError(corrIter * commsize, 0);
+  //std::vector<double> corrError(corrIter * commsize, 0);
 
-  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()),
-      diagonalGrad = VectorXd::Zero(grad.rows());
+  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()), diagonalGrad = VectorXd::Zero(grad.rows());
 
   vector<double> aoValues(10 * Determinant::norbs, 0.0);
 
   double ovlpRatio = -1.0, proposalProb;
   while (iter < niter) {
     elecToMove = iter%nelec;
-    walk.getStep(step, elecToMove, schd.realSpaceStep,
-                 wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
-
+    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
 
     iter ++;
@@ -688,43 +685,29 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
       S1 += (ham - avgPotold) * (ham - avgPot);
       if (effIter < corrIter)
         Stats.push_back(ham);
-      //corrError[effIter + commrank * corrIter] = ham;
       effIter++;
     }
-
-    
-
     if (ovlpRatio < -0.5)
-      ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2);
-    
+      ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2); 
     if (ovlpRatio*proposalProb > random()) {
       acceptedFrac++;
       walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
-
-      ovlp = ovlp*ovlpRatio;
-
+      ovlp = ovlp*std::sqrt(ovlpRatio);
       if (abs(ovlp) > abs(bestovlp)) {
         bestovlp = ovlp;
         bestDet = walk.getDet();
       }
     }
-    
-
-
   }
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(diagonalGrad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
   Stats.Block();
   rk = Stats.BlockCorrTime();
-  //vector<double> b_size, r_x; vector<double> tauError(corrError.size(), 1.0);
-  //block(b_size, r_x, corrError, tauError);
-  //rk = corrFunc(b_size, r_x);
-
 
   double n_eff = commsize * effIter;
   S1 /= effIter;
@@ -746,8 +729,7 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
     std::ofstream ofs(file, std::ios::binary);
     boost::archive::binary_oarchive save(ofs);
     save << bestDet;
-  }
-  
+  }  
 }
 
 template<typename Wfn, typename Walker>
@@ -772,40 +754,35 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
   double M1 = 0., S1 = 0.;
   int nstore = 1000000 / commsize;
   int corrIter = min(nstore, niter/sampleSteps);
-  std::vector<double> corrError(corrIter * commsize, 0);
+  //std::vector<double> corrError(corrIter * commsize, 0);
 
   int numVars = grad.rows();
   H = VectorXd::Zero(numVars + 1);
-  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()),
-      diagonalGrad = VectorXd::Zero(grad.rows());
+  VectorXd localdiagonalGrad = VectorXd::Zero(grad.rows()), diagonalGrad = VectorXd::Zero(grad.rows());
 
   vector<double> aoValues(10 * Determinant::norbs, 0.0);
 
-  S.T.resize(niter/sampleSteps,0);
-  S.Vectors.resize(niter/sampleSteps, VectorXd::Zero(numVars + 1));
+  //S.T.resize(niter/sampleSteps,0);
+  //S.Vectors.resize(niter/sampleSteps, VectorXd::Zero(numVars + 1));
   VectorXd appended(numVars + 1);
 
   double ovlpRatio = -1.0, proposalProb;
   while (iter < niter) {
     elecToMove = iter%nelec;
-    walk.getStep(step, elecToMove, schd.realSpaceStep,
-                 wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
-
+    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
-
     iter ++;
-    if (iter%sampleSteps == 0) {
-      ham = wave.rHam(walk);
-   
+    if (iter%sampleSteps == 0 && iter > 0.01*niter) {
+      ham = wave.rHam(walk); 
       wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
-
-      if (effIter < niter/sampleSteps) {
-        appended << 1.0, localdiagonalGrad;
-        S.Vectors[effIter] = appended;
-        S.T[effIter] = 1.0;
+      appended << 1.0, localdiagonalGrad;
+      if (schd.direct) {
+        S.Vectors.push_back(appended);
+        S.T.push_back(1.0);
       }
-
-      
+      else {
+        S.Smatrix.noalias() += (appended * appended.transpose() - S.Smatrix) / (effIter + 1);
+      }
       for (int i = 0; i < grad.rows(); i++)
       {
         diagonalGrad[i] += (localdiagonalGrad[i] - diagonalGrad[i])/(effIter+1);
@@ -817,43 +794,30 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
       S1 += (ham - avgPotold) * (ham - avgPot);
       if (effIter < corrIter)
         Stats.push_back(ham);
-      //corrError[effIter + commrank * corrIter] = ham;
       effIter++;
     }
 
- 
-
     if (ovlpRatio < -0.5)
       ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk),2);
-
     if (ovlpRatio*proposalProb > random()) {
       acceptedFrac++;
       walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
-
-      ovlp = ovlp*ovlpRatio;
-
+      ovlp = ovlp * sqrt(ovlpRatio);
       if (abs(ovlp) > abs(bestovlp)) {
         bestovlp = ovlp;
         bestDet = walk.getDet();
       }
     }
- 
-
-
   }
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(diagonalGrad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  if (!schd.direct) { MPI_Allreduce(MPI_IN_PLACE, S.Smatrix.data(), S.Smatrix.rows() * S.Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); }
   MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-
   Stats.Block();
   rk = Stats.BlockCorrTime();
-  //  vector<double> b_size, r_x; vector<double> tauError(corrError.size(), 1.0);
-  //block(b_size, r_x, corrError, tauError);
-  //rk = corrFunc(b_size, r_x);
-
 
   double n_eff = commsize * effIter;
   S1 /= effIter;
@@ -864,10 +828,6 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
   diagonalGrad /= (commsize);
   grad /= (commsize);
   grad = grad - E0 * diagonalGrad;
-
-  
-  //VectorXd appended(numVars);
-  //appended = diagonalGrad - schd.stepsize * grad;
   H << 1.0, (diagonalGrad - schd.stepsize * grad);
 
   if (commrank == 0)
@@ -909,7 +869,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   double M1 = 0., S1 = 0.;
   int nstore = 1000000 / commsize;
   int corrIter = min(nstore, niter/sampleSteps);
-  std::vector<double> corrError(corrIter * commsize, 0);
+  //std::vector<double> corrError(corrIter * commsize, 0);
 
   int numVars = grad.rows();
   Hessian = MatrixXd::Zero(numVars + 1, numVars+1);
@@ -932,13 +892,15 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
     if (iter%sampleSteps == 0 && iter > 0.01*niter) {
       ham = wave.HamOverlap(walk, localdiagonalGrad, hamRatio);
 
-VectorXd gradRatio = VectorXd::Zero(numVars + 1);
+      /*
+VectorXd gradRatio = VectorXd::Zero(numVars);
 wave.OverlapWithGradient(walk, ovlp, gradRatio);
 double Eloc = wave.rHam(walk);
 cout << "Eloc: " << ham << " " << Eloc << endl;
 cout << "gradRatio" << endl;
 cout << localdiagonalGrad.transpose() << endl << endl;
 cout << gradRatio.transpose() << endl << endl;
+*/
 
       Hessian.noalias() += (localdiagonalGrad * hamRatio.transpose()-Hessian)/(effIter+1);
       Smatrix.noalias() += (localdiagonalGrad * localdiagonalGrad.transpose()-Smatrix)/(effIter+1);
@@ -982,7 +944,7 @@ cout << gradRatio.transpose() << endl << endl;
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(diagonalGrad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(Hessian(0,0)), Hessian.rows()*Hessian.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(Smatrix(0,0)), Smatrix.rows()*Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);

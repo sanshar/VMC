@@ -518,6 +518,9 @@ class directLM
        write(vars);
        double VMC_time = (getTime() - startofCalc);
        double LM_time = VMC_time;
+       //if number of sgd iterations is 0, the 0th run will do nothing but generate a guess for rk, and the BestDet being stored will help the matrices
+       if (AMSGradIter == 0 && iter == 0)
+           goto print;
 
        if (iter < AMSGradIter)
        {
@@ -565,6 +568,7 @@ class directLM
            cout << endl;
          }
        } 
+       print:
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
