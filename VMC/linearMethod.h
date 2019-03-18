@@ -113,7 +113,6 @@ class LM
        rt = 0.0;
        grad.setZero(numVars);
 
-       cout << "hi" << endl;
        double acceptedFrac = getHessian(vars, grad, Hessian, Smatrix, E0, stddev, rt);
        write(vars);
 
