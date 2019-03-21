@@ -37,13 +37,13 @@ class rWalkerHelper<rSlater>
 
  public:
   HartreeFock hftype;                           //hftype same as that in slater
-  std::array<MatrixXd, 2> thetaInv;          //inverse of the theta matrix
-  vector<std::array<double, 2>> thetaDet;    //determinant of the theta matrix, vector for multidet
+  std::array<MatrixXcd, 2> thetaInv;          //inverse of the theta matrix
+  vector<std::array<std::complex<double>, 2>> thetaDet;    //determinant of the theta matrix, vector for multidet
 
   vector<double> aoValues;                   //this is used to store the ao values at some coordinate
-  std::array<MatrixXd, 2> DetMatrix;         //this is used to store the old determinant matrix
-  std::array<MatrixXd, 2> Laplacian;         //each matrix L(elec, mo)
-  std::array<MatrixXd, 3>   Gradient;        //each of three matrices is G(elec, mo) 
+  std::array<MatrixXcd, 2> DetMatrix;         //this is used to store the old determinant matrix
+  std::array<MatrixXcd, 2> Laplacian;         //each matrix L(elec, mo)
+  std::array<MatrixXcd, 3>   Gradient;        //each of three matrices is G(elec, mo) 
   MatrixXd AOLaplacian;                      //ne X Ao matrix -> Del^2_i ao_j(r_i)
   std::array<MatrixXd,3>  AOGradient;        //ne X Ao matrix -> Del_ia ao_j(r_i), a=x,y,z
   

@@ -30,10 +30,10 @@
 //#include "variance.h"
 
 using CorrSampleFunctor = boost::function<void (std::vector<Eigen::VectorXd>&, std::vector<double>&)>; 
-using functor1 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
+using functor1 = boost::function<double (VectorXd&, VectorXd&, double&, double&, double&)>;
 using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
 //using functor0 = boost::function<void (VectorXd&, VectorXd&, DirectVarLM &, double&, double&, double&, double&)>;
-using functor3 = boost::function<void (VectorXd&, VectorXd&, double&, double&, double&)>;
+using functor3 = boost::function<double (VectorXd&, VectorXd&, double&, double&, double&)>;
 //using functor4 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
 using functor5 = boost::function<double (VectorXd&, VectorXd&, MatrixXd&, MatrixXd&, double&, double&, double&)>;
 using functor6 = boost::function<void (VectorXd&, VectorXd&, DirectLM&, double&, double&, double&)>;
@@ -138,4 +138,5 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
       optimizer.optimize(vars, getStochasticGradientHessianRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
     }
   }
+  if (schd.printVars && commrank==0) wave.printVariables();
 }

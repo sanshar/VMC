@@ -58,6 +58,9 @@ void calculateInverseDeterminantWithRowChange(Eigen::MatrixXd &inverse, double &
                                               Eigen::MatrixXd &DetMatrix,
                                               int oldRowI, Eigen::VectorXd &newRow);
     
+void calculateInverseDeterminantWithRowChange(Eigen::MatrixXcd &inverse, std::complex<double> &detValue,
+                                              Eigen::MatrixXcd &DetMatrix,
+                                              int oldRowI, Eigen::VectorXcd &newRow);
 
 //pfaffian of a real matrix using Hessenberg decomposition
 double calcPfaffianH(const Eigen::MatrixXd &mat); 

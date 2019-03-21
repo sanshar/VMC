@@ -68,9 +68,14 @@ void rSlater::initHforbs()
     //hftype = 2;
     size = 2*norbs;
   }
-  HforbsA = MatrixXd::Zero(size, size);
-  HforbsB = MatrixXd::Zero(size, size);
+  HforbsA = MatrixXcd::Zero(size, size);
+  HforbsB = MatrixXcd::Zero(size, size);
   readHF(HforbsA, HforbsB, schd.hf);
+  if (schd.ifComplex)
+  {
+    HforbsA.imag() = 0.01 * MatrixXd::Random(size, size);
+    HforbsB.imag() = 0.01 * MatrixXd::Random(size, size);
+  }
 }
 
 void rSlater::initDets() 
@@ -123,21 +128,25 @@ void rSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
 
   if (hftype == Generalized) {
     for (int i = 0; i < 2*norbs; i++) {
-      for (int j = 0; j < nelec; j++) 
-        v[numDeterminants + i * nelec + j] = HforbsA(i, j);
+      for (int j = 0; j < nelec; j++) {
+        v[numDeterminants + 2*i * nelec + 2*j] = HforbsA(i, j).real();
+        v[numDeterminants + 2*i * nelec + 2*j + 1] = HforbsA(i, j).imag();
+      }
     }
   }
   else {
     for (int i = 0; i < norbs; i++) {
       for (int j = 0; j < nalpha; j++) {
-        v[numDeterminants + i * nelec + j] = HforbsA(i, j);
+        v[numDeterminants + 2*i * nalpha + 2*j] = HforbsA(i, j).real();
+        v[numDeterminants + 2*i * nalpha + 2*j + 1] = HforbsA(i, j).imag();
       }
     }
   
     if (hftype == UnRestricted) {
       for (int i = 0; i < norbs; i++) {
         for (int j = 0; j < nbeta; j++) {
-          v[numDeterminants + nalpha * norbs + i * nbeta + j] = HforbsB(i, j);
+          v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j] = HforbsB(i, j).real();
+          v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j + 1] = HforbsB(i, j).imag();
         }
       }
     }
@@ -153,9 +162,9 @@ long rSlater::getNumVariables() const
   long numVars = 0;
   numVars += determinants.size();
   if (hftype == Restricted)
-    numVars += nalpha * HforbsA.rows();
+    numVars += 2 * nalpha * HforbsA.rows();
   else
-    numVars += nelec * HforbsA.rows();
+    numVars += 2 * nelec * HforbsA.rows();
   return numVars;
 }
 
@@ -173,24 +182,27 @@ void rSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
   if (hftype == Generalized) {
     for (int i = 0; i < 2*norbs; i++) {
       for (int j = 0; j < nelec; j++) {
-        HforbsA(i, j) = v[numDeterminants + i * nelec + j];
-        HforbsB(i, j) = v[numDeterminants + i * nelec + j];
+        HforbsA(i, j).real(v[numDeterminants + 2*i * nelec + 2*j]);
+        HforbsA(i, j).imag(v[numDeterminants + 2*i * nelec + 2*j + 1]);
+        HforbsB(i, j) = HforbsA(i, j);
       }
     } 
   }
   else {
     for (int i = 0; i < norbs; i++) {
       for (int j = 0; j < nalpha; j++) {
-        HforbsA(i, j) = v[numDeterminants + i * nalpha + j];
+        HforbsA(i, j).real(v[numDeterminants + 2*i * nalpha + 2*j]);
+        HforbsA(i, j).imag(v[numDeterminants + 2*i * nalpha + 2*j + 1]);
         if (hftype == Restricted) {
-          HforbsB(i, j) = v[numDeterminants + i * nalpha + j];
+          HforbsB(i, j) = HforbsA(i, j);
         }
       }
     }
     if (hftype == UnRestricted) {
       for (int i = 0; i < norbs; i++) {
         for (int j = 0; j < nbeta; j++) {
-          HforbsB(i, j) = v[numDeterminants + nalpha * norbs + i * nbeta + j];
+          HforbsB(i, j).real(v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j]);
+          HforbsB(i, j).imag(v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j + 1]);
         }
       }
     }

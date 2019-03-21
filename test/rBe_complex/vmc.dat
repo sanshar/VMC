@@ -2,6 +2,7 @@ jastrowslater
 ghf
 maxIter 10
 stochasticIter 30000
+complex
 
 realspacesto
 nalpha 2

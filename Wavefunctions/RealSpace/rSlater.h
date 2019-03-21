@@ -55,7 +55,7 @@ class rSlater {
   HartreeFock hftype;                       //r/u/ghf
   std::vector<Determinant> determinants; //The set of determinants 
   std::vector<double> ciExpansion;       //The ci expansion
-  Eigen::MatrixXd HforbsA, HforbsB;        //mo coeffs, HforbsA=HforbsB for r/ghf
+  Eigen::MatrixXcd HforbsA, HforbsB;        //mo coeffs, HforbsA=HforbsB for r/ghf
 
   //read mo coeffs fomr hf.txt
   void initHforbs();
@@ -81,9 +81,9 @@ class rSlater {
   const std::vector<Determinant> &getDeterminants() const { return determinants; }
   int getNumOfDets() const;
   const std::vector<double> &getciExpansion() const { return ciExpansion; }
-  const Eigen::MatrixXd& getHforbsA() const { return HforbsA;}
-  const Eigen::MatrixXd& getHforbsB() const  {return HforbsB;}
-  const Eigen::MatrixXd& getHforbs(bool sz = 0) const { if(sz == 0) return HforbsA; else return HforbsB;}
+  const Eigen::MatrixXcd& getHforbsA() const { return HforbsA;}
+  const Eigen::MatrixXcd& getHforbsB() const  {return HforbsB;}
+  const Eigen::MatrixXcd& getHforbs(bool sz = 0) const { if(sz == 0) return HforbsA; else return HforbsB;}
 
   string getfileName() const {return "rSlater";};
     //void writeWave();

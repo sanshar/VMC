@@ -636,7 +636,7 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
 
 
 template<typename Wfn, typename Walker>
-void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, double &rk, int niter, double targetError)
+double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, double &rk, int niter, double targetError)
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
@@ -730,6 +730,7 @@ void getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
     boost::archive::binary_oarchive save(ofs);
     save << bestDet;
   }  
+  return acceptedFrac/niter;
 }
 
 template<typename Wfn, typename Walker>
@@ -1189,7 +1190,7 @@ class getGradientWrapper
     ctmc = pctmc;
   };
 
-  void getGradient(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
+  double getGradient(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
   {
     w.updateVariables(vars);
     w.initWalker(walk);
@@ -1211,18 +1212,21 @@ class getGradientWrapper
       getGradientDeterministic(w, walk, E0, grad);
     }
     w.writeWave();
+    return 1.0;
   };
 
-  void getGradientRealSpace(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
+  double getGradientRealSpace(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
   {
+    double acceptedFrac;
     w.updateVariables(vars);
     //w.printVariables();
     //exit(0);
     w.initWalker(walk);
     if (!deterministic)
-      getGradientMetropolisRealSpace(w, walk, E0, stddev, grad, rt, stochasticIter, 0.5e-3);
+      acceptedFrac = getGradientMetropolisRealSpace(w, walk, E0, stddev, grad, rt, stochasticIter, 0.5e-3);
 
     w.writeWave();
+    return acceptedFrac;
   };
 
   void getMetricRealSpace(VectorXd &vars, VectorXd &grad, VectorXd& H, DirectMetric& S, double &E0, double &stddev, double &rt, bool deterministic)

@@ -67,9 +67,9 @@ struct rWalker<rJastrow, rSlater> {
   /**
    * makes det based on mo coeffs 
    */
-  void guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXd& HforbsA, const Eigen::MatrixXd& HforbsB) const ;
+  void guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXcd& HforbsA, const Eigen::MatrixXcd& HforbsB) const ;
 
-  void initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB) ;
+  void initDet(const MatrixXcd& HforbsA, const MatrixXcd& HforbsB) ;
 
 
   void updateWalker(int elec, Vector3d& coord, const rSlater& ref, const rJastrow& corr);
