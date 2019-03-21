@@ -292,7 +292,7 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
 {
   int dim = H.G[0].rows(); //dimension of problem
   //int restart = std::max((int) (0.05 * dim), 30); //20 - 30
-  int restart = 30;
+  int restart = 25;
   int q = 5; //number of vectors to restart subspace
   //int q = std::max((int) (0.04 * dim), 5); //5 - 10
   
@@ -321,10 +321,18 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
     Eigen::VectorXd u_S = SV * s;
     Eigen::VectorXd r = u_H - theta * u_S;
     double rNorm = r.norm();
+    if (commrank == 0 && schd.printOpt)
+    {
+      cout << endl << "____________" << iter << "____________" << endl;
+      cout << "best guess so far: " << tau << endl;
+      cout << "size of subspace: " << V.cols() << endl;
+      cout << "theta: " << theta << endl;
+      cout << "residual norm: " <<  rNorm << endl;
+    }
     //if eigensolver fails
     if (std::isnan(rNorm) || std::isinf(rNorm))
     {
-      if (commrank == 0 && schd.printOpt) cout << "EIGENSOLVER FAIL" << endl;
+      if (commrank == 0 && schd.printOpt) ;
       Eigen::MatrixXd X;
       CanonicalTransform(B, X);
       Eigen::MatrixXd A_prime = X.adjoint() * A * X;
@@ -340,20 +348,17 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
       u_S = SV * s;
       r = u_H - theta * u_S;
       rNorm = r.norm();
+      if (commrank == 0 && schd.printOpt)
+      {
+        cout << "EIGENSOLVER FAIL" << endl;
+        cout << "New theta: " << theta << endl;
+        cout << "New residual norm: " <<  rNorm << endl;
+      }
     }
     //solve for correction vector
     z = Eigen::VectorXd::Unit(dim, 0);
     ConjGrad(H, u, theta, -r, cgIter, z);
-
-    if (commrank == 0 && schd.printOpt)
-    {
-      cout << endl << "____________" << iter << "____________" << endl;
-      cout << "theta: " << theta << endl;
-      cout << "best guess so far: " << tau << endl;
-      cout << "residual norm: " <<  rNorm << endl;
-      cout << "size of subspace: " << V.cols() << endl;
-    }
-  
+ 
     //update best guess
     if (rNorm < old_rNorm)
     {

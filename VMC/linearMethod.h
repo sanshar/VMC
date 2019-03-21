@@ -506,6 +506,7 @@ class directLM
      }
      while (iter < maxIter)
      {
+if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
        if (iter < AMSGradIter)
          rt = 0.0;
        double E0 = 0.0;
@@ -515,11 +516,9 @@ class directLM
 
        getHessian(vars, grad, h, E0, stddev, rt);
        write(vars);
+if (commrank == 0 && schd.printOpt) std::cout << "VMC run complete" << endl;
        double VMC_time = (getTime() - startofCalc);
        double LM_time = VMC_time;
-       //if number of sgd iterations is 0, the 0th run will do nothing but generate a guess for rk, and the BestDet being stored will help the matrices
-       if (AMSGradIter == 0 && iter == 0)
-           goto print;
 
        if (iter < AMSGradIter)
        {
@@ -540,6 +539,7 @@ class directLM
          //guess << 1.0, -(0.01 * grad);
          VectorXd guess = VectorXd::Unit(numVars + 1, 0);
          GeneralizedJacobiDavidson(h, E0, guess, lambda, x, schd.cgIter, schd.tol);
+if (commrank == 0 && schd.printOpt) std::cout << "LM complete" << endl;
          LM_time = (getTime() - startofCalc);
          VectorXd update = x.tail(numVars) / x(0);
          //correlated sampling
@@ -550,6 +550,7 @@ class directLM
            V[i] += LMStep[i] * update;
          }
          runCorrelatedSampling(V, E);
+if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
          int index = 0;
          for (int i = 0; i < E.size(); i++)
          {
@@ -567,7 +568,6 @@ class directLM
            cout << endl;
          }
        } 
-       print:
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
