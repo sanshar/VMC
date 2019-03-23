@@ -3,7 +3,7 @@ ghf
 complex
 
 maxIter 10
-stochasticIter 1000
+stochasticIter 3500
 seed 1
 
 #printOpt
@@ -12,5 +12,5 @@ direct
 hDiagShift 0.1
 decay 0.5
 tol 1.e-3
-CorrSampleFrac 0.15
-sgdIter 1
+CorrSampleFrac 0.25
+sgdIter 0

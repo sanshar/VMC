@@ -18,7 +18,7 @@
 
 void ConjGrad(const DirectLM &A, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, Eigen::VectorXd &x)
 {
-  double tol = 1.e-10;
+  double tol = 1.e-8;
 
   VectorXd Ap = VectorXd::Zero(x.rows());
   A.multiplyGJD(x, theta, u, Ap);
@@ -153,8 +153,7 @@ void AppendVectorToSubspace(const DirectLM &H, const Eigen::VectorXd &z, Eigen::
     }
     H.multiplyS(zcopy, Sz);
     double beta = zcopy.dot(Sz);
-    if (beta < 0.0)
-      beta *= -1.0;
+    if (beta < 0.0) beta *= -1.0;
     beta = std::sqrt(beta);
     Eigen::VectorXd v_m = zcopy / (beta + 1.e-8);
 

@@ -448,7 +448,7 @@ class directLM
     {
         iter = 0;
         numLMiter = 0;
-        rt = 0.0;
+        rt = 1.0;
     }
 
     void write(VectorXd& vars)
@@ -512,11 +512,14 @@ if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
        double E0 = 0.0;
        double stddev = 0.0;
        VectorXd grad = VectorXd::Zero(numVars);
-       DirectLM h(hdiagshift * std::pow(schd.decay, numLMiter), 0.0);
+       double shift = hdiagshift * std::pow(LMDecay, numLMiter);
+       if (shift < 1.e-4) shift = 1.e-4;
+       DirectLM h(shift, 0.0);
 
        getHessian(vars, grad, h, E0, stddev, rt);
        write(vars);
 if (commrank == 0 && schd.printOpt) std::cout << "VMC run complete" << endl;
+if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
        double VMC_time = (getTime() - startofCalc);
        double LM_time = VMC_time;
 
