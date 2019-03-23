@@ -129,7 +129,7 @@ class AMSGrad
         while (iter < maxIter)
         {
             double E0, stddev = 0.0, rt = 1.0;
-            getGradient(vars, grad, E0, stddev, rt);
+            double acceptedFrac = getGradient(vars, grad, E0, stddev, rt);
             //cout << grad << endl;
             write(vars);
             double oldNorm = stepNorm, dotProduct = 0.;
@@ -174,7 +174,7 @@ class AMSGrad
 
             if (commrank == 0)
             {
-              std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %10i  %6.6f %8.2f %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % (stepNorm) % (angle) % ((getTime() - startofCalc));
+              std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %10i  %6.6f %8.2f %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % acceptedFrac % (schd.stochasticIter) % (stepNorm) % (angle) % ((getTime() - startofCalc));
             }
             if (maxIter - iter <= avgIter) avgVars += vars;
             iter++;

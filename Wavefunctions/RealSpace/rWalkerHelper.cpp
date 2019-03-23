@@ -42,13 +42,13 @@ void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeter
   int norbs = Determinant::norbs;
   aoValues.resize(10*norbs, 0.0);
 
-  DetMatrix[0] = MatrixXd::Zero(d.nelec, d.nelec);
+  DetMatrix[0] = MatrixXcd::Zero(d.nelec, d.nelec);
   //Gradient.resize(d.nelec, MatrixXd::Zero(3, d.nelec));
-  Gradient [0] = MatrixXd::Zero(d.nelec, d.nelec);
-  Gradient [1] = MatrixXd::Zero(d.nelec, d.nelec);
-  Gradient [2] = MatrixXd::Zero(d.nelec, d.nelec);
+  Gradient [0] = MatrixXcd::Zero(d.nelec, d.nelec);
+  Gradient [1] = MatrixXcd::Zero(d.nelec, d.nelec);
+  Gradient [2] = MatrixXcd::Zero(d.nelec, d.nelec);
 
-  Laplacian[0] = MatrixXd::Zero(d.nelec, d.nelec);
+  Laplacian[0] = MatrixXcd::Zero(d.nelec, d.nelec);
   AOLaplacian = MatrixXd::Zero(d.nelec, 2*norbs);
   AOGradient[0]  = MatrixXd::Zero(d.nelec, 2*norbs);
   AOGradient[1]  = MatrixXd::Zero(d.nelec, 2*norbs);
@@ -62,33 +62,23 @@ void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeter
       AOGradient[0](elec, J) = aoValues[1*norbs+j];
       AOGradient[1](elec, J) = aoValues[2*norbs+j];
       AOGradient[2](elec, J) = aoValues[3*norbs+j];
-      AOLaplacian  (elec, J) = aoValues[4*norbs+j]
-          + aoValues[7*norbs+j]
-          + aoValues[9*norbs+j] ;
+      AOLaplacian  (elec, J) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
     }
     
     for (int mo=0; mo<d.nelec; mo++) 
       for (int j=0; j<norbs; j++) {
         int J = elec < d.nalpha ? j : j+norbs;
-        DetMatrix[0](elec, mo) += aoValues[j]
-                       * (w.getHforbs(0)(J, mo));
+        DetMatrix[0](elec, mo) += aoValues[j] * (w.getHforbs(0)(J, mo));
 
-        Laplacian[0](elec, mo) += (  aoValues[4*norbs+j]
-                                     + aoValues[7*norbs+j]
-                                     + aoValues[9*norbs+j] )
-                       * (w.getHforbs(0)(J,mo));
+        Laplacian[0](elec, mo) += (aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j]) * (w.getHforbs(0)(J,mo));
 
-        Gradient[0](elec, mo) += aoValues[1*norbs+j]
-                       * (w.getHforbs(0)(J,mo));
-        Gradient[1](elec, mo) += aoValues[2*norbs+j]
-                       * (w.getHforbs(0)(J,mo));
-        Gradient[2](elec, mo) += aoValues[3*norbs+j]
-                       * (w.getHforbs(0)(J,mo));
-          
+        Gradient[0](elec, mo) += aoValues[1*norbs+j] * (w.getHforbs(0)(J,mo));
+        Gradient[1](elec, mo) += aoValues[2*norbs+j] * (w.getHforbs(0)(J,mo));
+        Gradient[2](elec, mo) += aoValues[3*norbs+j] * (w.getHforbs(0)(J,mo)); 
       }
   }
 
-  Eigen::FullPivLU<MatrixXd> lu(DetMatrix[0]);
+  Eigen::FullPivLU<MatrixXcd> lu(DetMatrix[0]);
   if (lu.isInvertible()) {
     thetaInv[0] = lu.inverse();
     thetaDet[0][0] = lu.determinant();
@@ -124,14 +114,14 @@ double rWalkerHelper<rSlater>::getDetFactorGHF(int i, Vector3d& newCoord,
   schd.basis->eval(newCoord, &aoValues[0]);
 
 
-  VectorXd newVec = VectorXd::Zero(nelec);
+  VectorXcd newVec = VectorXcd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
     for (int j=0; j<norbs; j++) {
       int J = i < rDeterminant::nalpha ? j : j+norbs;
       newVec(mo) += aoValues[j] * (w.getHforbs(sz)(J, mo));
     }
-    
-  return (newVec.dot(thetaInv[sz].col(i)));
+  std::complex<double> factor = newVec.transpose() * thetaInv[sz].col(i);  
+  return (factor * thetaDet[0][0]).real() / (thetaDet[0][0]).real();
 }
   
 double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord,
@@ -142,12 +132,13 @@ double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord,
   schd.basis->eval(newCoord, &aoValues[0]);
 
 
-  VectorXd newVec = VectorXd::Zero(nelec);
+  VectorXcd newVec = VectorXcd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
     for (int j=0; j<norbs; j++) 
       newVec(mo) += aoValues[j] * w.getHforbs(sz)(j, mo);
 
-  return (newVec.dot(thetaInv[sz].col(i)));
+  std::complex<double> factor = newVec.transpose() * thetaInv[sz].col(i);  
+  return (factor * thetaDet[0][0] * thetaDet[0][1]).real() / (thetaDet[0][0] * thetaDet[0][1]).real();
 }
 
 void rWalkerHelper<rSlater>::updateWalker(int i, Vector3d& oldCoord, const rDeterminant &d,
@@ -158,7 +149,6 @@ void rWalkerHelper<rSlater>::updateWalker(int i, Vector3d& oldCoord, const rDete
     updateWalker(i, oldCoord, d, 0, d.nalpha, w);
   else
     updateWalker(i-d.nalpha, oldCoord, d, 1, d.nbeta, w);
-
 }
 
 
@@ -174,45 +164,31 @@ void rWalkerHelper<rSlater>::updateWalkerGHF(int elec, Vector3d& oldCoord, const
       AOGradient[0](elec, J) = aoValues[1*norbs+j];
       AOGradient[1](elec, J) = aoValues[2*norbs+j];
       AOGradient[2](elec, J) = aoValues[3*norbs+j];
-      AOLaplacian  (elec, J) = aoValues[4*norbs+j]
-          + aoValues[7*norbs+j]
-          + aoValues[9*norbs+j] ;
+      AOLaplacian  (elec, J) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
   }
   
-  VectorXd newVec = VectorXd::Zero(nelec);
+  VectorXcd newVec = VectorXcd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
     for (int j=0; j<norbs; j++) {
       int J = elec < rDeterminant::nalpha ? j : j+norbs;
       newVec(mo) += aoValues[j] * (w.getHforbs(sz)(J, mo));
     }
     
-  calculateInverseDeterminantWithRowChange(thetaInv[sz],thetaDet[0][sz],DetMatrix[sz],
-                                           elec, newVec);
+  calculateInverseDeterminantWithRowChange(thetaInv[sz],thetaDet[0][sz],DetMatrix[sz], elec, newVec);
 
   for (int mo=0; mo<nelec; mo++) {
     Laplacian[sz](elec, mo) = 0.0;
-
-
     Gradient[0](elec, mo) = 0.0;
     Gradient[1](elec, mo) = 0.0;
     Gradient[2](elec, mo) = 0.0;
       
     for (int j=0; j<norbs; j++) {
       int J = elec < rDeterminant::nalpha ? j : j+norbs;
-      Laplacian[sz](elec, mo) += (  aoValues[4*norbs+j]
-                                    + aoValues[7*norbs+j]
-                                    + aoValues[9*norbs+j] )
-                     * (w.getHforbs(sz)(J, mo));
-        
-        
-      Gradient[0](elec, mo) += aoValues[1*norbs+j]
-                     * (w.getHforbs(sz)(J, mo));
-      Gradient[1](elec, mo) += aoValues[2*norbs+j]
-                     * (w.getHforbs(sz)(J, mo));
-      Gradient[2](elec, mo) += aoValues[3*norbs+j]
-                     * (w.getHforbs(sz)(J, mo));
-    }
-      
+      Laplacian[sz](elec, mo) += (aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j]) * (w.getHforbs(sz)(J, mo)); 
+      Gradient[0](elec, mo) += aoValues[1*norbs+j] * (w.getHforbs(sz)(J, mo));
+      Gradient[1](elec, mo) += aoValues[2*norbs+j] * (w.getHforbs(sz)(J, mo));
+      Gradient[2](elec, mo) += aoValues[3*norbs+j] * (w.getHforbs(sz)(J, mo));
+    } 
   }
 
 }
@@ -228,34 +204,25 @@ void rWalkerHelper<rSlater>::updateWalker(int elec, Vector3d& oldCoord, const rD
 
   schd.basis->eval_deriv2(d.coord[gelec], &aoValues[0]);
 
-  VectorXd newVec = VectorXd::Zero(nelec);
+  VectorXcd newVec = VectorXd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
     for (int j=0; j<norbs; j++)  
       newVec(mo) += aoValues[j] * w.getHforbs(sz)(j, mo);
-
-    
-  calculateInverseDeterminantWithRowChange(thetaInv[sz],thetaDet[0][sz],DetMatrix[sz],
-                                           elec, newVec);
+ 
+  calculateInverseDeterminantWithRowChange(thetaInv[sz], thetaDet[0][sz], DetMatrix[sz], elec, newVec);
 
   for (int mo=0; mo<nelec; mo++) {
     Laplacian[sz](elec, mo) = 0.0;
-
-
     Gradient[0](gelec, mo) = 0.0;
     Gradient[1](gelec, mo) = 0.0;
     Gradient[2](gelec, mo) = 0.0;
       
     for (int j=0; j<norbs; j++) {
-      Laplacian[sz](elec, mo) += (  aoValues[4*norbs+j]
-                                    + aoValues[7*norbs+j]
-                                    + aoValues[9*norbs+j] ) * w.getHforbs(sz)(j,mo);
-        
-        
+      Laplacian[sz](elec, mo) += (aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j] ) * w.getHforbs(sz)(j,mo); 
       Gradient[0](gelec, mo) += aoValues[1*norbs+j] * w.getHforbs(sz)(j, mo);
       Gradient[1](gelec, mo) += aoValues[2*norbs+j] * w.getHforbs(sz)(j, mo);
       Gradient[2](gelec, mo) += aoValues[3*norbs+j] * w.getHforbs(sz)(j, mo);
-    }
-      
+    } 
   }
 
 }
@@ -311,20 +278,31 @@ void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d,
       AoRib(elec, orb) = aoValues[orb];
   }
   
+  std::complex<double> DetFactor = thetaDet[0][0] * thetaDet[0][1];
   //Assuming a single determinant
   for (int moa=0; moa<nalpha; moa++) {//alpha mo 
     for (int orb=0; orb<norbs; orb++) {//ao
-      grad[numDets + orb * nalpha + moa] += thetaInv[0].row(moa).dot(AoRia.col(orb));
+      std::complex<double> factor = thetaInv[0].row(moa) * AoRia.col(orb);
+      factor *= DetFactor / DetFactor.real();
+      grad[numDets + 2*orb * nalpha + 2*moa] += factor.real();
+      grad[numDets + 2*orb * nalpha + 2*moa + 1] += -factor.imag();
     }
   }
   
   for (int mob=0; mob<nbeta; mob++) {//beta mo 
     for (int orb=0; orb<norbs; orb++) {//ao
       if (ref.hftype == Restricted) {
-        grad[numDets + orb * nbeta + mob] += thetaInv[1].row(mob).dot(AoRib.col(orb));
+        std::complex<double> factor = thetaInv[1].row(mob) * AoRib.col(orb);
+        factor *= DetFactor / DetFactor.real();
+        grad[numDets + 2*orb * nbeta + 2*mob] += factor.real();
+        grad[numDets + 2*orb * nbeta + 2*mob + 1] += -factor.imag();
       }
-      else
-        grad[numDets + nalpha*norbs + orb * nbeta + mob] += thetaInv[1].row(mob).dot(AoRib.col(orb));
+      else {
+        std::complex<double> factor = thetaInv[1].row(mob) * AoRib.col(orb);
+        factor *= DetFactor / DetFactor.real();
+        grad[numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob] += factor.real();
+        grad[numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob + 1] += -factor.imag();
+      }
     }
   }
   
@@ -357,9 +335,13 @@ void rWalkerHelper<rSlater>::OverlapWithGradientGhf(const rDeterminant& d,
     }
   }
 
+  std::complex<double> DetFactor = thetaDet[0][0];
   for (int mo=0; mo<nelec; mo++) {
     for (int orb=0; orb< 2*norbs; orb++) {
-      grad[numDets + orb * nelec + mo] += thetaInv[0].row(mo).dot(AoRi.col(orb));
+      std:complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb);
+      factor *= DetFactor / DetFactor.real();
+      grad[numDets + 2*orb * nelec + 2*mo] += factor.real();
+      grad[numDets + 2*orb * nelec + 2*mo + 1] += -factor.imag();
     }
   }
 
@@ -593,7 +575,7 @@ void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDetermin
   }
     
   //cout << w.getHforbs(0).col(0)<<endl;
-  Eigen::FullPivLU<MatrixXd> lua(DetMatrix[0]);
+  Eigen::FullPivLU<MatrixXcd> lua(DetMatrix[0]);
   if (lua.isInvertible()) {
     thetaInv[0] = lua.inverse();
     thetaDet[0][0] = lua.determinant();
@@ -622,7 +604,7 @@ void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDetermin
   }
 
   if (d.nbeta != 0) {
-    Eigen::FullPivLU<MatrixXd> lub(DetMatrix[1]);
+    Eigen::FullPivLU<MatrixXcd> lub(DetMatrix[1]);
     if (lub.isInvertible()) {
       thetaInv[1] = lub.inverse();
       thetaDet[0][1] = lub.determinant();

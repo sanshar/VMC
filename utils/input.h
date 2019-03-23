@@ -203,6 +203,7 @@ public:
  *   hf string: rhf, uhf or ghf
  */
 void readHF(Eigen::MatrixXd& hforbsA, Eigen::MatrixXd& hforbsB, std::string hf);
+void readHF(Eigen::MatrixXcd& hforbsA, Eigen::MatrixXcd& hforbsB, std::string hf);
 
 /**
  * This reads the pairing matrix from 'pairMat.txt'

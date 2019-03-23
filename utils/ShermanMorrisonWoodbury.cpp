@@ -202,6 +202,27 @@ void calculateInverseDeterminantWithRowChange(Eigen::MatrixXd &inverse, double &
   detValue = detValue * detFactor;
 
 }
+void calculateInverseDeterminantWithRowChange(Eigen::MatrixXcd &inverse, std::complex<double> &detValue,
+                                              Eigen::MatrixXcd &DetMatrix,
+                                              int oldRowI, Eigen::VectorXcd &newRow)
+{
+
+  Eigen::VectorXcd oldRow = DetMatrix.row(oldRowI);  
+  DetMatrix.row(oldRowI) = newRow;
+  newRow = newRow - oldRow;
+
+  Eigen::VectorXd U = Eigen::VectorXd::Zero(newRow.rows());
+  U(oldRowI) = 1.0;
+      
+  Eigen::MatrixXcd inverseU = inverse * U;
+  //Eigen::MatrixXcd Vinverse = newRow.adjoint() * inverse;
+  Eigen::MatrixXcd Vinverse = newRow.transpose() * inverse;
+  //std::complex<double>  detFactor = 1 + newRow.dot( inverseU.col(0));
+  std::complex<double>  detFactor = 1 + newRow.transpose() * inverseU.col(0);
+
+  inverse += -(inverseU.col(0) * Vinverse.row(0)) / detFactor;
+  detValue = detValue * detFactor;
+}
 
 double calcPfaffianH(const Eigen::MatrixXd &mat)
 {

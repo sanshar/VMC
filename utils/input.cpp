@@ -556,6 +556,36 @@ void readHF(MatrixXd& HfmatrixA, MatrixXd& HfmatrixB, std::string hf)
   }
 */
 }
+void readHF(MatrixXcd& HfmatrixA, MatrixXcd& HfmatrixB, std::string hf) 
+{
+  if (hf == "rhf" || hf == "ghf") {
+    ifstream dump("hf.txt");
+    for (int i = 0; i < HfmatrixA.rows(); i++) {
+      for (int j = 0; j < HfmatrixA.rows(); j++){
+        dump >> HfmatrixA(i, j);
+	    HfmatrixB(i, j) = HfmatrixA(i, j);
+      }
+    }
+  }
+  else {
+      ifstream dump("hf.txt");
+      for (int i = 0; i < HfmatrixA.rows(); i++)
+	{
+	  for (int j = 0; j < HfmatrixA.rows(); j++)
+	    dump >> HfmatrixA(i, j);
+	  for (int j = 0; j < HfmatrixB.rows(); j++)
+	    dump >> HfmatrixB(i, j);
+	}
+    }
+/*
+  if (schd.optimizeOrbs) {
+    //double scale = pow(1.*HfmatrixA.rows(), 0.5);
+    double scale = 0.05 * HfmatrixA.maxCoeff();
+    HfmatrixA += scale * MatrixXd::Random(HfmatrixA.rows(), HfmatrixA.cols());
+    HfmatrixB += scale * MatrixXd::Random(HfmatrixB.rows(), HfmatrixB.cols());
+  }
+*/
+}
 
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
