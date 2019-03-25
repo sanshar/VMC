@@ -513,7 +513,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
        double stddev = 0.0;
        VectorXd grad = VectorXd::Zero(numVars);
        double shift = hdiagshift * std::pow(LMDecay, numLMiter);
-       if (shift < 1.e-4) shift = 1.e-4;
+       if (shift < 1.e-6) shift = 1.e-6;
        DirectLM h(shift, 0.0);
 
        getHessian(vars, grad, h, E0, stddev, rt);
