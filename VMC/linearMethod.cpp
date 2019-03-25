@@ -16,12 +16,15 @@
 #include <boost/mpi.hpp>
 #endif
 
-void ConjGrad(const DirectLM &A, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, Eigen::VectorXd &x)
+void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, Eigen::VectorXd &x)
 {
   double tol = 1.e-8;
-
   VectorXd Ap = VectorXd::Zero(x.rows());
-  A.multiplyGJD(x, theta, u, Ap);
+
+  x = x - u * Su.dot(x);
+  A.multiplyH_thetaS(x, theta, Ap);
+  Ap = Ap - Su * u.dot(Ap);
+  //A.multiplyGJD(x, theta, u, Ap);
   VectorXd r = b - Ap;
   VectorXd p = r;
   
@@ -30,7 +33,10 @@ void ConjGrad(const DirectLM &A, const Eigen::VectorXd &u, double theta, const E
   
   for (int i = 0; i < n; i++)
   {
-    A.multiplyGJD(p, theta, u, Ap);
+    p = p - u * Su.dot(x);
+    A.multiplyH_thetaS(p, theta, Ap);
+    Ap = Ap - Su * u.dot(Ap);
+    //A.multiplyGJD(p, theta, u, Ap);
     double pAp = p.adjoint() * Ap;
     double alpha = rsold / pAp;
 
@@ -248,7 +254,7 @@ if (commrank == 0)
     }
     old_theta = theta;
     z = Eigen::VectorXd::Unit(dim, 0);
-    ConjGrad(H, u, theta, -r, n, z);
+    ConjGrad(H, u_S, u, theta, -r, n, z);
     AppendVectorToSubspace(H, z, V, HV, SV);
   }
 }                                       
@@ -316,9 +322,9 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
     double theta = D(index);
     Eigen::VectorXd s = U.col(index);
     Eigen::VectorXd u = V * s;
-    Eigen::VectorXd u_H = HV * s;
-    Eigen::VectorXd u_S = SV * s;
-    Eigen::VectorXd r = u_H - theta * u_S;
+    Eigen::VectorXd Hu = HV * s;
+    Eigen::VectorXd Su = SV * s;
+    Eigen::VectorXd r = Hu - theta * Su;
     double rNorm = r.norm();
     if (commrank == 0 && schd.printOpt)
     {
@@ -343,9 +349,9 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
       theta = D(index);
       s = U.col(index);
       u = V * s;
-      u_H = HV * s;
-      u_S = SV * s;
-      r = u_H - theta * u_S;
+      Hu = HV * s;
+      Su = SV * s;
+      r = Hu - theta * Su;
       rNorm = r.norm();
       if (commrank == 0 && schd.printOpt)
       {
@@ -356,7 +362,7 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
     }
     //solve for correction vector
     z = Eigen::VectorXd::Unit(dim, 0);
-    ConjGrad(H, u, theta, -r, cgIter, z);
+    ConjGrad(H, Su, u, theta, -r, cgIter, z);
  
     //update best guess
     if (rNorm < old_rNorm)
