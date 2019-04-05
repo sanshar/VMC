@@ -542,9 +542,17 @@ if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
          //guess << 1.0, -(0.01 * grad);
          VectorXd guess = VectorXd::Unit(numVars + 1, 0);
          GeneralizedJacobiDavidson(h, E0, guess, lambda, x, schd.cgIter, schd.tol);
+         //normalize parameter update
+         double ksi = 0.5;
+         VectorXd Sx;
+         h.multiplyS(x, Sx);
+         double xSx = x.dot(Sx);
+         VectorXd N = ((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
+         double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
+         VectorXd update = x.tail(numVars) / (x(0) * norm);
+         //VectorXd update = x.tail(numVars) / x(0);
 if (commrank == 0 && schd.printOpt) std::cout << "LM complete" << endl;
          LM_time = (getTime() - startofCalc);
-         VectorXd update = x.tail(numVars) / x(0);
          //correlated sampling
          std::vector<Eigen::VectorXd> V(LMStep.size(), vars);
          std::vector<double> E(LMStep.size(), 0.0);
@@ -566,7 +574,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
            cout << "Correlated Sampling: " << endl;
            for (int i = 0; i < E.size(); i++)
            {
-             cout << LMStep[i] << " " << E[i] << "|";
+             cout << LMStep[i] << " " << E[i] << " | ";
            }
            cout << endl;
          }

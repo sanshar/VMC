@@ -211,10 +211,10 @@ void readInput(string input, schedule& schd, bool print) {
 	        schd.method = linearmethod;
             schd.sDiagShift = 0.0;
             schd.hDiagShift = 0.1;
-            schd.decay = 0.75;
+            schd.decay = 0.5;
 	        schd.cgIter = 5;
             schd.tol = 1.e-3;
-            schd.stepsizes = {0.1, 0.01, 0.05, 0.5, 1.0};
+            schd.stepsizes = {0.1, 0.01, 1.0};
             schd.sgdIter = 20;
           }
           else if (boost::iequals(ArgName, "decay"))

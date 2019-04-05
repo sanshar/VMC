@@ -18,7 +18,7 @@
 
 void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, Eigen::VectorXd &x)
 {
-  double tol = 1.e-8;
+  double tol = 1.e-3;
   VectorXd Ap = VectorXd::Zero(x.rows());
 
   x = x - u * Su.dot(x);
@@ -28,8 +28,9 @@ void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorX
   VectorXd r = b - Ap;
   VectorXd p = r;
   
+  double norm = r.norm();
   double rsold = r.adjoint() * r;
-  if (fabs(rsold) < tol) return;
+  if (std::abs(norm) < tol) return;
   
   for (int i = 0; i < n; i++)
   {
@@ -47,9 +48,10 @@ void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorX
     double beta = rsnew / rsold;
 
 
-    rsold = rsnew;
+    norm = r.norm();
     p = r + beta*p;
-    if (fabs(rsold) < tol) return;
+    if (std::abs(norm) < tol) return;
+    rsold = rsnew;
   }
 }
 
