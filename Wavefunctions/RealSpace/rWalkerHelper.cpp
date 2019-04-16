@@ -85,12 +85,14 @@ void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeter
     thetaDet[0][1] = 1.0;
   }
   else {
+      if (commrank == 0) {
     cout << " overlap with GHF determinant not invertible" << endl;
     cout << w.getHforbs(0)<<endl;
     cout << DetMatrix[0].rows()<<"  "<<DetMatrix[0].cols()<<endl;
     cout << DetMatrix[0]<<endl<<endl;
     cout << thetaInv[0]<<endl<<endl;
     exit(0);
+      }
   }
 
 
@@ -314,13 +316,14 @@ void rWalkerHelper<rSlater>::OverlapWithGradientGhf(const rDeterminant& d,
                                                 const rSlater& ref,
                                                 Eigen::VectorBlock<VectorXd>& grad) 
 {
-  grad[0] = 0.0;
+  grad.setZero();
   
   int norbs = schd.basis->getNorbs();
   int nalpha = rDeterminant::nalpha;
   int nbeta = rDeterminant::nbeta;
   int nelec = nalpha+nbeta;
   int numDets = ref.determinants.size();
+  std::complex<double> i(0.0, 1.0);
   
   MatrixXd AoRi = MatrixXd::Zero(nelec, 2*norbs);
   aoValues.resize(norbs);
@@ -335,16 +338,13 @@ void rWalkerHelper<rSlater>::OverlapWithGradientGhf(const rDeterminant& d,
     }
   }
 
-  std::complex<double> DetFactor = thetaDet[0][0];
   for (int mo=0; mo<nelec; mo++) {
     for (int orb=0; orb< 2*norbs; orb++) {
       std:complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb);
-      factor *= DetFactor / DetFactor.real();
-      grad[numDets + 2*orb * nelec + 2*mo] += factor.real();
-      grad[numDets + 2*orb * nelec + 2*mo + 1] += -factor.imag();
+      grad[numDets + 2*orb * nelec + 2*mo] = (factor * thetaDet[0][0]).real() / thetaDet[0][0].real();
+      if (schd.ifComplex) grad[numDets + 2*orb * nelec + 2*mo + 1] = (i * factor * thetaDet[0][0]).real() / thetaDet[0][0].real();
     }
   }
-
 }
 
 

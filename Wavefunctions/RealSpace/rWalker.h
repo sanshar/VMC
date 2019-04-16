@@ -53,7 +53,7 @@ struct rWalker<rJastrow, rSlater> {
   
   rWalker(const rJastrow &corr, const rSlater &ref) ;
 
-  //rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd);
+  rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd);
 
   void initR();
   void initHelpers(const rJastrow &corr, const rSlater &ref);

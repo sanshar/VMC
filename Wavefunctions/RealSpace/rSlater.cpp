@@ -73,8 +73,13 @@ void rSlater::initHforbs()
   readHF(HforbsA, HforbsB, schd.hf);
   if (schd.ifComplex)
   {
-    HforbsA.imag() = 0.01 * MatrixXd::Random(size, size);
-    HforbsB.imag() = 0.01 * MatrixXd::Random(size, size);
+    HforbsA.imag() += 0.01 * MatrixXd::Random(size, size);
+    HforbsB.imag() += 0.01 * MatrixXd::Random(size, size);
+  }
+  else
+  {
+    HforbsA.imag() = MatrixXd::Zero(size, size);
+    HforbsB.imag() = MatrixXd::Zero(size, size);
   }
 }
 
@@ -117,6 +122,7 @@ void rSlater::initDets()
 //I Assume that there is only single determinant in the ciexpansion
 void rSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
 { 
+  v.setZero();
   int norbs = Determinant::norbs;  
   int nalpha = rDeterminant::nalpha;
   int nbeta = rDeterminant::nbeta;
@@ -130,7 +136,7 @@ void rSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
     for (int i = 0; i < 2*norbs; i++) {
       for (int j = 0; j < nelec; j++) {
         v[numDeterminants + 2*i * nelec + 2*j] = HforbsA(i, j).real();
-        v[numDeterminants + 2*i * nelec + 2*j + 1] = HforbsA(i, j).imag();
+        if (schd.ifComplex) v[numDeterminants + 2*i * nelec + 2*j + 1] = HforbsA(i, j).imag();
       }
     }
   }
@@ -138,7 +144,7 @@ void rSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
     for (int i = 0; i < norbs; i++) {
       for (int j = 0; j < nalpha; j++) {
         v[numDeterminants + 2*i * nalpha + 2*j] = HforbsA(i, j).real();
-        v[numDeterminants + 2*i * nalpha + 2*j + 1] = HforbsA(i, j).imag();
+        if (schd.ifComplex) v[numDeterminants + 2*i * nalpha + 2*j + 1] = HforbsA(i, j).imag();
       }
     }
   
@@ -146,7 +152,7 @@ void rSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
       for (int i = 0; i < norbs; i++) {
         for (int j = 0; j < nbeta; j++) {
           v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j] = HforbsB(i, j).real();
-          v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j + 1] = HforbsB(i, j).imag();
+          if (schd.ifComplex) v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j + 1] = HforbsB(i, j).imag();
         }
       }
     }
@@ -182,8 +188,9 @@ void rSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
   if (hftype == Generalized) {
     for (int i = 0; i < 2*norbs; i++) {
       for (int j = 0; j < nelec; j++) {
+        HforbsA(i, j) = 0.0;
         HforbsA(i, j).real(v[numDeterminants + 2*i * nelec + 2*j]);
-        HforbsA(i, j).imag(v[numDeterminants + 2*i * nelec + 2*j + 1]);
+        if (schd.ifComplex) HforbsA(i, j).imag(v[numDeterminants + 2*i * nelec + 2*j + 1]);
         HforbsB(i, j) = HforbsA(i, j);
       }
     } 
@@ -191,8 +198,9 @@ void rSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
   else {
     for (int i = 0; i < norbs; i++) {
       for (int j = 0; j < nalpha; j++) {
+        HforbsA(i, j) = 0.0;
         HforbsA(i, j).real(v[numDeterminants + 2*i * nalpha + 2*j]);
-        HforbsA(i, j).imag(v[numDeterminants + 2*i * nalpha + 2*j + 1]);
+        if (schd.ifComplex) HforbsA(i, j).imag(v[numDeterminants + 2*i * nalpha + 2*j + 1]);
         if (hftype == Restricted) {
           HforbsB(i, j) = HforbsA(i, j);
         }
@@ -201,8 +209,9 @@ void rSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
     if (hftype == UnRestricted) {
       for (int i = 0; i < norbs; i++) {
         for (int j = 0; j < nbeta; j++) {
+          HforbsB(i, j) = 0.0;
           HforbsB(i, j).real(v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j]);
-          HforbsB(i, j).imag(v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j + 1]);
+          if (schd.ifComplex) HforbsB(i, j).imag(v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j + 1]);
         }
       }
     }

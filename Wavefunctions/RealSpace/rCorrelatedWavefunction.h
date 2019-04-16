@@ -60,7 +60,7 @@ struct rCorrelatedWavefunction {
     walk = rWalker<Corr, Reference>(corr, ref);
   }
   
-  void initWalker(rWalker<Corr, Reference> &walk, Determinant &d) const 
+  void initWalker(rWalker<Corr, Reference> &walk, rDeterminant &d) const 
   {
     walk = rWalker<Corr, Reference>(corr, ref, d);
   }
@@ -99,8 +99,9 @@ struct rCorrelatedWavefunction {
 
   void getVariables(Eigen::VectorXd &v) const
   {
-    if (v.rows() != getNumVariables())
-      v = VectorXd::Zero(getNumVariables());
+    v.setZero(getNumVariables());
+    //if (v.rows() != getNumVariables())
+    //  v = VectorXd::Zero(getNumVariables());
 
     corr.getVariables(v);
     Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());

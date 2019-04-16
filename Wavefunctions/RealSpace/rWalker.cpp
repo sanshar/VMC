@@ -51,6 +51,15 @@ rWalker<rJastrow, rSlater>::rWalker(const rJastrow &corr, const rSlater &ref)
   initHelpers(corr, ref);
 }
 
+rWalker<rJastrow, rSlater>::rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd) : d(pd)
+{
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double> (.0,1.0); //0 mean and 1 stddev  
+  initR();
+  initHelpers(corr, ref);
+}
+
 void rWalker<rJastrow, rSlater>::initHelpers(const rJastrow &corr, const rSlater &ref)  {
   refHelper = rWalkerHelper<rSlater>(ref, d);
   corrHelper = rWalkerHelper<rJastrow>(corr, d, Rij, RiN);
@@ -91,7 +100,6 @@ void rWalker<rJastrow, rSlater>::initR() {
   }
 }
 
-//rWalker<rJastrow, rSlater>::rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
 
 rDeterminant& rWalker<rJastrow, rSlater>::getDet() {return d;}
 void rWalker<rJastrow, rSlater>::readBestDeterminant(rDeterminant& d) const 

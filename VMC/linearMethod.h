@@ -116,19 +116,7 @@ class LM
        double acceptedFrac = getHessian(vars, grad, Hessian, Smatrix, E0, stddev, rt);
        write(vars);
 
-       for (int i=0; i<numVars+1; i++)
-         Hessian(i,i) += hdiagshift * std::pow(decay, iter);
-
-       MatrixXd Uo = MatrixXd::Zero(numVars+1, numVars+1);       
-       Uo(0,0) = 1.0;
-       for (int i=0; i<numVars; i++) {
-         Uo(0, i+1) = -Smatrix(0, i+1);
-         Uo(i+1, i+1) = 1.0;
-       }
-       
-       Smatrix = Uo.transpose()*(Smatrix * Uo);
-       Hessian = Uo.transpose()*(Hessian * Uo);
-/*
+       /*
        ofstream Hout("H.txt");
        ofstream Sout("S.txt");
        for (int i = 0; i < Hessian.rows(); i++)
@@ -143,14 +131,31 @@ class LM
        }
        Hout.close();
        Sout.close();
-*/
+       */
+
+
+       double shift = hdiagshift * std::pow(decay, iter);
+       if (shift < 1.e-6) shift = 1.e-6;
+       for (int i=0; i<numVars+1; i++)
+         Hessian(i,i) += shift;
+
+       MatrixXd Uo = MatrixXd::Zero(numVars+1, numVars+1);       
+       Uo(0,0) = 1.0;
+       for (int i=0; i<numVars; i++) {
+         Uo(0, i+1) = -Smatrix(0, i+1);
+         Uo(i+1, i+1) = 1.0;
+       }
+       
+       Smatrix = Uo.transpose()*(Smatrix * Uo);
+       Hessian = Uo.transpose()*(Hessian * Uo);
+
        SelfAdjointEigenSolver<MatrixXd> oes(Smatrix);
 
        int index = 0;
        Uo.setZero();
        for (int i = 0; i<numVars+1; i++) {
          double eigval = oes.eigenvalues()(i);
-         if (abs(eigval) > 1.e-8) {
+         if (std::abs(eigval) > 1.e-8) {
            Uo.col(index) = oes.eigenvectors().col(i)/pow(eigval, 0.5);
            index++;
            //cout << " | " << index<<"  "<<eigval<<endl;
@@ -173,7 +178,14 @@ class LM
        //cout << es.eigenvalues().transpose().real() << endl << endl;
        
        VectorXd x = (Uo * es.eigenvectors().col(eminIndex)).real();
-       VectorXd update = x.tail(numVars) / x(0);
+       //VectorXd update = x.tail(numVars) / x(0);
+         //normalize parameter update
+         double ksi = 0.5;
+         VectorXd Sx = Smatrix * x;
+         double xSx = x.dot(Sx);
+         VectorXd N = ((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
+         double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
+         VectorXd update = x.tail(numVars) / (x(0) * norm);
        //if (commrank == 0) { 
        //cout << "Expected energy in next step :" << emin<<endl;
        //cout << "Number of non-redundant vars :" << index<<endl;
