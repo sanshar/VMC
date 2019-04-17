@@ -1,0 +1,19 @@
+jastrowslater
+ghf
+maxIter 3
+stochasticIter 25000
+complex
+
+realspacesto
+nalpha 2
+nbeta 2
+norbs 17
+
+lm
+#printopt
+
+seed 1
+
+    0   -14.59229562 (5.93e-03)     0.54205910      2.1      0.8     2.67     3.75     5.45 
+    1   -14.63965205 (3.39e-03)     0.22665029      1.5      0.8     8.15     9.30    11.00 
+    2   -14.64438386 (2.74e-03)     0.04186076      1.4      0.8    13.64    15.51    17.21 

@@ -528,8 +528,9 @@ if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
        if (shift < 1.e-6) shift = 1.e-6;
        DirectLM h(shift, 0.0);
 
-       getHessian(vars, grad, h, E0, stddev, rt);
+       double acceptedFrac = getHessian(vars, grad, h, E0, stddev, rt);
        write(vars);
+
 if (commrank == 0 && schd.printOpt) std::cout << "VMC run complete" << endl;
 if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
        double VMC_time = (getTime() - startofCalc);
@@ -595,7 +596,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
        if (commrank == 0)
-         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.2f %8.2f %8.2f \n") % iter % E0 % stddev % (grad.norm()) % (rt) % (VMC_time) % (LM_time) % ((getTime() - startofCalc));
+         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %8.2f %8.2f %8.2f \n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (VMC_time) % (LM_time) % ((getTime() - startofCalc));
        iter++;
      }
    }

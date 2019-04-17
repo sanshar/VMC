@@ -36,7 +36,7 @@ using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMe
 using functor3 = boost::function<double (VectorXd&, VectorXd&, double&, double&, double&)>;
 //using functor4 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
 using functor5 = boost::function<double (VectorXd&, VectorXd&, MatrixXd&, MatrixXd&, double&, double&, double&)>;
-using functor6 = boost::function<void (VectorXd&, VectorXd&, DirectLM&, double&, double&, double&)>;
+using functor6 = boost::function<double (VectorXd&, VectorXd&, DirectLM&, double&, double&, double&)>;
 
 
 template<typename Wave, typename Walker>
@@ -115,6 +115,7 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
   functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
   functor2 getStochasticGradientMetricRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
   functor5 getStochasticGradientHessianRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
+  functor6 getStochasticGradientHessianDirectRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianDirectRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
 
   //CorrSampleWrapper<Wave, Walker> wrap(0.15 * schd.stochasticIter);
   CorrSampleWrapper<Wave, Walker> wrap(schd.CorrSampleFrac * schd.stochasticIter);
@@ -134,8 +135,14 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
       optimizer.optimize(vars, getStochasticGradientMetricRealSpace, schd.restart);
     }
     else if (schd.method == linearmethod) {
-      LM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.decay);
-      optimizer.optimize(vars, getStochasticGradientHessianRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
+      if (schd.direct) {
+        directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.decay, schd.sgdIter);
+        optimizer.optimize(vars, getStochasticGradientHessianDirectRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
+      }
+      else {  
+        LM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.decay);
+        optimizer.optimize(vars, getStochasticGradientHessianRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
+      }
     }
   }
   if (schd.printVars && commrank==0) wave.printVariables();

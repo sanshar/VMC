@@ -211,11 +211,12 @@ void readInput(string input, schedule& schd, bool print) {
 	        schd.method = linearmethod;
             schd.sDiagShift = 0.0;
             schd.hDiagShift = 0.1;
-            schd.decay = 0.5;
+            schd.decay = 0.6;
 	        schd.cgIter = 5;
             schd.tol = 1.e-3;
             schd.stepsizes = {0.1, 0.01, 1.0};
-            schd.sgdIter = 20;
+            schd.sgdIter = 0;
+            schd.CorrSampleFrac = 0.35;
           }
           else if (boost::iequals(ArgName, "decay"))
             schd.decay = atof(tok[1].c_str());
