@@ -27,8 +27,8 @@ int main(int argc, char* argv[]) {
   cin >> aName;
   //string atomName = "B";
   //this is like the geometry
-  vector<string> atomName;
-  vector<Vector3d> atomCoord;
+  vector<string> atomName(1);
+  vector<Vector3d> atomCoord(1);
   Vector3d coord; coord[0] =0.; coord[1] = 0.; coord[2] = 0.;
   atomCoord[0] = coord;
   atomName[0] = aName;
@@ -73,7 +73,3 @@ void getSTOnG(int N, int L, int NG,
   }
 
 }
-
-
-
-

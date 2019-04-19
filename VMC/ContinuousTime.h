@@ -30,7 +30,7 @@ class ContinuousTime
   Wfn &w;
   Walker &walk;
   long numVars;
-  int iter, norbs, nalpha, nbeta;
+  int norbs, nalpha, nbeta;
   workingArray work;
   double T, Eloc, ovlp;
   double S1, oldEnergy;
@@ -56,14 +56,12 @@ class ContinuousTime
     nbeta = Determinant::nbeta;
     bestDet = walk.getDet();
     cumT = 0.0, cumT2 = 0.0, cumT_everyrk = 0.0, S1 = 0.0, oldEnergy = 0.0, bestOvlp = 0.0; 
-    iter = 0;
   }
 
   void LocalEnergy()
   {
     Eloc = 0.0, ovlp = 0.0;
     w.HamAndOvlp(walk, ovlp, Eloc, work);
-    iter++;
     if (schd.debug) {
       cout << walk << endl;
       cout << "ham  " << Eloc << "  ovlp  " << ovlp << endl << endl;
@@ -83,6 +81,24 @@ class ContinuousTime
     int nextDet = lower_bound(work.ovlpRatio.begin(), work.ovlpRatio.begin() + work.nExcitations, nextDetRand) - work.ovlpRatio.begin();
     cumT += T;
     cumT2 += T * T;
+    walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
+  }
+
+  void MakeMove(int sample)
+  {
+    double cumOvlp = 0.0;
+    for (int i = 0; i < work.nExcitations; i++)
+    {
+      cumOvlp += abs(work.ovlpRatio[i]);
+      work.ovlpRatio[i] = cumOvlp;
+    }
+    T = 1.0 / cumOvlp;
+    double nextDetRand = random() * cumOvlp;
+    int nextDet = lower_bound(work.ovlpRatio.begin(), work.ovlpRatio.begin() + work.nExcitations, nextDetRand) - work.ovlpRatio.begin();
+    cumT += T;
+    cumT2 += T * T;
+    if (sample == 0)
+        cumT_everyrk += T;
     walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
   }
 
@@ -172,11 +188,29 @@ class ContinuousTime
     grad_ratio.setZero(numVars);
     w.OverlapWithGradient(walk, ovlp, grad_ratio);
   }
+
+  void LocalGradient(int sample)
+  {
+    if (sample == 0)
+    {
+      grad_ratio.setZero(numVars);
+      w.OverlapWithGradient(walk, ovlp, grad_ratio);
+    }
+  }
   
   void UpdateGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar)
   {
     grad_ratio_bar += T * (grad_ratio - grad_ratio_bar) / cumT;
     grad += T * (grad_ratio * Eloc - grad) / cumT;
+  }
+
+  void UpdateGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, int sample)
+  {
+    if (sample == 0)
+    {
+      grad_ratio_bar += T * (grad_ratio - grad_ratio_bar) / cumT_everyrk;
+      grad += T * (grad_ratio * Eloc - grad) / cumT_everyrk;
+    }
   }
 
   void FinishGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, const double &Energy)
@@ -195,9 +229,9 @@ class ContinuousTime
     w.OverlapWithLocalEnergyGradient(walk, work, grad_Eloc);
   }
 
-  void LocalEnergyGradient(int rk)
+  void LocalEnergyGradient(int sample)
   {
-    if ((iter + 1) % rk == 0)
+    if (sample == 0)
     {
       w.OverlapWithLocalEnergyGradient(walk, work, grad_Eloc);
     }
@@ -295,9 +329,9 @@ class ContinuousTime
     H.Eloc.push_back(Eloc);
   }
 
-  void UpdateLM(DirectLM &H, int rk)
+  void UpdateLM(DirectLM &H, int sample)
   {
-    if ((iter + 1) % rk == 0)
+    if (sample == 0)
     {
       Eigen::VectorXd Gappended(numVars + 1), Happended(numVars + 1), Htemp(numVars);
       Gappended << 0.0, grad_ratio;
@@ -316,8 +350,21 @@ class ContinuousTime
     Gappended << 1.0, grad_ratio;
     Htemp = grad_Eloc + Eloc * grad_ratio;
     Happended << Eloc, Htemp;
-    Smatrix += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT;
-    Hmatrix += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT;
+    Smatrix += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT_everyrk;
+    Hmatrix += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT_everyrk;
+  }
+
+  void UpdateLM(Eigen::MatrixXd &Hmatrix, Eigen::MatrixXd &Smatrix, int sample)
+  {
+    if (sample == 0)
+    {
+      Eigen::VectorXd Gappended(numVars + 1), Happended(numVars + 1), Htemp(numVars);
+      Gappended << 1.0, grad_ratio;
+      Htemp = grad_Eloc + Eloc * grad_ratio;
+      Happended << Eloc, Htemp;
+      Smatrix += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT_everyrk;
+      Hmatrix += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT_everyrk;
+    }
   }
 
   void FinishLM(Eigen::MatrixXd &Hmatrix, Eigen::MatrixXd &Smatrix)

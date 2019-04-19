@@ -105,16 +105,16 @@ class LM
 
      VectorXd grad;
      MatrixXd Smatrix, Hessian;
-     double E0, stddev, rt;
+     double E0, stddev, rt = 1.0;
      while (iter < maxIter)
      {
        E0 = 0.0;
        stddev = 0.0;
-       rt = 0.0;
        grad.setZero(numVars);
 
        double acceptedFrac = getHessian(vars, grad, Hessian, Smatrix, E0, stddev, rt);
        write(vars);
+       double VMC_time = (getTime() - startofCalc);
 
        /*
        ofstream Hout("H.txt");
@@ -186,6 +186,7 @@ class LM
          VectorXd N = ((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
          double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
          VectorXd update = x.tail(numVars) / (x(0) * norm);
+         double LM_time = (getTime() - startofCalc);
        //if (commrank == 0) { 
        //cout << "Expected energy in next step :" << emin<<endl;
        //cout << "Number of non-redundant vars :" << index<<endl;
@@ -224,7 +225,7 @@ class LM
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
        if (commrank == 0)
-         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %10i %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (schd.stochasticIter) % ((getTime() - startofCalc));
+         std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %10i %8.2f %8.2f %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (schd.stochasticIter) % (VMC_time) % (LM_time) % ((getTime() - startofCalc));
        iter++;
      }
    }

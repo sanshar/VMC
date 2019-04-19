@@ -1022,12 +1022,13 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
   Vector3d step;
   int elecToMove = 0, nelec = walk.d.nelec;
 
-  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = nelec;
+  double avgPot = 0;
+  int eIter = 0, effIter = 0;
   
   double acceptedFrac = 0;
   double S1 = 0.;
   int nstore = 1000000 / commsize;
-  int corrIter = min(nstore, niter/sampleSteps);
+  int corrIter = min(nstore, niter / nelec);
   //std::vector<double> corrError(corrIter * commsize, 0);
 
   int numVars = grad.rows();
@@ -1037,21 +1038,22 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
       gradRatio_bar = VectorXd::Zero(grad.rows());
 
   double ovlpRatio = -1.0, proposalProb;
-  while (iter < niter)
+  for (int iter = 0; iter < niter; iter++)
   {
-    elecToMove = iter%nelec;
+    elecToMove = iter % nelec;
     walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
-    iter ++;
-    if (iter%sampleSteps == 0 && iter > 0.01*niter)
+    if (iter % nelec == 0 && iter > 0.01*niter)
     {
-        if (iter % (int) std::round(rk) != 0)
+        eIter++;
+        if (iter % (int) std::round(nelec * rk) != 0)
         {
             ham = wave.rHam(walk);
-            wave.OverlapWithGradient(walk, ovlp, gradRatio);
+            //wave.OverlapWithGradient(walk, ovlp, gradRatio);
         }
-        else if (iter % (int) std::round(rk) == 0)
+        else
         {
+            effIter++;
             ham = wave.HamOverlap(walk, gradRatio, hamRatio);
             VectorXd G(numVars + 1), H(numVars + 1);
             G << 0.0, gradRatio;
@@ -1060,6 +1062,13 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
             h.G.push_back(G);
             h.T.push_back(1.0);
             h.Eloc.push_back(ham);
+            for (int i = 0; i < grad.rows(); i++)
+            {
+              gradRatio_bar[i] += (gradRatio[i] - gradRatio_bar[i]) / effIter;
+              grad[i] += (ham * gradRatio[i] - grad[i]) / effIter;
+              gradRatio[i] = 0.0;
+              hamRatio[i] = 0.0;
+            }
             /*
             //below is for debugging hamRatio, it calculates local energy gradient via finite difference
             if (commrank == 0) {
@@ -1095,23 +1104,12 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
             */
         }
 
-      for (int i = 0; i < grad.rows(); i++)
-      {
-        gradRatio_bar[i] += (gradRatio[i] - gradRatio_bar[i])/(effIter+1);
-        grad[i] += (ham * gradRatio[i] - grad[i])/(effIter + 1);
-        gradRatio[i] = 0.0;
-        hamRatio[i] = 0.0;
-      }
       double avgPotold = avgPot;
-      avgPot += (ham - avgPot)/(effIter+1);
+      avgPot += (ham - avgPot)/ eIter;
       S1 += (ham - avgPotold) * (ham - avgPot);
-      if (effIter < corrIter)
+      if (eIter < corrIter)
         Stats.push_back(ham);
-
-      effIter++;
-    }
-
- 
+    } 
     if (ovlpRatio < -0.5) 
       ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2);
     
@@ -1146,14 +1144,14 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
 #endif
 
   rk /= commsize;
-  double n_eff = commsize * effIter;
-  S1 /= effIter;
-  stddev = sqrt((S1 * rk /n_eff));
+  double n_eff = commsize * eIter;
+  S1 /= eIter;
+  stddev = sqrt(S1 * rk / n_eff);
   avgPot /= commsize;
   E0 = avgPot;
 
-  gradRatio_bar /= (commsize);
-  grad /= (commsize);
+  gradRatio_bar /= commsize;
+  grad /= commsize;
   grad = grad - E0 * gradRatio_bar;
 
   if (commrank == 0)
@@ -1181,12 +1179,12 @@ void getStochasticGradientHessianContinuousTime(Wfn &w, Walker& walk, double &En
   for (int iter = 0; iter < niter; iter++)
   {
     CTMC.LocalEnergy();
-    CTMC.LocalGradient();
-    CTMC.LocalEnergyGradient();
-    CTMC.MakeMove();
+    CTMC.LocalGradient(iter % (int) std::round(rk));
+    CTMC.LocalEnergyGradient(iter % (int) std::round(rk));
+    CTMC.MakeMove(iter % (int) std::round(rk));
     CTMC.UpdateEnergy(Energy);
-    CTMC.UpdateGradient(grad, grad_ratio_bar);
-    CTMC.UpdateLM(Hmatrix, Smatrix);
+    CTMC.UpdateGradient(grad, grad_ratio_bar, iter % (int) std::round(rk));
+    CTMC.UpdateLM(Hmatrix, Smatrix, iter % (int) std::round(rk));
     CTMC.UpdateBestDet();
   }
   CTMC.FinishEnergy(Energy, stddev, rk);
@@ -1209,12 +1207,12 @@ void getStochasticGradientHessianDirectContinuousTime(Wfn &w, Walker& walk, doub
   for (int iter = 0; iter < niter; iter++)
   {
     CTMC.LocalEnergy();
-    CTMC.LocalGradient();
-    CTMC.LocalEnergyGradient(std::round(rk));
-    CTMC.MakeMove();
+    CTMC.LocalGradient(iter % (int) std::round(rk));
+    CTMC.LocalEnergyGradient(iter % (int) std::round(rk));
+    CTMC.MakeMove(iter % (int) std::round(rk));
     CTMC.UpdateEnergy(Energy);
-    CTMC.UpdateGradient(grad, grad_ratio_bar);
-    CTMC.UpdateLM(h, std::round(rk));
+    CTMC.UpdateGradient(grad, grad_ratio_bar, iter % (int) std::round(rk));
+    CTMC.UpdateLM(h, iter % (int) std::round(rk));
     CTMC.UpdateBestDet();
   }
   CTMC.FinishEnergy(Energy, stddev, rk);

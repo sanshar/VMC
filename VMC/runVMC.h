@@ -111,6 +111,12 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
 
   VectorXd vars; wave.getVariables(vars);
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
+  
+  if (commrank == 0)
+  {
+      cout << "Number of Jastrow vars: " << wave.getNumJastrowVariables() << endl;
+      cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getNumJastrowVariables() << endl;
+  }
 
   functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
   functor2 getStochasticGradientMetricRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
