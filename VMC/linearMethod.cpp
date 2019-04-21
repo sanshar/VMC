@@ -18,7 +18,8 @@
 
 void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, Eigen::VectorXd &x)
 {
-  double tol = 1.e-3;
+  //double tol = 1.e-3;
+  double tol = schd.tol;
   VectorXd Ap = VectorXd::Zero(x.rows());
 
   x = x - u * Su.dot(x);

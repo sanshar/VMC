@@ -9,7 +9,7 @@ seed 1
 #printOpt
 lm
 nondirect
-hDiagShift 0.1
+hDiagShift 0.01
 decay 0.5
-tol 1.e-3
+
 CorrSampleFrac 0.15
