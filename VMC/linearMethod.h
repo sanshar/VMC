@@ -433,7 +433,7 @@ class DirectLM
 
 void generalizedJacobiDavidson(const Eigen::MatrixXd &H, const Eigen::MatrixXd &S, double &lambda, Eigen::VectorXd &v);
 
-void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int n, double tol);
+void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int cgIter, double cgTol, double dTol);
 
 class directLM
 {
@@ -555,7 +555,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
          //VectorXd guess(numVars + 1);
          //guess << 1.0, -(0.01 * grad);
          VectorXd guess = VectorXd::Unit(numVars + 1, 0);
-         GeneralizedJacobiDavidson(h, E0, guess, lambda, x, schd.cgIter, schd.tol);
+         GeneralizedJacobiDavidson(h, E0, guess, lambda, x, schd.cgIter, schd.cgTol, schd.dTol);
          //normalize parameter update
          double ksi = 0.5;
          VectorXd Sx;

@@ -104,6 +104,8 @@ private:
       & ifComplex
       & uagp
       & CorrSampleFrac
+      & dTol
+      & cgTol
       & expCorrelator;
   }
 public:
@@ -171,6 +173,8 @@ public:
   double decay;
   double gradTol;
   double sgdStepsize;
+  double dTol;
+  double cgTol;
   int cgIter;
   bool ctmc;
 

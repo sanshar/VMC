@@ -99,8 +99,9 @@ void readInput(string input, schedule& schd, bool print) {
       schd.direct = true;
       schd.sDiagShift = 0.01;
       schd.rStepType = SPHERICAL;
-      schd.tol = 1.e-3;
-      schd.decay = 0.6;
+      schd.dTol = 1.e-4;
+      schd.cgTol = 1.e-3;
+      schd.decay = 0.65;
       //schd.gradTol = 0.2;
       schd.sgdStepsize = 0.1;
       schd.CorrSampleFrac = 0.20;
@@ -209,15 +210,17 @@ void readInput(string input, schedule& schd, bool print) {
 	  else if (boost::iequals(ArgName, "lm"))
           {
 	        schd.method = linearmethod;
-            schd.sDiagShift = 0.0;
             schd.hDiagShift = 0.1;
-            schd.decay = 0.6;
-	        schd.cgIter = 5;
-            schd.tol = 1.e-3;
+            schd.decay = 0.65;
+	        schd.cgIter = 15;
             schd.stepsizes = {0.1, 0.01, 1.0};
-            schd.sgdIter = 0;
+            schd.sgdIter = 1;
             schd.CorrSampleFrac = 0.35;
           }
+          else if (boost::iequals(ArgName, "cgTol"))
+            schd.decay = atof(tok[1].c_str());
+          else if (boost::iequals(ArgName, "dTol"))
+            schd.decay = atof(tok[1].c_str());
           else if (boost::iequals(ArgName, "decay"))
             schd.decay = atof(tok[1].c_str());
           else if (boost::iequals(ArgName, "sgdStepsize"))

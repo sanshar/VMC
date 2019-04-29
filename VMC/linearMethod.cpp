@@ -16,10 +16,10 @@
 #include <boost/mpi.hpp>
 #endif
 
-void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, Eigen::VectorXd &x)
+void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, double tol, Eigen::VectorXd &x)
 {
   //double tol = 1.e-3;
-  double tol = schd.tol;
+  //double tol = schd.tol;
   VectorXd Ap = VectorXd::Zero(x.rows());
 
   x = x - u * Su.dot(x);
@@ -257,7 +257,7 @@ if (commrank == 0)
     }
     old_theta = theta;
     z = Eigen::VectorXd::Unit(dim, 0);
-    ConjGrad(H, u_S, u, theta, -r, n, z);
+    ConjGrad(H, u_S, u, theta, -r, n, 1.e-3, z);
     AppendVectorToSubspace(H, z, V, HV, SV);
   }
 }                                       
@@ -296,7 +296,7 @@ void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
   }   
 }
 
-void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int cgIter, double tol)
+void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int cgIter, double cgTol, double dTol)
 {
   int dim = H.G[0].rows(); //dimension of problem
   //int restart = std::max((int) (0.05 * dim), 30); //20 - 30
@@ -365,7 +365,7 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
     }
     //solve for correction vector
     z = Eigen::VectorXd::Unit(dim, 0);
-    ConjGrad(H, Su, u, theta, -r, cgIter, z);
+    ConjGrad(H, Su, u, theta, -r, cgIter, cgTol, z);
  
     //update best guess
     if (rNorm < old_rNorm)
@@ -374,7 +374,7 @@ void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd
       old_rNorm = rNorm;
     } 
     //check for convergence
-    if (rNorm < tol)
+    if (rNorm < dTol)
     {
       lambda = theta;
       v = u;
