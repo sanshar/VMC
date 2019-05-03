@@ -54,6 +54,7 @@ private:
   gaussianBasis () {};
   void read();
   int getNorbs();
+  void maxCoord(vector<Vector3d>& maxr);// {std::cout <<"Not yet implemented"<<endl; exit(0);}
   void eval(const vector<Vector3d>& x, vector<double>& values);
   void eval(const Vector3d& x, double* values);
   void eval_deriv2(const Vector3d& x, double* values);

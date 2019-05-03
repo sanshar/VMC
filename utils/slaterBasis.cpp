@@ -35,6 +35,79 @@ void slaterBasis::read() {
 int slaterBasis::getNorbs() {return norbs;}
 
 
+void slaterBasis::maxCoord(vector<Vector3d>& maxr) {
+  int index = 0;  
+  for (int i=0; i<atomicBasis.size(); i++) {
+    
+    auto aBasis = atomicBasis[i];
+    Vector3d Basiscoord = aBasis.coord;
+
+    //for each basis in aBasis evaluate the value
+    for (int j=0; j<aBasis.exponents.size(); j++) {
+      double ex = aBasis.exponents[j];
+      int l = aBasis.NL[2*j+1];
+      int N = aBasis.NL[2*j]-1;
+
+      double rmax = N == 0 ? 1.0/ex/sqrt(3.0) : N/ex/sqrt(3.0); 
+      if (l == 0) {
+        maxr[index][0] = rmax; maxr[index][1] = rmax; maxr[index][2] = rmax;
+        maxr[index] += aBasis.coord;
+        index++;
+      }
+      if (l == 1) {
+        maxr[index][0]   = rmax  ;   maxr[index][1]   = 0       ; maxr[index][2]   = 0       ;
+        maxr[index+1][0] = 0     ;   maxr[index+1][1] = rmax    ; maxr[index+1][2] = 0       ;
+        maxr[index+2][0] = 0     ;   maxr[index+2][1] = 0       ; maxr[index+2][2] = rmax    ;
+
+        maxr[index  ] += aBasis.coord;
+        maxr[index+1] += aBasis.coord;
+        maxr[index+2] += aBasis.coord;
+        index += 3;
+      }
+      if (l == 2) {
+        maxr[index][0]   = 2*rmax;   maxr[index][1]   = 0       ; maxr[index][2]   = 0       ;
+        maxr[index+1][0] = rmax  ;   maxr[index+1][1] = rmax    ; maxr[index+1][2] = 0       ;
+        maxr[index+2][0] = rmax  ;   maxr[index+2][1] = 0       ; maxr[index+2][2] = rmax    ;
+        maxr[index+3][0] = 0     ;   maxr[index+3][1] = 2*rmax  ; maxr[index+3][2] = 0       ;
+        maxr[index+4][0] = 0     ;   maxr[index+4][1] = rmax    ; maxr[index+4][2] = rmax    ;
+        maxr[index+5][0] = 0     ;   maxr[index+5][1] = 0       ; maxr[index+5][2] = 2*rmax  ;
+
+        maxr[index  ] += aBasis.coord;
+        maxr[index+1] += aBasis.coord;
+        maxr[index+2] += aBasis.coord;
+        maxr[index+3] += aBasis.coord;
+        maxr[index+4] += aBasis.coord;
+        maxr[index+5] += aBasis.coord;
+        index += 6;
+      }
+      if (l == 3) {
+        maxr[index][0]   = 3*rmax;   maxr[index][1]   = 0       ; maxr[index][2]   = 0       ;
+        maxr[index+1][0] = 2*rmax;   maxr[index+1][1] = rmax    ; maxr[index+1][2] = 0       ;
+        maxr[index+2][0] = 2*rmax;   maxr[index+2][1] = 0       ; maxr[index+2][2] = rmax    ;
+        maxr[index+3][0] = rmax  ;   maxr[index+3][1] = 2*rmax  ; maxr[index+3][2] = 0       ;
+        maxr[index+4][0] = rmax  ;   maxr[index+4][1] = rmax    ; maxr[index+4][2] = rmax    ;
+        maxr[index+5][0] = rmax  ;   maxr[index+5][1] = 0       ; maxr[index+5][2] = 2*rmax  ;
+        maxr[index+6][0] = 0     ;   maxr[index+6][1] = 3*rmax  ; maxr[index+6][2] = 0       ;
+        maxr[index+7][0] = 0     ;   maxr[index+7][1] = 2*rmax  ; maxr[index+7][2] = rmax    ;
+        maxr[index+8][0] = 0     ;   maxr[index+8][1] = rmax    ; maxr[index+8][2] = 2*rmax  ;
+        maxr[index+9][0] = 0     ;   maxr[index+9][1] = 0       ; maxr[index+9][2] = 3*rmax  ;
+
+        maxr[index  ] += aBasis.coord;
+        maxr[index+1] += aBasis.coord;
+        maxr[index+2] += aBasis.coord;
+        maxr[index+3] += aBasis.coord;
+        maxr[index+4] += aBasis.coord;
+        maxr[index+5] += aBasis.coord;
+        maxr[index+6] += aBasis.coord;
+        maxr[index+7] += aBasis.coord;
+        maxr[index+8] += aBasis.coord;
+        maxr[index+9] += aBasis.coord;
+        index += 10;
+      }
+    }
+  }
+}
+
 void slaterBasis::eval(const Vector3d& x, double* values) {
 
   int index = 0;  
@@ -48,13 +121,12 @@ void slaterBasis::eval(const Vector3d& x, double* values) {
                        pow(yN, 2) +
                        pow(zN, 2), 0.5);
 
-
     //for each basis in aBasis evaluate the value
     for (int j=0; j<aBasis.exponents.size(); j++) {
       int l = aBasis.NL[2*j+1];
       int N = aBasis.NL[2*j]-1;
       double ex = pow(RiN, N) * aBasis.radialNorm[j] * exp(-aBasis.exponents[j]*RiN);
-      
+
       if (l == 0) { //s
         values[index] = ex * sqrt(1./3.141592653589)/2.0;
         index++;
@@ -91,7 +163,6 @@ void slaterBasis::eval(const Vector3d& x, double* values) {
       
     }
   }
-
 }
 
 

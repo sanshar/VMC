@@ -21,6 +21,7 @@ struct Basis {
   
   virtual void read() = 0;
   virtual int getNorbs() = 0;
+  virtual void maxCoord(vector<Vector3d>& maxr) = 0;
   virtual void eval(const vector<Vector3d>& x, vector<double>& values) = 0;
   virtual void eval(const Vector3d& x, double* values) = 0;
   virtual void eval_deriv2(const Vector3d& x, double* values) = 0;

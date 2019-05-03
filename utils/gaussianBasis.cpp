@@ -57,6 +57,8 @@ int gaussianBasis::getNorbs() {
   return norbs;
 }
   
+void gaussianBasis::maxCoord(vector<Vector3d>& maxr) {std::cout <<"Not yet implemented"<<endl; exit(0);}
+
 void gaussianBasis::eval(const vector<Vector3d>& x, vector<double>& values) {
   int ngrids = x.size();
 
