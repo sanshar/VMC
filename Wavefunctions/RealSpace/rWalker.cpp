@@ -128,13 +128,25 @@ double rWalker<rJastrow, rSlater>::getDetOverlap(const rSlater &ref) const
  */
 void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXcd& HforbsA, const Eigen::MatrixXcd& HforbsB) const 
 {
-  auto random = std::bind(std::uniform_real_distribution<double>(-1., 1.),
-                          std::ref(generator));
+  int norbs = Determinant::norbs;
+  int nelec = d.nelec;
+
+  vector<Vector3d> maxr(norbs);
+  schd.basis->maxCoord(maxr);
+  
+  Determinant det = Determinant();
   for (int i=0; i<d.nelec; i++) {
-    d.coord[i][0] = random();
-    d.coord[i][1] = random();
-    d.coord[i][2] = random();
-  }
+    int bestorb = 0;
+    double maxovlp = 0;
+    for (int j=0; j < norbs; j++) {
+      if (abs(HforbsA(i, j)) > maxovlp && !det.getoccA(j)) {
+        maxovlp = abs(HforbsA(i, j));
+        bestorb = j;
+      }
+    }
+    det.setoccA(bestorb, true);
+    d.coord[i] = maxr[bestorb]; 
+ }
 }
 
 void rWalker<rJastrow, rSlater>::initDet(const MatrixXcd& HforbsA, const MatrixXcd& HforbsB) 
@@ -538,7 +550,7 @@ void rWalker<rJastrow, rSlater>::getSphericalStep(Vector3d& coord, int elecI, do
                                                   const rSlater& ref, double& ovlpRatio,
                                                   double& proposalProb) {
 
-  double dR = 5.0, thetaParam1 = M_PI/2; 
+  double dR = 5.0, thetaParam1 = M_PI; 
   Vector3d newRi; int closestNucleus; double probOfMove, probOfReverseMove;
   double volumeOfReverseMove = 1.0;
 
@@ -596,6 +608,7 @@ void rWalker<rJastrow, rSlater>::getSphericalStep(Vector3d& coord, int elecI, do
       volumeOfReverseMove = 0.0;
     }
     else if (dIoldNnew > dInewNnew*dR || dIoldNnew < dInewNnew/dR) {//move not possible
+      //cout << dIoldNnew<<"  "<<dR<<"  "<<dInewNnew<<endl;
       volumeOfReverseMove = 0.0;
     }
     else {
