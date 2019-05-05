@@ -139,8 +139,8 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
     int bestorb = 0;
     double maxovlp = 0;
     for (int j=0; j < norbs; j++) {
-      if (abs(HforbsA(i, j)) > maxovlp && !det.getoccA(j)) {
-        maxovlp = abs(HforbsA(i, j));
+      if (abs(HforbsA(j, i)) > maxovlp && !det.getoccA(j)) {
+        maxovlp = abs(HforbsA(j, i));
         bestorb = j;
       }
     }
