@@ -115,9 +115,9 @@ struct Walker<Corr, Slater> {
             }
           }
           else {
-            if (abs(HforbsB(i+norbs, j)) > maxovlp && !d.getoccB(j)) {
+            if (abs(HforbsB(i+norbs, j+nalpha)) > maxovlp && !d.getoccB(j)) {
               bestorb = j;
-              maxovlp = abs(HforbsB(i+norbs, j));
+              maxovlp = abs(HforbsB(i+norbs, j+nalpha));
             }
           }
         }
