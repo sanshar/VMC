@@ -39,6 +39,8 @@
 #include <algorithm>
 #include <stan/math.hpp>
 #include <unsupported/Eigen/NonLinearOptimization>
+#include <complex>
+#include <cmath>
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -48,6 +50,7 @@ using namespace Eigen;
 using namespace std;
 using namespace boost;
 //using namespace stan::math;
+using namespace std::complex_literals;
 
 class oneInt;
 class twoInt;
@@ -61,56 +64,53 @@ int index(int I, int J) {
 }
 
 //term is orb1^dag orb2
-template<typename T>
-T getCreDesDiagMatrix(DiagonalMatrix<T, Dynamic>& diagcre,
-                      DiagonalMatrix<T, Dynamic>& diagdes,
+double getCreDesDiagMatrix(DiagonalXd& diagcre,
+                      DiagonalXd& diagdes,
                       int orb1,
                       int orb2,
                       int norbs,
-                      const Matrix<T, Dynamic, 1>&JA) {
+                      const VectorXd&JA) {
   
   for (int j=0; j<2*norbs; j++) {
     diagcre.diagonal()[j] = exp(-2.*JA(index(orb1, j)));
     diagdes.diagonal()[j] = exp( 2.*JA(index(orb2, j)));
   }
 
-  T factor = exp( JA(index(orb1, orb1)) - JA(index(orb2, orb2)));
+  double factor = exp( JA(index(orb1, orb1)) - JA(index(orb2, orb2)));
   return factor;
 }
 
 //term is orb1^dag orb2^dag orb3 orb4
-template<typename T>
-T getCreDesDiagMatrix(DiagonalMatrix<T, Dynamic>& diagcre,
-                      DiagonalMatrix<T, Dynamic>& diagdes,
-                      int orb1,
-                      int orb2,
-                      int orb3,
-                      int orb4,
-                      int norbs,
-                      const Matrix<T, Dynamic, 1>&JA) {
+double getCreDesDiagMatrix(DiagonalXd& diagcre,
+                           DiagonalXd& diagdes,
+                           int orb1,
+                           int orb2,
+                           int orb3,
+                           int orb4,
+                           int norbs,
+                           const VectorXd&JA) {
 
   for (int j=0; j<2*norbs; j++) {
     diagcre.diagonal()[j] = exp(-2.*JA(index(orb1, j)) - 2.*JA(index(orb2, j)));
     diagdes.diagonal()[j] = exp(+2.*JA(index(orb3, j)) + 2.*JA(index(orb4, j)));
   }
 
-  T factor = exp( 2*JA(index(orb1, orb2)) + JA(index(orb1, orb1)) + JA(index(orb2, orb2))
-                      -2*JA(index(orb3, orb4)) - JA(index(orb3, orb3)) - JA(index(orb4, orb4))) ;
+  double factor = exp( 2*JA(index(orb1, orb2)) + JA(index(orb1, orb1)) + JA(index(orb2, orb2))
+                       -2*JA(index(orb3, orb4)) - JA(index(orb3, orb3)) - JA(index(orb4, orb4))) ;
   return factor;
 }
 
 
 
 //N_orbn N_orbm orb1^dag orb2^dag orb3 orb4
-template<typename T>
-T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int orb2, int orb3, int orb4) {
+complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb2, int orb3, int orb4) {
 
   vector<int> rows = {orbm, orbn, orb3, orb4},
               cols = {orbm, orbn, orb2, orb1};
   Eigen::Map<VectorXi> rowVec(&rows[0], 4), colVec(&cols[0], 4);
 
-  T contribution = 0;
-  Matrix<T, Dynamic, Dynamic> rdmval;
+  complex<double> contribution ;
+  MatrixXcd rdmval;
   igl::slice(rdm, rowVec, colVec, rdmval);
   contribution =  rdmval.determinant();
 
@@ -119,7 +119,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
     cols[0] = orb1; cols[1] = orbm; cols[2] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 3);
     Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -128,7 +128,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
     cols[0] = orb2; cols[1] = orbm; cols[2] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 3);
     Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -137,7 +137,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
     cols[0] = orb1; cols[1] = orbm; cols[2] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 3);
     Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -146,7 +146,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
     cols[0] = orbm; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -155,7 +155,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
     cols[0] = orb2; cols[1] = orbm; cols[2] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 3);
     Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -164,7 +164,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
     cols[0] = orbm; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -173,15 +173,14 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
 
 
 //N_orbn orb1^dag orb2^dag orb3 orb4
-template<typename T>
-T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orb1, int orb2, int orb3, int orb4) {
+complex<double> getResidue(MatrixXcd& rdm, int orbn, int orb1, int orb2, int orb3, int orb4) {
 
   vector<int> rows = {orbn, orb3, orb4},
               cols = {orbn, orb2, orb1};
   Eigen::Map<VectorXi> rowVec(&rows[0], 3), colVec(&cols[0], 3);
 
-  T contribution = 0;
-  Matrix<T, Dynamic, Dynamic> rdmval;
+  complex<double> contribution ;
+  MatrixXcd rdmval;
   igl::slice(rdm, rowVec, colVec, rdmval);
   contribution =  rdmval.determinant();
   
@@ -190,7 +189,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orb1, int orb2, int
     cols[0] = orb1; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -199,7 +198,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orb1, int orb2, int
     cols[0] = orb2; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -208,15 +207,14 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orb1, int orb2, int
 }
 
 //N_orbn N_orbm orb1^dag orb2
-template<typename T>
-T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int orb2) {
-
+complex<double> getResidue(const MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb2) {
+  
   vector<int> rows = {orbn, orbm, orb2},
               cols = {orbn, orbm, orb1};
   Eigen::Map<VectorXi> rowVec(&rows[0], 3), colVec(&cols[0], 3);
 
-  T contribution = 0;
-  Matrix<T, Dynamic, Dynamic> rdmval;
+  complex<double> contribution;
+  MatrixXcd rdmval;
   igl::slice(rdm, rowVec, colVec, rdmval);
   contribution =  rdmval.determinant();
   
@@ -225,7 +223,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
     cols[0] = orbm; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -234,7 +232,7 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
     cols[0] = orbm; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
+    MatrixXcd rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -244,15 +242,14 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int
 
 
 //N_orbn orb1^dag orb2
-template<typename T>
-T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orb1, int orb2) {
+complex<double> getResidue(MatrixXcd& rdm, int orbn, int orb1, int orb2) {
 
   vector<int> rows = {orbn, orb2},
               cols = {orbn, orb1};
   Eigen::Map<VectorXi> rowVec(&rows[0], 2), colVec(&cols[0], 2);
 
-  T contribution = 0;
-  Matrix<T, Dynamic, Dynamic> rdmval;
+  complex<double> contribution ;
+  MatrixXcd rdmval;
   igl::slice(rdm, rowVec, colVec, rdmval);
   contribution =  rdmval.determinant();
   
@@ -263,40 +260,71 @@ T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orb1, int orb2) {
   return contribution;
 }
 
-template <class T>
+//here T can be stan::math::var or double depending on whether we are using automatic differentiation or not
 struct Residuals {
-  using MatrixXt = Matrix<T, Dynamic, Dynamic>;
-  using VectorXt = Matrix<T, Dynamic, 1>;
-
   int norbs, nalpha, nbeta;
-  MatrixXt bra;
-  vector<MatrixXt > ket;
-  VectorXt JA;
-  VectorXt lambda;
+  MatrixXcd bra;
+  vector<MatrixXcd > ket;
+  vector<complex<double> > coeffs;
   
   Residuals(int _norbs, int _nalpha, int _nbeta,
-            MatrixXt& _bra,
-            vector<MatrixXt >& _ket) : norbs(_norbs),
-                                       nalpha(_nalpha),
-                                       nbeta(_nbeta),
-                                       bra(_bra),
-                                       ket(_ket) {};
-  
-  int operator() (const VectorXt& JA,
-                  VectorXt& residue) const
+            MatrixXcd& _bra,
+            vector<MatrixXcd >& _ket,
+            vector<complex<double> >& _coeffs) : norbs(_norbs),
+                                                 nalpha(_nalpha),
+                                                 nbeta(_nbeta),
+                                                 bra(_bra),
+                                                 ket(_ket),
+                                                 coeffs(_coeffs){};
+
+
+  int operator() (const VectorXd& JA, VectorXd& residue) const
   {
-    residue.setZero();
+    //calculate <bra|P|ket> and
+    complex<double> detovlp = 0.0;
+    MatrixXcd mfRDM(2*norbs, 2*norbs); mfRDM.setZero();
     
-    MatrixXt LambdaD = bra, LambdaC = ket[0]; //just initializing  
-    MatrixXt S = bra.transpose()*ket[0];
-    T detovlp = S.determinant(); 
+    for (int g = 0; g<ket.size(); g++) {
+      MatrixXcd S = bra.adjoint()*ket[g];
+      detovlp += S.determinant() * coeffs[g];
+      mfRDM += (ket[g] * S.inverse())*bra.adjoint() * coeffs[g]; 
+    }
+    //assert(abs(detovlp.imag()) < 1.e-10);
 
-    MatrixXt mfRDM = (ket[0] * S.inverse()) * bra.transpose();
+    complex<double> Energy = 0.0;
+    VectorXcd intermediateResidue(2*norbs*(2*norbs+1)/2); intermediateResidue.setZero();
+    
+    for (int g = 0; g<ket.size(); g++) 
+      Energy += getSingleResidue(JA, intermediateResidue,
+                                 detovlp.real(), coeffs[g], bra, ket[g]) * coeffs[g];
+    
+    //assert(abs(Energy.imag()) < 1.e-10);
 
-    DiagonalMatrix<T, Dynamic> diagcre(2*norbs),
+
+    for (int i=0; i<2*norbs; i++) {
+      for (int j=0; j<=i; j++) {
+        int index = i*(i+1)/2+j;
+        if (i == j) 
+          residue(i * (i+1)/2 + j) = abs(intermediateResidue(i*(i+1)/2+j) - (Energy)*mfRDM(i,i));
+        else
+          residue(i * (i+1)/2 + j) = abs(intermediateResidue(i*(i+1)/2+j) - (Energy)*(mfRDM(j,j)*mfRDM(i,i) - mfRDM(j,i)*mfRDM(i,j)));
+      }
+    }    
+    
+    return 0;
+  }
+  
+  complex<double> getSingleResidue (const VectorXd& JA,
+                                    VectorXcd& residue, double detovlp, complex<double> coeff,
+                                    const MatrixXcd& bra, const MatrixXcd& ket) const
+  {
+    MatrixXcd LambdaD = bra, LambdaC = ket; //just initializing  
+    MatrixXcd S = bra.adjoint()*ket;
+
+    DiagonalXd diagcre(2*norbs),
         diagdes(2*norbs);
 
-    T Energy = 0.0;
+    complex<double> Energy = 0.0;
     //one electron terms
     for (int orb1 = 0; orb1 < 2*norbs; orb1++)
       for (int orb2 = 0; orb2 < 2*norbs; orb2++) {
@@ -305,23 +333,23 @@ struct Residuals {
         
         if (abs(integral) < schd.epsilon) continue;
         
-        T factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, JA);
-        LambdaD = diagdes*ket[0];
+        complex<double> factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, JA);
+        LambdaD = diagdes*ket;
         LambdaC = diagcre*bra;
-        S = LambdaC.transpose()*LambdaD;
+        S = LambdaC.adjoint()*LambdaD;
 
         factor *= S.determinant()/detovlp;
-        MatrixXt rdm = (LambdaD * S.inverse())*LambdaC.transpose();
+        MatrixXcd rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
         Energy += rdm(orb2,orb1) * integral * factor;
 
-        T res;
+        complex<double> res;
         for (int orbn = 0; orbn < 2*norbs; orbn++) {
           for (int orbm = 0; orbm < orbn; orbm++) {
             res = getResidue(rdm, orbn, orbm, orb1, orb2);
-            residue(orbn*(orbn+1)/2 + orbm) += res * factor * integral;
+            residue(orbn*(orbn+1)/2 + orbm) += res * factor * integral * coeff;
           }
           res = getResidue(rdm, orbn, orb1, orb2);
-          residue(orbn*(orbn+1)/2 + orbn) += res * factor * integral;
+          residue(orbn*(orbn+1)/2 + orbn) += res * factor * integral * coeff;
         }
       }
     
@@ -341,56 +369,61 @@ struct Residuals {
             
             if (abs(integral) < schd.epsilon) continue;
             
-            T factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, JA);
-            LambdaD = diagdes*ket[0];
+            complex<double> factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, JA);
+            LambdaD = diagdes*ket;
             LambdaC = diagcre*bra;
-            S = LambdaC.transpose()*LambdaD;
+            S = LambdaC.adjoint()*LambdaD;
 
-            MatrixXt rdm = ((LambdaD * S.inverse()) * LambdaC.transpose());
-            T rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
+            MatrixXcd rdm = ((LambdaD * S.inverse()) * LambdaC.adjoint());
+            complex<double> rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
             
             factor *= S.determinant()/detovlp;
             Energy += rdmval * integral * factor;
 
-            T res;
+            complex<double> res;
             for (int orbn = 0; orbn < 2*norbs; orbn++) {
               for (int orbm = 0; orbm < orbn; orbm++) {
                 res = getResidue(rdm, orbn, orbm, orb1, orb2, orb3, orb4);
-                residue(orbn*(orbn+1)/2 + orbm) += res*factor*integral;
+                residue(orbn*(orbn+1)/2 + orbm) += res*factor*integral * coeff;
               }
               res = getResidue(rdm, orbn, orb1, orb2, orb3, orb4);
-              residue(orbn*(orbn+1)/2 + orbn) += res*factor*integral;
+              residue(orbn*(orbn+1)/2 + orbn) += res*factor*integral * coeff;
             }
             
           }
       }
 
-    for (int i=0; i<2*norbs; i++) {
-      for (int j=0; j<=i; j++) {
-        int index = i*(i+1)/2+j;
-        if (i == j) 
-          residue(i * (i+1)/2 + j) -= (Energy)*mfRDM(i,i);
-        else
-          residue(i * (i+1)/2 + j) -= (Energy)*(mfRDM(j,j)*mfRDM(i,i) - mfRDM(j,i)*mfRDM(i,j));
-      }
-    }
-
-    
-    return 0;
+    return Energy;
   }
 
-  T energy (const VectorXt& JA) const
+
+  //obviously the energy should be real
+  double energy (const VectorXd& JA) const
   {
-    MatrixXt LambdaD = bra, LambdaC = ket[0]; //just initializing  
-    MatrixXt S = bra.transpose()*ket[0];
-    T detovlp = S.determinant(); 
+    //calculate <bra|P|ket> and
+    complex<double> detovlp = 0.0;
+    for (int g = 0; g<ket.size(); g++) {
+      MatrixXcd S = bra.adjoint()*ket[g];
+      detovlp += S.determinant() * coeffs[g];
+    }
+    //assert(abs(detovlp.imag()) < 1.e-10);
 
-    MatrixXt mfRDM = (ket[0] * S.inverse()) * bra.transpose();
+    complex<double> Energy = 0.0;
+    for (int g = 0; g<ket.size(); g++) 
+      Energy += energyContribution(JA, detovlp.real(), bra, ket[g]) * coeffs[g];
+    //assert(abs(Energy.imag()) < 1.e-10);
+    return Energy.real();
+  }
+  
+  complex<double> energyContribution (const VectorXd& JA, double detovlp,
+                                      const MatrixXcd& bra, const MatrixXcd& ket) const
+  {
 
-    DiagonalMatrix<T, Dynamic> diagcre(2*norbs),
+    MatrixXcd LambdaC, LambdaD, S;
+    DiagonalXd diagcre(2*norbs),
         diagdes(2*norbs);
 
-    T Energy = 0.0;
+    complex<double> Energy = 0.0;
     //one electron terms
     for (int orb1 = 0; orb1 < 2*norbs; orb1++)
       for (int orb2 = 0; orb2 < 2*norbs; orb2++) {
@@ -399,13 +432,14 @@ struct Residuals {
         
         if (abs(integral) < schd.epsilon) continue;
         
-        T factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, JA);
-        LambdaD = diagdes*ket[0];
+        complex<double> factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, JA);
+        LambdaD = diagdes*ket;
         LambdaC = diagcre*bra;
-        S = LambdaC.transpose()*LambdaD;
+        S = LambdaC.adjoint()*LambdaD;
 
         factor *= S.determinant()/detovlp;
-        MatrixXt rdm = (LambdaD * S.inverse())*LambdaC.transpose();
+        //**don't need to calculate the entire RDM, should make it more efficient
+        MatrixXcd rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
         Energy += rdm(orb2,orb1) * integral * factor;
       }
     
@@ -425,13 +459,14 @@ struct Residuals {
             
             if (abs(integral) < schd.epsilon) continue;
             
-            T factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, JA);
-            LambdaD = diagdes*ket[0];
+            complex<double> factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, JA);
+            LambdaD = diagdes*ket;
             LambdaC = diagcre*bra;
-            S = LambdaC.transpose()*LambdaD;
+            S = LambdaC.adjoint()*LambdaD;
 
-            MatrixXt rdm = ((LambdaD * S.inverse()) * LambdaC.transpose());
-            T rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
+            //**don't need to calculate the entire RDM, should make it more efficient
+            MatrixXcd rdm = ((LambdaD * S.inverse()) * LambdaC.adjoint());
+            complex<double> rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
             
             factor *= S.determinant()/detovlp;
             Energy += rdmval * integral * factor;
@@ -461,65 +496,39 @@ class getTranscorrelationWrapper
   double getTransGradient(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
   {
     //using VarType = stan::math::var ;
-    using VarType = double;
+    //using VarType = double;
+    using VarType = std::complex<double>;
     
     w.updateVariables(vars);
     w.initWalker(walk);
-
+    
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
     int nbeta = Determinant::nbeta;
-
-    /*
-    stddev = 0.0;
-    rt = 1.0;
-
-
-    std::vector<Determinant> allDets;
-    vector<vector<int> > alldetvec;
-    comb(2*norbs, nalpha+nbeta, alldetvec);
-    for (int a=0; a<alldetvec.size(); a++) {
-      Determinant d;
-      for (int i=0; i<alldetvec[a].size(); i++)
-        d.setocc(alldetvec[a][i], true);
-      allDets.push_back(d);
-    }
     
-    double Energy2 = 0.0;
-    double denominator = 0.0;
-    workingArray work;
-    
-    for (int i = commrank; i < allDets.size(); i += commsize)
-    {
-      double ovlp, Eloc;
-      w.initWalker(walk, allDets[i]);
-      w.HamAndOvlp(walk, ovlp, Eloc, work, false);  
-
-      double corrovlp = w.getCorr().Overlap(walk.d),
-          slaterovlp = walk.getDetOverlap(w.getRef());
-
-      cout << allDets[i]<<"  "<<ovlp<<endl;
-      Energy2 += slaterovlp/corrovlp * Eloc*ovlp;
-      denominator += slaterovlp*slaterovlp;
-    }
-#ifndef SERIAL
-    MPI_Allreduce(MPI_IN_PLACE, &(Energy2), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    MPI_Allreduce(MPI_IN_PLACE, &(denominator), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-    
-    if (commrank == 0) {
-      cout << Energy2<<"  "<<denominator <<endl;
-      cout << Energy2/denominator <<endl;
-    }
-    */
-    
-    Matrix<VarType, Dynamic, 1> residue(2*norbs*(2*norbs+1)/2); residue.setZero();
-    Matrix<VarType, Dynamic, 1> JA     (2*norbs*(2*norbs+1)/2);
+    VectorXd residue(2*norbs*(2*norbs+1)/2); residue.setZero();
+    VectorXd JA     (2*norbs*(2*norbs+1)/2);
     VarType Energy;
     
-    Matrix<VarType, Dynamic, Dynamic> bra = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta).real();
-    Matrix<VarType, Dynamic, Dynamic> ket = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta).real();
-    vector< Matrix<VarType, Dynamic, Dynamic> > ketvec(1,ket);
+    MatrixXcd bra = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta);
+    MatrixXcd ket = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta);
+
+    //grid to project out the Sz quantum number
+    double Sz = 0;
+    int ngrid = 5;
+    complex<double> iImag(0, 1.0);
+    vector<complex<double> > coeffs(ngrid, 0.0);
+    vector< MatrixXcd > ketvec(ngrid,ket);
+    for (int g = 0; g<ngrid; g++) {
+      DiagonalMatrix<complex<double>, Dynamic> phi(2*norbs);
+      double angle = g*2*M_PI/ngrid;
+      for (int i=0; i<norbs; i++) {
+        phi.diagonal()[i]       = exp(iImag*angle);
+        phi.diagonal()[i+norbs] = exp(-iImag*angle);
+      }
+      ketvec[g] = phi * ketvec[g];
+      coeffs[g] = exp(-iImag*angle*Sz)/ngrid;
+    }
     
     MatrixXd& Jtmp = w.getCorr().SpinCorrelator;
     for (int i=0; i<2*norbs; i++) {
@@ -531,14 +540,30 @@ class getTranscorrelationWrapper
       }
       JA(index(I, I)) = log(Jtmp(i,i));///2;
     }
-
+    
+    Residuals residual(norbs, nalpha, nbeta, bra, ketvec, coeffs);
+    std::cout << "Energy: " <<residual.energy(JA) <<endl;
+    
+    HybridNonLinearSolver<Residuals > solver(residual);
+    int info = solver.solveNumericalDiff(JA);
+    
+    if (info != 1) {
+      cout << "Jastrow optimizer didn't converge"<<endl;
+    }
+    std::cout << "iter count: " << solver.iter << std::endl;
+    std::cout << "return status: " << info << std::endl;
+    residual(JA, residue);
+    std::cout << "Energy: " <<residual.energy(JA) <<endl;
+    std::cout << "Error: " <<residue.norm() <<endl;
+    exit(0);
+    /*
     int iter = 0, niter = 10;
     while (true) {
       //Solve the Jastrow parameters
       Residuals<VarType> residual(norbs, nalpha, nbeta, bra, ketvec );
       HybridNonLinearSolver<Residuals<VarType> > solver(residual);
       int info = solver.solveNumericalDiff(JA);
-
+      
       if (info != 1) {
         cout << "Jastrow optimizer didn't converge"<<endl;
         exit(0);
@@ -549,81 +574,17 @@ class getTranscorrelationWrapper
       std::cout << "Energy: " <<residual.energy(JA) <<endl;
       std::cout << "Error: " <<residue.norm() <<endl;
       std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
-
+      
       //solve the lambda equations
     
-
-    /*
-    VectorXd res(2*norbs*(2*norbs+1)/2);
-    double residueNorm = 10;
-    
-    for (int iter = 0; iter<100 && residueNorm > 1.e-5; iter++) {
-      residue = residual(bra, ket, JA, Energy);
-      residueNorm = residue.norm().val();
-      cout << Energy+coreE<<"  "<<residue.norm()<<"  "<<endl;
-      Matrix<double, Dynamic, Dynamic> J(residue.size(), JA.size());
-
-      //auto oldresidue = residue;
-      //JA(1) += 1.e-3;
-      //residue = residual(bra, ket, JA, Energy);
-      //cout << (residue - oldresidue)/1.e-3<<endl<<" fd "<<endl;
-      for (int i = 0; i < residue.size(); ++i) {
-        res(i) = residue(i).val();
-        if (i > 0) stan::math::set_zero_all_adjoints();
-        residue(i).grad();
-        for (int j = 0; j < JA.size(); ++j) {
-          J(i,j) = JA(j).adj();
-        }
+      
       }
-
-      //cout << J <<endl;
-      FullPivLU<MatrixXd> lu(J); //cout << lu.rank()<<endl;
-      //VectorXd update= - J.colPivHouseholderQr().solve(res);
-      VectorXd update= - lu.solve(res);
-
-      auto Jtemp = JA;
-      vector<double> scale = {0.1, 0.05, 0.02, 0.01, 0.005};
-
-      double error; double scaleToUse = scale[0];
-      /*
-      Jtemp += scale[0]*update;
-      error = residual(bra, ket, Jtemp, Energy).norm().val();
-      Jtemp -= scale[0]*update;
-      
-      for (int s=1; s<scale.size(); s++) {
-        Jtemp += scale[s]*update;
-        double currentError = residual(bra, ket, Jtemp, Energy).norm().val();
-        cout << currentError<<"  "<<error<<endl;
-        if (currentError < error) {
-          error = currentError;
-          scaleToUse = scale[s];
-        }
-        Jtemp -= scale[s]*update;
-      }
-      cout << scaleToUse<<endl;
-      
-      scaleToUse = 0.1;
-      
-      JA += scaleToUse*update;
-    }
-    /*
-    for (int iter=0; iter<100; iter++) {
-      getTransEnergyResidue(w, walk, E0, residue, grad);
-
-      cout << E0+coreE<<"  "<<residue.norm()<<endl;
-      for (int o1=0; o1<2*norbs; o1++)
-        for (int o2=0; o2<=o1; o2++) {
-          int jo1 = (o1%norbs)*2 + (o1/norbs),
-              jo2 = (o2%norbs)*2 + (o2/norbs);
-          J(jo1, jo2)  *= exp(-residue(o1*(o1+1)/2+o2)/grad(o1*(o1+1)/2+o2));
-        }
-    }
     */
     w.writeWave();
     exit(0);
     return 1.0;
-  };
-
+  }
+  
 };
 
 
