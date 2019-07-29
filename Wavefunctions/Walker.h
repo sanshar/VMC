@@ -97,8 +97,8 @@ struct Walker<Corr, Slater> {
         int bestorb = 0;
         double maxovlp = 0;
         for (int j = 0; j < norbs; j++) {
-          if (abs(HforbsA(i, j)) > maxovlp && !d.getoccA(j)) {
-            maxovlp = abs(HforbsA(i, j));
+          if (abs(HforbsA(j, i)) > maxovlp && !d.getoccA(j)) {
+            maxovlp = abs(HforbsA(j, i));
             bestorb = j;
           }
         }
@@ -109,15 +109,15 @@ struct Walker<Corr, Slater> {
         double maxovlp = 0;
         for (int j = 0; j < norbs; j++) {
           if (schd.hf == "rhf" || schd.hf == "uhf") {
-            if (abs(HforbsB(i, j)) > maxovlp && !d.getoccB(j)) {
+            if (abs(HforbsB(j, i)) > maxovlp && !d.getoccB(j)) {
               bestorb = j;
-              maxovlp = abs(HforbsB(i, j));
+              maxovlp = abs(HforbsB(j, i));
             }
           }
           else {
-            if (abs(HforbsB(i+norbs, j+nalpha)) > maxovlp && !d.getoccB(j)) {
+            if (abs(HforbsB(j+norbs, i+nalpha)) > maxovlp && !d.getoccB(j)) {
               bestorb = j;
-              maxovlp = abs(HforbsB(i+norbs, j+nalpha));
+              maxovlp = abs(HforbsB(j+norbs, i+nalpha));
             }
           }
         }
