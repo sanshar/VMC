@@ -41,6 +41,8 @@
 #include <unsupported/Eigen/NonLinearOptimization>
 #include <complex>
 #include <cmath>
+#include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -65,11 +67,11 @@ int index(int I, int J) {
 
 //term is orb1^dag orb2
 double getCreDesDiagMatrix(DiagonalXd& diagcre,
-                      DiagonalXd& diagdes,
-                      int orb1,
-                      int orb2,
-                      int norbs,
-                      const VectorXd&JA) {
+                           DiagonalXd& diagdes,
+                           int orb1,
+                           int orb2,
+                           int norbs,
+                           const VectorXd&JA) {
   
   for (int j=0; j<2*norbs; j++) {
     diagcre.diagonal()[j] = exp(-2.*JA(index(orb1, j)));
@@ -266,6 +268,7 @@ struct Residuals {
   MatrixXcd bra;
   vector<MatrixXcd > ket;
   vector<complex<double> > coeffs;
+  double E0;
   
   Residuals(int _norbs, int _nalpha, int _nbeta,
             MatrixXcd& _bra,
@@ -281,49 +284,49 @@ struct Residuals {
   int operator() (const VectorXd& JA, VectorXd& residue) const
   {
     //calculate <bra|P|ket> and
-    complex<double> detovlp = 0.0;
-    MatrixXcd mfRDM(2*norbs, 2*norbs); mfRDM.setZero();
+    double detovlp = 0.0;
+    MatrixXd mfRDM(2*norbs, 2*norbs); mfRDM.setZero();
     
     for (int g = 0; g<ket.size(); g++) {
       MatrixXcd S = bra.adjoint()*ket[g];
-      detovlp += S.determinant() * coeffs[g];
-      mfRDM += (ket[g] * S.inverse())*bra.adjoint() * coeffs[g]; 
+      complex<double> Sdet = S.determinant();
+      detovlp += (S.determinant() * coeffs[g]).real();
+      mfRDM += ((ket[g] * S.inverse())*bra.adjoint() * coeffs[g] * Sdet).real(); 
     }
-    //assert(abs(detovlp.imag()) < 1.e-10);
-
-    complex<double> Energy = 0.0;
-    VectorXcd intermediateResidue(2*norbs*(2*norbs+1)/2); intermediateResidue.setZero();
+    mfRDM = mfRDM/detovlp;
     
-    for (int g = 0; g<ket.size(); g++) 
-      Energy += getSingleResidue(JA, intermediateResidue,
-                                 detovlp.real(), coeffs[g], bra, ket[g]) * coeffs[g];
-    
-    //assert(abs(Energy.imag()) < 1.e-10);
+    double Energy = 0.;
+    VectorXd intermediateResidue(2*norbs*(2*norbs+1)/2); intermediateResidue.setZero();
 
+    for (int g = 0; g<ket.size(); g++)  {
+      Energy += (getResidueSingleKet(JA, intermediateResidue,
+                                     detovlp, coeffs[g], bra, ket[g]) * coeffs[g]).real();
+    }    
 
     for (int i=0; i<2*norbs; i++) {
       for (int j=0; j<=i; j++) {
         int index = i*(i+1)/2+j;
         if (i == j) 
-          residue(i * (i+1)/2 + j) = abs(intermediateResidue(i*(i+1)/2+j) - (Energy)*mfRDM(i,i));
+          residue(i * (i+1)/2 + j) = intermediateResidue(i*(i+1)/2+j) - (Energy)*mfRDM(i,i);
         else
-          residue(i * (i+1)/2 + j) = abs(intermediateResidue(i*(i+1)/2+j) - (Energy)*(mfRDM(j,j)*mfRDM(i,i) - mfRDM(j,i)*mfRDM(i,j)));
+          residue(i * (i+1)/2 + j) = intermediateResidue(i*(i+1)/2+j) - (Energy)*(mfRDM(j,j)*mfRDM(i,i) - mfRDM(j,i)*mfRDM(i,j));
       }
-    }    
-    
+    }
+
+    const_cast<double&>(this->E0) = Energy;
     return 0;
   }
   
-  complex<double> getSingleResidue (const VectorXd& JA,
-                                    VectorXcd& residue, double detovlp, complex<double> coeff,
-                                    const MatrixXcd& bra, const MatrixXcd& ket) const
+  complex<double> getResidueSingleKet (const VectorXd& JA,
+                              VectorXd& residue, double detovlp, complex<double> coeff,
+                              const MatrixXcd& bra, const MatrixXcd& ket) const
   {
     MatrixXcd LambdaD = bra, LambdaC = ket; //just initializing  
     MatrixXcd S = bra.adjoint()*ket;
 
     DiagonalXd diagcre(2*norbs),
         diagdes(2*norbs);
-
+    
     complex<double> Energy = 0.0;
     //one electron terms
     for (int orb1 = 0; orb1 < 2*norbs; orb1++)
@@ -346,10 +349,10 @@ struct Residuals {
         for (int orbn = 0; orbn < 2*norbs; orbn++) {
           for (int orbm = 0; orbm < orbn; orbm++) {
             res = getResidue(rdm, orbn, orbm, orb1, orb2);
-            residue(orbn*(orbn+1)/2 + orbm) += res * factor * integral * coeff;
+            residue(orbn*(orbn+1)/2 + orbm) += (res * factor * integral * coeff).real();
           }
           res = getResidue(rdm, orbn, orb1, orb2);
-          residue(orbn*(orbn+1)/2 + orbn) += res * factor * integral * coeff;
+          residue(orbn*(orbn+1)/2 + orbn) += (res * factor * integral * coeff).real();
         }
       }
     
@@ -384,10 +387,10 @@ struct Residuals {
             for (int orbn = 0; orbn < 2*norbs; orbn++) {
               for (int orbm = 0; orbm < orbn; orbm++) {
                 res = getResidue(rdm, orbn, orbm, orb1, orb2, orb3, orb4);
-                residue(orbn*(orbn+1)/2 + orbm) += res*factor*integral * coeff;
+                residue(orbn*(orbn+1)/2 + orbm) += (res*factor*integral * coeff).real();
               }
               res = getResidue(rdm, orbn, orb1, orb2, orb3, orb4);
-              residue(orbn*(orbn+1)/2 + orbn) += res*factor*integral * coeff;
+              residue(orbn*(orbn+1)/2 + orbn) += (res*factor*integral * coeff).real();
             }
             
           }
@@ -404,15 +407,15 @@ struct Residuals {
     complex<double> detovlp = 0.0;
     for (int g = 0; g<ket.size(); g++) {
       MatrixXcd S = bra.adjoint()*ket[g];
-      detovlp += S.determinant() * coeffs[g];
+      detovlp += (S.determinant() * coeffs[g]).real();
     }
-    //assert(abs(detovlp.imag()) < 1.e-10);
 
-    complex<double> Energy = 0.0;
+
+    double Energy = 0.0;
     for (int g = 0; g<ket.size(); g++) 
-      Energy += energyContribution(JA, detovlp.real(), bra, ket[g]) * coeffs[g];
-    //assert(abs(Energy.imag()) < 1.e-10);
-    return Energy.real();
+      Energy += (energyContribution(JA, detovlp.real(), bra, ket[g]) * coeffs[g]).real();
+
+    return Energy;
   }
   
   complex<double> energyContribution (const VectorXd& JA, double detovlp,
@@ -515,10 +518,13 @@ class getTranscorrelationWrapper
 
     //grid to project out the Sz quantum number
     double Sz = 0;
-    int ngrid = 5;
+    int ngrid = 10;
     complex<double> iImag(0, 1.0);
-    vector<complex<double> > coeffs(ngrid, 0.0);
-    vector< MatrixXcd > ketvec(ngrid,ket);
+    vector<complex<double> > coeffs(ngrid*2, 0.0);
+    vector< MatrixXcd > ketvec(ngrid*2, ket);
+    //vector<complex<double> > coeffs(ngrid*1, 0.0);
+    //vector< MatrixXcd > ketvec(ngrid*1, ket);
+
     for (int g = 0; g<ngrid; g++) {
       DiagonalMatrix<complex<double>, Dynamic> phi(2*norbs);
       double angle = g*2*M_PI/ngrid;
@@ -526,8 +532,11 @@ class getTranscorrelationWrapper
         phi.diagonal()[i]       = exp(iImag*angle);
         phi.diagonal()[i+norbs] = exp(-iImag*angle);
       }
-      ketvec[g] = phi * ketvec[g];
-      coeffs[g] = exp(-iImag*angle*Sz)/ngrid;
+      ketvec[2*g] = phi * ketvec[g];
+      coeffs[2*g] = exp(-iImag*angle*Sz)/ngrid;
+
+      ketvec[2*g+1] = (phi * ketvec[g]).conjugate();
+      coeffs[2*g+1] = exp(iImag*angle*Sz)/ngrid;
     }
     
     MatrixXd& Jtmp = w.getCorr().SpinCorrelator;
@@ -542,19 +551,20 @@ class getTranscorrelationWrapper
     }
     
     Residuals residual(norbs, nalpha, nbeta, bra, ketvec, coeffs);
-    std::cout << "Energy: " <<residual.energy(JA) <<endl;
-    
+    std::cout << "Initial Energy: " <<residual.energy(JA) <<endl;
+
+    double norm = 10.; 
+    int iter = 0;
     HybridNonLinearSolver<Residuals > solver(residual);
-    int info = solver.solveNumericalDiff(JA);
-    
-    if (info != 1) {
-      cout << "Jastrow optimizer didn't converge"<<endl;
+
+    solver.solveNumericalDiffInit(JA);
+    while(norm > 1.e-6) {
+      iter++;
+      int info = solver.solveNumericalDiffOneStep(JA);
+      residual(JA, residue);
+      norm = residue.norm();
+      std::cout << format("%5i   %14.8f   %14.6f \n") %(iter) %(residual.E0) %(norm);
     }
-    std::cout << "iter count: " << solver.iter << std::endl;
-    std::cout << "return status: " << info << std::endl;
-    residual(JA, residue);
-    std::cout << "Energy: " <<residual.energy(JA) <<endl;
-    std::cout << "Error: " <<residue.norm() <<endl;
     exit(0);
     /*
     int iter = 0, niter = 10;
