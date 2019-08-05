@@ -48,6 +48,21 @@
 #include "mpi.h"
 #endif
 
+
+extern "C" {
+  void evalgrad1rdm_(double*, double*, double*, double*, double*, int*,
+                     int*, int*, int*, int*,
+                     int*, double*,
+                     int*, int*, double*);
+
+  void evalgrad1rdm_b_(double* bra, double* jai, double* jaib, double* sinv, double* sinvb,
+                       double* ketj, double* ketjb, double* brajgiven, double* brajgivenb,
+                       int* norbs, int* brancol,
+                       int* sinvncol, int* ketjncol, int* brajgivenncol, int* nelec, double* rdm,
+                       double* rdmb, int* orb1, int* orb2, double* dets);
+
+}
+
 using namespace Eigen;
 using namespace std;
 using namespace boost;
@@ -60,9 +75,18 @@ class twoIntHeatBathSHM;
 
 
 using DiagonalXd = Eigen::DiagonalMatrix<double, Eigen::Dynamic>;
+using MatrixXcdR = Matrix<complex<double>, Dynamic, Dynamic, RowMajor>;
+using MatrixXdR  = Matrix<         double, Dynamic, Dynamic, RowMajor>;
+using MatrixXcfR = Matrix<complex<float> , Dynamic, Dynamic, RowMajor>;
+using MatrixXfR  = Matrix<        float  , Dynamic, Dynamic, RowMajor>;
 
 int index(int I, int J) {
   return max(I,J)*(max(I,J)+1)/2 + min(I,J);
+}
+
+void populateJrow(VectorXd& Jai, const VectorXd& JA, int norbs, int orb1) {
+  for (int j=0; j<2*norbs; j++)
+    Jai(j) = JA(index(orb1, j));
 }
 
 //term is orb1^dag orb2
@@ -105,14 +129,14 @@ double getCreDesDiagMatrix(DiagonalXd& diagcre,
 
 
 //N_orbn N_orbm orb1^dag orb2^dag orb3 orb4
-complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb2, int orb3, int orb4) {
+complex<double> getResidue(MatrixXcdR& rdm, int orbn, int orbm, int orb1, int orb2, int orb3, int orb4) {
 
   vector<int> rows = {orbm, orbn, orb3, orb4},
               cols = {orbm, orbn, orb2, orb1};
   Eigen::Map<VectorXi> rowVec(&rows[0], 4), colVec(&cols[0], 4);
 
   complex<double> contribution ;
-  MatrixXcd rdmval;
+  MatrixXcdR rdmval;
   igl::slice(rdm, rowVec, colVec, rdmval);
   contribution =  rdmval.determinant();
 
@@ -121,7 +145,7 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb
     cols[0] = orb1; cols[1] = orbm; cols[2] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 3);
     Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -130,7 +154,7 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb
     cols[0] = orb2; cols[1] = orbm; cols[2] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 3);
     Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -139,7 +163,7 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb
     cols[0] = orb1; cols[1] = orbm; cols[2] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 3);
     Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -148,7 +172,7 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb
     cols[0] = orbm; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -157,7 +181,7 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb
     cols[0] = orb2; cols[1] = orbm; cols[2] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 3);
     Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -166,7 +190,7 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb
     cols[0] = orbm; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -175,14 +199,14 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb
 
 
 //N_orbn orb1^dag orb2^dag orb3 orb4
-complex<double> getResidue(MatrixXcd& rdm, int orbn, int orb1, int orb2, int orb3, int orb4) {
+complex<double> getResidue(MatrixXcdR& rdm, int orbn, int orb1, int orb2, int orb3, int orb4) {
 
   vector<int> rows = {orbn, orb3, orb4},
               cols = {orbn, orb2, orb1};
   Eigen::Map<VectorXi> rowVec(&rows[0], 3), colVec(&cols[0], 3);
 
   complex<double> contribution ;
-  MatrixXcd rdmval;
+  MatrixXcdR rdmval;
   igl::slice(rdm, rowVec, colVec, rdmval);
   contribution =  rdmval.determinant();
   
@@ -191,7 +215,7 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orb1, int orb2, int orb
     cols[0] = orb1; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -200,7 +224,7 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orb1, int orb2, int orb
     cols[0] = orb2; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -209,14 +233,14 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orb1, int orb2, int orb
 }
 
 //N_orbn N_orbm orb1^dag orb2
-complex<double> getResidue(const MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb2) {
+complex<double> getResidue(const MatrixXcdR& rdm, int orbn, int orbm, int orb1, int orb2) {
   
   vector<int> rows = {orbn, orbm, orb2},
               cols = {orbn, orbm, orb1};
   Eigen::Map<VectorXi> rowVec(&rows[0], 3), colVec(&cols[0], 3);
 
   complex<double> contribution;
-  MatrixXcd rdmval;
+  MatrixXcdR rdmval;
   igl::slice(rdm, rowVec, colVec, rdmval);
   contribution =  rdmval.determinant();
   
@@ -225,7 +249,7 @@ complex<double> getResidue(const MatrixXcd& rdm, int orbn, int orbm, int orb1, i
     cols[0] = orbm; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution += rdmval.determinant();
   }
@@ -234,7 +258,7 @@ complex<double> getResidue(const MatrixXcd& rdm, int orbn, int orbm, int orb1, i
     cols[0] = orbm; cols[1] = orbn;
     Eigen::Map<VectorXi> rowVec(&rows[0], 2);
     Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    MatrixXcd rdmval;
+    MatrixXcdR rdmval;
     igl::slice(rdm, rowVec, colVec, rdmval);
     contribution -= rdmval.determinant();
   }
@@ -244,14 +268,14 @@ complex<double> getResidue(const MatrixXcd& rdm, int orbn, int orbm, int orb1, i
 
 
 //N_orbn orb1^dag orb2
-complex<double> getResidue(MatrixXcd& rdm, int orbn, int orb1, int orb2) {
+complex<double> getResidue(MatrixXcdR& rdm, int orbn, int orb1, int orb2) {
 
   vector<int> rows = {orbn, orb2},
               cols = {orbn, orb1};
   Eigen::Map<VectorXi> rowVec(&rows[0], 2), colVec(&cols[0], 2);
 
   complex<double> contribution ;
-  MatrixXcd rdmval;
+  MatrixXcdR rdmval;
   igl::slice(rdm, rowVec, colVec, rdmval);
   contribution =  rdmval.determinant();
   
@@ -265,14 +289,14 @@ complex<double> getResidue(MatrixXcd& rdm, int orbn, int orb1, int orb2) {
 //here T can be stan::math::var or double depending on whether we are using automatic differentiation or not
 struct Residuals {
   int norbs, nalpha, nbeta;
-  MatrixXcd bra;
-  vector<MatrixXcd > ket;
+  MatrixXcdR bra;
+  vector<MatrixXcdR > ket;
   vector<complex<double> > coeffs;
   double E0;
   
   Residuals(int _norbs, int _nalpha, int _nbeta,
-            MatrixXcd& _bra,
-            vector<MatrixXcd >& _ket,
+            MatrixXcdR& _bra,
+            vector<MatrixXcdR >& _ket,
             vector<complex<double> >& _coeffs) : norbs(_norbs),
                                                  nalpha(_nalpha),
                                                  nbeta(_nbeta),
@@ -285,10 +309,10 @@ struct Residuals {
   {
     //calculate <bra|P|ket> and
     double detovlp = 0.0;
-    MatrixXd mfRDM(2*norbs, 2*norbs); mfRDM.setZero();
+    MatrixXdR mfRDM(2*norbs, 2*norbs); mfRDM.setZero();
     
     for (int g = 0; g<ket.size(); g++) {
-      MatrixXcd S = bra.adjoint()*ket[g];
+      MatrixXcdR S = bra.adjoint()*ket[g];
       complex<double> Sdet = S.determinant();
       detovlp += (S.determinant() * coeffs[g]).real();
       mfRDM += ((ket[g] * S.inverse())*bra.adjoint() * coeffs[g] * Sdet).real(); 
@@ -300,7 +324,8 @@ struct Residuals {
 
     for (int g = 0; g<ket.size(); g++)  {
       Energy += (getResidueSingleKet(JA, intermediateResidue,
-                                     detovlp, coeffs[g], bra, ket[g]) * coeffs[g]).real();
+                                     detovlp, coeffs[g], const_cast<MatrixXcdR&>(bra),
+                                     ket[g]) * coeffs[g]).real();
     }    
 
     for (int i=0; i<2*norbs; i++) {
@@ -318,11 +343,13 @@ struct Residuals {
   }
   
   complex<double> getResidueSingleKet (const VectorXd& JA,
-                              VectorXd& residue, double detovlp, complex<double> coeff,
-                              const MatrixXcd& bra, const MatrixXcd& ket) const
+                                       VectorXd& residue, double detovlp, complex<double> coeff,
+                                       MatrixXcdR& bra, const MatrixXcdR& ket) const
   {
-    MatrixXcd LambdaD = bra, LambdaC = ket; //just initializing  
-    MatrixXcd S = bra.adjoint()*ket;
+    int nelec = nalpha+nbeta;
+
+    MatrixXcdR LambdaD = bra, LambdaC = ket; //just initializing  
+    MatrixXcdR S = bra.adjoint()*ket;
 
     DiagonalXd diagcre(2*norbs),
         diagdes(2*norbs);
@@ -340,10 +367,35 @@ struct Residuals {
         LambdaD = diagdes*ket;
         LambdaC = diagcre*bra;
         S = LambdaC.adjoint()*LambdaD;
+        MatrixXcdR Sinv = S.inverse();
+        complex<double> Sdet = S.determinant();
+        
+        factor *= Sdet/detovlp;
+        //complex<double> rdm = (LambdaD.row(orb2) * S.inverse())*LambdaC.adjoint().col(orb1)(0,0);
 
-        factor *= S.determinant()/detovlp;
-        MatrixXcd rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
-        Energy += rdm(orb2,orb1) * integral * factor;
+        int spinorbs = 2*norbs;
+        double rdmval;
+
+        int braStride     = &bra(1,0)     - &(bra(0,0));
+        int SinvStride    = &Sinv(1,0)    - &(Sinv(0,0));
+        int LambdaDStride = &LambdaD(1,0) - &(LambdaD(0,0));
+        int LambdaCStride = &LambdaC(1,0) - &(LambdaC(0,0));
+        assert(braStride >= nelec && SinvStride >=nelec && LambdaDStride >= nelec);
+
+        VectorXd JAi(2*norbs); populateJrow(JAi, JA, norbs, orb1);
+        evalgrad1rdm_(reinterpret_cast<double*>(&bra(0,0)),
+                      const_cast<double*>(&JAi(0)),
+                      reinterpret_cast<double*>(&Sinv(0,0)),
+                      reinterpret_cast<double*>(&LambdaD(0,0)),
+                      reinterpret_cast<double*>(&LambdaC(0,0)),
+                      &spinorbs, &braStride, &SinvStride, &LambdaDStride,
+                      &LambdaCStride, &nelec,
+                      &rdmval,
+                      &orb1, &orb2, reinterpret_cast<double*>(&Sdet));
+
+        MatrixXcdR rdm = (LambdaD * Sinv)*LambdaC.adjoint();
+        Energy += rdmval * integral * factor;
+        vector<double> graddiag(2*norbs, 0.0), graddiag2(2*norbs, 0.0); double rdmscale = 1.0;
 
         complex<double> res;
         for (int orbn = 0; orbn < 2*norbs; orbn++) {
@@ -354,8 +406,27 @@ struct Residuals {
           res = getResidue(rdm, orbn, orb1, orb2);
           residue(orbn*(orbn+1)/2 + orbn) += (res * factor * integral * coeff).real();
         }
-      }
+
+        vector<complex<double>> Sinvb(nelec*nelec), LambdaDb(2*norbs*nelec), LambdaCb(2*norbs*nelec);
+        evalgrad1rdm_b_(reinterpret_cast<double*>(&bra(0,0)),
+                        const_cast<double*>(&JAi(0)),
+                        &graddiag[0],
+                        reinterpret_cast<double*>(&Sinv(0,0)),
+                        reinterpret_cast<double*>(&Sinvb[0]),
+                        reinterpret_cast<double*>(&LambdaD(0,0)),
+                        reinterpret_cast<double*>(&LambdaDb[0]),
+                        reinterpret_cast<double*>(&LambdaC(0,0)),
+                        reinterpret_cast<double*>(&LambdaCb[0]),
+                        &spinorbs, &braStride, &SinvStride, &LambdaDStride,
+                        &LambdaCStride, &nelec,
+                        &rdmval, &rdmscale, 
+                        &orb1, &orb2, reinterpret_cast<double*>(&Sdet));
+        
+        for (int i=0; i<2*norbs; i++)
+          cout << graddiag[i]/-2.<<"  "<<residue(i*(i+1)/2+i)*Sdet/factor/integral/coeff <<endl;
+        exit(0);
     
+      }
     
     //one electron terms
     for (int orb1 = 0; orb1 < 2*norbs; orb1++)
@@ -377,7 +448,7 @@ struct Residuals {
             LambdaC = diagcre*bra;
             S = LambdaC.adjoint()*LambdaD;
 
-            MatrixXcd rdm = ((LambdaD * S.inverse()) * LambdaC.adjoint());
+            MatrixXcdR rdm = ((LambdaD * S.inverse()) * LambdaC.adjoint());
             complex<double> rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
             
             factor *= S.determinant()/detovlp;
@@ -406,7 +477,7 @@ struct Residuals {
     //calculate <bra|P|ket> and
     complex<double> detovlp = 0.0;
     for (int g = 0; g<ket.size(); g++) {
-      MatrixXcd S = bra.adjoint()*ket[g];
+      MatrixXcdR S = bra.adjoint()*ket[g];
       detovlp += (S.determinant() * coeffs[g]).real();
     }
 
@@ -419,10 +490,10 @@ struct Residuals {
   }
   
   complex<double> energyContribution (const VectorXd& JA, double detovlp,
-                                      const MatrixXcd& bra, const MatrixXcd& ket) const
+                                      const MatrixXcdR& bra, const MatrixXcdR& ket) const
   {
 
-    MatrixXcd LambdaC, LambdaD, S;
+    MatrixXcdR LambdaC, LambdaD, S;
     DiagonalXd diagcre(2*norbs),
         diagdes(2*norbs);
 
@@ -442,7 +513,7 @@ struct Residuals {
 
         factor *= S.determinant()/detovlp;
         //**don't need to calculate the entire RDM, should make it more efficient
-        MatrixXcd rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
+        MatrixXcdR rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
         Energy += rdm(orb2,orb1) * integral * factor;
       }
     
@@ -468,7 +539,7 @@ struct Residuals {
             S = LambdaC.adjoint()*LambdaD;
 
             //**don't need to calculate the entire RDM, should make it more efficient
-            MatrixXcd rdm = ((LambdaD * S.inverse()) * LambdaC.adjoint());
+            MatrixXcdR rdm = ((LambdaD * S.inverse()) * LambdaC.adjoint());
             complex<double> rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
             
             factor *= S.determinant()/detovlp;
@@ -503,7 +574,7 @@ class getTranscorrelationWrapper
     using VarType = std::complex<double>;
     
     w.updateVariables(vars);
-    w.initWalker(walk);
+    //w.initWalker(walk);
     
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
@@ -512,18 +583,18 @@ class getTranscorrelationWrapper
     VectorXd residue(2*norbs*(2*norbs+1)/2); residue.setZero();
     VectorXd JA     (2*norbs*(2*norbs+1)/2);
     VarType Energy;
-    
-    MatrixXcd bra = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta);
-    MatrixXcd ket = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta);
+
+    MatrixXcdR bra = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta);
+    MatrixXcdR ket = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta);
 
     //grid to project out the Sz quantum number
     double Sz = 0;
     int ngrid = 10;
     complex<double> iImag(0, 1.0);
     vector<complex<double> > coeffs(ngrid*2, 0.0);
-    vector< MatrixXcd > ketvec(ngrid*2, ket);
+    vector< MatrixXcdR > ketvec(ngrid*2, ket);
     //vector<complex<double> > coeffs(ngrid*1, 0.0);
-    //vector< MatrixXcd > ketvec(ngrid*1, ket);
+    //vector< MatrixXcdR > ketvec(ngrid*1, ket);
 
     for (int g = 0; g<ngrid; g++) {
       DiagonalMatrix<complex<double>, Dynamic> phi(2*norbs);
