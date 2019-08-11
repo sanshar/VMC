@@ -1,5 +1,5 @@
 /*
-  Developed by Sandeep Sharma 
+  Developed by Sandeep Sharma
   Copyright (c) 2017, Sandeep Sharma
   
   This file is part of DICE.
@@ -16,34 +16,26 @@
   You should have received a copy of the GNU General Public License along with this program. 
   If not, see <http://www.gnu.org/licenses/>.
 */
-
 #pragma once
 
-#include <sys/stat.h>
-#include "input.h"
-#include "TransevaluateE.h"
+#include <Eigen/Dense>
+#include <boost/function.hpp>
+#include <boost/functional.hpp>
+#include <boost/bind.hpp>
+
+using namespace Eigen;
 
 
-template<typename Wave>
-void runTranscorrelated(Wave& wave) {
+class Residuals;
 
-  if (schd.restart || schd.fullrestart)
-    wave.readWave();
-  VectorXd vars; wave.getVariables(vars);
+void optimizeJastrowParams(
+    VectorXd& params,
+    boost::function<int (const VectorXd&, VectorXd&)>& func,
+    Residuals& residual);
 
-  
-  if (commrank == 0)
-  {
-    cout << "Number of Jastrow vars: " << wave.getCorr().getNumVariables() << endl;
-    cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getCorr().getNumVariables() << endl;
-  }
-  
-  getTranscorrelationWrapper<Wave> wrapper(wave);
+void optimizeOrbitalParams(
+    VectorXd& params,
+    boost::function<int (const VectorXd&, VectorXd&)>& func,
+    Residuals& residual);
 
-  double Energy, stddev, rt;
-  VectorXd grad;
-  wrapper.optimizeWavefunction();
-  
-  if (schd.printVars && commrank==0) wave.printVariables();
-  
-}
+
