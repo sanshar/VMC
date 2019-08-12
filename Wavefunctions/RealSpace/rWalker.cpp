@@ -128,13 +128,53 @@ double rWalker<rJastrow, rSlater>::getDetOverlap(const rSlater &ref) const
  */
 void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXcd& HforbsA, const Eigen::MatrixXcd& HforbsB) const 
 {
-  auto random = std::bind(std::uniform_real_distribution<double>(-1., 1.),
-                          std::ref(generator));
+/*
+  auto random = std::bind(std::uniform_real_distribution<double>(-1., 1.), std::ref(generator));
   for (int i=0; i<d.nelec; i++) {
     d.coord[i][0] = random();
     d.coord[i][1] = random();
     d.coord[i][2] = random();
   }
+*/
+  auto random = std::bind(std::normal_distribution<double>(0.0, 1.0), std::ref(generator));
+  int norbs = schd.basis->getNorbs();
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = nalpha+nbeta;
+  int i = 0;
+  while (i < nelec)
+  {
+      for (int I = 0; I < schd.Ncharge.size(); I++)
+      {
+          for (int n = 0; n < schd.Ncharge[I]; n++)
+          {
+              Vector3d r(random(), random(), random());
+              int index = i / 2;
+              if (i % 2 == 0) //alpha electron
+                  d.coord[index] = schd.Ncoords[I] + r;
+              else //beta electron
+                  d.coord[index + nalpha] = schd.Ncoords[I] + r;
+              i++;
+          }
+      }
+  }
+/*
+  cout << "Electrons" << endl;
+  std::cout << d << endl << endl;
+  cout << "Basis" << endl;
+  slaterBasis &basis = dynamic_cast<slaterBasis&>(*schd.basis);
+  for (int i = 0; i < basis.atomicBasis.size(); i++)
+  {
+    std::cout << basis.atomicBasis[i] << endl;
+  }
+  cout << endl;
+  cout << "N" << endl;
+  for (int i = 0; i < schd.Ncoords.size(); i++)
+  {
+    std::cout << schd.Ncharge[i] << endl;
+    std::cout << schd.Ncoords[i] << endl << endl;
+  }
+*/
 }
 
 void rWalker<rJastrow, rSlater>::initDet(const MatrixXcd& HforbsA, const MatrixXcd& HforbsB) 
