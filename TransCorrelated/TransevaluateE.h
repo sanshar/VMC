@@ -33,7 +33,7 @@
 #include <boost/algorithm/string.hpp>
 #include "DirectJacobian.h"
 #include "Residuals.h"
-
+#include <unsupported/Eigen/NonLinearOptimization>
 #include "stan/math.hpp"
 
 #ifndef SERIAL
@@ -99,7 +99,7 @@ class getTranscorrelationWrapper
     
     //grid to project out the Sz quantum number
     int ngrid = 1;
-    cin >> ngrid;
+    //cin >> ngrid;
     fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
 
     VectorXd braReal(2*2*norbs * (nalpha+nbeta));
@@ -116,6 +116,30 @@ class getTranscorrelationWrapper
     boost::function<int (const VectorXd&, VectorXd&)> forb
         = boost::bind(&getOrbGradient, boost::ref(residual), _1, _2);
 
+    double norm = 10.;
+
+    /*
+    auto Jresidue = JA;
+    HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(fJastrow);
+    solver.solveNumericalDiffInit(JA);
+    int info = solver.solveNumericalDiff(JA);
+    fJastrow(JA, residue);
+    norm = residue.norm();
+    std::cout << format("%14.8f   %14.6f \n") %(residual.Energy()) %(norm);
+    exit(0);
+  
+    while(norm > 1.e-6) {
+      cout << JA <<endl;
+      int info = solver.solveNumericalDiffOneStep(JA);
+      residual.Jastrow = JA;
+      fJastrow(JA, residue);
+      norm = residue.norm();
+      cout <<"info: "<< info <<endl;
+      std::cout << format("%14.8f   %14.6f \n") %(residual.E0) %(norm);
+    }
+    optimizeOrbitalParams(braReal, forb, residual);
+    exit(0);
+    */
     //optimizeJastrowParams(JA, fJastrow, residual);
     for (int i=0; i<20; i++) {
       optimizeOrbitalParams(braReal, forb, residual);

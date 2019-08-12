@@ -189,8 +189,12 @@ int Residuals::getJastrowResidue(const VectorXd& JA, VectorXd& residue)
     Energy += (getResidueSingleKet(JA, intermediateResidue,
                                    detovlp, coeffs[g], const_cast<MatrixXcd&>(bra),
                                    ket[g]) * coeffs[g]).real();
+    //cout <<"bra "<<endl<< bra<<endl;
+    //cout <<"ket "<<endl<<ket[g]<<endl;
+    //cout << "coeff "<<coeffs[g]<<endl;
+    //cout << "in jastrow residue "<<g<<"  "<<Energy<<endl;
   }    
-    
+  
   for (int i=0; i<2*norbs; i++) {
     for (int j=0; j<=i; j++) {
       int index = i*(i+1)/2+j;
@@ -235,14 +239,17 @@ complex<double> Residuals::getResidueSingleKet (const VectorXd& JA,
       LambdaC = diagcre*bra;
       S = LambdaC.adjoint()*LambdaD;
 
+      /*
       Eigen::FullPivLU<MatrixXcd> lu(S);
       MatrixXcd rdm = LambdaD * lu.solve(LambdaC.adjoint());
-
       //MatrixXcd Sinv = S.inverse();
       complex<double> Sdet = 1.0;
       for (int i=0; i<nelec; i++)
         Sdet *= lu.matrixLU()(i,i);
-
+      */
+      complex<double> Sdet = S.determinant();
+      MatrixXcd rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
+      
       factor *= Sdet/detovlp;
 
       //MatrixXcd rdm = (LambdaD * Sinv)*LambdaC.adjoint();
@@ -283,12 +290,16 @@ complex<double> Residuals::getResidueSingleKet (const VectorXd& JA,
           LambdaC = diagcre*bra;
           S = LambdaC.adjoint()*LambdaD;
 
+          /*
           Eigen::FullPivLU<MatrixXcd> lu(S);
           MatrixXcd rdm = LambdaD * lu.solve(LambdaC.adjoint());
           complex<double> Sdet = 1.0;
           for (int i=0; i<nelec; i++)
             Sdet *= lu.matrixLU()(i,i);
-
+          */
+          complex<double> Sdet = S.determinant();
+          MatrixXcd rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
+          
           complex<double> rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
             
           factor *= Sdet/detovlp;
@@ -327,6 +338,10 @@ double Residuals::Energy() const
   double Energy = 0.0;
   for (int g = 0; g<ket.size(); g++) {
     Energy += (energyContribution(detovlp, bra, ket[g]) * coeffs[g]).real();
+    //cout <<"bra "<<endl<< bra<<endl;
+    //cout <<"ket "<<endl<<ket[g]<<endl;
+    //cout << "coeff "<<coeffs[g]<<endl;
+    //cout << "in energy "<<g<<"  "<<Energy<<endl;
   }
   
   return Energy;
@@ -344,7 +359,7 @@ complex<double> Residuals::energyContribution(
   DiagonalXd diagcre(2*norbs),
       diagdes(2*norbs);
     
-  complex<double> Energy ;
+  complex<double> Energy = 0.0;
   //one electron terms
   for (int orb1 = 0; orb1 < 2*norbs; orb1++)
     for (int orb2 = 0; orb2 < 2*norbs; orb2++) {
