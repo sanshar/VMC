@@ -33,8 +33,12 @@
 #include <boost/algorithm/string.hpp>
 #include "DirectJacobian.h"
 #include "Residuals.h"
+#include "ResidualGradient.h"
+
 #include <unsupported/Eigen/NonLinearOptimization>
 #include "stan/math.hpp"
+//#include "ceres/ceres.h"
+//#include "glog/logging.h"
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -69,7 +73,28 @@ int getOrbGradient(Residuals& residue, const VectorXd& braReal, VectorXd& braRes
     braResidue(i) -= Energy * braVarReal(i).adj()/denominator;
   return 0;
 }
+
+int SingleGradient(Residuals& residue, const VectorXd& variables, VectorXd& residuals) {
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
   
+  int nJastrowVars = 2*norbs*(2*norbs+1)/2;
+  int nOrbitalVars = 2*norbs*(nalpha+nbeta);
+  
+  VectorXd JastrowVars = variables.block(0,0,nJastrowVars,1);
+  VectorXd JastrowResidue = JastrowVars;
+  residue.getJastrowResidue(JastrowVars, JastrowResidue);
+
+  VectorXd braVars = variables.block(nJastrowVars,0, 2*nOrbitalVars, 1);
+  VectorXd braResidue = 0.*braVars;
+  getOrbGradient(residue, braVars, braResidue);
+  
+  residuals.block(0,0,nJastrowVars,1) = JastrowResidue;
+  residuals.block(nJastrowVars,0,2*nOrbitalVars,1) = braResidue;
+
+  return 0;
+}
 
 template <typename Wfn>
 class getTranscorrelationWrapper
@@ -84,6 +109,71 @@ class getTranscorrelationWrapper
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
     int nbeta = Determinant::nbeta;
+
+    /*
+    {
+      VectorXd JAresidue(2*norbs*(2*norbs+1)/2); JAresidue.setZero();
+      VectorXd rdm(2*norbs*(2*norbs+1)/2); rdm.setZero();
+      MatrixXd Onerdm(2*norbs,2*norbs); Onerdm.setZero();
+
+      Walker<Jastrow, Slater> walk;
+      std::vector<Determinant> allDets;
+      generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+      //vector<vector<int> > alldetvec;
+      //comb(2*norbs, nalpha+nbeta, alldetvec);
+      
+      double Energytrans = 0.0, Energyvar = 0.0;
+      double denominatortrans = 0.0, denominatorvar = 0.0;
+      workingArray work;
+      
+      for (int i = commrank; i < allDets.size(); i += commsize)
+      {
+        double ovlp, Eloc;
+        w.initWalker(walk, allDets[i]);
+        w.HamAndOvlp(walk, ovlp, Eloc, work, false);
+        double corrovlp = w.getCorr().Overlap(walk.d),
+            slaterovlp = walk.getDetOverlap(w.getRef());
+        //cout << allDets[i]<<"  "<<ovlp<<endl;
+
+        Energytrans += slaterovlp/corrovlp * Eloc*ovlp;
+        denominatortrans += slaterovlp*slaterovlp;
+
+        Energyvar +=  Eloc*ovlp*ovlp;
+        denominatorvar += ovlp*ovlp;
+
+        for (int orb1 = 0; orb1 < 2*norbs; orb1++)
+        for (int orb2 = 0; orb2 <= orb1; orb2++)
+        {
+          if (allDets[i].getocc(orb1) && allDets[i].getocc(orb2)) {
+            int I = (orb1/2) + (orb1%2)*norbs;
+            int J = (orb2/2) + (orb2%2)*norbs;
+            int K = max(I,J), L = min(I,J);
+            JAresidue(K * (K+1)/2 + L) += slaterovlp/corrovlp * Eloc * ovlp;
+            rdm(K * (K+1)/2 + L) += slaterovlp*slaterovlp;
+          }          
+        }
+
+      }
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &(Energytrans), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(denominatortrans), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(Energyvar), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(denominatorvar), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      
+      if (commrank == 0) {
+        cout << Energytrans<<"  "<<denominatortrans <<endl;
+        cout << Energyvar<<"  "<<denominatorvar <<endl;
+        cout <<"trans energy "<< Energytrans/denominatortrans <<endl;
+        cout <<"var energy "<< Energyvar/denominatorvar <<endl;
+        JAresidue -= (Energytrans/denominatortrans) * rdm;
+        JAresidue /= denominatortrans;
+        //cout << "residue"<<endl;
+        //cout << JAresidue <<endl;
+        cout << "residue norm: "<<JAresidue.norm() <<endl;
+      }
+    }
+    */
     
     MatrixXcd bra = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta);
     
@@ -98,10 +188,12 @@ class getTranscorrelationWrapper
 
     
     //grid to project out the Sz quantum number
-    int ngrid = 1;
+    int ngrid = 4;
     //cin >> ngrid;
+    
     fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
 
+    //JA += 0.1*VectorXd::Random(JA.size());
     VectorXd braReal(2*2*norbs * (nalpha+nbeta));
     for (int i=0; i<2*norbs; i++) 
       for (int j=0; j<bra.cols(); j++) {
@@ -111,40 +203,102 @@ class getTranscorrelationWrapper
 
     Residuals residual(norbs, nalpha, nbeta, JA, bra, ngrid);
 
+    /*
+    int nJastrowVars = 2*norbs*(2*norbs+1)/2;
+    int nOrbitalVars = 2*norbs*(nalpha+nbeta);
+    VectorXd variables(nJastrowVars + 2*nOrbitalVars);
+    variables.block(0,0,nJastrowVars, 1) = JA;
+    variables.block(nJastrowVars,0,2*nOrbitalVars,1) = braReal;
+    auto residue = variables;
+
+    boost::function<int (const VectorXd&, VectorXd&)> totalGrad
+        = boost::bind(&SingleGradient, boost::ref(residual), _1, _2);
+    
+    HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(totalGrad);
+    solver.solveNumericalDiffInit(variables);
+    int info = solver.solveNumericalDiff(variables);
+    totalGrad(variables, residue);
+    double norm = residue.norm();
+    std::cout << format("%14.8f   %14.6f \n") %(residual.Energy()) %(norm);
+    exit(0);
+    */
+
     boost::function<int (const VectorXd&, VectorXd&)> fJastrow
         = boost::bind(&Residuals::getJastrowResidue, &residual, _1, _2);
     boost::function<int (const VectorXd&, VectorXd&)> forb
         = boost::bind(&getOrbGradient, boost::ref(residual), _1, _2);
 
-    double norm = 10.;
+    //double norm = 10.;
 
+    //CERES SOLVER
     /*
+    {
+      char ** argv;
+      google::InitGoogleLogging(argv[0]);
+      Problem problem;
+      //boost::function<bool (const double* const, double*)> costfun
+      //  = boost::bind(&NumericCeresCostFunc, boost::ref(residual), _1, _2);
+      NumericCeresCostFunc costfun(residual);
+      
+      CostFunction* cost_function =
+          new DynamicNumericDiffCostFunction<NumericCeresCostFunc, ceres::CENTRAL>(costfun);
+      problem.AddResidualBlock(cost_function, NULL, &JA(0));
+      
+      Solver::Options options;
+      options.minimizer_progress_to_stdout = true;
+      Solver::Summary summary;
+      ceres::Solve(options, &problem, &summary);
+      std::cout << summary.BriefReport() << "\n";
+    }
+    */
+    /*
+    {
+      cout << residual.Energy() <<endl;
+      ResidualGradient::Residuals residue(norbs, nalpha, nbeta, bra, ngrid);
+      double error;
+      VectorXd grad = JA;
+      for (int i=0; i<300; i++) {
+        stan::math::gradient(residue, JA, error, grad);
+        JA -= 0.002* grad;
+        cout <<"RESIDUE "<< error <<"  "<<grad.norm()<<endl;
+      }
+      cout << residual.Energy() <<endl;
+    }
+    */
     auto Jresidue = JA;
+    fJastrow(JA, Jresidue);
+    /*
     HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(fJastrow);
     solver.solveNumericalDiffInit(JA);
     int info = solver.solveNumericalDiff(JA);
-    fJastrow(JA, residue);
-    norm = residue.norm();
+    fJastrow(JA, Jresidue);
+    norm = Jresidue.norm();
     std::cout << format("%14.8f   %14.6f \n") %(residual.Energy()) %(norm);
-    exit(0);
-  
-    while(norm > 1.e-6) {
-      cout << JA <<endl;
+    cout << info <<endl;
+    //optimizeOrbitalParams(braReal, forb, residual);
+
+    int iter = 0;    
+    while(norm > 1.e-6 && iter <10) {
+      //cout << JA <<endl;
       int info = solver.solveNumericalDiffOneStep(JA);
       residual.Jastrow = JA;
-      fJastrow(JA, residue);
-      norm = residue.norm();
+      fJastrow(JA, Jresidue);
+      norm = Jresidue.norm();
       cout <<"info: "<< info <<endl;
       std::cout << format("%14.8f   %14.6f \n") %(residual.E0) %(norm);
+      iter++;
     }
+    cout << residual.Energy() <<endl;
+    optimizeJastrowParams(JA, fJastrow, residual);
     optimizeOrbitalParams(braReal, forb, residual);
     exit(0);
     */
     //optimizeJastrowParams(JA, fJastrow, residual);
     for (int i=0; i<20; i++) {
-      optimizeOrbitalParams(braReal, forb, residual);
       optimizeJastrowParams(JA, fJastrow, residual);
+      optimizeOrbitalParams(braReal, forb, residual);
     }
+
     //optimizeOrbitalParams(braReal, forb, residual);
     //optimizeJastrowParams(JA, fJastrow, residual);
     //optimizeOrbitalParams(braReal, forb, residual);

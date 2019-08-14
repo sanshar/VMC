@@ -15,21 +15,21 @@ void applyProjector(
   double m = 1.*Sz;
 
   complex<double> iImag(0, 1.0);
-  coeffs.resize(ngrid*2, 0.0);
-  ketvec.resize(ngrid*2, bra);
+  coeffs.resize(ngrid, 0.0);
+  ketvec.resize(ngrid, bra);
 
   for (int g = 0; g<ngrid; g++) {
     DiagonalMatrix<complex<double>, Dynamic> phi(2*norbs);
     double angle = g*2*M_PI/ngrid;
     for (int i=0; i<norbs; i++) {
-      phi.diagonal()[i]       = exp(iImag*angle);
-      phi.diagonal()[i+norbs] = exp(-iImag*angle);
+      phi.diagonal()[i]       = exp(iImag*angle/2.);
+      phi.diagonal()[i+norbs] = exp(-iImag*angle/2.);
     }
-    ketvec[2*g] = phi * bra;
-    coeffs[2*g] = exp(-iImag*angle*m)/ngrid;
+    ketvec[g] = phi * bra;
+    coeffs[g] = exp(-iImag*angle*m)/ngrid;
 
-    ketvec[2*g+1] = (phi * bra).conjugate();
-    coeffs[2*g+1] = exp(iImag*angle*m)/ngrid;
+    //ketvec[2*g+1] = (phi * bra).conjugate();
+    //coeffs[2*g+1] = exp(iImag*angle*m)/ngrid/2.0;
   }
 }
 
@@ -172,38 +172,40 @@ int Residuals::getJastrowResidue(const VectorXd& JA, VectorXd& residue)
   
   //calculate <bra|P|ket> and
   double detovlp = 0.0;
-  MatrixXd mfRDM(2*norbs, 2*norbs); mfRDM.setZero();
-    
+  VectorXd NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
+  MatrixXcd mfRDM(2*norbs, 2*norbs);
+  
   for (int g = 0; g<ket.size(); g++) {
     MatrixXcd S = bra.adjoint()*ket[g];
     complex<double> Sdet = S.determinant();
     detovlp += (S.determinant() * coeffs[g]).real();
-    mfRDM += ((ket[g] * S.inverse())*bra.adjoint() * coeffs[g] * Sdet).real(); 
-  }
-  mfRDM = mfRDM/detovlp;
+
+    mfRDM = ((ket[g] * S.inverse())*bra.adjoint()); 
     
+    for (int i=0; i<2*norbs; i++) {
+      for (int j=0; j<=i; j++) {
+        int index = i*(i+1)/2+j;
+        if (i == j)
+          NiNjRDM(index) += (mfRDM(j, i)* conj(coeffs[g]) * Sdet).real();
+        else
+          NiNjRDM(index) += ((mfRDM(j,j)*mfRDM(i,i) - mfRDM(i,j) * mfRDM(j,i))* conj(coeffs[g]) * Sdet).real();
+      }
+    }
+  }
+  NiNjRDM /= detovlp;
+  
   double Energy = 0.;
+  complex<double> cEnergy = 0.0;
   VectorXd intermediateResidue(2*norbs*(2*norbs+1)/2); intermediateResidue.setZero();
 
   for (int g = 0; g<ket.size(); g++)  {
-    Energy += (getResidueSingleKet(JA, intermediateResidue,
-                                   detovlp, coeffs[g], const_cast<MatrixXcd&>(bra),
-                                   ket[g]) * coeffs[g]).real();
-    //cout <<"bra "<<endl<< bra<<endl;
-    //cout <<"ket "<<endl<<ket[g]<<endl;
-    //cout << "coeff "<<coeffs[g]<<endl;
-    //cout << "in jastrow residue "<<g<<"  "<<Energy<<endl;
-  }    
-  
-  for (int i=0; i<2*norbs; i++) {
-    for (int j=0; j<=i; j++) {
-      int index = i*(i+1)/2+j;
-      if (i == j) 
-        residue(i * (i+1)/2 + j) = intermediateResidue(i*(i+1)/2+j) - (Energy)*mfRDM(i,i);
-      else
-        residue(i * (i+1)/2 + j) = intermediateResidue(i*(i+1)/2+j) - (Energy)*(mfRDM(j,j)*mfRDM(i,i) - mfRDM(j,i)*mfRDM(i,j));
-    }
+    cEnergy += (getResidueSingleKet(JA, intermediateResidue,
+                                    detovlp, coeffs[g], const_cast<MatrixXcd&>(bra),
+                                    ket[g]) * conj(coeffs[g]));
   }
+  Energy = cEnergy.real();
+  
+  residue = intermediateResidue - Energy *NiNjRDM;
 
   const_cast<double&>(this->E0) = Energy;
   return 0;
@@ -261,10 +263,10 @@ complex<double> Residuals::getResidueSingleKet (const VectorXd& JA,
       for (int orbn = 0; orbn < 2*norbs; orbn++) {
         for (int orbm = 0; orbm < orbn; orbm++) {
           res = getRDMExpectation(rdm, orbn, orbm, orb1, orb2, rdmResidue4, rdmResidue3, rdmResidue2, Rows, Cols);
-          residue(orbn*(orbn+1)/2 + orbm) += (res * factor * integral * coeff).real();
+          residue(orbn*(orbn+1)/2 + orbm) += (res * factor * integral * conj(coeff)).real();
         }
         res = getRDMExpectation(rdm, orbn, orb1, orb2, rdmResidue4, rdmResidue3, rdmResidue2, Rows, Cols);
-        residue(orbn*(orbn+1)/2 + orbn) += (res * factor * integral * coeff).real();
+        residue(orbn*(orbn+1)/2 + orbn) += (res * factor * integral * conj(coeff)).real();
       }
 
     }
@@ -310,11 +312,11 @@ complex<double> Residuals::getResidueSingleKet (const VectorXd& JA,
             for (int orbm = 0; orbm < orbn; orbm++) {
               res = getRDMExpectation(rdm, orbn, orbm, orb1, orb2, orb3, orb4, rdmResidue4, rdmResidue3,
                                       rdmResidue2, Rows, Cols);
-              residue(orbn*(orbn+1)/2 + orbm) += (res*factor*integral * coeff).real();
+              residue(orbn*(orbn+1)/2 + orbm) += (res*factor*integral * conj(coeff)).real();
             }
             res = getRDMExpectation(rdm, orbn, orb1, orb2, orb3, orb4, rdmResidue4, rdmResidue3,
                                     rdmResidue2, Rows, Cols);
-            residue(orbn*(orbn+1)/2 + orbn) += (res*factor*integral * coeff).real();
+            residue(orbn*(orbn+1)/2 + orbn) += (res*factor*integral * conj(coeff)).real();
           }
         }
     }
@@ -343,7 +345,6 @@ double Residuals::Energy() const
     //cout << "coeff "<<coeffs[g]<<endl;
     //cout << "in energy "<<g<<"  "<<Energy<<endl;
   }
-  
   return Energy;
 }
 

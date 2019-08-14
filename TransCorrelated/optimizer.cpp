@@ -15,6 +15,7 @@ void optimizeJastrowParams(
     boost::function<int (const VectorXd&, VectorXd&)>& func,
     Residuals& residual) {
 
+  
   cout << "optimize jastrow "<<endl;
   double Energy, norm=10.;
   int iter = 0;
@@ -32,7 +33,6 @@ void optimizeJastrowParams(
 
   while(norm > 1.e-5) {      
     J.setFvec(params, residue);
-    
     residue *=-1.;
     VectorXd x = gmres.solve(residue);
     params += x;
@@ -73,12 +73,12 @@ void optimizeOrbitalParams(
 
     params -= 0.01*residue;
     residual.updateOrbitals(params);
-    /*
-    residue *=-1.;
-    VectorXd x = gmres.solve(residue);
-    params += x;
-    residual.updateOrbitals(params);
-    */
+
+    //residue *=-1.;
+    //VectorXd x = gmres.solve(residue);
+    //params += 0.1*x;
+    //residual.updateOrbitals(params);
+
     iter++;
     
     func(params, residue);

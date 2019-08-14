@@ -99,10 +99,15 @@ struct Residuals {
         braVar(i,j) = Complex<T>(braReal(2*(i*bra.cols()+j)), braReal(2*(i*bra.cols()+j)+1));
       }
     
-    Matrix<Complex<T>, Dynamic, Dynamic> S;
+    Matrix<Complex<T>, Dynamic, Dynamic> S, ketT(bra.rows(), bra.cols());
     Complex<T> detovlp;
     for (int g = 0; g<ket.size(); g++) {
-      S = braVar.adjoint()*ket[g].cast<Complex<T>>();
+
+      for (int i=0; i<ket[g].rows(); i++)
+        for (int j=0; j<ket[g].cols(); j++)
+          ketT(i,j) = Complex<T>(ket[g](i,j).real(), ket[g](i,j).imag());
+      
+      S = braVar.adjoint()*ketT;
       Complex<T> Sdet = S.determinant();
       Complex<T> coeffg = Complex<T>(coeffs[g].real(), coeffs[g].imag());
       Complex<T> detcoeff = Sdet*coeffg;
@@ -134,7 +139,8 @@ struct Residuals {
     for (int g = 0; g<ket.size(); g++) {
       //auto energy = gradEnergyContribution(detovlp, braVar, ket[g]);
       //Energy += (energy * coeffs[g]).real();
-      Energy += (gradEnergyContribution(detovlp, braVar, ket[g]) * static_cast<Complex<T>>(coeffs[g])).real();
+      Complex<T> coeff(coeffs[g].real(), coeffs[g].imag());
+      Energy += (gradEnergyContribution(detovlp, braVar, ket[g]) * coeff).real();
     }
     
     const_cast<double&>(this->E0) = Energy.val();
@@ -148,10 +154,13 @@ struct Residuals {
       const Matrix<Complex<T>, Dynamic, Dynamic>& braVar,
       const MatrixXcd& ket) const
   {
-    MatrixXcd LambdaD;
+    Matrix<Complex<T>, Dynamic, Dynamic> LambdaD, ketT(ket.rows(), ket.cols());
+    for (int i=0; i<ket.rows(); i++)
+      for (int j=0; j<ket.cols(); j++)
+        ketT(i,j) = Complex<T>(ket(i,j).real(), ket(i,j).imag());
 
     Matrix<Complex<T>, Dynamic, Dynamic> LambdaC, S;
-    DiagonalMatrix<Complex<T>, Dynamic> diagcreVar(2*norbs);
+    DiagonalMatrix<Complex<T>, Dynamic> diagcreVar(2*norbs), diagdesVar(2*norbs);
     
     DiagonalXd diagcre(2*norbs),
         diagdes(2*norbs);
@@ -166,18 +175,20 @@ struct Residuals {
         if (abs(integral) < schd.epsilon) continue;
         
         double factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, Jastrow);
-        LambdaD = diagdes*ket;
-
-        for (int i=0; i<2*norbs; i++)
-          diagcreVar.diagonal()[i] = diagcre.diagonal()[i];
+        for (int i=0; i<2*norbs; i++) {
+          diagcreVar.diagonal()[i] = Complex<T>(diagcre.diagonal()[i]);
+          diagdesVar.diagonal()[i] = Complex<T>(diagdes.diagonal()[i]);
+        }
+        
+        LambdaD = diagdesVar*ketT;
         LambdaC = diagcreVar*braVar;
         
-        S = LambdaC.adjoint()*LambdaD.cast<Complex<T>>();
+        S = LambdaC.adjoint()*LambdaD;
         auto Sinv = S.inverse();
 
         //factor *= S.determinant()/detovlp;
         //**don't need to calculate the entire RDM, should make it more efficient
-        Complex<T> rdm = ((LambdaD.row(orb2).cast<Complex<T>>() * Sinv)
+        Complex<T> rdm = ((LambdaD.row(orb2) * Sinv)
                           *LambdaC.adjoint().col(orb1))(0,0);
         Energy += rdm * integral * factor * S.determinant() / detovlp;
         //Energy += rdm * integral * S.determinant() / detovlp;
@@ -200,20 +211,22 @@ struct Residuals {
             if (abs(integral) < schd.epsilon) continue;
             
             double factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, Jastrow);
-            LambdaD = diagdes*ket;
-        
-            for (int i=0; i<2*norbs; i++)
-              diagcreVar.diagonal()[i] = diagcre.diagonal()[i];
+            for (int i=0; i<2*norbs; i++) {
+              diagcreVar.diagonal()[i] = Complex<T>(diagcre.diagonal()[i]);
+              diagdesVar.diagonal()[i] = Complex<T>(diagdes.diagonal()[i]);
+            }
+            
+            LambdaD = diagdesVar*ketT;
             LambdaC = diagcreVar*braVar;
             //LambdaC = diagcre*braVar;
             
-            S = LambdaC.adjoint()*LambdaD.cast<Complex<T>>();
+            S = LambdaC.adjoint()*LambdaD;
             Matrix<Complex<T>, Dynamic, Dynamic> Sinv = S.inverse();
             
-            Complex<T> rdm1 = ((LambdaD.row(orb4).cast<Complex<T>>() * Sinv) * LambdaC.adjoint().col(orb1));
-            Complex<T> rdm2 = ((LambdaD.row(orb3).cast<Complex<T>>() * Sinv) * LambdaC.adjoint().col(orb2));
-            Complex<T> rdm3 = ((LambdaD.row(orb3).cast<Complex<T>>() * Sinv) * LambdaC.adjoint().col(orb1));
-            Complex<T> rdm4 = ((LambdaD.row(orb4).cast<Complex<T>>() * Sinv) * LambdaC.adjoint().col(orb2));
+            Complex<T> rdm1 = ((LambdaD.row(orb4) * Sinv) * LambdaC.adjoint().col(orb1));
+            Complex<T> rdm2 = ((LambdaD.row(orb3) * Sinv) * LambdaC.adjoint().col(orb2));
+            Complex<T> rdm3 = ((LambdaD.row(orb3) * Sinv) * LambdaC.adjoint().col(orb1));
+            Complex<T> rdm4 = ((LambdaD.row(orb4) * Sinv) * LambdaC.adjoint().col(orb2));
             
             Energy += (rdm1*rdm2 - rdm3*rdm4) * integral * factor * S.determinant() / detovlp;
           }
