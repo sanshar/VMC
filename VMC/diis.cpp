@@ -23,16 +23,8 @@
 using namespace Eigen;
 using namespace std;
 
-DIIS::DIIS(int pmaxDim, int pvectorDim) : maxDim(pmaxDim), vectorDim(pvectorDim) {
-
-  prevVectors  = MatrixXd::Zero(pvectorDim, pmaxDim);
-  errorVectors = MatrixXd::Zero(pvectorDim, pmaxDim);
-  diisMatrix   = MatrixXd::Zero(pmaxDim+1, pmaxDim+1);
-  iter = 0;
-  for (int i=0; i<maxDim; i++) {
-    diisMatrix(i, maxDim) = 1.0;
-    diisMatrix(maxDim, i) = 1.0;
-  }
+DIIS::DIIS(int pmaxDim, int pvectorDim) {
+  init(pmaxDim, pvectorDim);
 }
 
 void DIIS::init(int pmaxDim, int pvectorDim) {
@@ -72,7 +64,6 @@ void DIIS::update(VectorXd& newV, VectorXd& errorV) {
     VectorXd x = localdiis.colPivHouseholderQr().solve(b);
     newV = prevVectors.block(0,0,vectorDim,iter)*x.head(iter);
     //+ errorVectors.block(0,0,vectorDim,iter)*x.head(iter);
-
   }
   else {
     VectorXd b = VectorXd::Zero(maxDim+1);

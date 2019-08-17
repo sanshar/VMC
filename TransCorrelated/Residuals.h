@@ -36,6 +36,22 @@ void applyProjector(
     int ngrids);
 
 
+double getResidual(const VectorXd& variables,
+                   VectorXd& resdiual) ;
+
+double getResidueSingleKet(
+    double detovlp,
+    MatrixXcd& bra,
+    MatrixXcd& ket,
+    complex<double> coeff,
+    VectorXd& braResidue,
+    VectorXd& Jastrow,
+    VectorXd& JastrowResidue) ;
+
+double getGradient(const VectorXd& variables,
+                   VectorXd& grad);
+  
+
 struct Residuals {
   int norbs, nalpha, nbeta;
   MatrixXcd& bra;
@@ -60,18 +76,33 @@ struct Residuals {
   };
 
 
+  
   void updateOrbitals(VectorXd& braReal);
-  int getOrbitalResidue(
+  void updateAllVariables(VectorXd& variablbes);
+  double getOrbitalResidue(
       const VectorXd& braGiven,
       VectorXd& residue);
   
-  void getOrbResidueSingleKet(
+  double getOrbResidueSingleKet(
       double detovlp,
       MatrixXcd& bra,
       MatrixXcd& ket,
       complex<double> coeff,
-      MatrixXcd& residue) ;
+      VectorXd& residue) ;
 
+  double getOrbitalResidue(
+      const VectorXd& braGiven,
+      const VectorXd& braGiven2,
+      VectorXd& residue);
+  
+  double getOrbResidueSingleKet(
+      double detovlp,
+      MatrixXcd& bra,
+      MatrixXcd& bra2,
+      MatrixXcd& ket,
+      complex<double> coeff,
+      VectorXd& residue) ;
+  
   int getJastrowResidue(
       const VectorXd& JA,
       VectorXd& residue);
@@ -184,13 +215,15 @@ struct Residuals {
         LambdaC = diagcreVar*braVar;
         
         S = LambdaC.adjoint()*LambdaD;
-        auto Sinv = S.inverse();
-
+        auto Sinv = stan::math::inverse(S);
+        Complex<T> Sdet = stan::math::determinant(S);
+        
         //factor *= S.determinant()/detovlp;
         //**don't need to calculate the entire RDM, should make it more efficient
         Complex<T> rdm = ((LambdaD.row(orb2) * Sinv)
                           *LambdaC.adjoint().col(orb1))(0,0);
-        Energy += rdm * integral * factor * S.determinant() / detovlp;
+
+        Energy += rdm * integral * factor * Sdet / detovlp;
         //Energy += rdm * integral * S.determinant() / detovlp;
       }
     
@@ -221,14 +254,15 @@ struct Residuals {
             //LambdaC = diagcre*braVar;
             
             S = LambdaC.adjoint()*LambdaD;
-            Matrix<Complex<T>, Dynamic, Dynamic> Sinv = S.inverse();
+            auto Sinv = stan::math::inverse(S);
+            Complex<T> Sdet = stan::math::determinant(S);
             
             Complex<T> rdm1 = ((LambdaD.row(orb4) * Sinv) * LambdaC.adjoint().col(orb1));
             Complex<T> rdm2 = ((LambdaD.row(orb3) * Sinv) * LambdaC.adjoint().col(orb2));
             Complex<T> rdm3 = ((LambdaD.row(orb3) * Sinv) * LambdaC.adjoint().col(orb1));
             Complex<T> rdm4 = ((LambdaD.row(orb4) * Sinv) * LambdaC.adjoint().col(orb2));
             
-            Energy += (rdm1*rdm2 - rdm3*rdm4) * integral * factor * S.determinant() / detovlp;
+            Energy += (rdm1*rdm2 - rdm3*rdm4) * integral * factor * Sdet / detovlp;
           }
       }
     

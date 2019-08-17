@@ -33,7 +33,6 @@
 #include <boost/algorithm/string.hpp>
 #include "DirectJacobian.h"
 #include "Residuals.h"
-#include "ResidualGradient.h"
 
 #include <unsupported/Eigen/NonLinearOptimization>
 #include "stan/math.hpp"
@@ -58,42 +57,55 @@ using DiagonalXd = Eigen::DiagonalMatrix<double, Eigen::Dynamic>;
 
 int getOrbGradient(Residuals& residue, const VectorXd& braReal, VectorXd& braResidue) {
   double Energy;
-  stan::math::gradient(residue, braReal, Energy, braResidue);
-  residue.E0 = Energy;
+  //stan::math::gradient(residue, braReal, Energy, braResidue);
+  //residue.E0 = Energy;
 
+  //VectorXd braResidue2 = braResidue;
+  Energy = residue.getOrbitalResidue(braReal, braResidue);
+  residue.E0 = Energy;
+  
+  /*
+  cout << Energy;  
+  cout << "braresidue "<<endl;
+  //cout << braResidue <<endl<<endl;
+  //cout << "norm "<<braResidue.norm() <<endl<<endl;
+  VectorXd braResidue2 = braResidue;
+  //VectorXd braReal2 = braReal;
+  //braReal2(0) += 1.e-3;
+  double E2 = residue.getOrbitalResidue(braReal, braResidue2);
+  //cout <<"grad "<< (E2 - E1)/1.e-3<<endl;
+  //cout << "E1 E2 "<<E2<<"  "<<E1<<endl;
+  //cout <<"Energy "<< residue.getOrbitalResidue(braReal, braReal2, braResidue2)<<endl;
+  cout << "residue "<<endl;
+  cout << braResidue2<<endl<<endl;
+  //exit(0);
+  */
   //calculate the overlap <bra|ket[g]> * coeff[g]
+  /*
   Matrix<stan::math::var, Dynamic, 1> braVarReal(braReal.size());
   for (int i=0; i<braReal.size(); i++)
     braVarReal(i) = braReal(i);
+
 
   stan::math::var detovlp = residue.getOvlp(braVarReal);
   double denominator = detovlp.val();
   detovlp.grad();
   for (int i=0; i<braReal.size(); i++)
     braResidue(i) -= Energy * braVarReal(i).adj()/denominator;
+
+  cout << braResidue <<endl<<endl;
+  cout <<braResidue2<<endl<<endl;
+  //cout << "residue "<<endl<<braResidue<<endl;
+  cout << "norm"<< (braResidue-braResidue2).norm()<<endl;
+  exit(0);
+  */
   return 0;
 }
 
-int SingleGradient(Residuals& residue, const VectorXd& variables, VectorXd& residuals) {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
-  
-  int nJastrowVars = 2*norbs*(2*norbs+1)/2;
-  int nOrbitalVars = 2*norbs*(nalpha+nbeta);
-  
-  VectorXd JastrowVars = variables.block(0,0,nJastrowVars,1);
-  VectorXd JastrowResidue = JastrowVars;
-  residue.getJastrowResidue(JastrowVars, JastrowResidue);
-
-  VectorXd braVars = variables.block(nJastrowVars,0, 2*nOrbitalVars, 1);
-  VectorXd braResidue = 0.*braVars;
-  getOrbGradient(residue, braVars, braResidue);
-  
-  residuals.block(0,0,nJastrowVars,1) = JastrowResidue;
-  residuals.block(nJastrowVars,0,2*nOrbitalVars,1) = braResidue;
-
-  return 0;
+double SingleGradient(const VectorXd& variables, VectorXd& residuals) {
+  double E = getResidual(variables, residuals);
+  //double E = getGradient(variables, residuals);
+  return E;
 }
 
 template <typename Wfn>
@@ -203,7 +215,7 @@ class getTranscorrelationWrapper
 
     Residuals residual(norbs, nalpha, nbeta, JA, bra, ngrid);
 
-    /*
+
     int nJastrowVars = 2*norbs*(2*norbs+1)/2;
     int nOrbitalVars = 2*norbs*(nalpha+nbeta);
     VectorXd variables(nJastrowVars + 2*nOrbitalVars);
@@ -211,18 +223,22 @@ class getTranscorrelationWrapper
     variables.block(nJastrowVars,0,2*nOrbitalVars,1) = braReal;
     auto residue = variables;
 
-    boost::function<int (const VectorXd&, VectorXd&)> totalGrad
-        = boost::bind(&SingleGradient, boost::ref(residual), _1, _2);
-    
-    HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(totalGrad);
-    solver.solveNumericalDiffInit(variables);
-    int info = solver.solveNumericalDiff(variables);
-    totalGrad(variables, residue);
-    double norm = residue.norm();
-    std::cout << format("%14.8f   %14.6f \n") %(residual.Energy()) %(norm);
-    exit(0);
-    */
+    boost::function<double (const VectorXd&, VectorXd&)> totalGrad
+        = boost::bind(&SingleGradient, _1, _2);
 
+    optimizeJastrowParams(variables, totalGrad, residual);
+
+    //optimizeOrbitalParams(variables, totalGrad, residual);
+    
+    //HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(totalGrad);
+    //solver.solveNumericalDiffInit(variables);
+    //int info = solver.solveNumericalDiff(variables);
+    //totalGrad(variables, residue);
+    //double norm = residue.norm();
+    //std::cout << format("%14.8f   %14.6f \n") %(residual.Energy()) %(norm);
+    exit(0);
+
+    /*
     boost::function<int (const VectorXd&, VectorXd&)> fJastrow
         = boost::bind(&Residuals::getJastrowResidue, &residual, _1, _2);
     boost::function<int (const VectorXd&, VectorXd&)> forb
@@ -265,8 +281,8 @@ class getTranscorrelationWrapper
       cout << residual.Energy() <<endl;
     }
     */
-    auto Jresidue = JA;
-    fJastrow(JA, Jresidue);
+    //auto Jresidue = JA;
+    //fJastrow(JA, Jresidue);
     /*
     HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(fJastrow);
     solver.solveNumericalDiffInit(JA);
@@ -294,11 +310,12 @@ class getTranscorrelationWrapper
     exit(0);
     */
     //optimizeJastrowParams(JA, fJastrow, residual);
+    /*
     for (int i=0; i<20; i++) {
       optimizeJastrowParams(JA, fJastrow, residual);
       optimizeOrbitalParams(braReal, forb, residual);
     }
-
+    */
     //optimizeOrbitalParams(braReal, forb, residual);
     //optimizeJastrowParams(JA, fJastrow, residual);
     //optimizeOrbitalParams(braReal, forb, residual);

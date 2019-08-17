@@ -30,12 +30,12 @@ class Residuals;
 
 void optimizeJastrowParams(
     VectorXd& params,
-    boost::function<int (const VectorXd&, VectorXd&)>& func,
+    boost::function<double (const VectorXd&, VectorXd&)>& func,
     Residuals& residual);
 
 void optimizeOrbitalParams(
     VectorXd& params,
-    boost::function<int (const VectorXd&, VectorXd&)>& func,
+    boost::function<double (const VectorXd&, VectorXd&)>& func,
     Residuals& residual);
 
 

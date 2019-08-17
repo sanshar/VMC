@@ -5,6 +5,7 @@
 #include <Eigen/IterativeLinearSolvers>
 #include <unsupported/Eigen/IterativeSolvers>
 #include "global.h"
+#include "diis.h"
 #include <boost/format.hpp>
 using namespace boost;
 using namespace std;
@@ -12,7 +13,7 @@ using namespace std;
 
 void optimizeJastrowParams(
     VectorXd& params,
-    boost::function<int (const VectorXd&, VectorXd&)>& func,
+    boost::function<double (const VectorXd&, VectorXd&)>& func,
     Residuals& residual) {
 
   
@@ -20,15 +21,17 @@ void optimizeJastrowParams(
   double Energy, norm=10.;
   int iter = 0;
   VectorXd residue(params.size());
+
+  DIIS diis(8, params.size());
   
   DirectJacobian<double> J(func);
   Eigen::GMRES<DirectJacobian<double>, Eigen::IdentityPreconditioner> gmres;
   gmres.compute(J);
-  gmres.setTolerance(1.e-4);
-  func(params, residue);
+  gmres.setTolerance(1.e-3);
+  Energy = func(params, residue);
   norm = residue.norm();
   
-  std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(residual.E0)
+  std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
       %(residue.norm()) %(getTime()-startofCalc);
 
   while(norm > 1.e-5) {      
@@ -36,12 +39,14 @@ void optimizeJastrowParams(
     residue *=-1.;
     VectorXd x = gmres.solve(residue);
     params += x;
+
+    //diis.update(params, x);
     iter++;
     
-    func(params, residue);
+    Energy = func(params, residue);
     norm = residue.norm();
     
-    std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(residual.E0)
+    std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
         %(residue.norm()) %(getTime()-startofCalc);
   }
 }
@@ -49,42 +54,36 @@ void optimizeJastrowParams(
 
 void optimizeOrbitalParams(
     VectorXd& params,
-    boost::function<int (const VectorXd&, VectorXd&)>& func,
+    boost::function<double (const VectorXd&, VectorXd&)>& func,
     Residuals& residual) {
 
-  cout << "optimize orbitals "<<endl;
   double Energy, norm=10.;
   int iter = 0;
   VectorXd residue(params.size());
-  
-  DirectJacobian<double> J(func);
-  Eigen::GMRES<DirectJacobian<double>, Eigen::IdentityPreconditioner> gmres;
-  gmres.compute(J);
-  gmres.setTolerance(1.e-4);
 
-  func(params, residue);
+  DIIS diis(8, params.size());
+  
+
+  Energy = func(params, residue);
   norm = residue.norm();
 
-  std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(residual.E0)
-      %(residue.norm()) %(getTime()-startofCalc);
+  std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+      %(norm) %(getTime()-startofCalc);
   
-  while(norm > 1.e-5 && iter < 200) {      
-    J.setFvec(params, residue);
+  while(norm > 1.e-5 && iter < 500) {      
 
-    params -= 0.01*residue;
-    residual.updateOrbitals(params);
+    //residue *= 0.1;
+    params -=  0.001*residue;
+    diis.update(params, residue);
 
-    //residue *=-1.;
-    //VectorXd x = gmres.solve(residue);
-    //params += 0.1*x;
     //residual.updateOrbitals(params);
 
     iter++;
     
-    func(params, residue);
+    Energy = func(params, residue);
     norm = residue.norm();
     
-    std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(residual.E0)
-        %(residue.norm()) %(getTime()-startofCalc);
+    std::cout << format("%5i   %.10f   %.6f %6.6f \n") %(iter) %(Energy)
+        %(norm) %(getTime()-startofCalc);
   }
 }

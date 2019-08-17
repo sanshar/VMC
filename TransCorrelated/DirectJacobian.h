@@ -43,7 +43,7 @@ struct traits<DirectJacobian<complex<double>>> :  public Eigen::internal::traits
 template<typename Scalar>
 struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar> > {
 
-  using FunctorEvalResidue = boost::function<int (const VectorXd&, VectorXd&)>;
+  using FunctorEvalResidue = boost::function<double (const VectorXd&, VectorXd&)>;
   typedef Scalar Scalar;
   typedef double RealScalar;
   typedef int StorageIndex;
