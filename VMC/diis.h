@@ -26,6 +26,7 @@ class DIIS {
   Eigen::MatrixXd prevVectors;
   Eigen::MatrixXd errorVectors;
   Eigen::MatrixXd diisMatrix;
+  Eigen::VectorXd bvector;
   int maxDim;
   int vectorDim;
   int iter;

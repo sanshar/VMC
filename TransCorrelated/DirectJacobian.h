@@ -21,7 +21,11 @@
 #include <Eigen/Dense>
 #include <Eigen/Core>
 #include <Eigen/IterativeLinearSolvers>
+#include <complex>
+#include <vector>
+#include <math.h>
 
+using namespace std;
 using namespace Eigen;
 
 template<typename Scalar> struct DirectJacobian;
@@ -138,9 +142,10 @@ struct generic_product_impl<DirectJacobian<T>, Rhs, SparseShape, DenseShape, Gem
                             const Rhs& rhs,
                             const Scalar& alpha)
   {
-    typename DirectJacobian<T>::FVectorType xplusu = lhs.xvec + lhs.eps * rhs;
+    double eps = std::sqrt(1 + lhs.xvec.norm())*1.5e-6/ rhs.norm();
+    typename DirectJacobian<T>::FVectorType xplusu = lhs.xvec + eps * rhs;
     lhs.func(xplusu, dst);
-    dst = (dst - lhs.fvec)/lhs.eps;
+    dst = (dst - lhs.fvec)/eps;
 
     //for(Index i=0; i<lhs.cols(); ++i)
     //dst += rhs(i) * lhs.JacCols[i];

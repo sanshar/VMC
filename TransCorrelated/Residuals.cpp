@@ -27,9 +27,6 @@ void applyProjector(
     }
     ketvec[g] = phi * bra;
     coeffs[g] = exp(-iImag*angle*m)/ngrid;
-
-    //ketvec[2*g+1] = (phi * bra).conjugate();
-    //coeffs[2*g+1] = exp(iImag*angle*m)/ngrid/2.0;
   }
 }
 
@@ -49,53 +46,153 @@ void fillJastrowfromWfn(MatrixXd& Jtmp, VectorXd& JA) {
   
 }
 
-void Residuals::updateOrbitals(VectorXd& braReal) {
 
+double getGradient(const VectorXd& variables,
+                   VectorXd& grad) {
+
+  VectorXd res = 0.*variables; res.setZero();
+  double Energy = getResidual(variables, res);
+  //double Energy = getResidual(variables, grad);
+
+  double eps = sqrt(1 + variables.norm())*1.5e-6/ res.norm();
+  //double norm = max(1.e-4, res.norm());
+  VectorXd varplusres  = variables + eps * res ; //(1.e-4/norm)*res;
+  //VectorXd varminusres = variables - 1.e-3 * res ; //(1.e-4/norm)*res;
+
+  VectorXd res2 = 0.*res; res2.setZero();
+  //VectorXd res3 = 0.*res; res3.setZero();
+
+  double E2 = getResidual(varplusres , res2);
+  
+  //double E1 = getResidual(varminusres, res3);
+
+  grad = (res2 - res)/eps;
+
+  return Energy;
+
+}
+
+double getResidual(const VectorXd& variables,
+                   VectorXd& residual,
+                   bool getJastrowResidue,
+                   bool getOrbitalResidue) {
+
+  int norbs  = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta  = Determinant::nbeta;
+  
+  int nJastrowVars = 2*norbs*(2*norbs+1)/2;
+  int nOrbitalVars = 2*norbs*(nalpha+nbeta);
+  VectorXd Jastrow = variables.block(0,0,nJastrowVars, 1);
+  VectorXd braVars  = variables.block(nJastrowVars,0,2*nOrbitalVars,1) ;
+  VectorXd JastrowResidue = 0 * Jastrow;
+  VectorXd braVarsResidue = 0 * braVars;
+
+  MatrixXcd bra(2*norbs, nalpha+nbeta);
+  //initialize bra Vars
   for (int i=0; i<2*norbs; i++) 
     for (int j=0; j<bra.cols(); j++) 
-      bra(i,j) = complex<double>(braReal(2*(i*bra.cols()+j)), braReal(2*(i*bra.cols()+j)+1));
+      bra(i,j) = complex<double>(braVars(2*(i*bra.cols()+j)), braVars(2*(i*bra.cols()+j)+1));
 
-  applyProjector(bra, ket, coeffs, Sz, ngrid);      
-}
+  int ngrid = 4; //**********
+  
+  vector<MatrixXcd> ket; vector<complex<double>> coeffs;
+  applyProjector(bra, ket, coeffs, nalpha-nbeta, ngrid);
 
-int Residuals::getOrbitalResidue(const VectorXd& braReal, VectorXd& residueReal) {
-  int norbs = Determinant::norbs;
-
-  //copy the braReal to the Bra;
-  for (int i=0; i<norbs; i++) 
-    for (int j=0; j<bra.cols(); j++) 
-      bra(i,j) = complex<double>(braReal(2*i*bra.cols()+j), braReal(2*i*bra.cols()+j+1));
-
-  MatrixXcd residue = 0*bra; //zero out the residue
 
   MatrixXcd S;
-  double detovlp;
+  double detovlp = 0.;
+
+  
+  MatrixXcd orbitalResidueMat = bra; orbitalResidueMat.setZero();
+  VectorXd NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
+  MatrixXcd mfRDM(2*norbs, 2*norbs);
+
+  
   for (int g = 0; g<ket.size(); g++) {
     S = bra.adjoint()*ket[g];
-    detovlp += (S.determinant() * coeffs[g]).real();
+    complex<double> Sdet = S.determinant();
+    detovlp += (Sdet * coeffs[g]).real();
+
+    if (getOrbitalResidue)
+      orbitalResidueMat += Sdet * coeffs[g] * ket[g] * S.inverse();
+
+    if (getJastrowResidue) {
+      mfRDM = ((ket[g] * S.inverse())*bra.adjoint());     
+      for (int i=0; i<2*norbs; i++) 
+        for (int j=0; j<=i; j++) {
+          int index = i*(i+1)/2+j;
+          NiNjRDM(index) +=
+              i == j ?
+              (mfRDM(j, i)* conj(coeffs[g]) * Sdet).real() :
+              ((mfRDM(j,j)*mfRDM(i,i) - mfRDM(i,j) * mfRDM(j,i))* conj(coeffs[g]) * Sdet).real();
+        }
+    }
+
+  }
+  orbitalResidueMat /= detovlp;
+  NiNjRDM /= detovlp;
+
+
+  
+  double Energy = 0.0;
+  JastrowResidue.setZero(); braVarsResidue.setZero();
+  for (int g = 0; g<ket.size(); g++)  {
+    Energy += getResidueSingleKet(detovlp,
+                                  bra, ket[g], coeffs[g], braVarsResidue,
+                                  Jastrow, JastrowResidue,
+                                  getJastrowResidue, getOrbitalResidue) ;
+  }  
+
+  if (getJastrowResidue)
+    JastrowResidue -= Energy *NiNjRDM;
+
+  if (getOrbitalResidue) {
+    orbitalResidueMat *= Energy;
+    int nelec = bra.cols();
+    for (int i=0; i<bra.rows(); i++)
+      for (int j=0; j<bra.cols(); j++) {
+        braVarsResidue(2 * (i * nelec + j)    ) -= orbitalResidueMat(i,j).real();
+        braVarsResidue(2 * (i * nelec + j) + 1) -= orbitalResidueMat(i,j).imag();
+      }
   }
 
+  residual.block(0, 0, nJastrowVars, 1) = JastrowResidue;
+  residual.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVarsResidue;
 
-  for (int g = 0; g<ket.size(); g++) 
-    getOrbResidueSingleKet(detovlp, bra, ket[g], coeffs[g], residue);
-
-  return 0;
-
+  return Energy;
 }
 
-void Residuals::getOrbResidueSingleKet(
+
+double getResidueSingleKet(
     double detovlp,
     MatrixXcd& bra,
     MatrixXcd& ket,
     complex<double> coeff,
-    MatrixXcd& residue) {
+    VectorXd& braResidue,
+    VectorXd& Jastrow,
+    VectorXd& JastrowResidue,
+    bool getJastrowResidue,
+    bool getOrbitalResidue) {
 
+  int norbs  = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta  = Determinant::nbeta;
+
+  int nelec = nalpha+nbeta;
+  Matrix4cd rdmResidue4;
+  Matrix3cd rdmResidue3;
+  Matrix2cd rdmResidue2;
+  vector<int> Rows(4), Cols(4);
 
   MatrixXcd LambdaD, LambdaC, S;
 
   DiagonalXd diagcre(2*norbs),
       diagdes(2*norbs);
 
+  MatrixXcd orbitalResidueMat = bra; orbitalResidueMat.setZero();
+  
+  MatrixXcd rdm;
   complex<double> Energy;
   //one electron terms
   for (int orb1 = 0; orb1 < 2*norbs; orb1++)
@@ -105,31 +202,50 @@ void Residuals::getOrbResidueSingleKet(
         
       if (abs(integral) < schd.epsilon) continue;
         
-      double factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, Jastrow);
+      complex<double> factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, Jastrow);
       LambdaD = diagdes*ket;
       LambdaC = diagcre*bra;
         
       S = LambdaC.adjoint()*LambdaD;
 
-      factor *= integral /detovlp;
 
       std::complex<double> Sdet = S.determinant();
       MatrixXcd Sinv = S.inverse();
+
+      if (getJastrowResidue) rdm = (LambdaD * Sinv) * LambdaC.adjoint();
+
+      complex<double> rdmval = getJastrowResidue ?
+          rdm(orb2, orb1) : ((LambdaD.row(orb2) * Sinv)*LambdaC.adjoint().col(orb1))(0,0);
+
+      factor *= integral * Sdet * coeff / detovlp;
+
+      if (getOrbitalResidue) {
+        MatrixXcd JJphi = diagcre*LambdaD;
+        MatrixXcd JJphiSinv = JJphi*Sinv;
+        
+        orbitalResidueMat.row(orb1) += factor * ( diagcre.diagonal()[orb1] * (LambdaD.row(orb2) * Sinv) );
+        orbitalResidueMat += factor *
+            (JJphiSinv * rdmval
+             -((JJphiSinv*LambdaC.adjoint().col(orb1)) * (LambdaD.row(orb2) * Sinv)));
+      }
       
-      complex<double> rdm = ((LambdaD.row(orb2) * Sinv)*LambdaC.adjoint().col(orb1))(0,0);
-
-      //d[det(S) LD Sinv LC]/d[theta]
-      //Term1 det(S) LD Sinv d[LC]/d[theta]
-      //residue.row(orb1) += factor*Sdet * (LambdaD.row(orb2) * Sinv) * diagcre(orb1);
-
-      //Term2 det(S) Tr(Sinv * d[S]/d[theta]) * (LD Sinv LC)      
-      //residue += (factor * Sdet * rdm) * (Sinv.transpose() * LambdaD);
-
-      //term3 det(S) LD Sinv d[S]/d[theta] Sinv LC
-      //residue += factor * Sdet * 
-      //**don't need to calculate the entire RDM, should make it more efficient
-      Energy += rdm * integral * factor * Sdet / detovlp;
+      Energy += rdmval * factor ;
       //Energy += rdm * integral * S.determinant() / detovlp;
+
+      if (getJastrowResidue) {
+        complex<double> res;
+        for (int orbn = 0; orbn < 2*norbs; orbn++) {
+          for (int orbm = 0; orbm < orbn; orbm++) {
+            res = getRDMExpectation(rdm, orbn, orbm, orb1, orb2,
+                                    rdmResidue4, rdmResidue3, rdmResidue2, Rows, Cols);
+            JastrowResidue(orbn*(orbn+1)/2 + orbm) += (res * factor).real();
+          }
+          res = getRDMExpectation(rdm, orbn, orb1, orb2,
+                                  rdmResidue4, rdmResidue3, rdmResidue2, Rows, Cols);
+          JastrowResidue(orbn*(orbn+1)/2 + orbn) += (res * factor).real();
+        }
+      }
+      
     }
     
 
@@ -148,273 +264,89 @@ void Residuals::getOrbResidueSingleKet(
             
           if (abs(integral) < schd.epsilon) continue;
             
-          double factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, Jastrow);
+          complex<double> factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, Jastrow);
           LambdaD = diagdes*ket;
           LambdaC = diagcre*bra;
           S = LambdaC.adjoint()*LambdaD;
+          complex<double> Sdet = S.determinant();
+          MatrixXcd Sinv = S.inverse();
+
+          if (getJastrowResidue) 
+            rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
 
           //**don't need to calculate the entire RDM, should make it more efficient
-          complex<double> rdm1 = ((LambdaD.row(orb4) * S.inverse()) * LambdaC.adjoint().col(orb1));
-          complex<double> rdm2 = ((LambdaD.row(orb3) * S.inverse()) * LambdaC.adjoint().col(orb2));
-          complex<double> rdm3 = ((LambdaD.row(orb3) * S.inverse()) * LambdaC.adjoint().col(orb1));
-          complex<double> rdm4 = ((LambdaD.row(orb4) * S.inverse()) * LambdaC.adjoint().col(orb2));
+          complex<double> rdm1 = getJastrowResidue ?
+              rdm(orb4, orb1) : ((LambdaD.row(orb4) * Sinv) * LambdaC.adjoint().col(orb1));
+          complex<double> rdm2 = getJastrowResidue ?
+              rdm(orb3, orb2) : ((LambdaD.row(orb3) * Sinv) * LambdaC.adjoint().col(orb2));
+          complex<double> rdm3 = getJastrowResidue ?
+              rdm(orb3, orb1) : ((LambdaD.row(orb3) * Sinv) * LambdaC.adjoint().col(orb1));
+          complex<double> rdm4 = getJastrowResidue ?
+              rdm(orb4, orb2) : ((LambdaD.row(orb4) * Sinv) * LambdaC.adjoint().col(orb2));
+
+          factor *= integral * Sdet * coeff/ detovlp;
+
+          if (getOrbitalResidue) {
+            MatrixXcd JJphi = diagcre*LambdaD;
+            MatrixXcd JJphiSinv = JJphi*Sinv;
             
-          Energy += (rdm1*rdm2 - rdm3*rdm4) * integral * factor * S.determinant() / detovlp;
-        }
-    }
-
-}
-
-
-int Residuals::getJastrowResidue(const VectorXd& JA, VectorXd& residue)
-{
-  int norbs = Determinant::norbs;
-  
-  //calculate <bra|P|ket> and
-  double detovlp = 0.0;
-  VectorXd NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
-  MatrixXcd mfRDM(2*norbs, 2*norbs);
-  
-  for (int g = 0; g<ket.size(); g++) {
-    MatrixXcd S = bra.adjoint()*ket[g];
-    complex<double> Sdet = S.determinant();
-    detovlp += (S.determinant() * coeffs[g]).real();
-
-    mfRDM = ((ket[g] * S.inverse())*bra.adjoint()); 
-    
-    for (int i=0; i<2*norbs; i++) {
-      for (int j=0; j<=i; j++) {
-        int index = i*(i+1)/2+j;
-        if (i == j)
-          NiNjRDM(index) += (mfRDM(j, i)* conj(coeffs[g]) * Sdet).real();
-        else
-          NiNjRDM(index) += ((mfRDM(j,j)*mfRDM(i,i) - mfRDM(i,j) * mfRDM(j,i))* conj(coeffs[g]) * Sdet).real();
-      }
-    }
-  }
-  NiNjRDM /= detovlp;
-  
-  double Energy = 0.;
-  complex<double> cEnergy = 0.0;
-  VectorXd intermediateResidue(2*norbs*(2*norbs+1)/2); intermediateResidue.setZero();
-
-  for (int g = 0; g<ket.size(); g++)  {
-    cEnergy += (getResidueSingleKet(JA, intermediateResidue,
-                                    detovlp, coeffs[g], const_cast<MatrixXcd&>(bra),
-                                    ket[g]) * conj(coeffs[g]));
-  }
-  Energy = cEnergy.real();
-  
-  residue = intermediateResidue - Energy *NiNjRDM;
-
-  const_cast<double&>(this->E0) = Energy;
-  return 0;
-}
-  
-complex<double> Residuals::getResidueSingleKet (const VectorXd& JA,
-                                                VectorXd& residue, double detovlp, complex<double> coeff,
-                                                MatrixXcd& bra, const MatrixXcd& ket) const
-{
-  int nelec = nalpha+nbeta;
-  Matrix4cd rdmResidue4;
-  Matrix3cd rdmResidue3;
-  Matrix2cd rdmResidue2;
-  vector<int> Rows(4), Cols(4);
-
-  MatrixXcd LambdaD = bra, LambdaC = ket; //just initializing  
-  MatrixXcd S(bra.cols(), ket.cols());
-
-  DiagonalXd diagcre(2*norbs),
-      diagdes(2*norbs);
-    
-  complex<double> Energy = 0.0;
-  //one electron terms
-  for (int orb1 = 0; orb1 < 2*norbs; orb1++)
-    for (int orb2 = 0; orb2 < 2*norbs; orb2++) {
-        
-      double integral = I1( (orb1%norbs) * 2 + orb1/norbs, (orb2%norbs) * 2 + orb2/norbs);
-        
-      if (abs(integral) < schd.epsilon) continue;
-        
-      complex<double> factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, JA);
-      LambdaD = diagdes*ket;
-      LambdaC = diagcre*bra;
-      S = LambdaC.adjoint()*LambdaD;
-
-      /*
-      Eigen::FullPivLU<MatrixXcd> lu(S);
-      MatrixXcd rdm = LambdaD * lu.solve(LambdaC.adjoint());
-      //MatrixXcd Sinv = S.inverse();
-      complex<double> Sdet = 1.0;
-      for (int i=0; i<nelec; i++)
-        Sdet *= lu.matrixLU()(i,i);
-      */
-      complex<double> Sdet = S.determinant();
-      MatrixXcd rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
-      
-      factor *= Sdet/detovlp;
-
-      //MatrixXcd rdm = (LambdaD * Sinv)*LambdaC.adjoint();
-
-      Energy += rdm(orb2, orb1) * integral * factor;
-      vector<double> graddiag(2*norbs, 0.0), graddiag2(2*norbs, 0.0); double rdmscale = 1.0;
-
-      complex<double> res;
-      for (int orbn = 0; orbn < 2*norbs; orbn++) {
-        for (int orbm = 0; orbm < orbn; orbm++) {
-          res = getRDMExpectation(rdm, orbn, orbm, orb1, orb2, rdmResidue4, rdmResidue3, rdmResidue2, Rows, Cols);
-          residue(orbn*(orbn+1)/2 + orbm) += (res * factor * integral * conj(coeff)).real();
-        }
-        res = getRDMExpectation(rdm, orbn, orb1, orb2, rdmResidue4, rdmResidue3, rdmResidue2, Rows, Cols);
-        residue(orbn*(orbn+1)/2 + orbn) += (res * factor * integral * conj(coeff)).real();
-      }
-
-    }
-    
-    
-  //one electron terms
-  for (int orb1 = 0; orb1 < 2*norbs; orb1++)
-    for (int orb2 = 0; orb2 < orb1; orb2++) {
-      for (int orb3 = 0; orb3 < 2*norbs; orb3++)
-        for (int orb4 = 0; orb4 < orb3; orb4++) {
+            orbitalResidueMat.row(orb2) += factor * rdm1
+                * ( (diagcre.diagonal()[orb2]) * (LambdaD.row(orb3) * Sinv) );
             
-          int Orb1 = (orb1%norbs)* 2 + orb1/norbs;
-          int Orb2 = (orb2%norbs)* 2 + orb2/norbs;
-          int Orb3 = (orb3%norbs)* 2 + orb3/norbs;
-          int Orb4 = (orb4%norbs)* 2 + orb4/norbs;
+            orbitalResidueMat.row(orb1) += factor * rdm2
+                * ( (diagcre.diagonal()[orb1]) * (LambdaD.row(orb4) * Sinv) );
             
-          double integral = (I2(Orb1, Orb4, Orb2, Orb3) - I2(Orb2, Orb4, Orb1, Orb3));
+            orbitalResidueMat.row(orb2) -= factor * rdm3
+                * ( (diagcre.diagonal()[orb2]) * (LambdaD.row(orb4) * Sinv) );
             
-          if (abs(integral) < schd.epsilon) continue;
+            orbitalResidueMat.row(orb1) -= factor * rdm4
+                * ( (diagcre.diagonal()[orb1]) * (LambdaD.row(orb3) * Sinv) );
             
-          complex<double> factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, JA);
-          LambdaD = diagdes*ket;
-          LambdaC = diagcre*bra;
-          S = LambdaC.adjoint()*LambdaD;
+            orbitalResidueMat += factor * rdm1 *
+                (- ( (JJphiSinv*LambdaC.adjoint().col(orb2)) * (LambdaD.row(orb3) * Sinv) ));
+            
+            orbitalResidueMat += factor * rdm2 *
+                (- ( (JJphiSinv*LambdaC.adjoint().col(orb1)) * (LambdaD.row(orb4) * Sinv) ));
+            
+            orbitalResidueMat -= factor * rdm3 *
+                (- ( (JJphiSinv*LambdaC.adjoint().col(orb2)) * (LambdaD.row(orb4) * Sinv) ));
+            
+            orbitalResidueMat -= factor * rdm4 *
+                (- ( (JJphiSinv*LambdaC.adjoint().col(orb1)) * (LambdaD.row(orb3) * Sinv) ));
+            
+            orbitalResidueMat += factor*(rdm1*rdm2 - rdm3*rdm4) * JJphiSinv;
+            
+            Energy += (rdm1*rdm2 - rdm3*rdm4) * factor ;
+          }
 
-          /*
-          Eigen::FullPivLU<MatrixXcd> lu(S);
-          MatrixXcd rdm = LambdaD * lu.solve(LambdaC.adjoint());
-          complex<double> Sdet = 1.0;
-          for (int i=0; i<nelec; i++)
-            Sdet *= lu.matrixLU()(i,i);
-          */
-          complex<double> Sdet = S.determinant();
-          MatrixXcd rdm = (LambdaD * S.inverse())*LambdaC.adjoint();
-          
-          complex<double> rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
-            
-          factor *= Sdet/detovlp;
-          Energy += rdmval * integral * factor;
-
-          complex<double> res;
-          for (int orbn = 0; orbn < 2*norbs; orbn++) {
-            for (int orbm = 0; orbm < orbn; orbm++) {
-              res = getRDMExpectation(rdm, orbn, orbm, orb1, orb2, orb3, orb4, rdmResidue4, rdmResidue3,
+          if (getJastrowResidue) {
+            complex<double> res;
+            for (int orbn = 0; orbn < 2*norbs; orbn++) {
+              for (int orbm = 0; orbm < orbn; orbm++) {
+                res = getRDMExpectation(rdm, orbn, orbm, orb1, orb2, orb3, orb4,
+                                        rdmResidue4, rdmResidue3, rdmResidue2, Rows, Cols);
+                JastrowResidue(orbn*(orbn+1)/2 + orbm) += (res*factor).real();
+              }
+              res = getRDMExpectation(rdm, orbn, orb1, orb2, orb3, orb4, rdmResidue4, rdmResidue3,
                                       rdmResidue2, Rows, Cols);
-              residue(orbn*(orbn+1)/2 + orbm) += (res*factor*integral * conj(coeff)).real();
+              JastrowResidue(orbn*(orbn+1)/2 + orbn) += (res*factor).real();
             }
-            res = getRDMExpectation(rdm, orbn, orb1, orb2, orb3, orb4, rdmResidue4, rdmResidue3,
-                                    rdmResidue2, Rows, Cols);
-            residue(orbn*(orbn+1)/2 + orbn) += (res*factor*integral * conj(coeff)).real();
           }
         }
     }
 
-  return Energy;
-}
-
-
-//obviously the energy should be real
-double Residuals::Energy() const
-{
-  //calculate <bra|P|ket> and
-
-  MatrixXcd S;
-  double detovlp;
-  for (int g = 0; g<ket.size(); g++) {
-    S = bra.adjoint()*ket[g];
-    detovlp += (S.determinant() * coeffs[g]).real();
+  if (getOrbitalResidue) {
+    for (int i=0; i<orbitalResidueMat.rows(); i++)
+      for (int j=0; j<orbitalResidueMat.cols(); j++) {
+        braResidue(2*(i * nelec +j)  ) +=  (orbitalResidueMat(i,j)).real();
+        braResidue(2*(i * nelec +j)+1) +=  (orbitalResidueMat(i,j)).imag();
+      }
   }
-
-  double Energy = 0.0;
-  for (int g = 0; g<ket.size(); g++) {
-    Energy += (energyContribution(detovlp, bra, ket[g]) * coeffs[g]).real();
-    //cout <<"bra "<<endl<< bra<<endl;
-    //cout <<"ket "<<endl<<ket[g]<<endl;
-    //cout << "coeff "<<coeffs[g]<<endl;
-    //cout << "in energy "<<g<<"  "<<Energy<<endl;
-  }
-  return Energy;
+  
+  return Energy.real();
 }
 
-complex<double> Residuals::energyContribution(
-    double &detovlp,
-    const MatrixXcd& bra,
-    const MatrixXcd& ket) const
-{
-
-  MatrixXcd LambdaD;
-  Matrix<complex<double>, Dynamic, Dynamic> LambdaC, S;
-
-  DiagonalXd diagcre(2*norbs),
-      diagdes(2*norbs);
-    
-  complex<double> Energy = 0.0;
-  //one electron terms
-  for (int orb1 = 0; orb1 < 2*norbs; orb1++)
-    for (int orb2 = 0; orb2 < 2*norbs; orb2++) {
-        
-      double integral = I1( (orb1%norbs) * 2 + orb1/norbs, (orb2%norbs) * 2 + orb2/norbs);
-        
-      if (abs(integral) < schd.epsilon) continue;
-        
-      double factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, Jastrow);
-      LambdaD = diagdes*ket;
-
-      LambdaC = diagcre*bra;
-        
-      S = LambdaC.adjoint()*LambdaD;
-
-      //factor *= S.determinant()/detovlp;
-      //**don't need to calculate the entire RDM, should make it more efficient
-      complex<double> rdm = ((LambdaD.row(orb2) * S.inverse())*LambdaC.adjoint().col(orb1))(0,0);
-      Energy += rdm * integral * factor * S.determinant() / detovlp;
-      //Energy += rdm * integral * S.determinant() / detovlp;
-    }
-    
-
-  //one electron terms
-  for (int orb1 = 0; orb1 < 2*norbs; orb1++)
-    for (int orb2 = 0; orb2 < orb1; orb2++) {
-      for (int orb3 = 0; orb3 < 2*norbs; orb3++)
-        for (int orb4 = 0; orb4 < orb3; orb4++) {
-            
-          int Orb1 = (orb1%norbs)* 2 + orb1/norbs;
-          int Orb2 = (orb2%norbs)* 2 + orb2/norbs;
-          int Orb3 = (orb3%norbs)* 2 + orb3/norbs;
-          int Orb4 = (orb4%norbs)* 2 + orb4/norbs;
-            
-          double integral = (I2(Orb1, Orb4, Orb2, Orb3) - I2(Orb2, Orb4, Orb1, Orb3));
-            
-          if (abs(integral) < schd.epsilon) continue;
-            
-          double factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, Jastrow);
-          LambdaD = diagdes*ket;
-          LambdaC = diagcre*bra;
-          S = LambdaC.adjoint()*LambdaD;
-
-          complex<double> rdm1 = ((LambdaD.row(orb4) * S.inverse()) * LambdaC.adjoint().col(orb1));
-          complex<double> rdm2 = ((LambdaD.row(orb3) * S.inverse()) * LambdaC.adjoint().col(orb2));
-          complex<double> rdm3 = ((LambdaD.row(orb3) * S.inverse()) * LambdaC.adjoint().col(orb1));
-          complex<double> rdm4 = ((LambdaD.row(orb4) * S.inverse()) * LambdaC.adjoint().col(orb2));
-            
-          Energy += (rdm1*rdm2 - rdm3*rdm4) * integral * factor * S.determinant() / detovlp;
-        }
-    }
-
-  return Energy;
-}
+      
 
 
 int index(int I, int J) {
@@ -607,3 +539,9 @@ complex<double> getRDMExpectation(MatrixXcd& rdm, int orbn, int orb1, int orb2,
 
   return contribution;
 }
+
+
+
+
+
+

@@ -36,23 +36,13 @@
 #include <boost/function.hpp>
 #include <boost/functional.hpp>
 #include <boost/bind.hpp>
-#include "evaluateE.h"
-#include "Determinants.h"
-#include "rDeterminants.h"
-#include "rJastrow.h"
-#include "rSlater.h"
 #include "input.h"
 #include "integral.h"
 #include "SHCIshm.h"
 #include "math.h"
-#include "Profile.h"
-#include "CIWavefunction.h"
-#include "CorrelatedWavefunction.h"
-#include "Lanczos.h"
-#include "runVMC.h"
 #include "runTranscorrelated.h"
-
-#include "rCorrelatedWavefunction.h"
+#include "Jastrow.h"
+#include "CorrelatedWavefunction.h"
 
 using namespace Eigen;
 using namespace boost;
@@ -84,8 +74,8 @@ int main(int argc, char *argv[])
     
     
     if (schd.wavefunctionType == "JastrowSlater") {
-      CorrelatedWavefunction<Jastrow, Slater> wave; Walker<Jastrow, Slater> walk;
-      runTranscorrelated(wave, walk);
+      CorrelatedWavefunction<Jastrow, Slater> wave;
+      runTranscorrelated(wave);
     }
   }    
 
