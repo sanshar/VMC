@@ -47,64 +47,53 @@ void fillJastrowfromWfn(MatrixXd& Jtmp, VectorXd& JA) {
 }
 
 
-double getGradient(const VectorXd& variables,
-                   VectorXd& grad) {
-
-  VectorXd res = 0.*variables; res.setZero();
-  double Energy = getResidual(variables, res);
-  //double Energy = getResidual(variables, grad);
-
-  double eps = sqrt(1 + variables.norm())*1.5e-6/ res.norm();
-  //double norm = max(1.e-4, res.norm());
-  VectorXd varplusres  = variables + eps * res ; //(1.e-4/norm)*res;
-  //VectorXd varminusres = variables - 1.e-3 * res ; //(1.e-4/norm)*res;
-
-  VectorXd res2 = 0.*res; res2.setZero();
-  //VectorXd res3 = 0.*res; res3.setZero();
-
-  double E2 = getResidual(varplusres , res2);
-  
-  //double E1 = getResidual(varminusres, res3);
-
-  grad = (res2 - res)/eps;
-
-  return Energy;
-
-}
-
-double getResidual(const VectorXd& variables,
-                   VectorXd& residual,
-                   bool getJastrowResidue,
-                   bool getOrbitalResidue) {
+double GetResidual::getResidue(const VectorXd& variables,
+                               VectorXd& residual,
+                               bool getJastrowResidue,
+                               bool getOrbitalResidue) {
 
   int norbs  = Determinant::norbs;
   int nalpha = Determinant::nalpha;
   int nbeta  = Determinant::nbeta;
+  int nelec =  nalpha + nbeta;
   
   int nJastrowVars = 2*norbs*(2*norbs+1)/2;
   int nOrbitalVars = 2*norbs*(nalpha+nbeta);
   VectorXd Jastrow = variables.block(0,0,nJastrowVars, 1);
-  VectorXd braVars  = variables.block(nJastrowVars,0,2*nOrbitalVars,1) ;
-  VectorXd JastrowResidue = 0 * Jastrow;
-  VectorXd braVarsResidue = 0 * braVars;
 
-  MatrixXcd bra(2*norbs, nalpha+nbeta);
-  //initialize bra Vars
-  for (int i=0; i<2*norbs; i++) 
-    for (int j=0; j<bra.cols(); j++) 
-      bra(i,j) = complex<double>(braVars(2*(i*bra.cols()+j)), braVars(2*(i*bra.cols()+j)+1));
 
-  int ngrid = 4; //**********
+  MatrixXcd U(2*norbs-nelec, nelec);
+  for (int a=0; a<2*norbs-nelec; a++) 
+    for (int i=0; i<nelec; i++) 
+      U(a, i) = complex<double>( variables( nJastrowVars + 2* (a*nelec+i)  ),
+                                 variables( nJastrowVars + 2* (a*nelec+i)+1)
+                                 );
+
+  MatrixXcd phiupdate = orbitals.block(0, nelec, 2*norbs, 2*norbs-nelec) * U;
+  MatrixXcd bra = phiupdate + orbitals.block(0,0,2*norbs, nelec);
+
+
+
+  VectorXd braVars(2 * 2*norbs * nelec);
+  for (int mu=0; mu < 2*norbs; mu++)
+    for (int i=0; i < nelec; i++) {
+      braVars( 2* (mu*nelec+i)   ) = bra(mu,i).real();
+      braVars( 2* (mu*nelec+i) +1) = bra(mu,i).imag();
+    }
   
+  VectorXd JastrowResidue = 0 * Jastrow;
+  VectorXd braVarsResidue( 2*(2*norbs - nelec)* nelec); braVarsResidue.setZero();
+
+
   vector<MatrixXcd> ket; vector<complex<double>> coeffs;
-  applyProjector(bra, ket, coeffs, nalpha-nbeta, ngrid);
+  applyProjector(bra, ket, coeffs, nalpha-nbeta, ngrid); 
 
 
   MatrixXcd S;
   double detovlp = 0.;
 
   
-  MatrixXcd orbitalResidueMat = bra; orbitalResidueMat.setZero();
+  MatrixXcd orbitalOverlapGrad = bra; orbitalOverlapGrad.setZero();
   VectorXd NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
   MatrixXcd mfRDM(2*norbs, 2*norbs);
 
@@ -115,7 +104,7 @@ double getResidual(const VectorXd& variables,
     detovlp += (Sdet * coeffs[g]).real();
 
     if (getOrbitalResidue)
-      orbitalResidueMat += Sdet * coeffs[g] * ket[g] * S.inverse();
+      orbitalOverlapGrad += Sdet * coeffs[g] * ket[g] * S.inverse();
 
     if (getJastrowResidue) {
       mfRDM = ((ket[g] * S.inverse())*bra.adjoint());     
@@ -130,46 +119,89 @@ double getResidual(const VectorXd& variables,
     }
 
   }
-  orbitalResidueMat /= detovlp;
+  orbitalOverlapGrad /= detovlp;
   NiNjRDM /= detovlp;
 
 
   
   double Energy = 0.0;
   JastrowResidue.setZero(); braVarsResidue.setZero();
+
+  MatrixXcd braResidueMat = 0.*bra; braResidueMat.setZero();
   for (int g = 0; g<ket.size(); g++)  {
     Energy += getResidueSingleKet(detovlp,
-                                  bra, ket[g], coeffs[g], braVarsResidue,
+                                  bra, ket[g], coeffs[g], braResidueMat,
                                   Jastrow, JastrowResidue,
                                   getJastrowResidue, getOrbitalResidue) ;
   }  
 
   if (getJastrowResidue)
     JastrowResidue -= Energy *NiNjRDM;
-
+  
   if (getOrbitalResidue) {
-    orbitalResidueMat *= Energy;
+    braResidueMat -= Energy * orbitalOverlapGrad;
+    
+    
+    MatrixXcd nonRedundantOrbResidue =
+        orbitals.block(0,nelec, 2*norbs, 2*norbs - nelec).adjoint()*braResidueMat;
+    
     int nelec = bra.cols();
-    for (int i=0; i<bra.rows(); i++)
-      for (int j=0; j<bra.cols(); j++) {
-        braVarsResidue(2 * (i * nelec + j)    ) -= orbitalResidueMat(i,j).real();
-        braVarsResidue(2 * (i * nelec + j) + 1) -= orbitalResidueMat(i,j).imag();
+    for (int i=0; i<2*norbs - nelec; i++)
+      for (int j=0; j<nelec; j++) {
+        braVarsResidue(2 * (i * nelec + j)    ) = nonRedundantOrbResidue(i,j).real();
+        braVarsResidue(2 * (i * nelec + j) + 1) = nonRedundantOrbResidue(i,j).imag();
       }
+    
+    
   }
-
+  
   residual.block(0, 0, nJastrowVars, 1) = JastrowResidue;
-  residual.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVarsResidue;
+  residual.block(nJastrowVars, 0, braVarsResidue.size(), 1) = braVarsResidue;
+  
+  return Energy+coreE;
+}
 
+double GetResidual::getJastrowResidue(const VectorXd& jastrowvars,
+                                     const VectorXd& braVars,
+                                     VectorXd& jastrowResidue) {
+  int nJastrowVars = jastrowvars.size(),
+      nBraVars = braVars.size();
+  VectorXd variables(nJastrowVars+nBraVars);
+  
+  variables.block(0, 0, nJastrowVars, 1) = jastrowvars;
+  variables.block(nJastrowVars, 0, nBraVars, 1) = braVars;
+  
+  VectorXd residue = variables;
+  double Energy = getResidue(variables, residue, true, false);
+
+  jastrowResidue = residue.block(0, 0, nJastrowVars, 1);
   return Energy;
 }
 
+double GetResidual::getOrbitalResidue(const VectorXd& jastrowvars,
+                                      const VectorXd& braVars,
+                                      VectorXd& orbitalResidue) {
 
-double getResidueSingleKet(
+  int nJastrowVars = jastrowvars.size(),
+      nBraVars = braVars.size();
+  VectorXd variables(nJastrowVars+nBraVars);
+  
+  variables.block(0, 0, nJastrowVars, 1) = jastrowvars;
+  variables.block(nJastrowVars, 0, nBraVars, 1) = braVars;
+
+  VectorXd residue = variables;
+  double Energy = getResidue(variables, residue, false, true);
+
+  orbitalResidue = residue.block(nJastrowVars, 0, nBraVars, 1);
+  return Energy;
+}
+
+double GetResidual::getResidueSingleKet(
     double detovlp,
     MatrixXcd& bra,
     MatrixXcd& ket,
     complex<double> coeff,
-    VectorXd& braResidue,
+    MatrixXcd& orbitalResidueMat,
     VectorXd& Jastrow,
     VectorXd& JastrowResidue,
     bool getJastrowResidue,
@@ -190,7 +222,7 @@ double getResidueSingleKet(
   DiagonalXd diagcre(2*norbs),
       diagdes(2*norbs);
 
-  MatrixXcd orbitalResidueMat = bra; orbitalResidueMat.setZero();
+  //MatrixXcd orbitalResidueMat = bra; orbitalResidueMat.setZero();
   
   MatrixXcd rdm;
   complex<double> Energy;
@@ -316,8 +348,8 @@ double getResidueSingleKet(
             
             orbitalResidueMat += factor*(rdm1*rdm2 - rdm3*rdm4) * JJphiSinv;
             
-            Energy += (rdm1*rdm2 - rdm3*rdm4) * factor ;
           }
+          Energy += (rdm1*rdm2 - rdm3*rdm4) * factor ;
 
           if (getJastrowResidue) {
             complex<double> res;
@@ -335,14 +367,6 @@ double getResidueSingleKet(
         }
     }
 
-  if (getOrbitalResidue) {
-    for (int i=0; i<orbitalResidueMat.rows(); i++)
-      for (int j=0; j<orbitalResidueMat.cols(); j++) {
-        braResidue(2*(i * nelec +j)  ) +=  (orbitalResidueMat(i,j)).real();
-        braResidue(2*(i * nelec +j)+1) +=  (orbitalResidueMat(i,j)).imag();
-      }
-  }
-  
   return Energy.real();
 }
 

@@ -1,5 +1,5 @@
-#ifndef EvalRESIDUALS_HEADER_H
-#define EvalRESIDUALS_HEADER_H
+#pragma once
+
 #include <Eigen/Dense>
 #include <vector>
 #include "Complex.h"
@@ -9,6 +9,42 @@ using namespace Eigen;
 using DiagonalXd = Eigen::DiagonalMatrix<double, Eigen::Dynamic>;
 
 int index(int I, int J) ;
+
+struct GetResidual {
+  MatrixXcd& orbitals;
+  int ngrid;
+
+  GetResidual(MatrixXcd& pOrbitals,
+              int pngrid=4) : orbitals(pOrbitals), ngrid(pngrid) {};
+
+  //get both orbital and jastrow residues
+  double getResidue(const VectorXd& variables,
+                    VectorXd& residual,
+                    bool getJastrowResidue = true,
+                    bool getOrbitalResidue = true);
+
+  double getResidueSingleKet(
+      double detovlp,
+      MatrixXcd& bra,
+      MatrixXcd& ket,
+      complex<double> coeff,
+      MatrixXcd& braResidue,
+      VectorXd& Jastrow,
+      VectorXd& JastrowResidue,
+      bool getJastrowResidue = true,
+      bool getOrbitalResidue = true) ;
+
+  //get jastrow variables
+  double getJastrowResidue(const VectorXd& jastrowVars,
+                           const VectorXd& braVars,
+                           VectorXd& jastrowResidue);
+  
+  //get jastrow variables
+  double getOrbitalResidue(const VectorXd& jastrowVars,
+                           const VectorXd& braVars,
+                           VectorXd& jastrowResidue);
+  
+};
 
 //term is orb1^dag orb2
 double getCreDesDiagMatrix(DiagonalXd& diagcre,
@@ -35,50 +71,6 @@ void applyProjector(
     int Sz,
     int ngrids);
 
-
-double getResidual(const VectorXd& variables,
-                   VectorXd& resdiual,
-                   bool getJastrowResidue = true,
-                   bool getOrbitalResidue = true) ;
-
-double getResidueSingleKet(
-    double detovlp,
-    MatrixXcd& bra,
-    MatrixXcd& ket,
-    complex<double> coeff,
-    VectorXd& braResidue,
-    VectorXd& Jastrow,
-    VectorXd& JastrowResidue,
-    bool getJastrowResidue = true,
-    bool getOrbitalResidue = true) ;
-
-double getOrbitalResidual(const VectorXd& variables,
-                          VectorXd& resdiual) ;
-
-double getOrbitalResidueSingleKet(
-    double detovlp,
-    MatrixXcd& bra,
-    MatrixXcd& ket,
-    complex<double> coeff,
-    VectorXd& braResidue,
-    VectorXd& Jastrow,
-    VectorXd& JastrowResidue);
-
-double getJastrowResidual(const VectorXd& variables,
-                   VectorXd& resdiual) ;
-
-double getJastrowResidueSingleKet(
-    double detovlp,
-    MatrixXcd& bra,
-    MatrixXcd& ket,
-    complex<double> coeff,
-    VectorXd& braResidue,
-    VectorXd& Jastrow,
-    VectorXd& JastrowResidue) ;
-
-double getGradient(const VectorXd& variables,
-                   VectorXd& grad);
-  
 
 
 template <
@@ -162,4 +154,4 @@ complex<double> getRDMExpectation(
 void fillJastrowfromWfn(MatrixXd& Jtmp, VectorXd& JA);
 
 
-#endif
+

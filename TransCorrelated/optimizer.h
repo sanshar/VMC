@@ -24,21 +24,110 @@
 #include <boost/bind.hpp>
 #include <iostream>
 #include "DirectJacobian.h"
+#include "diis.h"
+#include <boost/format.hpp>
+#include <unsupported/Eigen/IterativeSolvers>
 
 using namespace Eigen;
 using namespace std;
+using namespace boost;
 
 
-class Residuals;
-
-
-void optimizeJastrowParams(
+template<typename Functor>
+void NewtonMethod(
     VectorXd& params,
-    boost::function<double (const VectorXd&, VectorXd&)>& func);
+    Functor& func,
+    int maxIter = 50,
+    double targetTol = 1.e-5) {
 
-void optimizeOrbitalParams(
+  double Energy, norm;
+  int iter = 0;
+  VectorXd residue(params.size());
+  DIIS diis(8, params.size());
+
+  DirectJacobian<double, Functor> J(func);
+  Eigen::GMRES<DirectJacobian<double, Functor>, Eigen::IdentityPreconditioner> gmres;
+  gmres.compute(J);
+  gmres.setTolerance(1.e-3);
+  gmres.setMaxIterations(100);
+  Energy = func(params, residue);
+  norm = residue.norm();
+  
+  std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+      %(residue.norm()) %(getTime()-startofCalc);
+
+  //various step sizes
+  VectorXd testRes = residue, testParams = params; 
+  vector<double> testSteps = {0.001, 0.01, 0.1, 0.5, 1}; 
+
+  while(norm > targetTol && iter < maxIter) {      
+    J.setFvec(params, residue);
+
+    residue *=-1.;
+    VectorXd x = gmres.solve(residue);
+
+
+    double testStep = 1.0, testNorm = 1.e20;
+    for (int i=0; i<testSteps.size(); i++)
+    {
+      testParams = params + testSteps[i]*x;
+      func(testParams, testRes);
+      double testResNorm = testRes.norm();
+      if (testResNorm < testNorm) {
+        testNorm = testResNorm;
+        testStep = testSteps[i];
+      }
+    }
+    
+    params += testStep*x;
+    diis.update(params, residue);
+    iter++;
+
+    Energy = func(params, residue);
+    norm = residue.norm();
+    
+    std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.6f \n") %(iter) %(Energy)
+        %(residue.norm()) %(testStep) %(getTime()-startofCalc);
+  }
+}
+
+
+template <typename Functor>
+void SGDwithDIIS(
     VectorXd& params,
-    boost::function<double (const VectorXd&, VectorXd&)>& func);
+    Functor& func,
+    int maxIter = 50,
+    double targetTol = 1.e-3) {
+
+  double Energy, norm=10.;
+  int iter = 0;
+  VectorXd residue(params.size()); residue.setZero();
+
+  DIIS diis(8, params.size());
+  
+
+  Energy = func(params, residue);
+  norm = residue.norm();
+
+  std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+      %(norm) %(getTime()-startofCalc);
+  
+  while(norm > targetTol && iter < maxIter) {      
+
+    params -=  0.01*residue;
+    diis.update(params, residue);
+
+
+    iter++;
+    
+    Energy = func(params, residue);
+    norm = residue.norm();
+    
+    std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+        %(norm) %(getTime()-startofCalc);
+  }
+}
+
 
 
 template <typename Functor>

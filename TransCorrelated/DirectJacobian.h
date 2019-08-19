@@ -28,26 +28,26 @@
 using namespace std;
 using namespace Eigen;
 
-template<typename Scalar> struct DirectJacobian;
+template<typename Scalar, typename Functor> struct DirectJacobian;
 class Residuals;
 
 namespace Eigen {
 namespace internal {
 
-template<>
-struct traits<DirectJacobian<double>> :  public Eigen::internal::traits<Eigen::SparseMatrix<double> >
+template<typename F>
+struct traits<DirectJacobian<double, F>> :  public Eigen::internal::traits<Eigen::SparseMatrix<double> >
 {};
 
-template<>
-struct traits<DirectJacobian<complex<double>>> :  public Eigen::internal::traits<Eigen::SparseMatrix<complex<double> > >
+template<typename F>
+struct traits<DirectJacobian<complex<double>,F>> :  public Eigen::internal::traits<Eigen::SparseMatrix<complex<double> > >
 {};
 }
 }
 
-template<typename Scalar>
-struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar> > {
+template<typename Scalar, typename Functor>
+struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> > {
 
-  using FunctorEvalResidue = boost::function<double (const VectorXd&, VectorXd&)>;
+  //using FunctorEvalResidue = boost::function<double (const VectorXd&, VectorXd&)>;
   typedef Scalar Scalar;
   typedef double RealScalar;
   typedef int StorageIndex;
@@ -61,7 +61,7 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar> > {
   
   vector<int> colIndex;
   vector<FVectorType> JacCols;
-  FunctorEvalResidue& func;
+  Functor& func;
   Scalar eps;
   FVectorType fvec;
   FVectorType xvec;
@@ -72,7 +72,7 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar> > {
 
   
   DirectJacobian(
-      FunctorEvalResidue& _func,
+      Functor& _func,
       Scalar epsfcn=1.e-4) : func(_func)
   {
     const Scalar epsmch = NumTraits<Scalar>::epsilon();
@@ -119,10 +119,10 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar> > {
   }
 
   template<typename Rhs>
-  Eigen::Product<DirectJacobian<Scalar>, Rhs, Eigen::AliasFreeProduct> operator*(
+  Eigen::Product<DirectJacobian<Scalar, Functor>, Rhs, Eigen::AliasFreeProduct> operator*(
       const MatrixBase<Rhs>& x) const {
     
-    return Eigen::Product<DirectJacobian<Scalar>, Rhs, Eigen::AliasFreeProduct>(*this, x.derived());
+    return Eigen::Product<DirectJacobian<Scalar, Functor>, Rhs, Eigen::AliasFreeProduct>(*this, x.derived());
   }
   
 };
@@ -130,20 +130,20 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar> > {
 namespace Eigen {
 namespace internal {
 
-template<typename T, typename Rhs>
-struct generic_product_impl<DirectJacobian<T>, Rhs, SparseShape, DenseShape, GemvProduct> // GEMV stands for matrix-vector
-    : generic_product_impl_base<DirectJacobian<T>,Rhs,generic_product_impl<DirectJacobian<T>,Rhs> >
+template<typename T, typename F, typename Rhs>
+struct generic_product_impl<DirectJacobian<T,F>, Rhs, SparseShape, DenseShape, GemvProduct> // GEMV stands for matrix-vector
+    : generic_product_impl_base<DirectJacobian<T,F>,Rhs,generic_product_impl<DirectJacobian<T,F>,Rhs> >
 {
-  typedef typename Product<DirectJacobian<T>,Rhs>::Scalar Scalar;
+  typedef typename Product<DirectJacobian<T,F>,Rhs>::Scalar Scalar;
   
   template<typename Dest>
   static void scaleAndAddTo(Dest& dst,
-                            const DirectJacobian<T>& lhs,
+                            const DirectJacobian<T,F>& lhs,
                             const Rhs& rhs,
                             const Scalar& alpha)
   {
     double eps = std::sqrt(1 + lhs.xvec.norm())*1.5e-6/ rhs.norm();
-    typename DirectJacobian<T>::FVectorType xplusu = lhs.xvec + eps * rhs;
+    typename DirectJacobian<T,F>::FVectorType xplusu = lhs.xvec + eps * rhs;
     lhs.func(xplusu, dst);
     dst = (dst - lhs.fvec)/eps;
 
