@@ -62,6 +62,7 @@ double GetResidual::getResidue(const VectorXd& variables,
   VectorXd Jastrow = variables.block(0,0,nJastrowVars, 1);
 
 
+  //Use the rotation matrix variables and update the bra
   MatrixXcd U(2*norbs-nelec, nelec);
   for (int a=0; a<2*norbs-nelec; a++) 
     for (int i=0; i<nelec; i++) 
@@ -73,18 +74,11 @@ double GetResidual::getResidue(const VectorXd& variables,
   MatrixXcd bra = phiupdate + orbitals.block(0,0,2*norbs, nelec);
 
 
-
-  VectorXd braVars(2 * 2*norbs * nelec);
-  for (int mu=0; mu < 2*norbs; mu++)
-    for (int i=0; i < nelec; i++) {
-      braVars( 2* (mu*nelec+i)   ) = bra(mu,i).real();
-      braVars( 2* (mu*nelec+i) +1) = bra(mu,i).imag();
-    }
-  
+  //store the jastrow and orbital residue
   VectorXd JastrowResidue = 0 * Jastrow;
   VectorXd braVarsResidue( 2*(2*norbs - nelec)* nelec); braVarsResidue.setZero();
 
-
+  //apply the Sz projector and generate a linear combination of kets
   vector<MatrixXcd> ket; vector<complex<double>> coeffs;
   applyProjector(bra, ket, coeffs, nalpha-nbeta, ngrid); 
 
@@ -92,7 +86,7 @@ double GetResidual::getResidue(const VectorXd& variables,
   MatrixXcd S;
   double detovlp = 0.;
 
-  
+  //these terms are needed for calculate the orbital and jastrow gradient respectively
   MatrixXcd orbitalOverlapGrad = bra; orbitalOverlapGrad.setZero();
   VectorXd NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
   MatrixXcd mfRDM(2*norbs, 2*norbs);
@@ -128,12 +122,12 @@ double GetResidual::getResidue(const VectorXd& variables,
   JastrowResidue.setZero(); braVarsResidue.setZero();
 
   MatrixXcd braResidueMat = 0.*bra; braResidueMat.setZero();
-  for (int g = 0; g<ket.size(); g++)  {
+  //for (int g = 0; g<ket.size(); g++)  {
     Energy += getResidueSingleKet(detovlp,
-                                  bra, ket[g], coeffs[g], braResidueMat,
+                                  bra, ket, coeffs, braResidueMat,
                                   Jastrow, JastrowResidue,
                                   getJastrowResidue, getOrbitalResidue) ;
-  }  
+    //}  
 
   if (getJastrowResidue)
     JastrowResidue -= Energy *NiNjRDM;
@@ -199,8 +193,8 @@ double GetResidual::getOrbitalResidue(const VectorXd& jastrowvars,
 double GetResidual::getResidueSingleKet(
     double detovlp,
     MatrixXcd& bra,
-    MatrixXcd& ket,
-    complex<double> coeff,
+    vector<MatrixXcd>& ketvec,
+    vector<complex<double>>& coeffvec,
     MatrixXcd& orbitalResidueMat,
     VectorXd& Jastrow,
     VectorXd& JastrowResidue,
@@ -226,8 +220,19 @@ double GetResidual::getResidueSingleKet(
   
   MatrixXcd rdm;
   complex<double> Energy;
+
+  size_t ketSizeOrb = ketvec.size() * 2 * norbs;
   //one electron terms
-  for (int orb1 = 0; orb1 < 2*norbs; orb1++)
+  //for (int g=0; g<ketvec.size(); g++) {
+  //MatrixXcd& ket = ketvec[g];
+  //complex<double> coeff = coeffvec[g];
+  //for (int orb1 = 0; orb1 < 2*norbs; orb1++)
+
+  for (int gorb1 = commrank; gorb1 < ketSizeOrb; gorb1+=commsize) {
+    int g = gorb1 / (2 * norbs), orb1 = gorb1 % (2 * norbs);
+    MatrixXcd& ket = ketvec[g];
+    complex<double> coeff = coeffvec[g];
+
     for (int orb2 = 0; orb2 < 2*norbs; orb2++) {
         
       double integral = I1( (orb1%norbs) * 2 + orb1/norbs, (orb2%norbs) * 2 + orb2/norbs);
@@ -282,7 +287,7 @@ double GetResidual::getResidueSingleKet(
     
 
   //one electron terms
-  for (int orb1 = 0; orb1 < 2*norbs; orb1++)
+    //for (int orb1 = 0; orb1 < 2*norbs; orb1++)
     for (int orb2 = 0; orb2 < orb1; orb2++) {
       for (int orb3 = 0; orb3 < 2*norbs; orb3++)
         for (int orb4 = 0; orb4 < orb3; orb4++) {
@@ -366,6 +371,17 @@ double GetResidual::getResidueSingleKet(
           }
         }
     }
+  }
+#ifndef SERIAL
+  size_t jsize = JastrowResidue.size();
+  MPI_Allreduce(MPI_IN_PLACE, &JastrowResidue(0), jsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  size_t osize = 2*orbitalResidueMat.rows() * orbitalResidueMat.cols();
+  MPI_Allreduce(MPI_IN_PLACE, &orbitalResidueMat(0,0), osize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  size_t two = 2;
+  MPI_Allreduce(MPI_IN_PLACE, &Energy, two, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
 
   return Energy.real();
 }
@@ -418,9 +434,10 @@ double getCreDesDiagMatrix(DiagonalXd& diagcre,
 
 
 //N_orbn N_orbm orb1^dag orb2^dag orb3 orb4
-complex<double> getRDMExpectation(MatrixXcd& rdm, int orbn, int orbm, int orb1, int orb2, int orb3, int orb4,
-                           Matrix4cd& rdmval4, Matrix3cd& rdmval3, Matrix2cd& rdmval2,
-                           vector<int>& rows, vector<int>& cols) {
+complex<double> getRDMExpectation(MatrixXcd& rdm, int orbn, int orbm,
+                                  int orb1, int orb2, int orb3, int orb4,
+                                  Matrix4cd& rdmval4, Matrix3cd& rdmval3, Matrix2cd& rdmval2,
+                                  vector<int>& rows, vector<int>& cols) {
 
   complex<double> contribution = 0;
   bool calc4rdm = true;

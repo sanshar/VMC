@@ -87,7 +87,7 @@ class getTranscorrelationWrapper
     variables.block(0,0,nJastrowVars, 1) = JA;
     variables.block(nJastrowVars,0,braVars.size(),1) = braVars;
 
-    cout <<endl<< "Combined optimization "<<endl;
+    if (commrank == 0) cout <<endl<< "Combined optimization "<<endl;
     boost::function<double (const VectorXd&, VectorXd&)> totalGrad
         = boost::bind(&GetResidual::getResidue, &res, _1, _2, true, true);
 
@@ -101,12 +101,12 @@ class getTranscorrelationWrapper
       JA = variables.block(0,0,nJastrowVars,1);
       braVars = variables.block(nJastrowVars,0,braVars.size(),1);
 
-      cout << "Jastrow optimization "<<endl;
+      if (commrank == 0) cout << "Jastrow optimization "<<endl;
       boost::function<double (const VectorXd&, VectorXd&)> JastrowGrad
           = boost::bind(&GetResidual::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
       NewtonMethod(JA, JastrowGrad);
 
-      cout <<endl<< "Orbital optimization "<<endl;
+      if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
       boost::function<double (const VectorXd&, VectorXd&)> OrbitalGrad
           = boost::bind(&GetResidual::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
       SGDwithDIIS(braVars, OrbitalGrad);

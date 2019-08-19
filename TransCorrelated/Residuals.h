@@ -26,8 +26,8 @@ struct GetResidual {
   double getResidueSingleKet(
       double detovlp,
       MatrixXcd& bra,
-      MatrixXcd& ket,
-      complex<double> coeff,
+      vector<MatrixXcd>& ket,
+      vector<complex<double>>& coeff,
       MatrixXcd& braResidue,
       VectorXd& Jastrow,
       VectorXd& JastrowResidue,

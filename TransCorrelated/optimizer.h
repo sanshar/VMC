@@ -53,7 +53,7 @@ void NewtonMethod(
   Energy = func(params, residue);
   norm = residue.norm();
   
-  std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+  if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
       %(residue.norm()) %(getTime()-startofCalc);
 
   //various step sizes
@@ -86,7 +86,7 @@ void NewtonMethod(
     Energy = func(params, residue);
     norm = residue.norm();
     
-    std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.6f \n") %(iter) %(Energy)
+    if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.6f \n") %(iter) %(Energy)
         %(residue.norm()) %(testStep) %(getTime()-startofCalc);
   }
 }
@@ -109,7 +109,7 @@ void SGDwithDIIS(
   Energy = func(params, residue);
   norm = residue.norm();
 
-  std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+  if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
       %(norm) %(getTime()-startofCalc);
   
   while(norm > targetTol && iter < maxIter) {      
@@ -123,7 +123,7 @@ void SGDwithDIIS(
     Energy = func(params, residue);
     norm = residue.norm();
     
-    std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+    if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
         %(norm) %(getTime()-startofCalc);
   }
 }
