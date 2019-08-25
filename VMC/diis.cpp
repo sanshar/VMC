@@ -42,6 +42,9 @@ void DIIS::init(int pmaxDim, int pvectorDim) {
   bvector(maxDim) = -1.;
 }
 
+void DIIS::restart() {
+  init(maxDim, vectorDim);
+}
 
 void DIIS::update(VectorXd& newV, VectorXd& errorV) {
 

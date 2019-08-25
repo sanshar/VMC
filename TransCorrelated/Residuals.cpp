@@ -46,6 +46,37 @@ void fillJastrowfromWfn(MatrixXd& Jtmp, VectorXd& JA) {
   
 }
 
+void fillWfnfromJastrow(VectorXd& JA, MatrixXd& Jtmp) {
+  int norbs = Determinant::norbs;
+  
+  for (int i=0; i<2*norbs; i++) {
+    int I = (i/2) + (i%2)*norbs;
+    for (int j=0; j<i; j++) {
+      int J = (j/2) + (j%2)*norbs;
+      
+      Jtmp(i, j) = exp(2.0 * JA(index(J, I)));
+    }
+    Jtmp(i, i) = exp(JA(index(I, I)));
+  }
+  
+}
+
+void fillWfnOrbs(MatrixXcd& orbitals, VectorXd& variables) {
+  int norbs  = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta  = Determinant::nbeta;
+  int nelec =  nalpha + nbeta;
+
+  //Use the rotation matrix variables and update the bra
+  MatrixXcd U(2*norbs-nelec, nelec);
+  for (int a=0; a<2*norbs-nelec; a++) 
+    for (int i=0; i<nelec; i++) 
+      U(a, i) = complex<double>( variables( 2* (a*nelec+i)  ),
+                                 variables( 2* (a*nelec+i)+1)
+                                 );
+
+  orbitals.block(0, 0, 2*norbs, nelec) += orbitals.block(0, nelec, 2*norbs, 2*norbs-nelec) * U;
+}
 
 double GetResidual::getResidue(const VectorXd& variables,
                                VectorXd& residual,

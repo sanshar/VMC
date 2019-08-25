@@ -46,6 +46,9 @@ struct GetResidual {
   
 };
 
+void fillWfnfromJastrow(VectorXd& JA, MatrixXd& Jtmp) ;
+void fillWfnOrbs(MatrixXcd& orbitals, VectorXd& variables) ;
+
 //term is orb1^dag orb2
 double getCreDesDiagMatrix(DiagonalXd& diagcre,
                            DiagonalXd& diagdes,

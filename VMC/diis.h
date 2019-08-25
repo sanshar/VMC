@@ -36,7 +36,7 @@ class DIIS {
   DIIS(int pmaxDim, int pvectorDim);
   void init(int pmaxDim, int pvectorDim);
   void update(Eigen::VectorXd& newVector, Eigen::VectorXd& grad);
-  
+  void restart();
 };
 
 #endif

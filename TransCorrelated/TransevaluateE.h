@@ -80,20 +80,48 @@ class getTranscorrelationWrapper
     VectorXd braVars(2* (2*norbs-nelec) * nelec); braVars.setZero();
 
     int ngrid = 4; //FOR THE SZ PROJECTOR
-    
+
     fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
     GetResidual res(w.getRef().HforbsA);
 
     variables.block(0,0,nJastrowVars, 1) = JA;
     variables.block(nJastrowVars,0,braVars.size(),1) = braVars;
 
+
     if (commrank == 0) cout <<endl<< "Combined optimization "<<endl;
     boost::function<double (const VectorXd&, VectorXd&)> totalGrad
         = boost::bind(&GetResidual::getResidue, &res, _1, _2, true, true);
 
-    SGDwithDIIS(variables, totalGrad, 500, 5.e-3);
-    NewtonMethod(variables, totalGrad);
+    /*
+    if (commrank == 0) cout <<"variables"<<endl<< variables <<endl<<endl;
+    VectorXd residue=variables; residue.setZero();
+    totalGrad(variables, residue);
+    if (commrank == 0) cout <<"residue "<<endl<< residue.block(0,0,nJastrowVars, 1)<<endl<<endl;
+    if (commrank == 0) cout << residue.block(nJastrowVars,0,braVars.size(), 1)<<endl<<endl;
+    if (commrank == 0) cout << residue.maxCoeff()<<"  "<<residue.minCoeff()<<endl;
+    if (commrank == 0) cout << "norm "<<residue.norm()<<endl;
+    exit(0);
+    */
+    
+    SGDwithDIIS(variables, totalGrad, 150, 1.e-6);
+    JA = variables.block(0,0,nJastrowVars,1);
+    braVars = variables.block(nJastrowVars,0,braVars.size(),1);
 
+    fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+    fillWfnOrbs(w.getRef().HforbsA, braVars);
+    w.writeWave();
+
+    /*
+    //if (commrank == 0) cout << variables <<endl<<endl;
+    VectorXd residue=variables; residue.setZero();
+    totalGrad(variables, residue);
+    if (commrank == 0) cout << residue.block(0,0,nJastrowVars, 1)<<endl<<endl;
+    if (commrank == 0) cout << residue.block(nJastrowVars,0,braVars.size(), 1)<<endl<<endl;
+    if (commrank == 0) cout << residue.maxCoeff()<<"  "<<residue.minCoeff()<<endl;
+    if (commrank == 0) cout << "norm "<<residue.norm()<<endl;
+    exit(0);
+    */
+    //NewtonMethod(variables, totalGrad);
     
     //first optimize the jastrow
     for (int i=0; i<4; i++)
@@ -101,17 +129,24 @@ class getTranscorrelationWrapper
       JA = variables.block(0,0,nJastrowVars,1);
       braVars = variables.block(nJastrowVars,0,braVars.size(),1);
 
-      if (commrank == 0) cout << "Jastrow optimization "<<endl;
-      boost::function<double (const VectorXd&, VectorXd&)> JastrowGrad
-          = boost::bind(&GetResidual::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
-      NewtonMethod(JA, JastrowGrad);
-
       if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
       boost::function<double (const VectorXd&, VectorXd&)> OrbitalGrad
           = boost::bind(&GetResidual::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
-      SGDwithDIIS(braVars, OrbitalGrad);
+      SGDwithDIIS(braVars, OrbitalGrad, 100, 1.e-6);
+
+      if (commrank == 0) cout << "Jastrow optimization "<<endl;
+      boost::function<double (const VectorXd&, VectorXd&)> JastrowGrad
+          = boost::bind(&GetResidual::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
+      //NewtonMethod(JA, JastrowGrad);
+      SGDwithDIIS(JA, JastrowGrad, 100, 1.e-6);
+
+      variables.block(0,0,nJastrowVars,1) = JA;
+      variables.block(nJastrowVars, 0, braVars.size(), 1) = braVars;
 
     }
+    fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+    fillWfnOrbs(w.getRef().HforbsA, braVars);
+    
     w.writeWave();
     return 1.0;
   }
