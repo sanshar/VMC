@@ -54,11 +54,9 @@ rJastrow::rJastrow () {
   _params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
   _params[EEsameSpinIndex] = 0.25;
   _params[EEoppositeSpinIndex] = 0.5;
+  if (schd.optimizeCps == false) { _params.assign(_params.size(), 0.0); }
   //if (commrank == 0) cout << "Num Jastrow terms "<<_params.size()<<endl;
-
 };
-
-
 
 
 long rJastrow::getNumVariables() const

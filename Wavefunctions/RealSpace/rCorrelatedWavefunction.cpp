@@ -45,7 +45,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJas
   double kinetic = 0.0; 
   std::complex<double> ckinetic = 0.0;
   {
-    MatrixXcd Bij = walk.refHelper.Laplacian[0]; //i = nelec , j = norbs
+    MatrixXcd Bij = walk.refHelper.Laplacian; //i = nelec , j = norbs
     for (int i = 0; i < nelec; i++) {
       Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,0) * walk.refHelper.Gradient[0].row(i);
       Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,1) * walk.refHelper.Gradient[1].row(i);
@@ -121,7 +121,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJas
     MatrixXd AOGrady = walk.refHelper.AOGradient[1];
     MatrixXd AOGradz = walk.refHelper.AOGradient[2]; 
 
-    MatrixXcd Laplacian = walk.refHelper.Laplacian[0];
+    MatrixXcd Laplacian = walk.refHelper.Laplacian;
     MatrixXcd Gradx = walk.refHelper.Gradient[0];
     MatrixXcd Grady = walk.refHelper.Gradient[1];
     MatrixXcd Gradz = walk.refHelper.Gradient[2];
@@ -278,11 +278,9 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(const rWalker<rJastrow, 
     }
   }
   
-  double kinetic = 0.0;
-  
+  double kinetic = 0.0;  
   {
-    MatrixXcd Bij = walk.refHelper.Laplacian[0]; //i = nelec , j = norbs
-
+    MatrixXcd Bij = walk.refHelper.Laplacian; //i = nelec , j = norbs
 
     for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) {
       Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,0) * walk.refHelper.Gradient[0].row(i);
@@ -292,13 +290,19 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(const rWalker<rJastrow, 
 
     std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
     for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) {
-      std::complex<double> factor = Bij.row(i) * walk.refHelper.thetaInv[0].col(i);
+      std::complex<double> factor = 0.0;
+      if (schd.hf == "ghf") { factor = Bij.row(i) * walk.refHelper.thetaInv[0].col(i); }
+      else
+      {
+        if (i < walk.d.nalpha) { factor = Bij.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
+        else { factor = Bij.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
+      }
       kinetic += (DetFactor * factor).real() / DetFactor.real();
       kinetic += walk.corrHelper.LaplaceRatio[i];
     }
   }
   //cout << kinetic<<"  "<<potentialij<<"  "<<potentiali<<endl;
-  return -0.5*(kinetic) + potentialij+potentiali + potentialN;
+  return -0.5*(kinetic) + potentialij + potentiali + potentialN;
   
 }
 
