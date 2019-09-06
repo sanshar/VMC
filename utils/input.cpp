@@ -106,6 +106,8 @@ void readInput(string input, schedule& schd, bool print) {
       schd.sgdStepsize = 0.1;
       schd.CorrSampleFrac = 0.20;
 
+      schd.pseudo = boost::shared_ptr<Pseudopotential>(new Pseudopotential);
+
       while (dump.good())
 	{
 

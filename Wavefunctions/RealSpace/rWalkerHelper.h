@@ -40,7 +40,7 @@ class rWalkerHelper<rSlater>
   std::array<MatrixXcd, 2> thetaInv;          //inverse of the theta matrix
   vector<std::array<std::complex<double>, 2>> thetaDet;    //determinant of the theta matrix, vector for multidet
 
-  vector<double> aoValues;                   //this is used to store the ao values at some coordinate
+  mutable vector<double> aoValues;                   //this is used to store the ao values at some coordinate
   std::array<MatrixXcd, 2> DetMatrix;         //this is used to store the old determinant matrix
   MatrixXcd Laplacian;                          //L(elec, mo)
   std::array<MatrixXcd, 3>   Gradient;        //each of three matrices is G(elec, mo) 
@@ -56,14 +56,11 @@ class rWalkerHelper<rSlater>
 
   void initInvDetsTablesGhf(const rSlater& w, const rDeterminant &d);
 
-  double getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d,
-                      const rSlater& w);
+  double getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d, const rSlater& w) const;
 
-  double getDetFactorGHF(int i, Vector3d& newCoord,
-                         int sz, int nelec, const rSlater& w);
+  double getDetFactorGHF(int i, Vector3d& newCoord, int sz, int nelec, const rSlater& w) const;
   
-  double getDetFactor(int i, Vector3d& newCoord,
-                      int sz, int nelec, const rSlater& w);
+  double getDetFactor(int i, Vector3d& newCoord, int sz, int nelec, const rSlater& w) const;
 
   void updateWalker(int i, Vector3d& oldCoord, const rDeterminant &d,
                     const rSlater& w);

@@ -28,6 +28,7 @@
 #include "basis.h"
 #include "gaussianBasis.h"
 #include "slaterBasis.h"
+#include "rPseudopotential.h"
 #include "iowrapper.h"
 
 class Correlator;
@@ -93,6 +94,7 @@ private:
       & stepsizes
       & walkerBasis
       & basis
+      & pseudo
       & nalpha
       & nbeta
       & norbs
@@ -112,6 +114,7 @@ public:
 //General options
   BASIS walkerBasis;                      //can be real space or local orbitals
   boost::shared_ptr<Basis> basis;
+  boost::shared_ptr<Pseudopotential> pseudo;
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
 

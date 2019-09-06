@@ -161,10 +161,9 @@ struct rCorrelatedWavefunction {
   }
 
 
-  double getOverlapFactor(int i, Vector3d& coord, rWalker<Corr, Reference>& walk) const
+  double getOverlapFactor(int i, Vector3d& coord, const rWalker<Corr, Reference>& walk) const
   {
-    return walk.corrHelper.OverlapRatio(i, coord, corr, walk.d)
-        * walk.refHelper .getDetFactor(i, coord, walk.d, ref);
+    return walk.corrHelper.OverlapRatio(i, coord, corr, walk.d) * walk.refHelper.getDetFactor(i, coord, walk.d, ref);
   }
 
   //<psi_t| (H-E0) |D>

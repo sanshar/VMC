@@ -98,8 +98,8 @@ void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeter
 
 }
 
-double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d,
-                                           const rSlater& w) {
+double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d, const rSlater& w) const
+{
   if (hftype == Generalized) 
     return getDetFactorGHF(i, newCoord, 0, d.nelec, w);
   else if (i < d.nalpha)
@@ -108,13 +108,12 @@ double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord, const rDe
     return getDetFactor(i-d.nalpha, newCoord, 1, d.nbeta, w);
 }
 
-double rWalkerHelper<rSlater>::getDetFactorGHF(int i, Vector3d& newCoord,
-                                              int sz, int nelec, const rSlater& w) {
+double rWalkerHelper<rSlater>::getDetFactorGHF(int i, Vector3d& newCoord, int sz, int nelec, const rSlater& w) const
+{
   int norbs = Determinant::norbs;
   aoValues.resize(norbs);
 
   schd.basis->eval(newCoord, &aoValues[0]);
-
 
   VectorXcd newVec = VectorXcd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
@@ -126,13 +125,12 @@ double rWalkerHelper<rSlater>::getDetFactorGHF(int i, Vector3d& newCoord,
   return (factor * thetaDet[0][0]).real() / (thetaDet[0][0]).real();
 }
   
-double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord,
-                                           int sz, int nelec, const rSlater& w) {
+double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord, int sz, int nelec, const rSlater& w) const
+{
   int norbs = Determinant::norbs;
   aoValues.resize(norbs);
 
   schd.basis->eval(newCoord, &aoValues[0]);
-
 
   VectorXcd newVec = VectorXcd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
