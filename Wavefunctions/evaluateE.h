@@ -63,6 +63,33 @@ void getEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
   D.FinishEnergy(Energy);
 }
 
+template<typename Wfn, typename Walker>
+void getTransEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
+{
+  Deterministic<Wfn, Walker> D(w, walk);
+  double Numerator =0., Denominator = 0.;
+
+  for (int i = commrank; i < D.allDets.size(); i += commsize)
+  {
+    double ovlp = 0.0, Eloc = 0.0;
+    w.initWalker(walk, D.allDets[i]);
+    w.HamAndOvlp(walk, ovlp, Eloc, D.work, false);  
+    double CorrOvlp = w.corr.Overlap(D.allDets[i]);
+    double SlaterOvlp = walk.getDetOverlap(w.getRef());
+
+    Numerator += (Eloc * ovlp) * SlaterOvlp/CorrOvlp;
+    Denominator += SlaterOvlp * SlaterOvlp;
+  }
+
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(Numerator), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(Denominator), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+  if (commrank == 0) cout << Denominator<<"  "<<Numerator<<endl;
+  Energy = Numerator/Denominator;
+}
+
+
 template<typename Wfn, typename Walker> void getOneRdmDeterministic(Wfn &w, Walker& walk, MatrixXd &oneRdm, bool sz)
 {
   int norbs = Determinant::norbs;

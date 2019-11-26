@@ -33,7 +33,10 @@
 #include <boost/algorithm/string.hpp>
 #include "DirectJacobian.h"
 #include "Residuals.h"
+#include "CorrelatedWavefunction.h"
 
+#include "LevenbergHelper.h"
+#include <unsupported/Eigen/NumericalDiff>
 #include <unsupported/Eigen/NonLinearOptimization>
 #include "stan/math.hpp"
 //#include "ceres/ceres.h"
@@ -54,6 +57,25 @@ class twoIntHeatBathSHM;
 
 using DiagonalXd = Eigen::DiagonalMatrix<double, Eigen::Dynamic>;
 
+template<typename Wfn>
+void saveWave(VectorXd& variables, Wfn& w) {
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
+  
+  int nJastrowVars = 2*norbs*(2*norbs+1)/2;
+  int nOrbitalVars = (2*norbs-nelec)*(nelec);
+  VectorXd JA = variables.block(0,0,nJastrowVars,1);
+  VectorXd braVars = variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1);
+  fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+  MatrixXcd&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
+  w.getRef().HforbsA.block(0,0,2*norbs, nelec) = bra;
+  w.writeWave();
+
+  variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1).setZero();
+}
+
 
 
 template <typename Wfn>
@@ -69,28 +91,190 @@ class getTranscorrelationWrapper
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
     int nbeta = Determinant::nbeta;
-
     int nelec = nalpha + nbeta;
+    
     int nJastrowVars = 2*norbs*(2*norbs+1)/2;
     int nOrbitalVars = (2*norbs-nelec)*(nelec);
     VectorXd variables(nJastrowVars + 2*nOrbitalVars);
 
-    MatrixXcd bra = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta);
-    VectorXd JA(2*norbs * (2*norbs+1)/2); JA.setZero();
-    VectorXd braVars(2* (2*norbs-nelec) * nelec); braVars.setZero();
-
+    VectorXd JA(nJastrowVars);
+    fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
+    VectorXd braVars(2* nOrbitalVars); braVars.setZero();
     int ngrid = 4; //FOR THE SZ PROJECTOR
 
-    fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
-    GetResidual res(w.getRef().HforbsA);
+    GetResidual res(w.getRef().HforbsA, ngrid);//calculates orbital, Jastrow Residue
 
-    variables.block(0,0,nJastrowVars, 1) = JA;
-    variables.block(nJastrowVars,0,braVars.size(),1) = braVars;
-
-
-    if (commrank == 0) cout <<endl<< "Combined optimization "<<endl;
+    //first optimize orbitals
+    /*
+    {
+      if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
+      boost::function<double (const VectorXd&, VectorXd&)> OrbitalGrad
+          = boost::bind(&GetResidual::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
+      SGDwithDIIS(braVars, OrbitalGrad, 100, 1.e-6);
+    }
+    */
+    
+    MatrixXd hess;
     boost::function<double (const VectorXd&, VectorXd&)> totalGrad
-        = boost::bind(&GetResidual::getResidue, &res, _1, _2, true, true);
+        = boost::bind(&GetResidual::getResidue, &res, _1, _2, hess, true, true, false);
+    variables.block(0,0,nJastrowVars,1) = JA;
+    variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+
+    {
+      VectorXd residuals = variables;
+      double E = totalGrad(variables, residuals);
+      if (commrank == 0) cout << E<<endl;
+      MPI_Barrier(MPI_COMM_WORLD);
+      exit(0);
+    }
+
+    //concerted optimization
+    if (true)
+    {      
+      SGDwithDIIS(variables, totalGrad, schd.maxIter, 1.e-6);
+      saveWave(variables, w);
+    }
+  
+    MPI_Barrier(MPI_COMM_WORLD);
+    exit(0);
+    
+    //Levenberg Helper
+    {
+      typedef totalGradWrapper<boost::function<double (const VectorXd&, VectorXd&)>> Wrapper;
+      
+      Wrapper wrapper(totalGrad, variables.rows(), variables.rows());
+
+      {
+        VectorXd residuals = variables;
+        if (commrank == 0) cout << totalGrad(variables, residuals)<<endl;
+      }
+      
+      Eigen::NumericalDiff<Wrapper> numDiff(wrapper);
+      LevenbergMarquardt<Eigen::NumericalDiff<Wrapper>> LM(numDiff);
+      int ret = LM.minimize(variables);
+
+      VectorXd residuals = variables;
+      if (commrank == 0) {
+        std::cout << ret <<endl;
+        cout<< LM.iter<<endl;
+        std::cout << "Energy at minimum: " << totalGrad(variables, residuals) << std::endl;
+        std::cout << "Residue at minimum: " << residuals.norm() << std::endl;
+        saveWave(variables, w);
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
+    exit(0);
+    //first optimize the jastrow
+    for (int i=0; i<8; i++)
+    {
+
+      if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
+      boost::function<double (const VectorXd&, VectorXd&)> OrbitalGrad
+          = boost::bind(&GetResidual::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
+      SGDwithDIIS(braVars, OrbitalGrad, 50, 1.e-6);
+
+      if (commrank == 0) cout << "Jastrow optimization "<<endl;
+      boost::function<double (const VectorXd&, VectorXd&)> JastrowGrad
+          = boost::bind(&GetResidual::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
+      SGDwithDIIS(JA, JastrowGrad, 50, 1.e-6);
+
+      
+      fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+      MatrixXcd&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
+      w.getRef().HforbsA.block(0,0,2*norbs, nelec) = bra;
+      w.writeWave();
+    }
+    return 1.0;
+  }
+
+
+};
+
+
+
+/*
+    /*
+    {
+      //using Walker = walker<Jastrow, Slater>;
+      VectorXd JAresidue(2*norbs*(2*norbs+1)/2); JAresidue.setZero();
+      VectorXd rdm(2*norbs*(2*norbs+1)/2); rdm.setZero();
+      MatrixXd Onerdm(2*norbs,2*norbs); Onerdm.setZero();
+
+      Walker<Jastrow, Slater> walk;
+      std::vector<Determinant> allDets;
+      generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+      
+      double Energytrans = 0.0, Energyvar = 0.0;
+      double denominatortrans = 0.0, denominatorvar = 0.0;
+      workingArray work;
+      
+      for (int i = commrank; i < allDets.size(); i += commsize)
+      {
+        double ovlp, Eloc;
+        w.initWalker(walk, allDets[i]);
+        w.HamAndOvlp(walk, ovlp, Eloc, work, false);
+        double corrovlp = w.getCorr().Overlap(walk.d),
+            slaterovlp = walk.getDetOverlap(w.getRef());
+        //cout << allDets[i]<<"  "<<ovlp<<endl;
+
+        Energytrans += slaterovlp/corrovlp * Eloc*ovlp;
+        denominatortrans += slaterovlp*slaterovlp;
+
+        Energyvar +=  Eloc*ovlp*ovlp;
+        denominatorvar += ovlp*ovlp;
+
+        for (int orb1 = 0; orb1 < 2*norbs; orb1++)
+        for (int orb2 = 0; orb2 <= orb1; orb2++)
+        {
+          if ( allDets[i].getocc(orb1) && allDets[i].getocc(orb2)) {
+            int I = (orb1/2) + (orb1%2)*norbs;
+            int J = (orb2/2) + (orb2%2)*norbs;
+            int K = max(I,J), L = min(I,J);
+            JAresidue(K * (K+1)/2 + L) += slaterovlp/corrovlp * Eloc * ovlp;
+            rdm(K * (K+1)/2 + L) += slaterovlp*slaterovlp;
+          }          
+        }
+
+      }
+
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &(Energytrans), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(denominatortrans), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(Energyvar), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(denominatorvar), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      
+      if (commrank == 0) {
+        cout << JAresidue(0)<<"  "<<Energytrans/denominatortrans<<"  "<<rdm(0)<<endl;
+        cout << Energytrans<<"  "<<denominatortrans <<endl;
+        cout << Energyvar<<"  "<<denominatorvar <<endl;
+        cout <<"trans energy "<< Energytrans/denominatortrans <<endl;
+        cout <<"var energy "<< Energyvar/denominatorvar <<endl;
+        JAresidue -= (Energytrans/denominatortrans) * rdm;
+        JAresidue /= denominatortrans;
+        //cout << "residue"<<endl;
+        //cout <<endl<< JAresidue <<endl<<endl;
+        cout << "residue norm: "<<JAresidue.norm() <<endl;
+      }
+
+      VectorXd residueJA(JA);
+      if (commrank == 0) cout << res.getJastrowResidue(JA, braVars, residueJA)<<"  "<<residueJA.norm()<<endl;
+      
+      double diffnorm = 0.0;
+      for (int i=0; i<2*norbs; i++) {
+        for (int j=0; j<=i; j++) {
+          cout <<i<<"  "<<j<<"  "<< JAresidue(i*(i+1)/2 + j) <<"  "<<residueJA(i * (i+1)/2 + j )<<endl; ;
+          diffnorm += pow(JAresidue(i*(i+1)/2 + j) - residueJA((i) * (i+1)/2 + j), 2 );
+        }
+      }
+      cout << diffnorm<<endl;
+      exit(0);
+    }
+    
+
+    //if (commrank == 0) cout <<endl<< "Combined optimization "<<endl;
+    //boost::function<double (const VectorXd&, VectorXd&)> totalGrad
+    //  = boost::bind(&GetResidual::getResidue, &res, _1, _2, true, true);
 
     /*
     if (commrank == 0) cout <<"variables"<<endl<< variables <<endl<<endl;
@@ -101,15 +285,15 @@ class getTranscorrelationWrapper
     if (commrank == 0) cout << residue.maxCoeff()<<"  "<<residue.minCoeff()<<endl;
     if (commrank == 0) cout << "norm "<<residue.norm()<<endl;
     exit(0);
-    */
-    
-    SGDwithDIIS(variables, totalGrad, 150, 1.e-6);
-    JA = variables.block(0,0,nJastrowVars,1);
-    braVars = variables.block(nJastrowVars,0,braVars.size(),1);
 
-    fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
-    fillWfnOrbs(w.getRef().HforbsA, braVars);
-    w.writeWave();
+    
+    //SGDwithDIIS(variables, totalGrad, 150, 1.e-6);
+    //JA = variables.block(0,0,nJastrowVars,1);
+    //braVars = variables.block(nJastrowVars,0,braVars.size(),1);
+
+    //fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+    //fillWfnOrbs(w.getRef().HforbsA, braVars);
+    //w.writeWave();
 
     /*
     //if (commrank == 0) cout << variables <<endl<<endl;
@@ -120,43 +304,11 @@ class getTranscorrelationWrapper
     if (commrank == 0) cout << residue.maxCoeff()<<"  "<<residue.minCoeff()<<endl;
     if (commrank == 0) cout << "norm "<<residue.norm()<<endl;
     exit(0);
-    */
+
     //NewtonMethod(variables, totalGrad);
     
-    //first optimize the jastrow
-    for (int i=0; i<4; i++)
-    {
-      JA = variables.block(0,0,nJastrowVars,1);
-      braVars = variables.block(nJastrowVars,0,braVars.size(),1);
 
-      if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
-      boost::function<double (const VectorXd&, VectorXd&)> OrbitalGrad
-          = boost::bind(&GetResidual::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
-      SGDwithDIIS(braVars, OrbitalGrad, 100, 1.e-6);
-
-      if (commrank == 0) cout << "Jastrow optimization "<<endl;
-      boost::function<double (const VectorXd&, VectorXd&)> JastrowGrad
-          = boost::bind(&GetResidual::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
-      //NewtonMethod(JA, JastrowGrad);
-      SGDwithDIIS(JA, JastrowGrad, 100, 1.e-6);
-
-      variables.block(0,0,nJastrowVars,1) = JA;
-      variables.block(nJastrowVars, 0, braVars.size(), 1) = braVars;
-
-    }
-    fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
-    fillWfnOrbs(w.getRef().HforbsA, braVars);
-    
-    w.writeWave();
-    return 1.0;
-  }
-
-
-};
-
-
-
-/* ADDITIONAL CODE USED IN THE PAST FOR TESTING
+  ADDITIONAL CODE USED IN THE PAST FOR TESTING
    I AM KEEPING IT AROUND IN CASE WE NEED TO USE IT AGAIN.
 
     /*

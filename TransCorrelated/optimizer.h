@@ -107,7 +107,7 @@ void SGDwithDIIS(
   
 
   Energy = func(params, residue);
-  norm = residue.norm();
+  norm = residue.stableNorm();
 
   if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
       %(norm) %(getTime()-startofCalc);
@@ -121,7 +121,7 @@ void SGDwithDIIS(
     iter++;
     
     Energy = func(params, residue);
-    norm = residue.norm();
+    norm = residue.stableNorm();
     
     if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
         %(norm) %(getTime()-startofCalc);
