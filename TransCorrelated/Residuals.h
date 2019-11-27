@@ -144,7 +144,8 @@ struct GetResidual {
                     MatrixXd& JastrowHessian,
                     bool getJastrowResidue = true,
                     bool getOrbitalResidue = true,
-                    bool getJastrowHessian = false);
+                    bool getJastrowHessian = false,
+                    bool doParallel = true);
 
   double getResidueSingleKet(
       double detovlp,
@@ -157,7 +158,8 @@ struct GetResidual {
       MatrixXd& JastrowHessian,
       bool getJastrowResidue = true,
       bool getOrbitalResidue = true,
-      bool getJastrowHessian = false) ;
+      bool getJastrowHessian = false,
+      bool doParallel = true) ;
 
   //get jastrow variables
   double getJastrowResidue(const VectorXd& jastrowVars,

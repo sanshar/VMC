@@ -24,22 +24,25 @@ void applyProjector(
   complex<double> iImag(0, 1.0);
 
   auto CoeffF =  [&, count](complex<double>&) mutable -> complex<double>
-      {return exp(- iImag * ((++count) - 1) * 2 * M_PI * m/ngrid)/ngrid;};
+      {return exp(- iImag * (((++count) - 1)/2) * 2 * M_PI * m/ngrid)/2/ngrid;};
 
   auto ketF =    [&, count](MatrixXcd&) mutable -> MatrixXcd
       { VectorXcd phi = VectorXcd::Ones(2*norbs);
         phi.segment(0,norbs)     *= exp(iImag * count * 2 * M_PI / ngrid /2.);
         phi.segment(norbs,norbs) *= exp(-iImag * count * 2 * M_PI / ngrid /2.);
         count ++;
-        return phi.asDiagonal()*bra;
+        MatrixXcd mat = phi.asDiagonal()*bra;
+        if (count%2 == 0) return mat;
+        else return mat.conjugate();
+        //return phi.asDiagonal()*bra;
       };
 
-  coeffs.resize(ngrid);
+  coeffs.resize(2*ngrid);
   std::transform(coeffs.begin(), coeffs.end(), coeffs.begin(),
                  CoeffF);
 
 
-  ketvec.resize(ngrid);
+  ketvec.resize(2*ngrid);
   std::transform(ketvec.begin(), ketvec.end(), ketvec.begin(),
                  ketF);
   
@@ -72,7 +75,8 @@ double GetResidual::getResidue(const VectorXd& variables,
                                MatrixXd& JastrowHessian,
                                bool getJastrowResidue,
                                bool getOrbitalResidue,
-                               bool getJastrowHessian) {
+                               bool getJastrowHessian,
+                               bool doParallel){
 
   int norbs  = Determinant::norbs;
   int nalpha = Determinant::nalpha;
@@ -102,10 +106,9 @@ double GetResidual::getResidue(const VectorXd& variables,
   VectorXd NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
   MatrixXcd mfRDM(2*norbs, 2*norbs);
   for (int g = 0; g<ket.size(); g++) {
-    S = bra.adjoint()*ket[g];
+    S = bra.adjoint()*ket[g] ;
     complex<double> Sdet = S.determinant();
     detovlp += (Sdet * coeffs[g]).real();
-    //if (commrank == 0) cout <<g<<"  "<<ket.size()<<"  "<< Sdet<<"  "<<coeffs[g]<<endl;
 
     if (getOrbitalResidue)
       orbitalGradEterm += Sdet * coeffs[g] * ket[g] * S.inverse();
@@ -113,7 +116,8 @@ double GetResidual::getResidue(const VectorXd& variables,
     if (getJastrowResidue) {
       mfRDM = ((ket[g] * S.inverse())*bra.adjoint());     
 
-      complex<double> factor = conj(Sdet * coeffs[g]);
+      //complex<double> factor = conj(Sdet * coeffs[g]);
+      complex<double> factor = Sdet *coeffs[g];
       auto ninjrdm = [&](const int& i, const int& j) {
         NiNjRDM(index(i, j)) +=  i == j ? (mfRDM(j, i)*factor).real()
         : ((mfRDM(j, j)*mfRDM(i, i) - mfRDM(i, j)*mfRDM(j, i))*factor).real();};
@@ -125,14 +129,14 @@ double GetResidual::getResidue(const VectorXd& variables,
   orbitalGradEterm /= detovlp;
   NiNjRDM /= detovlp;
 
-  if (commrank == 0) cout << detovlp <<endl;
   
+ 
   MatrixXcd braResidueMat = 0.*bra; braResidueMat.setZero();
   double Energy = getResidueSingleKet(
       detovlp,
       bra, ket, coeffs, braResidueMat,
       Jastrow, JastrowResidue, JastrowHessian,
-      getJastrowResidue, getOrbitalResidue, getJastrowHessian ) ;
+      getJastrowResidue, getOrbitalResidue, getJastrowHessian, doParallel ) ;
 
   
   if (getJastrowResidue)
@@ -155,7 +159,6 @@ double GetResidual::getResidue(const VectorXd& variables,
     
     
   }
-  
   residual.block(0, 0, nJastrowVars, 1) = JastrowResidue;
   residual.block(nJastrowVars, 0, braVarsResidue.size(), 1) = braVarsResidue;
   return Energy+coreE;
@@ -210,7 +213,8 @@ double GetResidual::getResidueSingleKet(
     MatrixXd& JastrowHessian,
     bool getJastrowResidue,
     bool getOrbitalResidue,
-    bool getJastrowHessian){
+    bool getJastrowHessian,
+    bool doParallel){
 
 
   size_t norbs  = Determinant::norbs;
@@ -229,7 +233,7 @@ double GetResidual::getResidueSingleKet(
   };
 
   //calculate the RDMs and energy
-  auto calcRDM = [&](const int& orb1, const int& orb2, const int& orb3, const int& orb4,
+  auto calculateRDM = [&](const int& orb1, const int& orb2, const int& orb3, const int& orb4,
                      const MatrixXcd& ket, const complex<double>& coeff, const double& integral) {
     factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, Jastrow);
     LambdaD = diagdes*ket;
@@ -276,7 +280,7 @@ double GetResidual::getResidueSingleKet(
 
     //perform 1e calcs
     auto run1eCode = [&] (const int& orb1, const int& orb2, const double& integral) {
-      calcRDM(orb1, orb2, -1, -1, ket, coeff, integral);
+      calculateRDM(orb1, orb2, -1, -1, ket, coeff, integral);
       Energy += rdm(orb2, orb1) * factor;
 
       if (getOrbitalResidue) {
@@ -291,14 +295,16 @@ double GetResidual::getResidueSingleKet(
       }
       
     };    
-    loopOver1epar(run1eCode);
-    //loopOver1e(run1eCode);
+    if (doParallel)
+      loopOver1epar(run1eCode);
+    else
+      loopOver1e(run1eCode);
 
 
     //perform 2e calcs
     auto run2eCode = [&] (const int& orb1, const int& orb2, const int& orb3,
                           const int &orb4, const double& integral) {
-      calcRDM(orb1, orb2, orb3, orb4, ket, coeff, integral);
+      calculateRDM(orb1, orb2, orb3, orb4, ket, coeff, integral);
       complex<double> Econtribution = (rdm(orb4, orb1) * rdm(orb3, orb2)
                                        - rdm(orb3, orb1) * rdm(orb4, orb2)) * factor;
       Energy += Econtribution ;
@@ -323,19 +329,23 @@ double GetResidual::getResidueSingleKet(
       
     };
     
-    loopOver2epar(run2eCode);
-    //loopOver2e(run2eCode);
+    if (doParallel)
+      loopOver2epar(run2eCode);
+    else
+      loopOver2e(run2eCode);
   }
   
 #ifndef SERIAL
-  size_t jsize = JastrowResidue.size();
-  MPI_Allreduce(MPI_IN_PLACE, &JastrowResidue(0), jsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-  size_t osize = 2*orbitalResidueMat.rows() * orbitalResidueMat.cols();
-  MPI_Allreduce(MPI_IN_PLACE, &orbitalResidueMat(0,0), osize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-  size_t two = 2;
-  MPI_Allreduce(MPI_IN_PLACE, &Energy, two, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  if (doParallel) {
+    size_t jsize = JastrowResidue.size();
+    MPI_Allreduce(MPI_IN_PLACE, &JastrowResidue(0), jsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    
+    size_t osize = 2*orbitalResidueMat.rows() * orbitalResidueMat.cols();
+    MPI_Allreduce(MPI_IN_PLACE, &orbitalResidueMat(0,0), osize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    
+    size_t two = 2;
+    MPI_Allreduce(MPI_IN_PLACE, &Energy, two, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  }
 #endif
 
   return Energy.real();
@@ -401,7 +411,8 @@ void fillJastrowfromWfn(MatrixXd& Jtmp, VectorXd& JA) {
   int norbs = Determinant::norbs;
 
   auto f = [&] (int i, int j) {
-    JA(index(i,j)) =  log(Jtmp(ABAB(i), ABAB(j)));
+    int I = ABAB(i), J = ABAB(j);
+    JA(index(i,j)) =  log(Jtmp(max(I,J), min(I,J)));
     JA(index(i,j)) /=  i==j ? 1.: 2.;
   };
   
@@ -413,8 +424,9 @@ void fillWfnfromJastrow(VectorXd& JA, MatrixXd& Jtmp) {
   int norbs = Determinant::norbs;
   
   auto f = [&] (int i, int j) {
-    Jtmp(ABAB(i), ABAB(j)) = i == j ? exp(JA(index(i,j))) : exp(2.*JA(index(i,j)));
-  };
+    int I = ABAB(i), J = ABAB(j);
+    Jtmp(max(I,J), min(I,J)) = i == j ? exp(JA(index(i,j))) : exp(2.*JA(index(i,j)));
+   };
   
   loopOverLowerTriangle(f);
   

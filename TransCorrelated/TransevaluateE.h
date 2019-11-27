@@ -68,6 +68,7 @@ void saveWave(VectorXd& variables, Wfn& w) {
   int nOrbitalVars = (2*norbs-nelec)*(nelec);
   VectorXd JA = variables.block(0,0,nJastrowVars,1);
   VectorXd braVars = variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1);
+
   fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
   MatrixXcd&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
   w.getRef().HforbsA.block(0,0,2*norbs, nelec) = bra;
@@ -99,8 +100,9 @@ class getTranscorrelationWrapper
 
     VectorXd JA(nJastrowVars);
     fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
+
     VectorXd braVars(2* nOrbitalVars); braVars.setZero();
-    int ngrid = 4; //FOR THE SZ PROJECTOR
+    int ngrid = 5; //FOR THE SZ PROJECTOR
 
     GetResidual res(w.getRef().HforbsA, ngrid);//calculates orbital, Jastrow Residue
 
@@ -116,22 +118,15 @@ class getTranscorrelationWrapper
     
     MatrixXd hess;
     boost::function<double (const VectorXd&, VectorXd&)> totalGrad
-        = boost::bind(&GetResidual::getResidue, &res, _1, _2, hess, true, true, false);
+        = boost::bind(&GetResidual::getResidue, &res, _1, _2, hess, true, true, false, true);
     variables.block(0,0,nJastrowVars,1) = JA;
     variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
-
-    {
-      VectorXd residuals = variables;
-      double E = totalGrad(variables, residuals);
-      if (commrank == 0) cout << E<<endl;
-      MPI_Barrier(MPI_COMM_WORLD);
-      exit(0);
-    }
 
     //concerted optimization
     if (true)
     {      
       SGDwithDIIS(variables, totalGrad, schd.maxIter, 1.e-6);
+      NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
       saveWave(variables, w);
     }
   
@@ -140,6 +135,8 @@ class getTranscorrelationWrapper
     
     //Levenberg Helper
     {
+      boost::function<double (const VectorXd&, VectorXd&)> totalGrad
+          = boost::bind(&GetResidual::getResidue, &res, _1, _2, hess, true, true, false, false);
       typedef totalGradWrapper<boost::function<double (const VectorXd&, VectorXd&)>> Wrapper;
       
       Wrapper wrapper(totalGrad, variables.rows(), variables.rows());
