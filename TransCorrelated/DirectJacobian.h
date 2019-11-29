@@ -53,6 +53,7 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> >
   typedef int StorageIndex;
   
   typedef Matrix<Scalar, Dynamic, 1> FVectorType;
+  typedef Matrix<Scalar, Dynamic, Dynamic> FMatrixType;
   enum {
     ColsAtCompileTime = Eigen::Dynamic,
     MaxColsAtCompileTime = Eigen::Dynamic,
@@ -60,7 +61,7 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> >
   };
   
   vector<int> colIndex;
-  vector<FVectorType> JacCols;
+  FMatrixType Jac;
   Functor& func;
   Scalar eps;
   FVectorType fvec;
@@ -90,24 +91,24 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> >
       FVectorType& fvec)
   {
     int n = x.size();
-    JacCols.resize(n, x); 
-
+    Jac.resize(n, n); 
+    FVectorType fvecTmp = fvec;
 
     /* computation of dense approximate jacobian. */
     for (int j = 0; j < n; ++j) {
-      colIndex.push_back(j);
-      
+
+
       Scalar temp = x[j];
       Scalar h = eps * abs(temp);
       if (h == 0.)
         h = eps;
       x[j] = temp + h;
-      int iflag = func(x, JacCols[j]);
-      if (iflag < 0)
-        return iflag;
+      fvecTmp.setZero();
+      func(x, fvecTmp);
+
       x[j] = temp;
-      JacCols[j] -= fvec;
-      JacCols[j] /= h;
+      Jac.col(j) = (fvecTmp - fvec)/h;
+      //Jac(j,j) += 1.e-5;
     }
     return 0;
   }
@@ -144,9 +145,20 @@ struct generic_product_impl<DirectJacobian<T,F>, Rhs, SparseShape, DenseShape, G
   {
     double eps = std::sqrt(1 + lhs.xvec.norm())*1.5e-6/ rhs.norm();
     typename DirectJacobian<T,F>::FVectorType xplusu = lhs.xvec + eps * rhs;
-    lhs.func(xplusu, dst);
-    dst = (dst - lhs.fvec)/eps;
+    Dest dsttmp = dst; dsttmp.setZero();
+    lhs.func(xplusu, dsttmp);
+    dst.noalias() += alpha*(dsttmp - lhs.fvec)/eps + 1.e-5*rhs;
 
+
+    //if (commrank == 0) cout << eps <<endl;
+    /*
+    typename DirectJacobian<T,F>::FVectorType xplusu = lhs.xvec + eps * rhs;
+    typename DirectJacobian<T,F>::FVectorType xminusu = lhs.xvec - eps * rhs;
+    Dest dstm = dst;
+    lhs.func(xplusu, dst);
+    lhs.func(xminusu, dstm);
+    dst = (dst - dstm)/2./eps;// + 1.e-7*rhs;
+    */
     //for(Index i=0; i<lhs.cols(); ++i)
     //dst += rhs(i) * lhs.JacCols[i];
   }

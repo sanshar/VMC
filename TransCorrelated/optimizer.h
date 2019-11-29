@@ -27,29 +27,27 @@
 #include "diis.h"
 #include <boost/format.hpp>
 #include <unsupported/Eigen/IterativeSolvers>
+#include <Eigen/QR>
 
 using namespace Eigen;
 using namespace std;
 using namespace boost;
 
-
+/*
 template<typename Functor>
 void NewtonMethod(
     VectorXd& params,
     Functor& func,
     int maxIter = 50,
-    double targetTol = 1.e-5) {
+    T targetTol = 1.e-5,
+    bool print = true) {
 
-  double Energy, norm;
+  T Energy, norm;
   int iter = 0;
   VectorXd residue(params.size());
   DIIS diis(8, params.size());
 
-  DirectJacobian<double, Functor> J(func);
-  Eigen::GMRES<DirectJacobian<double, Functor>, Eigen::IdentityPreconditioner> gmres;
-  gmres.compute(J);
-  gmres.setTolerance(1.e-3);
-  gmres.setMaxIterations(100);
+  DirectJacobian<T, Functor> J(func);
   Energy = func(params, residue);
   norm = residue.norm();
   
@@ -58,21 +56,41 @@ void NewtonMethod(
 
   //various step sizes
   VectorXd testRes = residue, testParams = params; 
-  vector<double> testSteps = {0.001, 0.01, 0.1, 0.5, 1}; 
+  vector<T> testSteps = {0.1, 0.5, 1}; 
 
   while(norm > targetTol && iter < maxIter) {      
-    J.setFvec(params, residue);
+    //J.setFvec(params, residue);
+    J.PopulateJacobian(params, residue);
 
     residue *=-1.;
-    VectorXd x = gmres.solve(residue);
+    //VectorXd x = gmres.solve(residue);
+    int n = J.Jac.rows();
+
+    MatrixXd A = J.Jac.transpose()*J.Jac;
+    VectorXd b = J.Jac.transpose()*residue;
+    /*
+    for (int i=0; i<A.rows(); i++) A(i,i) += 1.e-6*A(i,i);
+    VectorXd x = A.fullPivLu().solve(b);
+    
+
+    Eigen::SelfAdjointEigenSolver<MatrixXd> eig(A);
+    Eigen::DiagonalMatrix<T, Eigen::Dynamic> diag(residue.rows());
+    for (int i=0; i<residue.rows(); i++) {
+      if (abs(eig.eigenvalues()[i]) > 1.e-6)
+        diag.diagonal()[i] = 1./eig.eigenvalues()[i];
+      else
+        diag.diagonal()[i] = eig.eigenvalues()[i];
+    }
+    Eigen::MatrixXd pinv = eig.eigenvectors()*diag*eig.eigenvectors().transpose();
+    VectorXd x = pinv * b;
 
 
-    double testStep = 1.0, testNorm = 1.e20;
+    T testStep = 1.0, testNorm = 1.e20;
     for (int i=0; i<testSteps.size(); i++)
     {
       testParams = params + testSteps[i]*x;
       func(testParams, testRes);
-      double testResNorm = testRes.norm();
+      T testResNorm = testRes.norm();
       if (testResNorm < testNorm) {
         testNorm = testResNorm;
         testStep = testSteps[i];
@@ -80,79 +98,144 @@ void NewtonMethod(
     }
     
     params += testStep*x;
-    diis.update(params, residue);
+    //diis.update(params, residue);
     iter++;
 
+    
     Energy = func(params, residue);
     norm = residue.norm();
     
-    if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.6f \n") %(iter) %(Energy)
-        %(residue.norm()) %(testStep) %(getTime()-startofCalc);
+    if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.6f \n") %(iter) %(Energy) %(residue.norm()) %(testStep) %(getTime()-startofCalc);
+    //exit(0);
+  }
+}
+*/
+
+template<typename Functor, typename T>
+void NewtonMethod(
+    Matrix<T, Dynamic, 1>& params,
+    Functor& func,
+    int maxIter = 50,
+    T targetTol = 1.e-5,
+    bool print = true) {
+
+  T Energy, norm;
+  int iter = 0;
+  Matrix<T, Dynamic, 1> residue(params.size());
+  DIIS<T> diis(8, params.size());
+
+  DirectJacobian<T, Functor> J(func);
+  Eigen::DGMRES<DirectJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
+  //Eigen::BiCGSTAB<DirectJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
+  //Eigen::GMRES<DirectJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
+  gmres.compute(J);
+  gmres.setTolerance(1.e-6);
+  gmres.setMaxIterations(100);
+  Energy = func(params, residue);
+  norm = residue.norm();
+  
+  if (commrank == 0 && print ) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+      %(residue.norm()) %(getTime()-startofCalc);
+
+  //various step sizes
+  Matrix<T, Dynamic, 1> testRes = residue, testParams = params; 
+  vector<T> testSteps = {0.001, 0.01, 0.1, 0.5, 1}; 
+
+  while(norm > targetTol && iter < maxIter) {      
+    J.setFvec(params, residue);
+
+    residue *=-1.;
+    Matrix<T, Dynamic, 1> x = gmres.solve(residue);
+
+    Matrix<T, Dynamic, 1> error = J*x - residue;
+    if (commrank == 0) cout << error.stableNorm()<<"  "<<error.stableNorm()/residue.stableNorm()<<endl;
+
+    T testStep = 1.0, testNorm = 1.e20;
+    for (int i=0; i<testSteps.size(); i++)
+    {
+      testParams = params + testSteps[i]*x;
+      func(testParams, testRes);
+      T testResNorm = testRes.norm();
+      if (testResNorm < testNorm) {
+        testNorm = testResNorm;
+        testStep = testSteps[i];
+      }
+    }
+    
+    params += testStep*x;
+    //diis.update(params, residue);
+    iter++;
+
+    
+    Energy = func(params, residue);
+    norm = residue.norm();
+    
+    if (commrank == 0 && print) std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.4e %5i %6.6f \n") %(iter) %(Energy) %(residue.norm()) %(testStep) %(gmres.error()) %(gmres.iterations()) %(getTime()-startofCalc);
   }
 }
 
 
-template <typename Functor>
+template <typename Functor, typename T>
 void SGDwithDIIS(
-    VectorXd& params,
+    Matrix<T, Dynamic, 1>& params,
     Functor& func,
     int maxIter = 50,
-    double targetTol = 1.e-3) {
+    double targetTol = 1.e-3,
+    bool print = true) {
 
-  double Energy, norm=10.;
+  T Energy, norm=10.;
   int iter = 0;
-  VectorXd residue(params.size()); residue.setZero();
+  Matrix<T, Dynamic, 1> residue(params.size()); residue.setZero();
 
-  DIIS diis(8, params.size());
+  DIIS<T> diis(8, params.size());
   
 
   Energy = func(params, residue);
   norm = residue.stableNorm();
 
-  if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+  if (commrank == 0 && print) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
       %(norm) %(getTime()-startofCalc);
-  
+
+  T eps = 0.01;
   while(norm > targetTol && iter < maxIter) {      
-
-    params -=  0.01*residue;
+    params +=  eps*residue;
     diis.update(params, residue);
-
 
     iter++;
     
     Energy = func(params, residue);
     norm = residue.stableNorm();
-    
-    if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
+
+    if (commrank == 0 && print) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
         %(norm) %(getTime()-startofCalc);
   }
 }
 
 
 
-template <typename Functor>
-VectorXd HybridKrylovDogLegMethod (
-    VectorXd& params,
+template <typename Functor, typename T>
+Matrix<T, Dynamic, 1> HybridKrylovDogLegMethod (
+    Matrix<T, Dynamic, 1>& params,
     Functor& getRes) {
 
-  VectorXd x(params.size()); x.setZero();
+  Matrix<T, Dynamic, 1> x(params.size()); x.setZero();
 
   //acts like a matrix that multiplies a vector with approximate Jacobian
-  DirectJacobian<double> J(getRes);
+  DirectJacobian<T> J(getRes);
 
-  VectorXd r(params.size()); r.setZero();  
+  Matrix<T, Dynamic, 1> r(params.size()); r.setZero();  
   getRes(params, r);
 
   J.setFvec(params, r);
 
-  double beta = r.norm();
+  T beta = r.norm();
       
   //first construct the Krylov vectors
   int maxNumVec = 10;
-  vector<VectorXd> Vm(1,r);
+  vector<Matrix<T, Dynamic, 1>> Vm(1,r);
   MatrixXd Hessen(maxNumVec+1, maxNumVec); Hessen.setZero();
 
-  double targetError = 1.e-3;
+  T targetError = 1.e-3;
   int iter = 1; 
   while (true) {
     int j = Vm.size();
@@ -160,7 +243,7 @@ VectorXd HybridKrylovDogLegMethod (
     cout << "before arnoldi"<<endl;
 
     //arnoldi step
-    VectorXd Jvj = J* Vm[j-1];
+    Matrix<T, Dynamic, 1> Jvj = J* Vm[j-1];
     //cout << Vm[0].size()<<"  "<<Jvj.size()<<endl;
 
     //gram schmidt orthogonalization
@@ -174,13 +257,13 @@ VectorXd HybridKrylovDogLegMethod (
 
     
     //cout << "solve least square"<<endl;
-    VectorXd e(j+1); e.setZero(); e(0) = 1.;
+    Matrix<T, Dynamic, 1> e(j+1); e.setZero(); e(0) = 1.;
     auto HessenBlock = Hessen.block(0,0, j+1, j);
-    VectorXd ym = (HessenBlock.transpose()*HessenBlock).inverse()*(HessenBlock.transpose()*e);
+    Matrix<T, Dynamic, 1> ym = (HessenBlock.transpose()*HessenBlock).inverse()*(HessenBlock.transpose()*e);
 
     //cout << "calc error"<<endl;
     //cout << Hessen.rows()<<"  "<<Hessen.cols()<<"  "<<ym.size()<<"  "<<e.size()<<endl;
-    double error = (HessenBlock*ym - e).norm();
+    T error = (HessenBlock*ym - e).norm();
     cout<< HessenBlock <<endl;
     cout << error <<"  "<<iter<<"  "<<maxNumVec<<"  "<<beta<<endl;
     iter++;

@@ -1,38 +1,38 @@
 #include "calcRDM.h"
 
-complex<double> calcRDM::getRDM(int a, int b, MatrixXcd& rdm) {
+complex<T> calcRDM::getRDM(int a, int b, MatrixXcT& rdm) {
   return rdm(b, a);
 }
 
-complex<double> calcRDM::getRDM(int a, int b, int c, int d, MatrixXcd& rdm){
+complex<T> calcRDM::getRDM(int a, int b, int c, int d, MatrixXcT& rdm){
   rows[0] = d; rows[1] = c;
   cols[0] = a; cols[1] = b;
   Slice(rdm, rows, cols, rdmval2);
   return rdmval2.determinant();
 }
 
-complex<double> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, MatrixXcd& rdm){
+complex<T> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, MatrixXcT& rdm){
   rows[0] = f; rows[1] = e; rows[2] = d;
   cols[0] = a; cols[1] = b; cols[2] = c;
   Slice(rdm, rows, cols, rdmval3);
   return rdmval3.determinant();
 }
 
-complex<double> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, int g, int h, MatrixXcd& rdm){
+complex<T> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, int g, int h, MatrixXcT& rdm){
   rows[0] = h; rows[1] = g; rows[2] = f; rows[3] = e;
   cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; 
   Slice(rdm, rows, cols, rdmval4);
   return rdmval4.determinant();
 }
 
-complex<double> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, MatrixXcd& rdm){
+complex<T> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, MatrixXcT& rdm){
   rows[0] = j; rows[1] = i; rows[2] = h; rows[3] = g; rows[4] = f;
   cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; cols[4] = e; 
   Slice(rdm, rows, cols, rdmval5);
   return rdmval5.determinant();
 }
 
-complex<double> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int k, int l, MatrixXcd& rdm){
+complex<T> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int k, int l, MatrixXcT& rdm){
   rows[0] = l; rows[1] = k; rows[2] = j; rows[3] = i; rows[4] = h; rows[5] = g;
   cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; cols[4] = e; cols[5] = f;
   Slice(rdm, rows, cols, rdmval6);
@@ -40,8 +40,8 @@ complex<double> calcRDM::getRDM(int a, int b, int c, int d, int e, int f, int g,
 }
 
 //computer generated
-complex<double> calcRDM::calcTerm1(int P, int Q, int I, int K, MatrixXcd& rdm) {
-  complex<double> contribution = 0;
+complex<T> calcRDM::calcTerm1(int P, int Q, int I, int K, MatrixXcT& rdm) {
+  complex<T> contribution = 0;
   if (P == Q && Q == I)
     contribution = 1.0*getRDM(P,K, rdm );
 
@@ -59,10 +59,10 @@ complex<double> calcRDM::calcTerm1(int P, int Q, int I, int K, MatrixXcd& rdm) {
   return contribution;
 }
 
-complex<double> calcRDM::calcTerm1(int P, int Q, int I, int J, int K, int L, MatrixXcd& rdm) {
+complex<T> calcRDM::calcTerm1(int P, int Q, int I, int J, int K, int L, MatrixXcT& rdm) {
   if (K == -1 && L == -1)
     return calcTerm1(P, Q, I, J, rdm);
-  complex<double> contribution = 0;
+  complex<T> contribution = 0;
   
   if (P == J && Q == I)
     contribution = -1.0*getRDM(P,Q,K,L, rdm );
@@ -98,8 +98,8 @@ complex<double> calcRDM::calcTerm1(int P, int Q, int I, int J, int K, int L, Mat
 }
 
 
-complex<double> calcRDM::calcTerm2(int P, int Q, int I, int K, int R, int S, MatrixXcd& rdm) {
-  complex<double> contribution = 0;
+complex<T> calcRDM::calcTerm2(int P, int Q, int I, int K, int R, int S, MatrixXcT& rdm) {
+  complex<T> contribution = 0;
   
   if (P == Q && Q == I && K == R && R == S)
     contribution = 1.0*getRDM(P,S, rdm );
@@ -262,10 +262,10 @@ complex<double> calcRDM::calcTerm2(int P, int Q, int I, int K, int R, int S, Mat
 }
 
 
-complex<double> calcRDM::calcTerm2(int P, int Q, int I, int J, int K, int L, int R, int S, MatrixXcd& rdm){
+complex<T> calcRDM::calcTerm2(int P, int Q, int I, int J, int K, int L, int R, int S, MatrixXcT& rdm){
   if (K == -1 && L == -1)
     calcTerm2(P, Q, I, J, R, S, rdm);
-  complex<double> contribution = 0.0;
+  complex<T> contribution = 0.0;
   if (P == J && Q == I && L == R && R == S)
     contribution = -1.0*getRDM(P,Q,K,S, rdm );
 

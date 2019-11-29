@@ -34,6 +34,7 @@
 #include "DirectJacobian.h"
 #include "Residuals.h"
 #include "CorrelatedWavefunction.h"
+#include "Complex.h"
 
 #include "LevenbergHelper.h"
 #include <unsupported/Eigen/NumericalDiff>
@@ -89,60 +90,159 @@ class getTranscorrelationWrapper
 
   double optimizeWavefunction()
   {
+    using T = stan::math::var;
+    //using T = double;
+    using complexT = Complex<T>;
+    using MatrixXcT = Matrix<complexT, Dynamic, Dynamic>;
+    using VectorXcT = Matrix<complexT, Dynamic, 1>;
+    using MatrixXT = Matrix<T, Dynamic, Dynamic>;
+    using VectorXT = Matrix<T, Dynamic, 1>;
+    
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
     int nbeta = Determinant::nbeta;
     int nelec = nalpha + nbeta;
     
-    int nJastrowVars = 2*norbs*(2*norbs+1)/2;
+    vector<pair<int, int>> NonRedundantMap;
+    ConstructRedundantJastrowMap(NonRedundantMap);
+    int nJastrowVars = NonRedundantMap.size(); //4k redundancies
     int nOrbitalVars = (2*norbs-nelec)*(nelec);
-    VectorXd variables(nJastrowVars + 2*nOrbitalVars);
+    VectorXT variables(nJastrowVars + 2*nOrbitalVars);
 
-    VectorXd JA(nJastrowVars);
+    VectorXT JA(2*norbs*(2*norbs+1)/2); JA = 0.1*VectorXT::Random(2*norbs*(2*norbs+1)/2);
+    VectorXT JRed(2*norbs*(2*norbs+1)/2 - nJastrowVars), JnonRed(nJastrowVars);
+    
     fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
-
-    VectorXd braVars(2* nOrbitalVars); braVars.setZero();
+    RedundantAndNonRedundantJastrow(JA, JRed, JnonRed, NonRedundantMap);
+    
+    VectorXT braVars(2* nOrbitalVars); braVars.setZero();
     int ngrid = 5; //FOR THE SZ PROJECTOR
 
-    GetResidual res(w.getRef().HforbsA, ngrid);//calculates orbital, Jastrow Residue
-
-    //first optimize orbitals
-    /*
-    {
-      if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
-      boost::function<double (const VectorXd&, VectorXd&)> OrbitalGrad
-          = boost::bind(&GetResidual::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
-      SGDwithDIIS(braVars, OrbitalGrad, 100, 1.e-6);
-    }
-    */
+    MatrixXcT hforbs(2*norbs, 2*norbs);
+    for(int i=0; i<2*norbs; i++)
+      for (int j=0; j<2*norbs; j++)
+        hforbs(i,j) = complexT(w.getRef().HforbsA(i,j).real(), w.getRef().HforbsA(i,j).imag());
     
-    MatrixXd hess;
-    boost::function<double (const VectorXd&, VectorXd&)> totalGrad
-        = boost::bind(&GetResidual::getResidue, &res, _1, _2, hess, true, true, false, true);
-    variables.block(0,0,nJastrowVars,1) = JA;
-    variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+    //calculates orbital, Jastrow Residue
+    GetResidual<T, complexT> res(hforbs, JRed, NonRedundantMap, ngrid);
+
+    if (false)
+    {
+      MatrixXT hess;
+      boost::function<T (const VectorXT&, VectorXT&)> totalGrad
+          = boost::bind(&GetResidual<T, complexT>::getResidue, &res, _1, _2, hess, true, true, false, true);
+      variables.block(0,0,nJastrowVars,1) = JnonRed;
+      variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+      
+      SGDwithDIIS(variables, totalGrad, 100, 5.e-4);
+    }
+
+    {
+      MatrixXT hess;
+      boost::function<T (const VectorXT&)> totalGrad
+          = boost::bind(&GetResidual<T, complexT>::getVariance, &res, _1, true, true, false);
+      variables.block(0,0,nJastrowVars,1) = JnonRed;
+      variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+
+      T variance = totalGrad(variables);
+      cout << variance<<endl<<endl;
+      variance.grad();
+      //for (int i=0; i<variables.size(); i++)
+      //cout << variables[i].adj()<<endl;
+
+      //finite difference
+      
+      {
+        VectorXd JredD(JRed.rows());
+        for (int i=0; i<JredD.rows(); i++)
+          JredD[i] = JRed[i].val();
+        GetResidual<double, complex<double>> resD(w.getRef().HforbsA, JredD, NonRedundantMap, ngrid);
+        boost::function<double (const VectorXd&)> totalGrad
+            = boost::bind(&GetResidual<double, complex<double>>::getVariance, &resD, _1, true, true, false);
+        VectorXd variableD(variables.size());
+        for (int i=0; i<variables.size(); i++)
+          variableD[i] = variables[i].val();
+        //variables.block(0,0,nJastrowVars,1) = JnonRed;
+        //variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+
+        double varD =  totalGrad(variableD);
+        cout << varD<<endl;
+        double eps = 1.e-6;
+        for (int i=0; i<variables.size(); i++) {
+          variableD[i] += eps;
+          cout << variables[i].adj()<<"  "<<(totalGrad(variableD) - varD)/eps<<endl;
+          variableD[i] -= eps;
+        }
+      }
+      //cout << variance.grad()<<endl;
+      exit(0);
+      //SGDwithDIIS(variables, totalGrad, 100, 5.e-4);
+    }
+      
+    //NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
+    /*
+    DIIS<T> diis(8, variables.size());
+    VectorXT Jcopy = JnonRed;
+    VectorXT braCopy = braVars;
+    VectorXT residue = variables;
+    for (int i=0; i<8; i++)
+    {
+      //if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
+      boost::function<T (const VectorXT&, VectorXT&)> OrbitalGrad
+          = boost::bind(&GetResidual<T, complexT>::getOrbitalResidue, &res, boost::ref(Jcopy), _1, _2);
+      //NewtonMethod(braVars, OrbitalGrad, schd.maxIter, 5.e-4, false);
+      SGDwithDIIS(braVars, OrbitalGrad, 100, 1.e-6);
+
+      //if (commrank == 0) cout << "Jastrow optimization "<<endl;
+      boost::function<T (const VectorXT&, VectorXT&)> JastrowGrad
+          = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braCopy), _2);
+      NewtonMethod(JnonRed, JastrowGrad, schd.maxIter, 5.e-4, false);
+      //SGDwithDIIS(JnonRed, JastrowGrad, schd.maxIter, 1.e-6);
+
+      //fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+      //MatrixXcT&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
+      //w.getRef().HforbsA.block(0,0,2*norbs, nelec) = bra;
+      //w.writeWave();
+
+      residue.block(0,0,nJastrowVars,1) = JnonRed - Jcopy;
+      residue.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars - braCopy;
+
+      variables.block(0,0,nJastrowVars,1) = JnonRed;
+      variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+
+      diis.update(variables, residue);
+      T E = totalGrad(variables, residue);
+      if (commrank == 0) cout << i<<"  "<<E<<"  "<<residue.norm()<<endl;
+      
+      JnonRed= variables.block(0,0,nJastrowVars,1) ;
+      braVars = variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) ;
+
+      Jcopy = JnonRed;
+      braCopy = braVars;
+            
+    }
 
     //concerted optimization
     if (true)
     {      
-      SGDwithDIIS(variables, totalGrad, schd.maxIter, 1.e-6);
-      NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
-      saveWave(variables, w);
+      SGDwithDIIS(variables, totalGrad, schd.maxIter, 5.e-4);
+      NewtonMethod(variables, totalGrad, schd.maxIter, 5.e-4);
+      //saveWave(variables, w);
     }
   
     MPI_Barrier(MPI_COMM_WORLD);
     exit(0);
-    
+
     //Levenberg Helper
     {
-      boost::function<double (const VectorXd&, VectorXd&)> totalGrad
-          = boost::bind(&GetResidual::getResidue, &res, _1, _2, hess, true, true, false, false);
-      typedef totalGradWrapper<boost::function<double (const VectorXd&, VectorXd&)>> Wrapper;
+      boost::function<T (const VectorXT&, VectorXT&)> totalGrad
+          = boost::bind(&GetResidual<T,complexT>::getResidue, &res, _1, _2, hess, true, true, false, false);
+      typedef totalGradWrapper<boost::function<T (const VectorXT&, VectorXT&)>> Wrapper;
       
       Wrapper wrapper(totalGrad, variables.rows(), variables.rows());
 
       {
-        VectorXd residuals = variables;
+        VectorXT residuals = variables;
         if (commrank == 0) cout << totalGrad(variables, residuals)<<endl;
       }
       
@@ -150,37 +250,39 @@ class getTranscorrelationWrapper
       LevenbergMarquardt<Eigen::NumericalDiff<Wrapper>> LM(numDiff);
       int ret = LM.minimize(variables);
 
-      VectorXd residuals = variables;
+      VectorXT residuals = variables;
       if (commrank == 0) {
         std::cout << ret <<endl;
         cout<< LM.iter<<endl;
         std::cout << "Energy at minimum: " << totalGrad(variables, residuals) << std::endl;
         std::cout << "Residue at minimum: " << residuals.norm() << std::endl;
-        saveWave(variables, w);
+        //saveWave(variables, w);
       }
       MPI_Barrier(MPI_COMM_WORLD);
     }
     exit(0);
+    /*
     //first optimize the jastrow
     for (int i=0; i<8; i++)
     {
 
       if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
-      boost::function<double (const VectorXd&, VectorXd&)> OrbitalGrad
-          = boost::bind(&GetResidual::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
+      boost::function<T (const VectorXT&, VectorXT&)> OrbitalGrad
+          = boost::bind(&GetResidual<T,complexT>::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
       SGDwithDIIS(braVars, OrbitalGrad, 50, 1.e-6);
 
       if (commrank == 0) cout << "Jastrow optimization "<<endl;
-      boost::function<double (const VectorXd&, VectorXd&)> JastrowGrad
-          = boost::bind(&GetResidual::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
+      boost::function<T (const VectorXT&, VectorXT&)> JastrowGrad
+          = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
       SGDwithDIIS(JA, JastrowGrad, 50, 1.e-6);
 
       
       fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
-      MatrixXcd&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
+      MatrixXcT&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
       w.getRef().HforbsA.block(0,0,2*norbs, nelec) = bra;
       w.writeWave();
     }
+    */
     return 1.0;
   }
 
@@ -195,7 +297,7 @@ class getTranscorrelationWrapper
       //using Walker = walker<Jastrow, Slater>;
       VectorXd JAresidue(2*norbs*(2*norbs+1)/2); JAresidue.setZero();
       VectorXd rdm(2*norbs*(2*norbs+1)/2); rdm.setZero();
-      MatrixXd Onerdm(2*norbs,2*norbs); Onerdm.setZero();
+      MatrixXT Onerdm(2*norbs,2*norbs); Onerdm.setZero();
 
       Walker<Jastrow, Slater> walk;
       std::vector<Determinant> allDets;
