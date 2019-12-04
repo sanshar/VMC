@@ -218,6 +218,7 @@ void readInput(string input, schedule& schd, bool print) {
             schd.stepsizes = {0.1, 0.01, 1.0};
             schd.sgdIter = 1;
             schd.CorrSampleFrac = 0.35;
+            schd.sDiagShift = 0.0;
           }
           else if (boost::iequals(ArgName, "cgTol"))
             schd.cgTol = atof(tok[1].c_str());
