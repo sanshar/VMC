@@ -161,21 +161,30 @@ struct rCorrelatedWavefunction {
   }
 
 
-  double getOverlapFactor(int i, Vector3d& coord, const rWalker<Corr, Reference>& walk) const
+  double getOverlapFactor(int i, Vector3d& coord, rWalker<Corr, Reference>& walk) const 
   {
     return walk.corrHelper.OverlapRatio(i, coord, corr, walk.d) * walk.refHelper.getDetFactor(i, coord, walk.d, ref);
   }
 
   //<psi_t| (H-E0) |D>
   //This function is used with orbital basis
-  double rHam(const rWalker<Corr, Reference> &walk) const
+  double rHam(rWalker<Corr, Reference> &walk) const
   {
     cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
     exit(0);
     return 0;
   }
   
-  double HamOverlap(const rWalker<rJastrow, rSlater>& walk,
+  double HamOverlap(rWalker<rJastrow, rSlater>& walk,
+                  Eigen::VectorXd &gradRatio,
+                  Eigen::VectorXd &hamRatio) const
+  {
+    cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
+    exit(0);
+    return 0;
+  }
+  
+  double HamOverlap(rWalker<rJastrow, rBFSlater>& walk,
                   Eigen::VectorXd &gradRatio,
                   Eigen::VectorXd &hamRatio) const
   {
@@ -197,15 +206,26 @@ struct rCorrelatedWavefunction {
 
 
 template<>
-double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(const rWalker<rJastrow, rSlater>& walk) const;
+double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlater>& walk) const;
 
 template<>
-double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(const rWalker<rJastrow, rSlater>& walk,
+double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, rSlater>& walk,
                                                               Eigen::VectorXd& gradRatio,
                                                               Eigen::VectorXd& hamRatio) const;
 
 template<>
 void rCorrelatedWavefunction<rJastrow, rSlater>::enforceCusp();
 
+template<>
+double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFSlater>& walk) const;
+
+template<>
+double rCorrelatedWavefunction<rJastrow, rBFSlater>::HamOverlap(rWalker<rJastrow, rBFSlater>& walk,
+                                                              Eigen::VectorXd& gradRatio,
+                                                              Eigen::VectorXd& hamRatio) const;
+
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rBFSlater>::enforceCusp();
 
 #endif

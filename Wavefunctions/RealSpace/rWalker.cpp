@@ -733,6 +733,255 @@ void rWalker<rJastrow, rSlater>::getSphericalStep(Vector3d& coord, int elecI, do
     
 }
 
+//*******************Backflow slater**********************
+rWalker<rJastrow, rBFSlater>::rWalker() {
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double>(.0,1.0); //0 mean and 1 stddev  
+}
+
+rWalker<rJastrow, rBFSlater>::rWalker(const rJastrow &corr, const rBFSlater &ref) 
+{
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double> (.0,1.0); //0 mean and 1 stddev  
+
+  initDet(ref.getHforbsA(), ref.getHforbsB());
+
+  initR();
+  initHelpers(corr, ref);
+}
+
+rWalker<rJastrow, rBFSlater>::rWalker(const rJastrow &corr, const rBFSlater &ref, const rDeterminant &pd) : d(pd)
+{
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double> (.0,1.0); //0 mean and 1 stddev  
+  initR();
+  initHelpers(corr, ref);
+}
+
+void rWalker<rJastrow, rBFSlater>::initHelpers(const rJastrow &corr, const rBFSlater &ref)  {
+  refHelper = rWalkerHelper<rBFSlater>(ref, d, Rij, RiN);
+  corrHelper = rWalkerHelper<rJastrow>(corr, d, Rij, RiN);
+}
+
+void rWalker<rJastrow, rBFSlater>::initR() {
+  Rij = MatrixXd::Zero(d.nelec, d.nelec);
+  for (int i=0; i<d.nelec; i++)
+    for (int j=0; j<i; j++) {
+      double rij = pow( pow(d.coord[i][0] - d.coord[j][0], 2) +
+                        pow(d.coord[i][1] - d.coord[j][1], 2) +
+                        pow(d.coord[i][2] - d.coord[j][2], 2), 0.5);
+
+      Rij(i,j) = rij;
+      Rij(j,i) = rij;        
+    }
+
+  RiN = MatrixXd::Zero(d.nelec, schd.Ncoords.size());
+  for (int i=0; i<d.nelec; i++)
+    for (int j=0; j<schd.Ncoords.size(); j++) {
+      double rij = pow( pow(d.coord[i][0] - schd.Ncoords[j][0], 2) +
+                        pow(d.coord[i][1] - schd.Ncoords[j][1], 2) +
+                        pow(d.coord[i][2] - schd.Ncoords[j][2], 2), 0.5);
+
+      RiN(i,j) = rij;
+    }
+
+  RNM = MatrixXd::Zero(schd.Ncoords.size(), schd.Ncoords.size());
+  for (int i=0; i<schd.Ncoords.size(); i++) {
+    for (int j=i+1; j<schd.Ncoords.size(); j++) {
+      double rij = pow( pow(schd.Ncoords[i][0] - schd.Ncoords[j][0], 2) +
+                        pow(schd.Ncoords[i][1] - schd.Ncoords[j][1], 2) +
+                        pow(schd.Ncoords[i][2] - schd.Ncoords[j][2], 2), 0.5);
+      
+      RNM(i,j) = rij;
+      RNM(j,i) = rij;
+    }
+  }
+}
 
 
+rDeterminant& rWalker<rJastrow, rBFSlater>::getDet() {return d;}
+void rWalker<rJastrow, rBFSlater>::readBestDeterminant(rDeterminant& d) const 
+{
+  if (commrank == 0) {
+    char file[5000];
+    sprintf(file, "BestCoordinates.txt");
+    std::ifstream ifs(file, std::ios::binary);
+    boost::archive::binary_iarchive load(ifs);
+    load >> d;
+  }
+#ifndef SERIAL
+  boost::mpi::communicator world;
+  mpi::broadcast(world, d, 0);
+#endif
+}
 
+
+double rWalker<rJastrow, rBFSlater>::getDetOverlap(const rBFSlater &ref) const
+{
+  return (refHelper.thetaDet).real();
+}
+
+/**
+ * makes det based on mo coeffs 
+ */
+void rWalker<rJastrow, rBFSlater>::guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXcd& HforbsA, const Eigen::MatrixXcd& HforbsB) const 
+{
+  auto random = std::bind(std::normal_distribution<double>(0.0, 1.0), std::ref(generator));
+  int norbs = schd.basis->getNorbs();
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = nalpha+nbeta;
+  int i = 0;
+  while (i < nelec)
+  {
+      for (int I = 0; I < schd.Ncharge.size(); I++)
+      {
+          for (int n = 0; n < schd.Ncharge[I]; n++)
+          {
+              Vector3d r(random(), random(), random());
+              int index = i / 2;
+              if (i % 2 == 0) //alpha electron
+                  d.coord[index] = schd.Ncoords[I] + r;
+              else //beta electron
+                  d.coord[index + nalpha] = schd.Ncoords[I] + r;
+              i++;
+          }
+      }
+  }
+}
+
+void rWalker<rJastrow, rBFSlater>::initDet(const MatrixXcd& HforbsA, const MatrixXcd& HforbsB) 
+{
+  bool readDeterminant = false;
+  char file[5000];
+  sprintf(file, "BestCoordinates.txt");
+  
+  {
+    ifstream ofile(file);
+    if (ofile)
+      readDeterminant = true;
+  }
+  if (readDeterminant)
+    readBestDeterminant(d);
+  else
+    guessBestDeterminant(d, HforbsA, HforbsB);
+}
+
+
+void rWalker<rJastrow, rBFSlater>::updateWalker(int elec, Vector3d& coord, const rBFSlater& ref, const rJastrow& corr) {
+  Vector3d oldCoord = d.coord[elec];
+  d.coord[elec] = coord;
+  for (int j=0; j<d.nelec; j++) {
+    Rij(elec, j) = pow( pow(d.coord[elec][0] - d.coord[j][0], 2) +
+                     pow(d.coord[elec][1] - d.coord[j][1], 2) +
+                     pow(d.coord[elec][2] - d.coord[j][2], 2), 0.5);
+
+    Rij(j,elec) = Rij(elec,j);
+  }
+
+  for (int j=0; j<schd.Ncoords.size(); j++) {
+    RiN(elec, j) = pow( pow(d.coord[elec][0] - schd.Ncoords[j][0], 2) +
+                     pow(d.coord[elec][1] - schd.Ncoords[j][1], 2) +
+                     pow(d.coord[elec][2] - schd.Ncoords[j][2], 2), 0.5);
+  }
+
+  corrHelper.updateWalker(elec, oldCoord, corr, d, Rij, RiN);
+  refHelper.updateWalker(elec, oldCoord, d, Rij, RiN, ref);
+
+}
+
+void rWalker<rJastrow, rBFSlater>::OverlapWithGradient(const rBFSlater &ref,
+                                                    const rJastrow& cps,
+                                                    VectorXd &grad) 
+{
+  double factor1 = 1.0;
+  corrHelper.OverlapWithGradient(cps, grad, d, factor1);
+  
+  Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - cps.getNumVariables());
+  if (schd.optimizeOrbs == false) return;
+  refHelper.OverlapWithGradient(d, ref, gradtail, factor1);
+}
+
+
+void rWalker<rJastrow, rBFSlater>::HamOverlap(const rBFSlater &ref,
+                                           const rJastrow& cps,
+                                           VectorXd &hamgrad) 
+{
+  //double factor1 = 1.0;
+  //corrHelper.HamOverlap(cps, grad, d, factor1);
+  
+  Eigen::VectorBlock<VectorXd> hamtail = hamgrad.tail(hamgrad.rows()
+                                                      - cps.getNumVariables());
+
+  if (schd.optimizeOrbs == false) return;
+  refHelper.HamOverlap(d, ref, Rij, RiN, hamtail);
+}
+
+void rWalker<rJastrow, rBFSlater>::getStep(Vector3d& coord, int elecI,
+                                         double stepsize, const rBFSlater& ref,
+                                         const rJastrow& corr,double&ovlpRatio,
+                                         double& proposalProb) {
+  if (schd.rStepType == SIMPLE)
+    return getSimpleStep(coord, stepsize, ovlpRatio, proposalProb);
+  
+  else if (schd.rStepType == GAUSSIAN)
+    return getGaussianStep(coord, elecI, stepsize, ovlpRatio, proposalProb);
+
+  else if (schd.rStepType == DMC)
+    return doDMCMove(coord, elecI, stepsize, ref, corr,
+                      ovlpRatio, proposalProb);
+  
+  else if (schd.rStepType == SPHERICAL)
+    return getSphericalStep(coord, elecI, stepsize, ref,
+                            ovlpRatio, proposalProb);
+}
+
+void rWalker<rJastrow, rBFSlater>::getSimpleStep(Vector3d& coord,  double stepsize,
+                                               double& ovlpRatio, double& proposalProb) {
+  coord[0] = (uR()-0.5)*stepsize;
+  coord[1] = (uR()-0.5)*stepsize;
+  coord[2] = (uR()-0.5)*stepsize;
+  proposalProb = 1.0;
+  ovlpRatio = -1.0;
+}
+
+void rWalker<rJastrow, rBFSlater>::getGaussianStep(Vector3d& coord, int elecI, double stepsize,
+                                                   double& ovlpRatio, double& proposalProb) {
+  double stepx = nR(generator),
+      stepy = nR(generator),
+      stepz = nR(generator);
+  coord[0] = stepx * stepsize;
+  coord[1] = stepy * stepsize;
+  coord[2] = stepz * stepsize;
+  proposalProb = 1.0;
+  ovlpRatio = -1.0;
+}
+
+void rWalker<rJastrow, rBFSlater>::doDMCMove(Vector3d& coord, int elecI, double stepsize,
+                                           const rBFSlater& ref, const rJastrow& corr, double& ovlpRatio,
+                                           double& proposalProb) 
+{
+
+}
+
+void rWalker<rJastrow, rBFSlater>::getSphericalStep(Vector3d& coord, int elecI, double stepsize,
+                                                  const rBFSlater& ref, double& ovlpRatio,
+                                                  double& proposalProb) 
+{
+
+}
+
+void rWalker<rJastrow, rBFSlater>::getGradient(int elecI, Vector3d& grad) 
+{
+
+}
+
+double rWalker<rJastrow, rBFSlater>::getGradientAfterSingleElectronMove(int elecI, Vector3d& newCoord,
+                                                                      Vector3d& grad,
+                                                                      const rBFSlater& ref)
+{
+  return 0.;
+}

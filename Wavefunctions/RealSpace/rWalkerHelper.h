@@ -24,6 +24,7 @@
 #include "igl/slice_into.h"
 #include "ShermanMorrisonWoodbury.h"
 #include "rSlater.h"
+#include "rBFSlater.h"
 #include "rJastrow.h"
 #include "JastrowTermsHardCoded.h"
 
@@ -93,6 +94,63 @@ class rWalkerHelper<rSlater>
   
 };
 
+template<>
+class rWalkerHelper<rBFSlater>
+{
+
+ public:
+  rDeterminant dp;                             //backflow displaced positions
+  rDeterminant proposedDp;                     //backflow displaced positions for the proposed move
+  vector<Vector3d> displacements;              //backflow displacements without h factors
+  vector<Vector3d> gradDisplacements;          //sum_j (r_{i\mu} - r_{j\mu}) 2 r_{ij}^2 eta_0(r_{ij}) / b^3, helper for gradient
+  mutable vector<double> aoValues;             //this is used to store the ao values and derivatives at some coordinate
+  MatrixXd etaValues;                          //eta(r_{ij})
+  VectorXd hValues;                            //h(r_i) = \Pi_N g(r_{iN})
+  std::array<VectorXd, 3> hGradient;          //dh(r_i) / dr_{i\mu}
+  std::array<VectorXd, 3> hSecondDerivatives; //d^2h(r_i) / dr_{i\mu}^2
+  std::array<MatrixXd, 9> rpGradient;          //rp=r', dr'_{i\mu} / dr_{j\nu}
+  std::array<MatrixXd, 9> rpSecondDerivatives; //rp=r', d^2r'_{i\mu} / dr_{j\nu}^2
+  std::complex<double> thetaDet;               //determinant of the theta matrix, vector for multidet
+  std::complex<double> proposedThetaDet;       //determinant of the proposed move
+  MatrixXcd DetMatrix;                         //this is used to store the current determinant matrix
+  MatrixXcd proposedDetMatrix;                 //this is used to store the determinant matrix for the proposed move
+  MatrixXcd thetaInv;                          //inverse of the theta matrix
+  std::array<MatrixXcd, 3> rTable;             //gradient * thetaInv
+  std::array<MatrixXcd, 6> MOSecondDerivatives;//second derivatives of mo's w.r.t. rp, order: xx, xy, xz, yy, yz, zz
+  std::array<MatrixXcd, 3> MOGradient;         //each of three matrices is G(elec, mo) 
+  VectorXcd slaterLaplacianRatio;                   //w.r.t. r_i
+  std::array<VectorXcd, 3> slaterGradientRatio;     //w.r.t. r_i
+
+  rWalkerHelper() {};
+  rWalkerHelper(const rBFSlater &w, const rDeterminant &d, const MatrixXd &Rij, const MatrixXd &RiN);
+
+  void initPositionTables(const rBFSlater &w, const rDeterminant &d, const MatrixXd &Rij, const MatrixXd &RiN);
+  
+  void calcDetMatrix(const rBFSlater& w, const rDeterminant &d);
+  void calcSlaterDerivatives(const rBFSlater& w, const rDeterminant &d);
+  
+  //void initInvDetsTables(const rBFSlater& w, const rDeterminant &d);
+
+  double getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d, const rBFSlater& w);
+
+  void updateWalker(int i, Vector3d& oldCoord, const rDeterminant &d, const MatrixXd &Rij, const MatrixXd &RiN,
+                    const rBFSlater& w);
+
+  void OverlapWithGradient(const rDeterminant& d, 
+                           const rBFSlater& w,
+                           Eigen::VectorBlock<VectorXd>& grad,
+                           const double& ovlp) ;
+
+  void HamOverlap(const rDeterminant& d, 
+                  const rBFSlater& w,
+                  MatrixXd& Rij, MatrixXd& RiN,
+                  Eigen::VectorBlock<VectorXd>& hamgrad);
+  
+  void OverlapWithGradient(const rDeterminant& d, 
+                           const rBFSlater& w,
+                           Eigen::VectorBlock<VectorXd>& grad);
+  
+};
 
 
 template<>

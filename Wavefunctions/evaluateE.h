@@ -668,10 +668,10 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
     elecToMove = iter%nelec;
     walk.getStep(step, elecToMove, schd.realSpaceStep, wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
-
     iter ++;
     if (iter%sampleSteps == 0 && iter > 0.01*niter) {
       ham = wave.rHam(walk);
+      if (schd.debug) cout << "eloc  " << ham << endl;
       wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
 
       for (int i = 0; i < grad.rows(); i++)
@@ -687,6 +687,7 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
         Stats.push_back(ham);
       effIter++;
     }
+    if (schd.debug) cout << "walker\n" << walk << endl;
     //if move is simple or gaussian
     if (ovlpRatio < -0.5)
       ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2); 

@@ -41,6 +41,7 @@
 #include "rDeterminants.h"
 #include "rJastrow.h"
 #include "rSlater.h"
+#include "rBFSlater.h"
 #include "input.h"
 #include "integral.h"
 #include "SHCIshm.h"
@@ -258,6 +259,11 @@ int main(int argc, char *argv[])
     }
     if (schd.wavefunctionType == "JastrowSlater") {
       rCorrelatedWavefunction<rJastrow, rSlater> wave; rWalker<rJastrow, rSlater> walk;
+      runVMCRealSpace(wave, walk);
+    }
+    
+    else if (schd.wavefunctionType == "Backflow") {
+      rCorrelatedWavefunction<rJastrow, rBFSlater> wave; rWalker<rJastrow, rBFSlater> walk;
       runVMCRealSpace(wave, walk);
     }
   }

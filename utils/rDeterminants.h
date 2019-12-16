@@ -38,7 +38,7 @@ struct rDeterminant {
 
   friend std::ostream& operator<<(std::ostream& os, const rDeterminant& d) {
     for (int i=0; i<d.coord.size(); i++)
-      os << d.coord[i]<<std::endl<<std::endl;
+      os << "{" << d.coord[i](0) << ", " << d.coord[i](1) << ", " << d.coord[i](2) << "}," << std::endl;
     return os;
   }
   
