@@ -94,6 +94,14 @@ void loopOverLowerTriangle(F& fun) {
       fun(orbn, orbm);
 };
 
+template<typename F>
+void loopOverGutzwillerJastrow(F& fun) {
+  
+  int norbs = Determinant::norbs;
+  for (int orbn = 0; orbn < norbs; orbn++) 
+    fun(orbn+norbs, orbn);
+};
+
 
 void ConstructRedundantJastrowMap(vector<pair<int,int>>& NonRedundantMap) ;
 
@@ -101,16 +109,22 @@ template<typename T>
 void RedundantAndNonRedundantJastrow(Matrix<T, Dynamic, 1>& JA, Matrix<T, Dynamic, 1>& Jred,
                                      Matrix<T, Dynamic, 1>& JnonRed,
                                      vector<pair<int, int>>& NonRedundantMap) {
-
+  
   int norbs = Determinant::norbs;
-
-  //diagonal jastrow are redundant
+  
+  int ind1 = 0, ind2 = 0;
   for (int i=0; i<2*norbs; i++)
-    Jred(i) = JA(index(i,i));
-  for (int i=1; i<2*norbs; i++)
-    Jred(i + 2*norbs -1) = JA(index(i,0));
-  Jred(4*norbs -1) = JA(index(2,1));
-  //Jred(4*norbs) = JA(index(3,1));
+    for (int j=0; j<=i; j++) {
+      if (NonRedundantMap[ind1].first == i &&
+          NonRedundantMap[ind1].second == j) {
+        ind1++;
+      }
+      else {
+        Jred(ind2) = JA(index(i,j)); 
+        ind2 ++;
+      }
+    }
+
            
   for (int ind = 0; ind<NonRedundantMap.size(); ind++) {
     int i = NonRedundantMap[ind].first,
@@ -125,14 +139,18 @@ void JastrowFromRedundantAndNonRedundant(Matrix<T, Dynamic, 1>& JA, Matrix<T, Dy
                                          vector<pair<int, int>>& NonRedundantMap) {
   int norbs = Determinant::norbs;
 
-  //diagonal jastrow are redundant
+  int ind1 = 0, ind2 = 0;
   for (int i=0; i<2*norbs; i++)
-    JA(index(i,i)) = Jred(i);
-  for (int i=1; i<2*norbs; i++)
-    JA(index(i,0)) = Jred(i + 2*norbs -1);
-  JA(index(2,1)) = Jred(4*norbs -1);
-  //JA(index(3,1)) = Jred(4*norbs);
-
+    for (int j=0; j<=i; j++) {
+      if (NonRedundantMap[ind1].first == i &&
+          NonRedundantMap[ind1].second == j)
+        ind1++;
+      else {
+        JA(index(i,j)) = Jred(ind2) ; 
+        ind2 ++;
+      }
+    }
+  
   for (int ind = 0; ind<NonRedundantMap.size(); ind++) {
     int i = NonRedundantMap[ind].first,
         j = NonRedundantMap[ind].second;
@@ -199,39 +217,41 @@ void applyProjector(
   
   auto CoeffF =  [&, count](complexT&) mutable -> complexT
       {
-        complexT v = -1.* iImag * (1. *(((++count) - 1)/2) * 2 * M_PI * m/ngrid);
-        //complexT val = exp(iImag);// * (1. *(((++count) - 1)/2) * 2 * M_PI * m/ngrid))/(2.*ngrid);
+        complexT v = -(1.* iImag * 2. * M_PI * m * (count/2))/ngrid;
+        //complexT v = -(1.* iImag * 2. * M_PI * m * (count))/ngrid;
         complexT val(exp(v.real())*cos(v.imag()), exp(v.real())*sin(v.imag()));
-        return val/(2.*ngrid);
+
+        count++;
+
+        
+        if ((count-1)%2 == 0) return val/(sqrt(2.)*ngrid);
+        else return std::conj(val)/(sqrt(2.)*ngrid);
       };
   
   auto ketF = [&, count](Matrix<complexT, Dynamic, Dynamic>&)
       mutable -> Matrix<complexT, Dynamic, Dynamic>
       {
         Matrix<complexT, Dynamic, 1> phi = Matrix<complexT, Dynamic, 1>::Ones(2*norbs);
-        complexT vp = iImag * (1.*count * 2 * M_PI / ngrid /2.);
-        complexT vm = -iImag * (1.*count * 2 * M_PI / ngrid /2.);
+        complexT vp = iImag * (1.* (count/2) * 2 * M_PI) / ngrid ;
+        complexT vm = -iImag * (1.* (count/2) * 2 * M_PI) / ngrid ;
         phi.segment(0,norbs)     *= complexT(exp(vp.real())*cos(vp.imag()),
                                              exp(vp.real())*sin(vp.imag()));
         phi.segment(norbs,norbs) *= complexT(exp(vm.real())*cos(vm.imag()),
                                              exp(vm.real())*sin(vm.imag()));
-        count ++;
         Matrix<complexT, Dynamic, Dynamic> mat = phi.asDiagonal()*bra;
-        if (count%2 == 0) return mat;
-        else return mat.conjugate();
-        //return phi.asDiagonal()*bra;
+        count ++;
+
+        if ((count-1)%2 == 0) return mat;
+        else  return mat.conjugate();
       };
 
   coeffs.resize(2*ngrid);
   std::transform(coeffs.begin(), coeffs.end(), coeffs.begin(),
                  CoeffF);
 
-
   ketvec.resize(2*ngrid);
   std::transform(ketvec.begin(), ketvec.end(), ketvec.begin(),
                  ketF);
-
-
 }
 
 template<typename T>
@@ -283,7 +303,7 @@ Matrix<complexT, Dynamic, Dynamic> fillWfnOrbs(Matrix<complexT, Dynamic, Dynamic
       //variables( 2* (a*nelec+i)+1)
       //);
     }
-  
+
   Matrix<complexT, Dynamic, Dynamic> bra = orbitals.block(0, 0, 2*norbs, nelec)
       + orbitals.block(0, nelec, 2*norbs, 2*norbs-nelec) * U;
   return bra;
@@ -343,20 +363,20 @@ struct GetResidual {
     VectorXT U = variables.block(nJastrowVars, 0, 2*(2*norbs - nelec)*nelec, 1);
     MatrixXcT&& bra  = fillWfnOrbs(orbitals, U);
 
-  
     //store the jastrow and orbital residue
     VectorXT JastrowResidue = 0 * Jastrow;
     VectorXT braVarsResidue( 2*(2*norbs - nelec)* nelec); braVarsResidue.setZero();
 
     //apply the Sz projector and generate a linear combination of kets
-    vector<MatrixXcT> ket; vector<complexT> coeffs;
+    vector<MatrixXcT> ket(2*ngrid); vector<complexT> coeffs(2*ngrid);
     T Sz = 1.*(nalpha-nbeta);
     applyProjector(bra, ket, coeffs, Sz, ngrid); 
 
 
     MatrixXcT S;
     T detovlp = 0.;
-
+    complexT detovlpCmplx(0.0);
+    
     //these terms are needed to calculate the orbital and jastrow gradient respectively
     MatrixXcT orbitalGradEterm = bra; orbitalGradEterm.setZero();
     VectorXT NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
@@ -385,23 +405,22 @@ struct GetResidual {
     orbitalGradEterm /= detovlp;
     NiNjRDM /= detovlp;
 
-  
  
     MatrixXcT braResidueMat = 0.*bra; braResidueMat.setZero();
+
     T Energy = getResidueSingleKet(
         detovlp,
         bra, ket, coeffs, braResidueMat,
         Jastrow, JastrowResidue, JastrowHessian,
         getJastrowResidue, getOrbitalResidue, getJastrowHessian, doParallel ) ;
-
   
     if (getJastrowResidue)
       JastrowResidue -= Energy *NiNjRDM;
   
     if (getOrbitalResidue) {
       braResidueMat -= Energy * orbitalGradEterm;
-    
-    
+
+      //cout << braResidueMat<<endl;exit(0);
       MatrixXcT nonRedundantOrbResidue =
           orbitals.block(0,nelec, 2*norbs, 2*norbs - nelec).adjoint()*braResidueMat;
 
@@ -453,7 +472,7 @@ struct GetResidual {
     //calcualte the residual for gradient
     auto orbGrad = [&] (const int& orb1, const int& orb2, const complexT& f) {
       orbitalResidueMat.row(orb1) += f * (diagcre.diagonal()[orb1] * (LambdaD.row(orb2) * Sinv));
-      orbitalResidueMat += f * (-((JJphiSinv*LambdaC.adjoint().col(orb1)) * (LambdaD.row(orb2) * Sinv)));
+      orbitalResidueMat += f*(-((JJphiSinv*LambdaC.adjoint().col(orb1)) * (LambdaD.row(orb2) * Sinv)));
     };
 
     //calculate the RDMs and energy
@@ -475,7 +494,10 @@ struct GetResidual {
         complexT res = calcrdm.calcTerm1(orbm, orbn, orb1, orb2, orb3, orb4, rdm);
         JastrowResidue(index(orbm, orbn)) += (res * factor).real();
       };    
-      loopOverLowerTriangle(Jres);
+      if (schd.wavefunctionType == "JastrowSlater")
+        loopOverLowerTriangle(Jres);
+      else if (schd.wavefunctionType == "GutzwillerSlater")
+        loopOverGutzwillerJastrow(Jres);
     };
 
 
@@ -501,10 +523,10 @@ struct GetResidual {
     for (int g = 0; g <ketvec.size(); g++) {
       MatrixXcT& ket = ketvec[g];
       complexT coeff = coeffvec[g];
-
       //perform 1e calcs
       auto run1eCode = [&] (const int& orb1, const int& orb2, const T& integral) {
         calculateRDM(orb1, orb2, -1, -1, ket, coeff, integral);
+
         Energy += rdm(orb2, orb1) * factor;
 
         if (getOrbitalResidue) {
@@ -557,27 +579,29 @@ struct GetResidual {
         loopOver2epar(run2eCode);
       else
         loopOver2e(run2eCode);
+
     }
-  
+
 #ifndef SERIAL
     if (doParallel) {
       size_t jsize = JastrowResidue.size();
       MPI_Allreduce(MPI_IN_PLACE, &JastrowResidue(0), jsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    
-      size_t osize = 2*orbitalResidueMat.rows() * orbitalResidueMat.cols();
+
+      int a = orbitalResidueMat.rows(), b = orbitalResidueMat.cols();
+      size_t osize = 2*a*b;
       MPI_Allreduce(MPI_IN_PLACE, &orbitalResidueMat(0,0), osize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    
+      
       size_t two = 2;
       MPI_Allreduce(MPI_IN_PLACE, &Energy, two, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     }
 #endif
-
     return Energy.real();
   };
 
   T GetResidual::getJastrowResidue(const VectorXT& jastrowvars,
                                    const VectorXT& braVars,
-                                   VectorXT& jastrowResidue) {
+                                   VectorXT& jastrowResidue,
+                                   bool doParallel=true) {
     int nJastrowVars = jastrowvars.size(),
         nBraVars = braVars.size();
     VectorXT variables(nJastrowVars+nBraVars);
@@ -587,7 +611,7 @@ struct GetResidual {
 
     VectorXT residue = variables;
     MatrixXT JastrowHessian;
-    T Energy = getResidue(variables, residue, JastrowHessian, true, false, false);
+    T Energy = getResidue(variables, residue, JastrowHessian, true, false, false, doParallel);
 
     jastrowResidue = residue.block(0, 0, nJastrowVars, 1);
     return Energy;
@@ -595,18 +619,17 @@ struct GetResidual {
 
   T GetResidual::getOrbitalResidue(const VectorXT& jastrowvars,
                                    const VectorXT& braVars,
-                                   VectorXT& orbitalResidue) {
-
+                                   VectorXT& orbitalResidue,
+                                   bool doParallel = true) {
     int nJastrowVars = jastrowvars.size(),
         nBraVars = braVars.size();
     VectorXT variables(nJastrowVars+nBraVars);
-
     variables.block(0, 0, nJastrowVars, 1) = jastrowvars;
     variables.block(nJastrowVars, 0, nBraVars, 1) = braVars;
 
     VectorXT residue = variables;
     MatrixXT JastrowHessian;
-    T Energy = getResidue(variables, residue, JastrowHessian, false, true, false);
+    T Energy = getResidue(variables, residue, JastrowHessian, false, true, false, doParallel);
 
     orbitalResidue = residue.block(nJastrowVars, 0, nBraVars, 1);
     return Energy;

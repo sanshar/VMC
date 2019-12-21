@@ -28,24 +28,24 @@
 using namespace std;
 using namespace Eigen;
 
-template<typename Scalar, typename Functor> struct DirectJacobian;
+template<typename Scalar, typename Functor> struct ParallelJacobian;
 class Residuals;
 
 namespace Eigen {
 namespace internal {
 
 template<typename F>
-struct traits<DirectJacobian<double, F>> :  public Eigen::internal::traits<Eigen::SparseMatrix<double> >
+struct traits<ParallelJacobian<double, F>> :  public Eigen::internal::traits<Eigen::SparseMatrix<double> >
 {};
 
 template<typename F>
-struct traits<DirectJacobian<complex<double>,F>> :  public Eigen::internal::traits<Eigen::SparseMatrix<complex<double> > >
+struct traits<ParallelJacobian<complex<double>,F>> :  public Eigen::internal::traits<Eigen::SparseMatrix<complex<double> > >
 {};
 }
 }
 
 template<typename Scalar, typename Functor>
-struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> > {
+struct ParallelJacobian : public Eigen::EigenBase<ParallelJacobian<Scalar,Functor> > {
 
   //using FunctorEvalResidue = boost::function<double (const VectorXd&, VectorXd&)>;
   typedef Scalar Scalar;
@@ -72,7 +72,7 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> >
   Index cols() const { return ncols; }
 
   
-  DirectJacobian(
+  ParallelJacobian(
       Functor& _func,
       int _nrows,
       int _ncols,
@@ -82,10 +82,16 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> >
     eps = sqrt((std::max)(epsfcn,epsmch));
   };
 
-  void setFvec(FVectorType& _xvec,
-               FVectorType& _fvec) {
-    xvec = _xvec;
-    fvec = _fvec;
+  int multiplyWithTranspose(FVectorType& x,
+                            FVectorType& dst) {
+    int colIndex = 0;
+    for (int i=commrank; i<cols(); i+=commsize) {
+      dst[i] = Jac.col(colIndex).transpose()*x;
+      colIndex++;
+    }
+    int dstsize = dst.rows();
+    MPI_Allreduce(MPI_IN_PLACE, &dst(0), dstsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
   }
   
   int PopulateJacobian(
@@ -95,9 +101,9 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> >
     int colPerProc = n/commsize + 1;
     
     Jac.resize(n, colPerProc); 
-    FVectorType fvecTmp = x, fvec = x;
+    FVectorType fvecTmp = x, fvec = x; fvec.setZero();
 
-    //func(x, fvec, true); //run in parallel
+    func(x, fvec, true); //run in parallel
 
     /* computation of dense approximate jacobian. */
     int colIndex = 0;
@@ -111,22 +117,24 @@ struct DirectJacobian : public Eigen::EigenBase<DirectJacobian<Scalar,Functor> >
       fvecTmp.setZero();
       func(x, fvecTmp, false);
 
-      x[j] = temp - h;
-      fvec.setZero();
-      func(x, fvec, false);
-
       x[j] = temp;
-      Jac.col(colIndex) = (fvecTmp - fvec)/2./h;
+      Jac.col(colIndex) = (fvecTmp - fvec)/h;
       colIndex++;
     }
     return 0;
   }
 
+  //void colWiseNorm(FVectorType& wa2) {
+  //for (int i=0; i<JacCols.size(); i++)
+  //wa2(i) = JacCols[i].blueNorm();
+  //return;
+  //}
+
   template<typename Rhs>
-  Eigen::Product<DirectJacobian<Scalar, Functor>, Rhs, Eigen::AliasFreeProduct> operator*(
+  Eigen::Product<ParallelJacobian<Scalar, Functor>, Rhs, Eigen::AliasFreeProduct> operator*(
       const MatrixBase<Rhs>& x) const {
     
-    return Eigen::Product<DirectJacobian<Scalar, Functor>, Rhs, Eigen::AliasFreeProduct>(*this, x.derived());
+    return Eigen::Product<ParallelJacobian<Scalar, Functor>, Rhs, Eigen::AliasFreeProduct>(*this, x.derived());
   }
   
 };
@@ -135,47 +143,38 @@ namespace Eigen {
 namespace internal {
 
 template<typename T, typename F, typename Rhs>
-struct generic_product_impl<DirectJacobian<T,F>, Rhs, SparseShape, DenseShape, GemvProduct> // GEMV stands for matrix-vector
-    : generic_product_impl_base<DirectJacobian<T,F>,Rhs,generic_product_impl<DirectJacobian<T,F>,Rhs> >
+struct generic_product_impl<ParallelJacobian<T,F>, Rhs, SparseShape, DenseShape, GemvProduct> // GEMV stands for matrix-vector
+    : generic_product_impl_base<ParallelJacobian<T,F>,Rhs,generic_product_impl<ParallelJacobian<T,F>,Rhs> >
 {
-  typedef typename Product<DirectJacobian<T,F>,Rhs>::Scalar Scalar;
-  
+  typedef typename Product<ParallelJacobian<T,F>,Rhs>::Scalar Scalar;
+
+  //J'J*v
   template<typename Dest>
   static void scaleAndAddTo(Dest& dst,
-                            const DirectJacobian<T,F>& lhs,
+                            const ParallelJacobian<T,F>& lhs,
                             const Rhs& rhs,
                             const Scalar& alpha)
   {
-    /*
-    double eps = std::sqrt(1 + lhs.xvec.norm())*1.5e-6/ rhs.norm();
-    typename DirectJacobian<T,F>::FVectorType xplusu = lhs.xvec + eps * rhs;
-    Dest dsttmp = dst; dsttmp.setZero();
-    lhs.func(xplusu, dsttmp);
-    dst.noalias() += alpha*(dsttmp - lhs.fvec)/eps + 1.e-6*rhs;
-    */
-
-    dst.setZero();
+    typename ParallelJacobian<T,F>::FVectorType xtemp(lhs.rows()); xtemp.setZero();
 
     //multiply x with J
     int colIndex = 0;
     for (int i=commrank; i<lhs.cols(); i+=commsize) {
-      dst += lhs.Jac.col(colIndex)*rhs(i);
+      xtemp += lhs.Jac.col(colIndex)*rhs(i);
+      colIndex++;
+    }
+    int xsize = xtemp.rows();
+    MPI_Allreduce(MPI_IN_PLACE, &xtemp(0), xsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    
+    //multiply xtemp with J'
+    colIndex = 0;
+    for (int i=commrank; i<lhs.cols(); i+=commsize) {
+      dst[i] = dst[i] + alpha*lhs.Jac.col(colIndex).transpose()*xtemp;
       colIndex++;
     }
     int dstsize = dst.rows();
     MPI_Allreduce(MPI_IN_PLACE, &dst(0), dstsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-    //if (commrank == 0) cout << eps <<endl;
-    /*
-    typename DirectJacobian<T,F>::FVectorType xplusu = lhs.xvec + eps * rhs;
-    typename DirectJacobian<T,F>::FVectorType xminusu = lhs.xvec - eps * rhs;
-    Dest dstm = dst;
-    lhs.func(xplusu, dst);
-    lhs.func(xminusu, dstm);
-    dst = (dst - dstm)/2./eps;// + 1.e-7*rhs;
-    */
-    //for(Index i=0; i<lhs.cols(); ++i)
-    //dst += rhs(i) * lhs.JacCols[i];
+    dst.noalias() += 1.e-6*rhs;
   }
 };
 }

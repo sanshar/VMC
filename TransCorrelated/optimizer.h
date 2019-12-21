@@ -28,14 +28,15 @@
 #include <boost/format.hpp>
 #include <unsupported/Eigen/IterativeSolvers>
 #include <Eigen/QR>
+#include "ParallelJacobian.h"
 
 using namespace Eigen;
 using namespace std;
 using namespace boost;
 
-/*
-template<typename Functor>
-void NewtonMethod(
+
+template<typename Functor, typename T>
+void NewtonMethodMinimize(
     VectorXd& params,
     Functor& func,
     int maxIter = 50,
@@ -45,10 +46,18 @@ void NewtonMethod(
   T Energy, norm;
   int iter = 0;
   VectorXd residue(params.size());
-  DIIS diis(8, params.size());
+  //DIIS diis(8, params.size());
 
-  DirectJacobian<T, Functor> J(func);
-  Energy = func(params, residue);
+  ParallelJacobian<T, Functor>
+      Jpar(func, params.rows(), params.rows()); //the jacobian for variance
+  Eigen::GMRES<ParallelJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
+  //Eigen::ConjugateGradient<ParallelJacobian<T, Functor>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner>  gmres;
+  gmres.compute(Jpar);
+  gmres.set_restart(100);
+  gmres.setTolerance(1.e-6);
+  gmres.setMaxIterations(1000);
+
+  Energy = func(params, residue, true);
   norm = residue.norm();
   
   if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
@@ -57,39 +66,24 @@ void NewtonMethod(
   //various step sizes
   VectorXd testRes = residue, testParams = params; 
   vector<T> testSteps = {0.1, 0.5, 1}; 
-
+  VectorXd Jtb = residue;
+  
   while(norm > targetTol && iter < maxIter) {      
-    //J.setFvec(params, residue);
-    J.PopulateJacobian(params, residue);
-
-    residue *=-1.;
-    //VectorXd x = gmres.solve(residue);
-    int n = J.Jac.rows();
-
-    MatrixXd A = J.Jac.transpose()*J.Jac;
-    VectorXd b = J.Jac.transpose()*residue;
-    /*
-    for (int i=0; i<A.rows(); i++) A(i,i) += 1.e-6*A(i,i);
-    VectorXd x = A.fullPivLu().solve(b);
+    Jpar.PopulateJacobian(params);
+    Jtb.setZero();
+    Jpar.multiplyWithTranspose(residue, Jtb);
     
+    Jtb *=-1.;
+    Matrix<T, Dynamic, 1> x = gmres.solve(Jtb);
 
-    Eigen::SelfAdjointEigenSolver<MatrixXd> eig(A);
-    Eigen::DiagonalMatrix<T, Eigen::Dynamic> diag(residue.rows());
-    for (int i=0; i<residue.rows(); i++) {
-      if (abs(eig.eigenvalues()[i]) > 1.e-6)
-        diag.diagonal()[i] = 1./eig.eigenvalues()[i];
-      else
-        diag.diagonal()[i] = eig.eigenvalues()[i];
-    }
-    Eigen::MatrixXd pinv = eig.eigenvectors()*diag*eig.eigenvectors().transpose();
-    VectorXd x = pinv * b;
-
+    //Matrix<T, Dynamic, 1> error = Jpar*x - Jtb;
+    //if (commrank == 0) cout << error.stableNorm()<<"  "<<error.stableNorm()/residue.stableNorm()<<endl;
 
     T testStep = 1.0, testNorm = 1.e20;
     for (int i=0; i<testSteps.size(); i++)
     {
       testParams = params + testSteps[i]*x;
-      func(testParams, testRes);
+      func(testParams, testRes, true);
       T testResNorm = testRes.norm();
       if (testResNorm < testNorm) {
         testNorm = testResNorm;
@@ -102,14 +96,14 @@ void NewtonMethod(
     iter++;
 
     
-    Energy = func(params, residue);
+    Energy = func(params, residue, true);
     norm = residue.norm();
     
-    if (commrank == 0) std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.6f \n") %(iter) %(Energy) %(residue.norm()) %(testStep) %(getTime()-startofCalc);
+    if (commrank == 0 && print) std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.4e %5i %6.6f \n") %(iter) %(Energy) %(residue.norm()) %(testStep) %(gmres.error()) %(gmres.iterations()) %(getTime()-startofCalc);
     //exit(0);
   }
 }
-*/
+
 
 template<typename Functor, typename T>
 void NewtonMethod(
@@ -119,19 +113,22 @@ void NewtonMethod(
     T targetTol = 1.e-5,
     bool print = true) {
 
+  //cout << "newton method**"<<endl;
+
   T Energy, norm;
   int iter = 0;
   Matrix<T, Dynamic, 1> residue(params.size());
   DIIS<T> diis(8, params.size());
 
-  DirectJacobian<T, Functor> J(func);
-  Eigen::DGMRES<DirectJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
+  DirectJacobian<T, Functor> J(func, params.rows(), params.rows());
+  //Eigen::DGMRES<DirectJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
   //Eigen::BiCGSTAB<DirectJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
-  //Eigen::GMRES<DirectJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
+  Eigen::GMRES<DirectJacobian<T, Functor>, Eigen::IdentityPreconditioner> gmres;
   gmres.compute(J);
+  gmres.set_restart(100);
   gmres.setTolerance(1.e-6);
-  gmres.setMaxIterations(100);
-  Energy = func(params, residue);
+  gmres.setMaxIterations(1000);
+  Energy = func(params, residue, true);
   norm = residue.norm();
   
   if (commrank == 0 && print ) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
@@ -142,19 +139,20 @@ void NewtonMethod(
   vector<T> testSteps = {0.001, 0.01, 0.1, 0.5, 1}; 
 
   while(norm > targetTol && iter < maxIter) {      
-    J.setFvec(params, residue);
+    J.PopulateJacobian(params);
+    //J.setFvec(params, residue);
 
     residue *=-1.;
     Matrix<T, Dynamic, 1> x = gmres.solve(residue);
 
     Matrix<T, Dynamic, 1> error = J*x - residue;
-    if (commrank == 0) cout << error.stableNorm()<<"  "<<error.stableNorm()/residue.stableNorm()<<endl;
+    //if (commrank == 0) cout << error.stableNorm()<<"  "<<error.stableNorm()/residue.stableNorm()<<endl;
 
     T testStep = 1.0, testNorm = 1.e20;
     for (int i=0; i<testSteps.size(); i++)
     {
       testParams = params + testSteps[i]*x;
-      func(testParams, testRes);
+      func(testParams, testRes, true);
       T testResNorm = testRes.norm();
       if (testResNorm < testNorm) {
         testNorm = testResNorm;
@@ -167,7 +165,7 @@ void NewtonMethod(
     iter++;
 
     
-    Energy = func(params, residue);
+    Energy = func(params, residue, true);
     norm = residue.norm();
     
     if (commrank == 0 && print) std::cout << format("%5i   %14.8f   %14.6f %6.4f %6.4e %5i %6.6f \n") %(iter) %(Energy) %(residue.norm()) %(testStep) %(gmres.error()) %(gmres.iterations()) %(getTime()-startofCalc);
@@ -187,10 +185,10 @@ void SGDwithDIIS(
   int iter = 0;
   Matrix<T, Dynamic, 1> residue(params.size()); residue.setZero();
 
-  DIIS<T> diis(8, params.size());
+  DIIS<T> diis(10, params.size());
   
 
-  Energy = func(params, residue);
+  Energy = func(params, residue, true);
   norm = residue.stableNorm();
 
   if (commrank == 0 && print) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)
@@ -198,12 +196,13 @@ void SGDwithDIIS(
 
   T eps = 0.01;
   while(norm > targetTol && iter < maxIter) {      
-    params +=  eps*residue;
+    params -=  eps*residue;
     diis.update(params, residue);
 
+    //if (commrank == 0) cout << diis.diisMatrix<<endl;
     iter++;
     
-    Energy = func(params, residue);
+    Energy = func(params, residue, true);
     norm = residue.stableNorm();
 
     if (commrank == 0 && print) std::cout << format("%5i   %14.8f   %14.6f %6.6f \n") %(iter) %(Energy)

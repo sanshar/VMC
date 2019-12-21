@@ -26,6 +26,7 @@ class DIIS {
   using MatrixXT = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
   using VectorXT = Eigen::Matrix<T, Eigen::Dynamic, 1>;
   
+ public:
   MatrixXT prevVectors;
   MatrixXT errorVectors;
   MatrixXT diisMatrix;
@@ -34,7 +35,6 @@ class DIIS {
   int vectorDim;
   int iter;
 
- public:
   DIIS() {};
 
   DIIS(int pmaxDim, int pvectorDim) {
@@ -87,9 +87,9 @@ class DIIS {
     else {
       VectorXT x = diisMatrix.colPivHouseholderQr().solve(bvector);
       newV = prevVectors*x.head(maxDim);// + errorVectors*x.head(maxDim);
-      if (iter == 20) {
-        iter = 0;
-      }
+      //if (iter == 20) {
+      //iter = 0;
+      //}
       //prevVectors.col((iter-1)%maxDim) = 1.* newV;
     }
   }

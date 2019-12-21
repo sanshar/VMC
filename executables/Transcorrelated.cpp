@@ -43,6 +43,7 @@
 #include "runTranscorrelated.h"
 #include "Jastrow.h"
 #include "CorrelatedWavefunction.h"
+#include "evaluateE.h"
 
 using namespace Eigen;
 using namespace boost;
@@ -75,6 +76,21 @@ int main(int argc, char *argv[])
     
     if (schd.wavefunctionType == "JastrowSlater") {
       CorrelatedWavefunction<Jastrow, Slater> wave;
+
+      //just for debugging purposes
+      /*
+      {
+        CorrelatedWavefunction<Jastrow, Slater> wavetmp;
+        if (schd.restart)
+          wavetmp.readWave();
+        Walker<Jastrow, Slater> walk; double Energy = 0.0;
+        getTransEnergyDeterministic(wavetmp, walk, Energy);
+        if (commrank == 0) cout <<"Energy "<< Energy<<endl;
+        //Energy = 0.;
+        //getEnergyDeterministic(wavetmp, walk, Energy);
+        //if (commrank == 0) cout << "Energy "<<Energy<<endl;
+      }
+      */
       runTranscorrelated(wave);
     }
   }    

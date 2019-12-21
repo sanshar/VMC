@@ -40,6 +40,7 @@
 #include <unsupported/Eigen/NumericalDiff>
 #include <unsupported/Eigen/NonLinearOptimization>
 #include "stan/math.hpp"
+#include "amsgrad.h"
 //#include "ceres/ceres.h"
 //#include "glog/logging.h"
 
@@ -59,23 +60,31 @@ class twoIntHeatBathSHM;
 using DiagonalXd = Eigen::DiagonalMatrix<double, Eigen::Dynamic>;
 
 template<typename Wfn>
-void saveWave(VectorXd& variables, Wfn& w) {
+void saveWave(VectorXd& variables, Wfn& w,
+              vector<pair<int, int>>& Jmap,
+              VectorXd& JRed) {
+  
   int norbs = Determinant::norbs;
   int nalpha = Determinant::nalpha;
   int nbeta = Determinant::nbeta;
   int nelec = nalpha + nbeta;
   
-  int nJastrowVars = 2*norbs*(2*norbs+1)/2;
+  int nJastrowVars = Jmap.size(); 
   int nOrbitalVars = (2*norbs-nelec)*(nelec);
-  VectorXd JA = variables.block(0,0,nJastrowVars,1);
+  VectorXd JnonRed = variables.block(0,0,nJastrowVars,1);
   VectorXd braVars = variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1);
-
+  VectorXd JA(2*norbs*(2*norbs+1)/2);
+  
+  JastrowFromRedundantAndNonRedundant(JA, JRed, JnonRed, Jmap);
   fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
-  MatrixXcd&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
-  w.getRef().HforbsA.block(0,0,2*norbs, nelec) = bra;
-  w.writeWave();
 
-  variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1).setZero();
+  MatrixXcd hforbsa = w.getRef().HforbsA;
+  MatrixXcd&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
+  w.getRef().HforbsA.block(0,0,2*norbs, nelec) = 1.*bra;
+  w.writeWave();
+  w.getRef().HforbsA = hforbsa;
+  
+  //variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1).setZero();
 }
 
 
@@ -90,9 +99,12 @@ class getTranscorrelationWrapper
 
   double optimizeWavefunction()
   {
-    using T = stan::math::var;
-    //using T = double;
-    using complexT = Complex<T>;
+    auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                            std::ref(generator));
+    //using T = stan::math::var;
+    using T = double;
+    using complexT = complex<T>;
+    //using complexT = Complex<T>;
     using MatrixXcT = Matrix<complexT, Dynamic, Dynamic>;
     using VectorXcT = Matrix<complexT, Dynamic, 1>;
     using MatrixXT = Matrix<T, Dynamic, Dynamic>;
@@ -109,34 +121,83 @@ class getTranscorrelationWrapper
     int nOrbitalVars = (2*norbs-nelec)*(nelec);
     VectorXT variables(nJastrowVars + 2*nOrbitalVars);
 
-    VectorXT JA(2*norbs*(2*norbs+1)/2); JA = 0.1*VectorXT::Random(2*norbs*(2*norbs+1)/2);
+    VectorXT JA(2*norbs*(2*norbs+1)/2); 
     VectorXT JRed(2*norbs*(2*norbs+1)/2 - nJastrowVars), JnonRed(nJastrowVars);
-    
+
     fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
+
     RedundantAndNonRedundantJastrow(JA, JRed, JnonRed, NonRedundantMap);
     
     VectorXT braVars(2* nOrbitalVars); braVars.setZero();
     int ngrid = 5; //FOR THE SZ PROJECTOR
 
+
     MatrixXcT hforbs(2*norbs, 2*norbs);
-    for(int i=0; i<2*norbs; i++)
-      for (int j=0; j<2*norbs; j++)
-        hforbs(i,j) = complexT(w.getRef().HforbsA(i,j).real(), w.getRef().HforbsA(i,j).imag());
-    
+    hforbs = w.getRef().HforbsA;
+
     //calculates orbital, Jastrow Residue
     GetResidual<T, complexT> res(hforbs, JRed, NonRedundantMap, ngrid);
+    MatrixXT hess;
+    boost::function<T (const VectorXT&, VectorXT&, bool)> totalGrad
+        = boost::bind(&GetResidual<T, complexT>::getResidue, &res, _1, _2, hess, true, true, false, _3);
+    variables.block(0,0,nJastrowVars,1) = JnonRed;
+    variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+    VectorXd residual = variables;
 
-    if (false)
+    boost::function<T (const VectorXT&, VectorXT&, bool)> OrbitalGrad
+        = boost::bind(&GetResidual<T, complexT>::getOrbitalResidue, &res, boost::ref(JnonRed), _1, _2, _3);
+    boost::function<T (const VectorXT&, VectorXT&, bool)> JastrowGrad
+        = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braVars), _2, _3);
+    double E = totalGrad(variables, residual, true);
+    if (commrank == 0) cout << "INITIAL E: "<<E<<endl;
+
+
+    if (!(schd.restart || schd.fullrestart)) {
+      auto ograd = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
+        E0 = OrbitalGrad(vars, res, true);
+      stddev = 0; rt = 0;
+        return 1.0;
+      };
+      auto jgrad = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
+        E0 = JastrowGrad(vars, res, true);
+        stddev = 0; rt = 0;
+        return 1.0;
+      };
+      
+      AMSGrad optimizerOrb(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+      AMSGrad optimizerJas(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+      optimizerOrb.optimize(braVars, ograd, schd.restart);
+      optimizerJas.optimize(JnonRed, jgrad, schd.restart);
+    }
+    
+
+    for (int i=0; i<schd.maxMacroIter; i++)
     {
-      MatrixXT hess;
-      boost::function<T (const VectorXT&, VectorXT&)> totalGrad
-          = boost::bind(&GetResidual<T, complexT>::getResidue, &res, _1, _2, hess, true, true, false, true);
+      if (commrank == 0) cout << "orbital opt"<<endl;      
+      SGDwithDIIS(braVars, OrbitalGrad, schd.maxIter, 1.e-4, true);
+
+      if (commrank == 0) cout << "jastrow opt"<<endl;
+      SGDwithDIIS(JnonRed, JastrowGrad, schd.maxIter, 1.e-6, true);
+
+
       variables.block(0,0,nJastrowVars,1) = JnonRed;
       variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
-      
-      SGDwithDIIS(variables, totalGrad, 100, 5.e-4);
+      double E = totalGrad(variables, residual, true);
+      if (commrank == 0) cout << "----- ITER "<<i<<" -----  "<<E<<"  "<<residual.norm()<<endl;
+      saveWave(variables, w, NonRedundantMap, JRed);
     }
 
+
+    //Solve the non-linear equations using SGD+DIIS and Newton
+    if (true)
+    {
+      //SGDwithDIIS(variables, totalGrad, 100, 5.e-4);      
+      NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
+    }
+    saveWave(variables, w, NonRedundantMap, JnonRed);
+
+    /*
+    //Using stan to get gradient of variance
     {
       MatrixXT hess;
       boost::function<T (const VectorXT&)> totalGrad
@@ -145,42 +206,70 @@ class getTranscorrelationWrapper
       variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
 
       T variance = totalGrad(variables);
-      cout << variance<<endl<<endl;
-      variance.grad();
-      //for (int i=0; i<variables.size(); i++)
-      //cout << variables[i].adj()<<endl;
-
-      //finite difference
-      
+      auto getGrad = [&totalGrad](VectorXd& variables, VectorXd& grad, double& E0, double& stddev, double &rt) mutable -> double
       {
-        VectorXd JredD(JRed.rows());
-        for (int i=0; i<JredD.rows(); i++)
-          JredD[i] = JRed[i].val();
-        GetResidual<double, complex<double>> resD(w.getRef().HforbsA, JredD, NonRedundantMap, ngrid);
-        boost::function<double (const VectorXd&)> totalGrad
-            = boost::bind(&GetResidual<double, complex<double>>::getVariance, &resD, _1, true, true, false);
-        VectorXd variableD(variables.size());
-        for (int i=0; i<variables.size(); i++)
-          variableD[i] = variables[i].val();
-        //variables.block(0,0,nJastrowVars,1) = JnonRed;
-        //variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+        variance.grad();
+        //for (int i=0; i<variables.size(); i++)
+        //cout << variables[i].adj()<<endl;
 
-        double varD =  totalGrad(variableD);
-        cout << varD<<endl;
-        double eps = 1.e-6;
-        for (int i=0; i<variables.size(); i++) {
-          variableD[i] += eps;
-          cout << variables[i].adj()<<"  "<<(totalGrad(variableD) - varD)/eps<<endl;
-          variableD[i] -= eps;
-        }
       }
-      //cout << variance.grad()<<endl;
-      exit(0);
-      //SGDwithDIIS(variables, totalGrad, 100, 5.e-4);
     }
+
+
+    //variance minimization with Newton method
+    {
+      boost::function<T (const VectorXT&, VectorXT&, bool)> totalGrad
+          = boost::bind(&GetResidual<T, complexT>::getResidue, &res, _1, _2, hess,
+                        true, true, false, _3);
       
-    //NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
+      
+      NewtonMethodMinimize(variables, totalGrad, schd.maxIter, 1.e-6);
+      
+    }
+    
+    //variance minmization with amsgrad
+    {
+      auto getGrad = [&res,&hess](VectorXd& variables, VectorXd& grad, double& E0, double& stddev, double &rt) mutable -> double
+      {
+        grad = variables; grad.setZero();
+        double eps = 1.e-5;
+        E0 = res.getResidue(variables, grad, hess, true, true, false, true);
+        double var = grad.stableNorm();
+        for (int i=commrank; i<grad.rows(); i+=commsize) {
+          double temp = variables[i];
+          double h = eps*abs(temp);
+          if (h <1.e-14)
+            h = eps;
+          
+          variables[i] += h;
+          grad[i] = (res.getVariance(variables, true, true, false)-var)/h;
+          variables[i] = temp;
+        }
+        int jsize = grad.rows();
+        MPI_Allreduce(MPI_IN_PLACE, &grad(0), jsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        stddev = var;
+        rt = 0.0;
+        return 1.0;
+      };
+      AMSGrad amsgrad;
+      amsgrad.optimize(variables, getGrad, false);
+    }
+    */
     /*
+    for (int i=0; i<8; i++)
+    {
+      boost::function<T (const VectorXT&, VectorXT&)> OrbitalGrad
+          = boost::bind(&GetResidual<T, complexT>::getOrbitalResidue, &res, boost::ref(JnonRed), _1, _2);
+      //NewtonMethod(braVars, OrbitalGrad, schd.maxIter, 5.e-4, true);
+      SGDwithDIIS(braVars, OrbitalGrad, 100, schd.maxIter, true);
+
+      //if (commrank == 0) cout << "Jastrow optimization "<<endl;
+      boost::function<T (const VectorXT&, VectorXT&)> JastrowGrad
+          = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
+      //NewtonMethod(JnonRed, JastrowGrad, schd.maxIter, 5.e-4, true);
+      SGDwithDIIS(JnonRed, JastrowGrad, schd.maxIter, 1.e-6);
+    }
+    
     DIIS<T> diis(8, variables.size());
     VectorXT Jcopy = JnonRed;
     VectorXT braCopy = braVars;
@@ -191,13 +280,13 @@ class getTranscorrelationWrapper
       boost::function<T (const VectorXT&, VectorXT&)> OrbitalGrad
           = boost::bind(&GetResidual<T, complexT>::getOrbitalResidue, &res, boost::ref(Jcopy), _1, _2);
       //NewtonMethod(braVars, OrbitalGrad, schd.maxIter, 5.e-4, false);
-      SGDwithDIIS(braVars, OrbitalGrad, 100, 1.e-6);
+      SGDwithDIIS(braVars, OrbitalGrad, 100, 1.e-6, true);
 
       //if (commrank == 0) cout << "Jastrow optimization "<<endl;
       boost::function<T (const VectorXT&, VectorXT&)> JastrowGrad
           = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braCopy), _2);
-      NewtonMethod(JnonRed, JastrowGrad, schd.maxIter, 5.e-4, false);
-      //SGDwithDIIS(JnonRed, JastrowGrad, schd.maxIter, 1.e-6);
+      //NewtonMethod(JnonRed, JastrowGrad, schd.maxIter, 5.e-4, true);
+      SGDwithDIIS(JnonRed, JastrowGrad, schd.maxIter, 1.e-6);
 
       //fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
       //MatrixXcT&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
@@ -221,7 +310,8 @@ class getTranscorrelationWrapper
       braCopy = braVars;
             
     }
-
+    */
+    /*
     //concerted optimization
     if (true)
     {      

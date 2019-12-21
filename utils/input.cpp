@@ -62,6 +62,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.ifComplex = false;
       schd.uagp = false;
       schd.maxIter = 50;
+      schd.maxMacroIter = 10;
       schd.avgIter = 0;
       schd.sgdIter = 1;
       schd.method = amsgrad;
@@ -408,6 +409,11 @@ void readInput(string input, schedule& schd, bool print) {
 	  else if (boost::iequals(ArgName, "maxiter"))
 	    {
 	      schd.maxIter = atoi(tok[1].c_str());
+	    }
+	  
+	  else if (boost::iequals(ArgName, "maxmacroiter"))
+	    {
+              schd.maxMacroIter = atoi(tok[1].c_str());
 	    }
 	  
       else if (boost::iequals(ArgName, "avgiter"))

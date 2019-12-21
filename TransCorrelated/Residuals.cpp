@@ -26,15 +26,20 @@ int ABAB(const int &orb) {
 void ConstructRedundantJastrowMap(vector<pair<int,int>>& NonRedundantMap) {
   int norbs = Determinant::norbs;
 
-  for (int i=0; i<2*norbs; i++)
-    for (int j=0; j<i; j++) {
-      //if (j == 0 || (i==2 && j == 1) || (i==3 && j==1))
-      if (j == 0 || (i==2 && j == 1) )
-        continue;
-      else
-        NonRedundantMap.push_back(make_pair(i, j));
-    }
-  //cout << NonRedundantMap.size()<<endl;
+  if (schd.wavefunctionType == "JastrowSlater") {
+    for (int i=0; i<2*norbs; i++)
+      for (int j=0; j<i; j++) {
+        //if (j == 0 || (i==2 && j == 1) || (i==3 && j==1))
+        if (j == 0 || (i==2 && j == 1) )
+          continue;
+        else
+          NonRedundantMap.push_back(make_pair(i, j));
+      }
+  }
+  else if (schd.wavefunctionType == "GutzwillerSlater") {
+    for (int i=0; i<norbs; i++)
+      NonRedundantMap.push_back(make_pair(i+norbs, i));
+  }
 }
 
 
