@@ -5,6 +5,7 @@ printf "======================================================\n"
 
 MPICOMMAND="mpirun -np 4"
 VMCPATH="../../bin/VMC vmc.dat"
+TRANSPATH="../../bin/TRANS trans.dat"
 CIPATH="../../bin/VMC ci.dat"
 LANCZOSPATH="../../bin/VMC lanczos.dat"
 GFMCPATH="../../bin/GFMC gfmc.dat"
@@ -238,6 +239,16 @@ cd $here/rBe_lm/
 printf "...running rBe direct lm\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python ../testEnergy.py 'vmc' $tol
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
+
+cd $here/H6_ghf_trans/
+../clean.sh
+printf "...running H6 transcorrelated\n"
+$MPICOMMAND $TRANSPATH > trans.out
+python ../testEnergy.py 'trans' $tol
 if [ $clean == 1 ]
 then
     ../clean.sh

@@ -174,8 +174,9 @@ class getTranscorrelationWrapper
     }
 
 
-    SGDwithDIIS(variables, totalGrad, schd.maxIter, 5.e-4, true);      
-    NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
+    SGDwithDIIS(variables, totalGrad, schd.maxIter, 5.e-4, true);
+    exit(0);
+    //NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
 
     for (int i=0; i<schd.maxMacroIter; i++)
     {
