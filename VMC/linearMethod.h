@@ -136,8 +136,10 @@ class LM
 
        double shift = hdiagshift * std::pow(decay, iter);
        if (shift < 1.e-6) shift = 1.e-6;
-       for (int i=0; i<numVars+1; i++)
+       for (int i=0; i<numVars+1; i++) {
          Hessian(i,i) += shift;
+         Smatrix(i,i) += schd.sDiagShift;
+       }
 
        MatrixXd Uo = MatrixXd::Zero(numVars+1, numVars+1);       
        Uo(0,0) = 1.0;
@@ -183,7 +185,7 @@ class LM
          double ksi = 0.5;
          VectorXd Sx = Smatrix * x;
          double xSx = x.dot(Sx);
-         VectorXd N = ((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
+         VectorXd N = -((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
          double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
          VectorXd update = x.tail(numVars) / (x(0) * norm);
          double LM_time = (getTime() - startofCalc);
@@ -527,7 +529,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
        VectorXd grad = VectorXd::Zero(numVars);
        double shift = hdiagshift * std::pow(LMDecay, numLMiter);
        if (shift < 1.e-6) shift = 1.e-6;
-       DirectLM h(shift, 0.0);
+       DirectLM h(shift, schd.sDiagShift);
 
        double acceptedFrac = getHessian(vars, grad, h, E0, stddev, rt);
        write(vars);
@@ -561,7 +563,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
          VectorXd Sx;
          h.multiplyS(x, Sx);
          double xSx = x.dot(Sx);
-         VectorXd N = ((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
+         VectorXd N = -((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
          double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
          VectorXd update = x.tail(numVars) / (x(0) * norm);
          //VectorXd update = x.tail(numVars) / x(0);

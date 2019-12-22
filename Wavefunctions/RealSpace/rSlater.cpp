@@ -71,12 +71,12 @@ void rSlater::initHforbs()
   HforbsA = MatrixXcd::Zero(size, size);
   HforbsB = MatrixXcd::Zero(size, size);
   readHF(HforbsA, HforbsB, schd.hf);
-  if (schd.ifComplex)
+  if (schd.ifComplex && HforbsA.imag().sum() == 0 && HforbsB.imag().sum() == 0)
   {
     HforbsA.imag() += 0.01 * MatrixXd::Random(size, size);
     HforbsB.imag() += 0.01 * MatrixXd::Random(size, size);
   }
-  else
+  else if (!schd.ifComplex)
   {
     HforbsA.imag() = MatrixXd::Zero(size, size);
     HforbsB.imag() = MatrixXd::Zero(size, size);

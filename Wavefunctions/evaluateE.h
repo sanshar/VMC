@@ -687,6 +687,7 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
         Stats.push_back(ham);
       effIter++;
     }
+    //if move is simple or gaussian
     if (ovlpRatio < -0.5)
       ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2); 
     if (ovlpRatio*proposalProb > random()) {
@@ -798,6 +799,7 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
       effIter++;
     }
 
+    //if move is simple or gaussian
     if (ovlpRatio < -0.5)
       ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk),2);
     if (ovlpRatio*proposalProb > random()) {
@@ -945,6 +947,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
     }
 
  
+    //if move is simple or gaussian
     if (ovlpRatio < -0.5) 
       ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2);
     
@@ -1110,6 +1113,7 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
       if (eIter < corrIter)
         Stats.push_back(ham);
     } 
+    //if move is simple or gaussian
     if (ovlpRatio < -0.5) 
       ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2);
     
@@ -1283,6 +1287,7 @@ void CorrelatedSamplingRealSpace(int niter, std::vector<Eigen::VectorXd> &V, std
     int elecToMove = iter % nelec;
     double ovlpRatio, proposalProb;
     Walk[0].getStep(step, elecToMove, schd.realSpaceStep, Wave[0].getRef(), Wave[0].getCorr(), ovlpRatio, proposalProb);
+    //if move is simple or gaussian
     if (ovlpRatio < -0.5) 
       ovlpRatio = pow(Wave[0].getOverlapFactor(elecToMove, step, Walk[0]), 2); 
     step += Walk[0].d.coord[elecToMove];

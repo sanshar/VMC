@@ -128,25 +128,53 @@ double rWalker<rJastrow, rSlater>::getDetOverlap(const rSlater &ref) const
  */
 void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXcd& HforbsA, const Eigen::MatrixXcd& HforbsB) const 
 {
-  int norbs = Determinant::norbs;
-  int nelec = d.nelec;
-
-  vector<Vector3d> maxr(norbs);
-  schd.basis->maxCoord(maxr);
-  
-  Determinant det = Determinant();
+/*
+  auto random = std::bind(std::uniform_real_distribution<double>(-1., 1.), std::ref(generator));
   for (int i=0; i<d.nelec; i++) {
-    int bestorb = 0;
-    double maxovlp = 0;
-    for (int j=0; j < norbs; j++) {
-      if (abs(HforbsA(j, i)) > maxovlp && !det.getoccA(j)) {
-        maxovlp = abs(HforbsA(j, i));
-        bestorb = j;
+    d.coord[i][0] = random();
+    d.coord[i][1] = random();
+    d.coord[i][2] = random();
+  }
+*/
+  auto random = std::bind(std::normal_distribution<double>(0.0, 1.0), std::ref(generator));
+  int norbs = schd.basis->getNorbs();
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = nalpha+nbeta;
+  int i = 0;
+  while (i < nelec)
+  {
+      for (int I = 0; I < schd.Ncharge.size(); I++)
+      {
+          for (int n = 0; n < schd.Ncharge[I]; n++)
+          {
+              Vector3d r(random(), random(), random());
+              int index = i / 2;
+              if (i % 2 == 0) //alpha electron
+                  d.coord[index] = schd.Ncoords[I] + r;
+              else //beta electron
+                  d.coord[index + nalpha] = schd.Ncoords[I] + r;
+              i++;
+          }
       }
-    }
-    det.setoccA(bestorb, true);
-    d.coord[i] = maxr[bestorb]; 
- }
+  }
+/*
+  cout << "Electrons" << endl;
+  std::cout << d << endl << endl;
+  cout << "Basis" << endl;
+  slaterBasis &basis = dynamic_cast<slaterBasis&>(*schd.basis);
+  for (int i = 0; i < basis.atomicBasis.size(); i++)
+  {
+    std::cout << basis.atomicBasis[i] << endl;
+  }
+  cout << endl;
+  cout << "N" << endl;
+  for (int i = 0; i < schd.Ncoords.size(); i++)
+  {
+    std::cout << schd.Ncharge[i] << endl;
+    std::cout << schd.Ncoords[i] << endl << endl;
+  }
+*/
 }
 
 void rWalker<rJastrow, rSlater>::initDet(const MatrixXcd& HforbsA, const MatrixXcd& HforbsB) 
@@ -294,12 +322,38 @@ void rWalker<rJastrow, rSlater>::getGradient(int elecI, Vector3d& grad) {
 
   std::complex<double> DetFactor = refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1], factor;
   double detgx, detgy, detgz;
-  factor = refHelper.Gradient[0].row(elecI) * refHelper.thetaInv[0].col(elecI);
-  detgx = (DetFactor * factor).real() / DetFactor.real();
-  factor = refHelper.Gradient[1].row(elecI) * refHelper.thetaInv[0].col(elecI);
-  detgy = (DetFactor * factor).real() / DetFactor.real();
-  factor = refHelper.Gradient[2].row(elecI) * refHelper.thetaInv[0].col(elecI);
-  detgz = (DetFactor * factor).real() / DetFactor.real();
+  if (schd.hf == "ghf")
+  {
+    factor = refHelper.Gradient[0].row(elecI) * refHelper.thetaInv[0].col(elecI);
+    detgx = (DetFactor * factor).real() / DetFactor.real();
+    factor = refHelper.Gradient[1].row(elecI) * refHelper.thetaInv[0].col(elecI);
+    detgy = (DetFactor * factor).real() / DetFactor.real();
+    factor = refHelper.Gradient[2].row(elecI) * refHelper.thetaInv[0].col(elecI);
+    detgz = (DetFactor * factor).real() / DetFactor.real();
+  }
+  else //rhf/uhf
+  {
+    int nalpha = Determinant::nalpha;
+    int nbeta = Determinant::nbeta;
+    if (elecI < nalpha) //alpha electron
+    {
+      factor = refHelper.Gradient[0].row(elecI).head(nalpha) * refHelper.thetaInv[0].col(elecI);
+      detgx = (DetFactor * factor).real() / DetFactor.real();
+      factor = refHelper.Gradient[1].row(elecI).head(nalpha) * refHelper.thetaInv[0].col(elecI);
+      detgy = (DetFactor * factor).real() / DetFactor.real();
+      factor = refHelper.Gradient[2].row(elecI).head(nalpha) * refHelper.thetaInv[0].col(elecI);
+      detgz = (DetFactor * factor).real() / DetFactor.real();
+    }
+    else //beta electron
+    {
+      factor = refHelper.Gradient[0].row(elecI).tail(nbeta) * refHelper.thetaInv[1].col(elecI - nalpha);
+      detgx = (DetFactor * factor).real() / DetFactor.real();
+      factor = refHelper.Gradient[1].row(elecI).tail(nbeta) * refHelper.thetaInv[1].col(elecI - nalpha);
+      detgy = (DetFactor * factor).real() / DetFactor.real();
+      factor = refHelper.Gradient[2].row(elecI).tail(nbeta) * refHelper.thetaInv[1].col(elecI - nalpha);
+      detgz = (DetFactor * factor).real() / DetFactor.real();
+    }
+  }
 
   grad[0] = corrHelper.GradRatio(elecI,0) + detgx;    
   grad[1] = corrHelper.GradRatio(elecI,1) + detgy;
@@ -313,27 +367,71 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
 
 
   int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
   vector<double>& aoValues = refHelper.aoValues;
   aoValues.resize(10*norbs, 0.0);
   schd.basis->eval_deriv2(newCoord, &aoValues[0]);
 
   std::complex<double> DetFactor = refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1];
   double Detratio=0, gxnew=0, gynew=0, gznew=0;
-  for (int mo=0; mo<d.nelec; mo++) {
 
+  if (schd.hf == "ghf")
+  {
+    for (int mo=0; mo<d.nelec; mo++) {
       std::complex<double> moVal = 0, moGx=0, moGy=0, moGz=0;
-    for (int j=0; j<norbs; j++) {
-      int J = elecI < rDeterminant::nalpha ? j : j+norbs;
-      moVal += aoValues[        j] * ref.getHforbs(0)(J, mo);
-      moGx  += aoValues[norbs+  j] * ref.getHforbs(0)(J, mo);
-      moGy  += aoValues[2*norbs+j] * ref.getHforbs(0)(J, mo);
-      moGz  += aoValues[3*norbs+j] * ref.getHforbs(0)(J, mo);
+      for (int j=0; j<norbs; j++) {
+        int J = elecI < rDeterminant::nalpha ? j : j+norbs;
+        moVal += aoValues[        j] * ref.getHforbs(0)(J, mo);
+        moGx  += aoValues[norbs+  j] * ref.getHforbs(0)(J, mo);
+        moGy  += aoValues[2*norbs+j] * ref.getHforbs(0)(J, mo);
+        moGz  += aoValues[3*norbs+j] * ref.getHforbs(0)(J, mo);
+      }
+      
+      Detratio += (moVal * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+      gxnew    += (moGx  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+      gynew    += (moGy  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+      gznew    += (moGz  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
     }
-    
-    Detratio += (moVal * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
-    gxnew    += (moGx  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
-    gynew    += (moGy  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
-    gznew    += (moGz  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+  }
+  else //rhf/uhf
+  {
+    if (elecI < nalpha) //alpha electron
+    {
+      for (int mo=0; mo<nalpha; mo++) {
+
+        std::complex<double> moVal = 0, moGx=0, moGy=0, moGz=0;
+      for (int j=0; j<norbs; j++) {
+        moVal += aoValues[        j] * ref.getHforbs(0)(j, mo);
+        moGx  += aoValues[norbs+  j] * ref.getHforbs(0)(j, mo);
+        moGy  += aoValues[2*norbs+j] * ref.getHforbs(0)(j, mo);
+        moGz  += aoValues[3*norbs+j] * ref.getHforbs(0)(j, mo);
+      }
+      
+      Detratio += (moVal * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+      gxnew    += (moGx  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+      gynew    += (moGy  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+      gznew    += (moGz  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+      }
+    }
+    else //beta electron
+    {
+      for (int mo=0; mo<nbeta; mo++) {
+
+        std::complex<double> moVal = 0, moGx=0, moGy=0, moGz=0;
+      for (int j=0; j<norbs; j++) {
+        moVal += aoValues[        j] * ref.getHforbs(1)(j, mo);
+        moGx  += aoValues[norbs+  j] * ref.getHforbs(1)(j, mo);
+        moGy  += aoValues[2*norbs+j] * ref.getHforbs(1)(j, mo);
+        moGz  += aoValues[3*norbs+j] * ref.getHforbs(1)(j, mo);
+      }
+      
+      Detratio += (moVal * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
+      gxnew    += (moGx  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
+      gynew    += (moGy  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
+      gznew    += (moGz  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
+      }
+    }
   }
   
   gxnew /= Detratio;
@@ -390,10 +488,7 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
 }
 
 
-
-
-void SphericalSteps::initializeU(Vector3d& grad, double& eta,
-                                 double& a, Vector3d& di, int N) {
+void SphericalSteps::initializeU(Vector3d& grad, double& eta, double& a, Vector3d& di, int N) {
   Vector3d riN  = di - schd.Ncoords[N];
   double riInit = sqrt(riN.dot(riN));
   double gradR  = riN.dot(grad)/riInit; //gradient in radial direction
@@ -550,7 +645,7 @@ void rWalker<rJastrow, rSlater>::getSphericalStep(Vector3d& coord, int elecI, do
                                                   const rSlater& ref, double& ovlpRatio,
                                                   double& proposalProb) {
 
-  double dR = 5.0, thetaParam1 = M_PI; 
+  double dR = 5.0, thetaParam1 = M_PI/2; 
   Vector3d newRi; int closestNucleus; double probOfMove, probOfReverseMove;
   double volumeOfReverseMove = 1.0;
 
@@ -608,7 +703,6 @@ void rWalker<rJastrow, rSlater>::getSphericalStep(Vector3d& coord, int elecI, do
       volumeOfReverseMove = 0.0;
     }
     else if (dIoldNnew > dInewNnew*dR || dIoldNnew < dInewNnew/dR) {//move not possible
-      //cout << dIoldNnew<<"  "<<dR<<"  "<<dInewNnew<<endl;
       volumeOfReverseMove = 0.0;
     }
     else {

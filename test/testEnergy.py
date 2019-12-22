@@ -17,8 +17,8 @@ for line in fh:
 eTest = float(line.split()[1])
 
 if(abs(eRef-eTest)<tol):
-    print "test passed"
+    print("test passed")
 else:
-    print "test failed"
-    print "eRef=", eRef
-    print "eTest=", eTest
+    print("test failed")
+    print("eRef=%f", eRef)
+    print("eTest=%f", eTest)

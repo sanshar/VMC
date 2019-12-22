@@ -30,3 +30,4 @@ output*.dat
 *.out
 *.bkp
 BestDeterminant.txt
+BestCoordinates.txt

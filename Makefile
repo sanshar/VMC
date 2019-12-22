@@ -91,6 +91,7 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/linearMethod.o \
 	obj/LocalEnergy.o \
 	obj/VMC.o \
+	obj/rPseudopotential.o \
 	obj/Complex.o \
 
 OBJ_SLATERTOGAUSSIAN = obj/slaterToGaussian.o \
@@ -115,6 +116,7 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/ShermanMorrisonWoodbury.o\
 	obj/statistics.o \
 	obj/Correlator.o \
+	obj/rPseudopotential.o \
 
 
 obj/%.o: %.cpp  
