@@ -170,7 +170,7 @@ class getTranscorrelationWrapper
       //optimizerJas.optimize(JnonRed, jgrad, schd.restart);
       variables.block(0,0,nJastrowVars,1) = JnonRed;
       variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
-      waveWave(variables, w, NonRedundantMap, Jred);
+      saveWave(variables, w, NonRedundantMap, JRed);
     }
 
 

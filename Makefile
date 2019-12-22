@@ -122,6 +122,7 @@ OBJ_TRANS = obj/staticVariables.o \
 	obj/LocalEnergy.o \
 	obj/Transcorrelated.o \
 	obj/Residuals.o \
+	obj/rPseudopotential.o \
 	obj/Complex.o \
 
 OBJ_SLATERTOGAUSSIAN = obj/slaterToGaussian.o \
