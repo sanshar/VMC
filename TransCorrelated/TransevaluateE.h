@@ -155,7 +155,7 @@ class getTranscorrelationWrapper
     if (!(schd.restart || schd.fullrestart)) {
       auto ograd = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
         E0 = OrbitalGrad(vars, res, true);
-      stddev = 0; rt = 0;
+        stddev = 0; rt = 0;
         return 1.0;
       };
       auto jgrad = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
@@ -167,9 +167,15 @@ class getTranscorrelationWrapper
       AMSGrad optimizerOrb(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
       AMSGrad optimizerJas(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
       optimizerOrb.optimize(braVars, ograd, schd.restart);
-      optimizerJas.optimize(JnonRed, jgrad, schd.restart);
+      //optimizerJas.optimize(JnonRed, jgrad, schd.restart);
+      variables.block(0,0,nJastrowVars,1) = JnonRed;
+      variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+      waveWave(variables, w, NonRedundantMap, Jred);
     }
-    
+
+
+    SGDwithDIIS(variables, totalGrad, schd.maxIter, 5.e-4, true);      
+    NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
 
     for (int i=0; i<schd.maxMacroIter; i++)
     {
