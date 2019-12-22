@@ -63,6 +63,67 @@ void getEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
   D.FinishEnergy(Energy);
 }
 
+template<typename Wfn, typename Walker>
+void getTransEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
+{
+  Deterministic<Wfn, Walker> D(w, walk);
+  double Numerator =0., Denominator = 0.;
+  double rdm = 0.;
+  int orb1, orb2;
+  int norbs = Determinant::norbs;
+  VectorXd NiNjRDMH(2*norbs*(2*norbs+1)/2); NiNjRDMH.setZero();
+  VectorXd NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
+
+  for (int i = commrank; i < D.allDets.size(); i += commsize)
+  {
+    double ovlp = 0.0, Eloc = 0.0;
+    w.initWalker(walk, D.allDets[i]);
+    w.HamAndOvlp(walk, ovlp, Eloc, D.work, false);  
+    double CorrOvlp = w.corr.Overlap(D.allDets[i]);
+    double SlaterOvlp = walk.getDetOverlap(w.getRef());
+
+    for (int orb1 = 0; orb1<2*norbs; orb1++)
+      for (int orb2 = 0; orb2<=orb1; orb2++)
+        if (D.allDets[i].getocc(orb1%norbs, orb1/norbs) &&
+            D.allDets[i].getocc(orb2%norbs, orb2/norbs)) {
+          NiNjRDMH(orb1*(orb1+1)/2 + orb2) += (Eloc * ovlp) * SlaterOvlp/CorrOvlp;
+          NiNjRDM(orb1*(orb1+1)/2 + orb2) += SlaterOvlp * SlaterOvlp;
+        }
+          /*
+    if (D.allDets[i].getoccA(orb1) && !D.allDets[i].getoccA(orb2)) {
+      Determinant dtemp = D.allDets[i];
+      dtemp.setoccA(orb1, false); dtemp.setoccA(orb2, true);
+      w.initWalker(walk, dtemp);
+
+      double CorrOvlptmp = w.corr.Overlap(dtemp);
+      double SlaterOvlptmp = walk.getDetOverlap(w.getRef());
+      
+      rdm += ( CorrOvlptmp*SlaterOvlptmp) * SlaterOvlp/CorrOvlp;
+    }
+    */
+    Numerator += (Eloc * ovlp) * SlaterOvlp/CorrOvlp;
+    Denominator += SlaterOvlp * SlaterOvlp;
+  }
+
+#ifndef SERIAL
+  int sizeninj = 2*norbs*(2*norbs+1)/2;
+  MPI_Allreduce(MPI_IN_PLACE, &(NiNjRDM(0)), sizeninj, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(NiNjRDMH(0)), sizeninj, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(rdm), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(Numerator), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(Denominator), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+  if (commrank == 0) cout << Denominator<<"  "<<Numerator<<endl;
+  if (commrank == 0) cout << Denominator<<"  "<<rdm<<"  "<<rdm/Denominator<<endl;
+  Energy = Numerator/Denominator;
+  NiNjRDM *= Energy/Denominator;
+  NiNjRDMH /= Denominator;
+  //if (commrank == 0) cout << "ninj"<<endl<<NiNjRDM<<endl;
+  //if (commrank == 0) cout << "ninjh"<<endl<<NiNjRDMH<<endl;
+
+}
+
+
 template<typename Wfn, typename Walker> void getOneRdmDeterministic(Wfn &w, Walker& walk, MatrixXd &oneRdm, bool sz)
 {
   int norbs = Determinant::norbs;

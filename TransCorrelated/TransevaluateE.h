@@ -16,29 +16,33 @@
   You should have received a copy of the GNU General Public License along with this program. 
   If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef EvalETranscorrelated_HEADER_H
-#define EvalETranscorrelated_HEADER_H
+#pragma once
+
+#include "optimizer.h"
 #include <Eigen/Dense>
-#include "igl/slice.h"
 #include <vector>
 #include "Determinants.h"
 #include "rDeterminants.h"
-#include "workingArray.h"
-#include "statistics.h"
-#include "sr.h"
-#include "linearMethod.h"
 #include "global.h"
-#include "Deterministic.h"
-#include "ContinuousTime.h"
-#include "Metropolis.h"
 #include <iostream>
 #include <fstream>
-#include <boost/serialization/serialization.hpp>
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
 #include <algorithm>
-#include <stan/math.hpp>
+#include <complex>
+#include <cmath>
+#include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
+#include "DirectJacobian.h"
+#include "Residuals.h"
+#include "CorrelatedWavefunction.h"
+#include "Complex.h"
+
+#include "LevenbergHelper.h"
+#include <unsupported/Eigen/NumericalDiff>
 #include <unsupported/Eigen/NonLinearOptimization>
+#include "stan/math.hpp"
+#include "amsgrad.h"
+//#include "ceres/ceres.h"
+//#include "glog/logging.h"
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -47,7 +51,6 @@
 using namespace Eigen;
 using namespace std;
 using namespace boost;
-//using namespace stan::math;
 
 class oneInt;
 class twoInt;
@@ -56,578 +59,675 @@ class twoIntHeatBathSHM;
 
 using DiagonalXd = Eigen::DiagonalMatrix<double, Eigen::Dynamic>;
 
-int index(int I, int J) {
-  return max(I,J)*(max(I,J)+1)/2 + min(I,J);
-}
-
-//term is orb1^dag orb2
-template<typename T>
-T getCreDesDiagMatrix(DiagonalMatrix<T, Dynamic>& diagcre,
-                      DiagonalMatrix<T, Dynamic>& diagdes,
-                      int orb1,
-                      int orb2,
-                      int norbs,
-                      const Matrix<T, Dynamic, 1>&JA) {
+template<typename Wfn>
+void saveWave(VectorXd& variables, Wfn& w,
+              vector<pair<int, int>>& Jmap,
+              VectorXd& JRed) {
   
-  for (int j=0; j<2*norbs; j++) {
-    diagcre.diagonal()[j] = exp(-2.*JA(index(orb1, j)));
-    diagdes.diagonal()[j] = exp( 2.*JA(index(orb2, j)));
-  }
-
-  T factor = exp( JA(index(orb1, orb1)) - JA(index(orb2, orb2)));
-  return factor;
-}
-
-//term is orb1^dag orb2^dag orb3 orb4
-template<typename T>
-T getCreDesDiagMatrix(DiagonalMatrix<T, Dynamic>& diagcre,
-                      DiagonalMatrix<T, Dynamic>& diagdes,
-                      int orb1,
-                      int orb2,
-                      int orb3,
-                      int orb4,
-                      int norbs,
-                      const Matrix<T, Dynamic, 1>&JA) {
-
-  for (int j=0; j<2*norbs; j++) {
-    diagcre.diagonal()[j] = exp(-2.*JA(index(orb1, j)) - 2.*JA(index(orb2, j)));
-    diagdes.diagonal()[j] = exp(+2.*JA(index(orb3, j)) + 2.*JA(index(orb4, j)));
-  }
-
-  T factor = exp( 2*JA(index(orb1, orb2)) + JA(index(orb1, orb1)) + JA(index(orb2, orb2))
-                      -2*JA(index(orb3, orb4)) - JA(index(orb3, orb3)) - JA(index(orb4, orb4))) ;
-  return factor;
-}
-
-
-
-//N_orbn N_orbm orb1^dag orb2^dag orb3 orb4
-template<typename T>
-T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int orb2, int orb3, int orb4) {
-
-  vector<int> rows = {orbm, orbn, orb3, orb4},
-              cols = {orbm, orbn, orb2, orb1};
-  Eigen::Map<VectorXi> rowVec(&rows[0], 4), colVec(&cols[0], 4);
-
-  T contribution = 0;
-  Matrix<T, Dynamic, Dynamic> rdmval;
-  igl::slice(rdm, rowVec, colVec, rdmval);
-  contribution =  rdmval.determinant();
-
-  if (orbm == orb2) {
-    rows[0] = orbn; rows[1] = orb3; rows[2] = orb4;
-    cols[0] = orb1; cols[1] = orbm; cols[2] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 3);
-    Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution -= rdmval.determinant();
-  }
-  if (orbm == orb1) {
-    rows[0] = orbn; rows[1] = orb3; rows[2] = orb4;
-    cols[0] = orb2; cols[1] = orbm; cols[2] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 3);
-    Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution += rdmval.determinant();
-  }
-  if (orbn == orb2) {
-    rows[0] = orbm; rows[1] = orb3; rows[2] = orb4;
-    cols[0] = orb1; cols[1] = orbm; cols[2] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 3);
-    Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution += rdmval.determinant();
-  }
-  if (orbn == orb2 && orbm == orb1) {
-    rows[0] = orb3; rows[1] = orb4;
-    cols[0] = orbm; cols[1] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 2);
-    Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution -= rdmval.determinant();
-  }
-  if (orbn == orb1) {
-    rows[0] = orbm; rows[1] = orb3; rows[2] = orb4;
-    cols[0] = orb2; cols[1] = orbm; cols[2] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 3);
-    Eigen::Map<VectorXi> colVec(&cols[0], 3);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution -= rdmval.determinant();
-  }
-  if (orbn == orb1 && orbm == orb2) {
-    rows[0] = orb3; rows[1] = orb4;
-    cols[0] = orbm; cols[1] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 2);
-    Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution += rdmval.determinant();
-  }
-  return contribution;
-}
-
-
-//N_orbn orb1^dag orb2^dag orb3 orb4
-template<typename T>
-T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orb1, int orb2, int orb3, int orb4) {
-
-  vector<int> rows = {orbn, orb3, orb4},
-              cols = {orbn, orb2, orb1};
-  Eigen::Map<VectorXi> rowVec(&rows[0], 3), colVec(&cols[0], 3);
-
-  T contribution = 0;
-  Matrix<T, Dynamic, Dynamic> rdmval;
-  igl::slice(rdm, rowVec, colVec, rdmval);
-  contribution =  rdmval.determinant();
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
   
-  if (orbn == orb2) {
-    rows[0] = orb3; rows[1] = orb4;
-    cols[0] = orb1; cols[1] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 2);
-    Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution -= rdmval.determinant();
-  }
-  if (orbn == orb1) {
-    rows[0] = orb3; rows[1] = orb4;
-    cols[0] = orb2; cols[1] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 2);
-    Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution += rdmval.determinant();
-  }
-
-  return contribution;
-}
-
-//N_orbn N_orbm orb1^dag orb2
-template<typename T>
-T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orbm, int orb1, int orb2) {
-
-  vector<int> rows = {orbn, orbm, orb2},
-              cols = {orbn, orbm, orb1};
-  Eigen::Map<VectorXi> rowVec(&rows[0], 3), colVec(&cols[0], 3);
-
-  T contribution = 0;
-  Matrix<T, Dynamic, Dynamic> rdmval;
-  igl::slice(rdm, rowVec, colVec, rdmval);
-  contribution =  rdmval.determinant();
+  int nJastrowVars = Jmap.size(); 
+  int nOrbitalVars = (2*norbs-nelec)*(nelec);
+  VectorXd JnonRed = variables.block(0,0,nJastrowVars,1);
+  VectorXd braVars = variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1);
+  VectorXd JA(2*norbs*(2*norbs+1)/2);
   
-  if (orbn == orb1) {
-    rows[0] = orbm; rows[1] = orb2;
-    cols[0] = orbm; cols[1] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 2);
-    Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution += rdmval.determinant();
-  }
-  if (orbm == orb1) {
-    rows[0] = orbn; rows[1] = orb2;
-    cols[0] = orbm; cols[1] = orbn;
-    Eigen::Map<VectorXi> rowVec(&rows[0], 2);
-    Eigen::Map<VectorXi> colVec(&cols[0], 2);
-    Matrix<T, Dynamic, Dynamic> rdmval;
-    igl::slice(rdm, rowVec, colVec, rdmval);
-    contribution -= rdmval.determinant();
-  }
-  return contribution;
+  JastrowFromRedundantAndNonRedundant(JA, JRed, JnonRed, Jmap);
+  fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+
+  MatrixXcd hforbsa = w.getRef().HforbsA;
+  MatrixXcd&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
+  w.getRef().HforbsA.block(0,0,2*norbs, nelec) = 1.*bra;
+  w.writeWave();
+  w.getRef().HforbsA = hforbsa;
+  
+  //variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1).setZero();
 }
 
 
 
-//N_orbn orb1^dag orb2
-template<typename T>
-T getResidue(Matrix<T, Dynamic, Dynamic>& rdm, int orbn, int orb1, int orb2) {
-
-  vector<int> rows = {orbn, orb2},
-              cols = {orbn, orb1};
-  Eigen::Map<VectorXi> rowVec(&rows[0], 2), colVec(&cols[0], 2);
-
-  T contribution = 0;
-  Matrix<T, Dynamic, Dynamic> rdmval;
-  igl::slice(rdm, rowVec, colVec, rdmval);
-  contribution =  rdmval.determinant();
-  
-  if (orbn == orb1) {
-    contribution += rdm(orb2, orbn);
-  }
-
-  return contribution;
-}
-
-template <class T>
-struct Residuals {
-  using MatrixXt = Matrix<T, Dynamic, Dynamic>;
-  using VectorXt = Matrix<T, Dynamic, 1>;
-
-  int norbs, nalpha, nbeta;
-  MatrixXt bra;
-  vector<MatrixXt > ket;
-  VectorXt JA;
-  VectorXt lambda;
-  
-  Residuals(int _norbs, int _nalpha, int _nbeta,
-            MatrixXt& _bra,
-            vector<MatrixXt >& _ket) : norbs(_norbs),
-                                       nalpha(_nalpha),
-                                       nbeta(_nbeta),
-                                       bra(_bra),
-                                       ket(_ket) {};
-  
-  int operator() (const VectorXt& JA,
-                  VectorXt& residue) const
-  {
-    residue.setZero();
-    
-    MatrixXt LambdaD = bra, LambdaC = ket[0]; //just initializing  
-    MatrixXt S = bra.transpose()*ket[0];
-    T detovlp = S.determinant(); 
-
-    MatrixXt mfRDM = (ket[0] * S.inverse()) * bra.transpose();
-
-    DiagonalMatrix<T, Dynamic> diagcre(2*norbs),
-        diagdes(2*norbs);
-
-    T Energy = 0.0;
-    //one electron terms
-    for (int orb1 = 0; orb1 < 2*norbs; orb1++)
-      for (int orb2 = 0; orb2 < 2*norbs; orb2++) {
-        
-        double integral = I1( (orb1%norbs) * 2 + orb1/norbs, (orb2%norbs) * 2 + orb2/norbs);
-        
-        if (abs(integral) < schd.epsilon) continue;
-        
-        T factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, JA);
-        LambdaD = diagdes*ket[0];
-        LambdaC = diagcre*bra;
-        S = LambdaC.transpose()*LambdaD;
-
-        factor *= S.determinant()/detovlp;
-        MatrixXt rdm = (LambdaD * S.inverse())*LambdaC.transpose();
-        Energy += rdm(orb2,orb1) * integral * factor;
-
-        T res;
-        for (int orbn = 0; orbn < 2*norbs; orbn++) {
-          for (int orbm = 0; orbm < orbn; orbm++) {
-            res = getResidue(rdm, orbn, orbm, orb1, orb2);
-            residue(orbn*(orbn+1)/2 + orbm) += res * factor * integral;
-          }
-          res = getResidue(rdm, orbn, orb1, orb2);
-          residue(orbn*(orbn+1)/2 + orbn) += res * factor * integral;
-        }
-      }
-    
-    
-    //one electron terms
-    for (int orb1 = 0; orb1 < 2*norbs; orb1++)
-      for (int orb2 = 0; orb2 < orb1; orb2++) {
-        for (int orb3 = 0; orb3 < 2*norbs; orb3++)
-          for (int orb4 = 0; orb4 < orb3; orb4++) {
-            
-            int Orb1 = (orb1%norbs)* 2 + orb1/norbs;
-            int Orb2 = (orb2%norbs)* 2 + orb2/norbs;
-            int Orb3 = (orb3%norbs)* 2 + orb3/norbs;
-            int Orb4 = (orb4%norbs)* 2 + orb4/norbs;
-            
-            double integral = (I2(Orb1, Orb4, Orb2, Orb3) - I2(Orb2, Orb4, Orb1, Orb3));
-            
-            if (abs(integral) < schd.epsilon) continue;
-            
-            T factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, JA);
-            LambdaD = diagdes*ket[0];
-            LambdaC = diagcre*bra;
-            S = LambdaC.transpose()*LambdaD;
-
-            MatrixXt rdm = ((LambdaD * S.inverse()) * LambdaC.transpose());
-            T rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
-            
-            factor *= S.determinant()/detovlp;
-            Energy += rdmval * integral * factor;
-
-            T res;
-            for (int orbn = 0; orbn < 2*norbs; orbn++) {
-              for (int orbm = 0; orbm < orbn; orbm++) {
-                res = getResidue(rdm, orbn, orbm, orb1, orb2, orb3, orb4);
-                residue(orbn*(orbn+1)/2 + orbm) += res*factor*integral;
-              }
-              res = getResidue(rdm, orbn, orb1, orb2, orb3, orb4);
-              residue(orbn*(orbn+1)/2 + orbn) += res*factor*integral;
-            }
-            
-          }
-      }
-
-    for (int i=0; i<2*norbs; i++) {
-      for (int j=0; j<=i; j++) {
-        int index = i*(i+1)/2+j;
-        if (i == j) 
-          residue(i * (i+1)/2 + j) -= (Energy)*mfRDM(i,i);
-        else
-          residue(i * (i+1)/2 + j) -= (Energy)*(mfRDM(j,j)*mfRDM(i,i) - mfRDM(j,i)*mfRDM(i,j));
-      }
-    }
-
-    
-    return 0;
-  }
-
-  T energy (const VectorXt& JA) const
-  {
-    MatrixXt LambdaD = bra, LambdaC = ket[0]; //just initializing  
-    MatrixXt S = bra.transpose()*ket[0];
-    T detovlp = S.determinant(); 
-
-    MatrixXt mfRDM = (ket[0] * S.inverse()) * bra.transpose();
-
-    DiagonalMatrix<T, Dynamic> diagcre(2*norbs),
-        diagdes(2*norbs);
-
-    T Energy = 0.0;
-    //one electron terms
-    for (int orb1 = 0; orb1 < 2*norbs; orb1++)
-      for (int orb2 = 0; orb2 < 2*norbs; orb2++) {
-        
-        double integral = I1( (orb1%norbs) * 2 + orb1/norbs, (orb2%norbs) * 2 + orb2/norbs);
-        
-        if (abs(integral) < schd.epsilon) continue;
-        
-        T factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, norbs, JA);
-        LambdaD = diagdes*ket[0];
-        LambdaC = diagcre*bra;
-        S = LambdaC.transpose()*LambdaD;
-
-        factor *= S.determinant()/detovlp;
-        MatrixXt rdm = (LambdaD * S.inverse())*LambdaC.transpose();
-        Energy += rdm(orb2,orb1) * integral * factor;
-      }
-    
-    
-    //one electron terms
-    for (int orb1 = 0; orb1 < 2*norbs; orb1++)
-      for (int orb2 = 0; orb2 < orb1; orb2++) {
-        for (int orb3 = 0; orb3 < 2*norbs; orb3++)
-          for (int orb4 = 0; orb4 < orb3; orb4++) {
-            
-            int Orb1 = (orb1%norbs)* 2 + orb1/norbs;
-            int Orb2 = (orb2%norbs)* 2 + orb2/norbs;
-            int Orb3 = (orb3%norbs)* 2 + orb3/norbs;
-            int Orb4 = (orb4%norbs)* 2 + orb4/norbs;
-            
-            double integral = (I2(Orb1, Orb4, Orb2, Orb3) - I2(Orb2, Orb4, Orb1, Orb3));
-            
-            if (abs(integral) < schd.epsilon) continue;
-            
-            T factor = getCreDesDiagMatrix(diagcre, diagdes, orb1, orb2, orb3, orb4, norbs, JA);
-            LambdaD = diagdes*ket[0];
-            LambdaC = diagcre*bra;
-            S = LambdaC.transpose()*LambdaD;
-
-            MatrixXt rdm = ((LambdaD * S.inverse()) * LambdaC.transpose());
-            T rdmval = rdm(orb4, orb1) * rdm(orb3, orb2) - rdm(orb3, orb1) * rdm(orb4, orb2);
-            
-            factor *= S.determinant()/detovlp;
-            Energy += rdmval * integral * factor;
-          }
-      }
-
-    return Energy;
-  }
-
-};
-
-
-template <typename Wfn, typename Walker>
+template <typename Wfn>
 class getTranscorrelationWrapper
 {
  public:
   Wfn &w;
-  Walker &walk;
-  int stochasticIter;
-  bool ctmc;
-  getTranscorrelationWrapper(Wfn &pw, Walker &pwalk, int niter, bool pctmc) : w(pw), walk(pwalk)
-  {
-    stochasticIter = niter;
-    ctmc = pctmc;
-  };
+  getTranscorrelationWrapper(Wfn &pwr) : w(pwr)
+  {};
 
-  double getTransGradient(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
+  double optimizeWavefunction()
   {
-    //using VarType = stan::math::var ;
-    using VarType = double;
+    auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                            std::ref(generator));
+    //using T = stan::math::var;
+    using T = double;
+    using complexT = complex<T>;
+    //using complexT = Complex<T>;
+    using MatrixXcT = Matrix<complexT, Dynamic, Dynamic>;
+    using VectorXcT = Matrix<complexT, Dynamic, 1>;
+    using MatrixXT = Matrix<T, Dynamic, Dynamic>;
+    using VectorXT = Matrix<T, Dynamic, 1>;
     
-    w.updateVariables(vars);
-    w.initWalker(walk);
-
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
     int nbeta = Determinant::nbeta;
+    int nelec = nalpha + nbeta;
+    
+    vector<pair<int, int>> NonRedundantMap;
+    ConstructRedundantJastrowMap(NonRedundantMap);
+    int nJastrowVars = NonRedundantMap.size(); //4k redundancies
+    int nOrbitalVars = (2*norbs-nelec)*(nelec);
+    VectorXT variables(nJastrowVars + 2*nOrbitalVars);
 
-    /*
-    stddev = 0.0;
-    rt = 1.0;
+    VectorXT JA(2*norbs*(2*norbs+1)/2); 
+    VectorXT JRed(2*norbs*(2*norbs+1)/2 - nJastrowVars), JnonRed(nJastrowVars);
+
+    fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
+
+    RedundantAndNonRedundantJastrow(JA, JRed, JnonRed, NonRedundantMap);
+    
+    VectorXT braVars(2* nOrbitalVars); braVars.setZero();
+    int ngrid = 5; //FOR THE SZ PROJECTOR
 
 
-    std::vector<Determinant> allDets;
-    vector<vector<int> > alldetvec;
-    comb(2*norbs, nalpha+nbeta, alldetvec);
-    for (int a=0; a<alldetvec.size(); a++) {
-      Determinant d;
-      for (int i=0; i<alldetvec[a].size(); i++)
-        d.setocc(alldetvec[a][i], true);
-      allDets.push_back(d);
+    MatrixXcT hforbs(2*norbs, 2*norbs);
+    hforbs = w.getRef().HforbsA;
+
+    //calculates orbital, Jastrow Residue
+    GetResidual<T, complexT> res(hforbs, JRed, NonRedundantMap, ngrid);
+    MatrixXT hess;
+    boost::function<T (const VectorXT&, VectorXT&, bool)> totalGrad
+        = boost::bind(&GetResidual<T, complexT>::getResidue, &res, _1, _2, hess, true, true, false, _3);
+    variables.block(0,0,nJastrowVars,1) = JnonRed;
+    variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+    VectorXd residual = variables;
+
+    boost::function<T (const VectorXT&, VectorXT&, bool)> OrbitalGrad
+        = boost::bind(&GetResidual<T, complexT>::getOrbitalResidue, &res, boost::ref(JnonRed), _1, _2, _3);
+    boost::function<T (const VectorXT&, VectorXT&, bool)> JastrowGrad
+        = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braVars), _2, _3);
+    double E = totalGrad(variables, residual, true);
+    if (commrank == 0) cout << "INITIAL E: "<<E<<endl;
+
+
+    if (!(schd.restart || schd.fullrestart)) {
+      auto ograd = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
+        E0 = OrbitalGrad(vars, res, true);
+        stddev = 0; rt = 0;
+        return 1.0;
+      };
+      auto jgrad = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
+        E0 = JastrowGrad(vars, res, true);
+        stddev = 0; rt = 0;
+        return 1.0;
+      };
+      
+      AMSGrad optimizerOrb(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+      AMSGrad optimizerJas(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+      optimizerOrb.optimize(braVars, ograd, schd.restart);
+      //optimizerJas.optimize(JnonRed, jgrad, schd.restart);
+      variables.block(0,0,nJastrowVars,1) = JnonRed;
+      variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+      waveWave(variables, w, NonRedundantMap, Jred);
     }
-    
-    double Energy2 = 0.0;
-    double denominator = 0.0;
-    workingArray work;
-    
-    for (int i = commrank; i < allDets.size(); i += commsize)
+
+
+    SGDwithDIIS(variables, totalGrad, schd.maxIter, 5.e-4, true);      
+    NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
+
+    for (int i=0; i<schd.maxMacroIter; i++)
     {
-      double ovlp, Eloc;
-      w.initWalker(walk, allDets[i]);
-      w.HamAndOvlp(walk, ovlp, Eloc, work, false);  
+      if (commrank == 0) cout << "orbital opt"<<endl;      
+      SGDwithDIIS(braVars, OrbitalGrad, schd.maxIter, 1.e-4, true);
 
-      double corrovlp = w.getCorr().Overlap(walk.d),
-          slaterovlp = walk.getDetOverlap(w.getRef());
+      if (commrank == 0) cout << "jastrow opt"<<endl;
+      SGDwithDIIS(JnonRed, JastrowGrad, schd.maxIter, 1.e-6, true);
 
-      cout << allDets[i]<<"  "<<ovlp<<endl;
-      Energy2 += slaterovlp/corrovlp * Eloc*ovlp;
-      denominator += slaterovlp*slaterovlp;
-    }
-#ifndef SERIAL
-    MPI_Allreduce(MPI_IN_PLACE, &(Energy2), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    MPI_Allreduce(MPI_IN_PLACE, &(denominator), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-    
-    if (commrank == 0) {
-      cout << Energy2<<"  "<<denominator <<endl;
-      cout << Energy2/denominator <<endl;
-    }
-    */
-    
-    Matrix<VarType, Dynamic, 1> residue(2*norbs*(2*norbs+1)/2); residue.setZero();
-    Matrix<VarType, Dynamic, 1> JA     (2*norbs*(2*norbs+1)/2);
-    VarType Energy;
-    
-    Matrix<VarType, Dynamic, Dynamic> bra = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta).real();
-    Matrix<VarType, Dynamic, Dynamic> ket = w.getRef().HforbsA.block(0,0,2*norbs, nalpha+nbeta).real();
-    vector< Matrix<VarType, Dynamic, Dynamic> > ketvec(1,ket);
-    
-    MatrixXd& Jtmp = w.getCorr().SpinCorrelator;
-    for (int i=0; i<2*norbs; i++) {
-      int I = (i/2) + (i%2)*norbs;
-      for (int j=0; j<i; j++) {
-        int J = (j/2) + (j%2)*norbs;
-        
-        JA(index(J, I)) = log(Jtmp(i, j))/2.0;
-      }
-      JA(index(I, I)) = log(Jtmp(i,i));///2;
+
+      variables.block(0,0,nJastrowVars,1) = JnonRed;
+      variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+      double E = totalGrad(variables, residual, true);
+      if (commrank == 0) cout << "----- ITER "<<i<<" -----  "<<E<<"  "<<residual.norm()<<endl;
+      saveWave(variables, w, NonRedundantMap, JRed);
     }
 
-    int iter = 0, niter = 10;
-    while (true) {
-      //Solve the Jastrow parameters
-      Residuals<VarType> residual(norbs, nalpha, nbeta, bra, ketvec );
-      HybridNonLinearSolver<Residuals<VarType> > solver(residual);
-      int info = solver.solveNumericalDiff(JA);
 
-      if (info != 1) {
-        cout << "Jastrow optimizer didn't converge"<<endl;
-        exit(0);
-      }
-      //std::cout << "iter count: " << solver.iter << std::endl;
-      //std::cout << "return status: " << info << std::endl;
-      //residual(JA, residue);
-      std::cout << "Energy: " <<residual.energy(JA) <<endl;
-      std::cout << "Error: " <<residue.norm() <<endl;
-      std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
-
-      //solve the lambda equations
-    
+    //Solve the non-linear equations using SGD+DIIS and Newton
+    if (true)
+    {
+      //SGDwithDIIS(variables, totalGrad, 100, 5.e-4);      
+      NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
+    }
+    saveWave(variables, w, NonRedundantMap, JnonRed);
 
     /*
-    VectorXd res(2*norbs*(2*norbs+1)/2);
-    double residueNorm = 10;
-    
-    for (int iter = 0; iter<100 && residueNorm > 1.e-5; iter++) {
-      residue = residual(bra, ket, JA, Energy);
-      residueNorm = residue.norm().val();
-      cout << Energy+coreE<<"  "<<residue.norm()<<"  "<<endl;
-      Matrix<double, Dynamic, Dynamic> J(residue.size(), JA.size());
+    //Using stan to get gradient of variance
+    {
+      MatrixXT hess;
+      boost::function<T (const VectorXT&)> totalGrad
+          = boost::bind(&GetResidual<T, complexT>::getVariance, &res, _1, true, true, false);
+      variables.block(0,0,nJastrowVars,1) = JnonRed;
+      variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
 
-      //auto oldresidue = residue;
-      //JA(1) += 1.e-3;
-      //residue = residual(bra, ket, JA, Energy);
-      //cout << (residue - oldresidue)/1.e-3<<endl<<" fd "<<endl;
-      for (int i = 0; i < residue.size(); ++i) {
-        res(i) = residue(i).val();
-        if (i > 0) stan::math::set_zero_all_adjoints();
-        residue(i).grad();
-        for (int j = 0; j < JA.size(); ++j) {
-          J(i,j) = JA(j).adj();
-        }
+      T variance = totalGrad(variables);
+      auto getGrad = [&totalGrad](VectorXd& variables, VectorXd& grad, double& E0, double& stddev, double &rt) mutable -> double
+      {
+        variance.grad();
+        //for (int i=0; i<variables.size(); i++)
+        //cout << variables[i].adj()<<endl;
+
       }
-
-      //cout << J <<endl;
-      FullPivLU<MatrixXd> lu(J); //cout << lu.rank()<<endl;
-      //VectorXd update= - J.colPivHouseholderQr().solve(res);
-      VectorXd update= - lu.solve(res);
-
-      auto Jtemp = JA;
-      vector<double> scale = {0.1, 0.05, 0.02, 0.01, 0.005};
-
-      double error; double scaleToUse = scale[0];
-      /*
-      Jtemp += scale[0]*update;
-      error = residual(bra, ket, Jtemp, Energy).norm().val();
-      Jtemp -= scale[0]*update;
-      
-      for (int s=1; s<scale.size(); s++) {
-        Jtemp += scale[s]*update;
-        double currentError = residual(bra, ket, Jtemp, Energy).norm().val();
-        cout << currentError<<"  "<<error<<endl;
-        if (currentError < error) {
-          error = currentError;
-          scaleToUse = scale[s];
-        }
-        Jtemp -= scale[s]*update;
-      }
-      cout << scaleToUse<<endl;
-      
-      scaleToUse = 0.1;
-      
-      JA += scaleToUse*update;
     }
-    /*
-    for (int iter=0; iter<100; iter++) {
-      getTransEnergyResidue(w, walk, E0, residue, grad);
 
-      cout << E0+coreE<<"  "<<residue.norm()<<endl;
-      for (int o1=0; o1<2*norbs; o1++)
-        for (int o2=0; o2<=o1; o2++) {
-          int jo1 = (o1%norbs)*2 + (o1/norbs),
-              jo2 = (o2%norbs)*2 + (o2/norbs);
-          J(jo1, jo2)  *= exp(-residue(o1*(o1+1)/2+o2)/grad(o1*(o1+1)/2+o2));
+
+    //variance minimization with Newton method
+    {
+      boost::function<T (const VectorXT&, VectorXT&, bool)> totalGrad
+          = boost::bind(&GetResidual<T, complexT>::getResidue, &res, _1, _2, hess,
+                        true, true, false, _3);
+      
+      
+      NewtonMethodMinimize(variables, totalGrad, schd.maxIter, 1.e-6);
+      
+    }
+    
+    //variance minmization with amsgrad
+    {
+      auto getGrad = [&res,&hess](VectorXd& variables, VectorXd& grad, double& E0, double& stddev, double &rt) mutable -> double
+      {
+        grad = variables; grad.setZero();
+        double eps = 1.e-5;
+        E0 = res.getResidue(variables, grad, hess, true, true, false, true);
+        double var = grad.stableNorm();
+        for (int i=commrank; i<grad.rows(); i+=commsize) {
+          double temp = variables[i];
+          double h = eps*abs(temp);
+          if (h <1.e-14)
+            h = eps;
+          
+          variables[i] += h;
+          grad[i] = (res.getVariance(variables, true, true, false)-var)/h;
+          variables[i] = temp;
         }
+        int jsize = grad.rows();
+        MPI_Allreduce(MPI_IN_PLACE, &grad(0), jsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        stddev = var;
+        rt = 0.0;
+        return 1.0;
+      };
+      AMSGrad amsgrad;
+      amsgrad.optimize(variables, getGrad, false);
     }
     */
-    w.writeWave();
+    /*
+    for (int i=0; i<8; i++)
+    {
+      boost::function<T (const VectorXT&, VectorXT&)> OrbitalGrad
+          = boost::bind(&GetResidual<T, complexT>::getOrbitalResidue, &res, boost::ref(JnonRed), _1, _2);
+      //NewtonMethod(braVars, OrbitalGrad, schd.maxIter, 5.e-4, true);
+      SGDwithDIIS(braVars, OrbitalGrad, 100, schd.maxIter, true);
+
+      //if (commrank == 0) cout << "Jastrow optimization "<<endl;
+      boost::function<T (const VectorXT&, VectorXT&)> JastrowGrad
+          = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
+      //NewtonMethod(JnonRed, JastrowGrad, schd.maxIter, 5.e-4, true);
+      SGDwithDIIS(JnonRed, JastrowGrad, schd.maxIter, 1.e-6);
+    }
+    
+    DIIS<T> diis(8, variables.size());
+    VectorXT Jcopy = JnonRed;
+    VectorXT braCopy = braVars;
+    VectorXT residue = variables;
+    for (int i=0; i<8; i++)
+    {
+      //if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
+      boost::function<T (const VectorXT&, VectorXT&)> OrbitalGrad
+          = boost::bind(&GetResidual<T, complexT>::getOrbitalResidue, &res, boost::ref(Jcopy), _1, _2);
+      //NewtonMethod(braVars, OrbitalGrad, schd.maxIter, 5.e-4, false);
+      SGDwithDIIS(braVars, OrbitalGrad, 100, 1.e-6, true);
+
+      //if (commrank == 0) cout << "Jastrow optimization "<<endl;
+      boost::function<T (const VectorXT&, VectorXT&)> JastrowGrad
+          = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braCopy), _2);
+      //NewtonMethod(JnonRed, JastrowGrad, schd.maxIter, 5.e-4, true);
+      SGDwithDIIS(JnonRed, JastrowGrad, schd.maxIter, 1.e-6);
+
+      //fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+      //MatrixXcT&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
+      //w.getRef().HforbsA.block(0,0,2*norbs, nelec) = bra;
+      //w.writeWave();
+
+      residue.block(0,0,nJastrowVars,1) = JnonRed - Jcopy;
+      residue.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars - braCopy;
+
+      variables.block(0,0,nJastrowVars,1) = JnonRed;
+      variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) = braVars;
+
+      diis.update(variables, residue);
+      T E = totalGrad(variables, residue);
+      if (commrank == 0) cout << i<<"  "<<E<<"  "<<residue.norm()<<endl;
+      
+      JnonRed= variables.block(0,0,nJastrowVars,1) ;
+      braVars = variables.block(nJastrowVars, 0, 2*nOrbitalVars, 1) ;
+
+      Jcopy = JnonRed;
+      braCopy = braVars;
+            
+    }
+    */
+    /*
+    //concerted optimization
+    if (true)
+    {      
+      SGDwithDIIS(variables, totalGrad, schd.maxIter, 5.e-4);
+      NewtonMethod(variables, totalGrad, schd.maxIter, 5.e-4);
+      //saveWave(variables, w);
+    }
+  
+    MPI_Barrier(MPI_COMM_WORLD);
     exit(0);
+
+    //Levenberg Helper
+    {
+      boost::function<T (const VectorXT&, VectorXT&)> totalGrad
+          = boost::bind(&GetResidual<T,complexT>::getResidue, &res, _1, _2, hess, true, true, false, false);
+      typedef totalGradWrapper<boost::function<T (const VectorXT&, VectorXT&)>> Wrapper;
+      
+      Wrapper wrapper(totalGrad, variables.rows(), variables.rows());
+
+      {
+        VectorXT residuals = variables;
+        if (commrank == 0) cout << totalGrad(variables, residuals)<<endl;
+      }
+      
+      Eigen::NumericalDiff<Wrapper> numDiff(wrapper);
+      LevenbergMarquardt<Eigen::NumericalDiff<Wrapper>> LM(numDiff);
+      int ret = LM.minimize(variables);
+
+      VectorXT residuals = variables;
+      if (commrank == 0) {
+        std::cout << ret <<endl;
+        cout<< LM.iter<<endl;
+        std::cout << "Energy at minimum: " << totalGrad(variables, residuals) << std::endl;
+        std::cout << "Residue at minimum: " << residuals.norm() << std::endl;
+        //saveWave(variables, w);
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
+    exit(0);
+    /*
+    //first optimize the jastrow
+    for (int i=0; i<8; i++)
+    {
+
+      if (commrank == 0) cout <<endl<< "Orbital optimization "<<endl;
+      boost::function<T (const VectorXT&, VectorXT&)> OrbitalGrad
+          = boost::bind(&GetResidual<T,complexT>::getOrbitalResidue, &res, boost::ref(JA), _1, _2);
+      SGDwithDIIS(braVars, OrbitalGrad, 50, 1.e-6);
+
+      if (commrank == 0) cout << "Jastrow optimization "<<endl;
+      boost::function<T (const VectorXT&, VectorXT&)> JastrowGrad
+          = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
+      SGDwithDIIS(JA, JastrowGrad, 50, 1.e-6);
+
+      
+      fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+      MatrixXcT&& bra = fillWfnOrbs(w.getRef().HforbsA, braVars);
+      w.getRef().HforbsA.block(0,0,2*norbs, nelec) = bra;
+      w.writeWave();
+    }
+    */
     return 1.0;
-  };
+  }
+
 
 };
 
 
 
+/*
+    /*
+    {
+      //using Walker = walker<Jastrow, Slater>;
+      VectorXd JAresidue(2*norbs*(2*norbs+1)/2); JAresidue.setZero();
+      VectorXd rdm(2*norbs*(2*norbs+1)/2); rdm.setZero();
+      MatrixXT Onerdm(2*norbs,2*norbs); Onerdm.setZero();
 
+      Walker<Jastrow, Slater> walk;
+      std::vector<Determinant> allDets;
+      generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+      
+      double Energytrans = 0.0, Energyvar = 0.0;
+      double denominatortrans = 0.0, denominatorvar = 0.0;
+      workingArray work;
+      
+      for (int i = commrank; i < allDets.size(); i += commsize)
+      {
+        double ovlp, Eloc;
+        w.initWalker(walk, allDets[i]);
+        w.HamAndOvlp(walk, ovlp, Eloc, work, false);
+        double corrovlp = w.getCorr().Overlap(walk.d),
+            slaterovlp = walk.getDetOverlap(w.getRef());
+        //cout << allDets[i]<<"  "<<ovlp<<endl;
+
+        Energytrans += slaterovlp/corrovlp * Eloc*ovlp;
+        denominatortrans += slaterovlp*slaterovlp;
+
+        Energyvar +=  Eloc*ovlp*ovlp;
+        denominatorvar += ovlp*ovlp;
+
+        for (int orb1 = 0; orb1 < 2*norbs; orb1++)
+        for (int orb2 = 0; orb2 <= orb1; orb2++)
+        {
+          if ( allDets[i].getocc(orb1) && allDets[i].getocc(orb2)) {
+            int I = (orb1/2) + (orb1%2)*norbs;
+            int J = (orb2/2) + (orb2%2)*norbs;
+            int K = max(I,J), L = min(I,J);
+            JAresidue(K * (K+1)/2 + L) += slaterovlp/corrovlp * Eloc * ovlp;
+            rdm(K * (K+1)/2 + L) += slaterovlp*slaterovlp;
+          }          
+        }
+
+      }
+
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &(Energytrans), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(denominatortrans), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(Energyvar), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(denominatorvar), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
+      
+      if (commrank == 0) {
+        cout << JAresidue(0)<<"  "<<Energytrans/denominatortrans<<"  "<<rdm(0)<<endl;
+        cout << Energytrans<<"  "<<denominatortrans <<endl;
+        cout << Energyvar<<"  "<<denominatorvar <<endl;
+        cout <<"trans energy "<< Energytrans/denominatortrans <<endl;
+        cout <<"var energy "<< Energyvar/denominatorvar <<endl;
+        JAresidue -= (Energytrans/denominatortrans) * rdm;
+        JAresidue /= denominatortrans;
+        //cout << "residue"<<endl;
+        //cout <<endl<< JAresidue <<endl<<endl;
+        cout << "residue norm: "<<JAresidue.norm() <<endl;
+      }
 
+      VectorXd residueJA(JA);
+      if (commrank == 0) cout << res.getJastrowResidue(JA, braVars, residueJA)<<"  "<<residueJA.norm()<<endl;
+      
+      double diffnorm = 0.0;
+      for (int i=0; i<2*norbs; i++) {
+        for (int j=0; j<=i; j++) {
+          cout <<i<<"  "<<j<<"  "<< JAresidue(i*(i+1)/2 + j) <<"  "<<residueJA(i * (i+1)/2 + j )<<endl; ;
+          diffnorm += pow(JAresidue(i*(i+1)/2 + j) - residueJA((i) * (i+1)/2 + j), 2 );
+        }
+      }
+      cout << diffnorm<<endl;
+      exit(0);
+    }
+    
+
+    //if (commrank == 0) cout <<endl<< "Combined optimization "<<endl;
+    //boost::function<double (const VectorXd&, VectorXd&)> totalGrad
+    //  = boost::bind(&GetResidual::getResidue, &res, _1, _2, true, true);
+
+    /*
+    if (commrank == 0) cout <<"variables"<<endl<< variables <<endl<<endl;
+    VectorXd residue=variables; residue.setZero();
+    totalGrad(variables, residue);
+    if (commrank == 0) cout <<"residue "<<endl<< residue.block(0,0,nJastrowVars, 1)<<endl<<endl;
+    if (commrank == 0) cout << residue.block(nJastrowVars,0,braVars.size(), 1)<<endl<<endl;
+    if (commrank == 0) cout << residue.maxCoeff()<<"  "<<residue.minCoeff()<<endl;
+    if (commrank == 0) cout << "norm "<<residue.norm()<<endl;
+    exit(0);
+
+    
+    //SGDwithDIIS(variables, totalGrad, 150, 1.e-6);
+    //JA = variables.block(0,0,nJastrowVars,1);
+    //braVars = variables.block(nJastrowVars,0,braVars.size(),1);
+
+    //fillWfnfromJastrow(JA, w.getCorr().SpinCorrelator);
+    //fillWfnOrbs(w.getRef().HforbsA, braVars);
+    //w.writeWave();
+
+    /*
+    //if (commrank == 0) cout << variables <<endl<<endl;
+    VectorXd residue=variables; residue.setZero();
+    totalGrad(variables, residue);
+    if (commrank == 0) cout << residue.block(0,0,nJastrowVars, 1)<<endl<<endl;
+    if (commrank == 0) cout << residue.block(nJastrowVars,0,braVars.size(), 1)<<endl<<endl;
+    if (commrank == 0) cout << residue.maxCoeff()<<"  "<<residue.minCoeff()<<endl;
+    if (commrank == 0) cout << "norm "<<residue.norm()<<endl;
+    exit(0);
+
+    //NewtonMethod(variables, totalGrad);
+    
+
+  ADDITIONAL CODE USED IN THE PAST FOR TESTING
+   I AM KEEPING IT AROUND IN CASE WE NEED TO USE IT AGAIN.
+
+    /*
+    {
+      VectorXd JAresidue(2*norbs*(2*norbs+1)/2); JAresidue.setZero();
+      VectorXd rdm(2*norbs*(2*norbs+1)/2); rdm.setZero();
+      MatrixXd Onerdm(2*norbs,2*norbs); Onerdm.setZero();
+
+      Walker<Jastrow, Slater> walk;
+      std::vector<Determinant> allDets;
+      generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+      //vector<vector<int> > alldetvec;
+      //comb(2*norbs, nalpha+nbeta, alldetvec);
+      
+      double Energytrans = 0.0, Energyvar = 0.0;
+      double denominatortrans = 0.0, denominatorvar = 0.0;
+      workingArray work;
+      
+      for (int i = commrank; i < allDets.size(); i += commsize)
+      {
+        double ovlp, Eloc;
+        w.initWalker(walk, allDets[i]);
+        w.HamAndOvlp(walk, ovlp, Eloc, work, false);
+        double corrovlp = w.getCorr().Overlap(walk.d),
+            slaterovlp = walk.getDetOverlap(w.getRef());
+        //cout << allDets[i]<<"  "<<ovlp<<endl;
+
+        Energytrans += slaterovlp/corrovlp * Eloc*ovlp;
+        denominatortrans += slaterovlp*slaterovlp;
+
+        Energyvar +=  Eloc*ovlp*ovlp;
+        denominatorvar += ovlp*ovlp;
+
+        for (int orb1 = 0; orb1 < 2*norbs; orb1++)
+        for (int orb2 = 0; orb2 <= orb1; orb2++)
+        {
+          if (allDets[i].getocc(orb1) && allDets[i].getocc(orb2)) {
+            int I = (orb1/2) + (orb1%2)*norbs;
+            int J = (orb2/2) + (orb2%2)*norbs;
+            int K = max(I,J), L = min(I,J);
+            JAresidue(K * (K+1)/2 + L) += slaterovlp/corrovlp * Eloc * ovlp;
+            rdm(K * (K+1)/2 + L) += slaterovlp*slaterovlp;
+          }          
+        }
+
+      }
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &(Energytrans), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(denominatortrans), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(Energyvar), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(denominatorvar), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      
+      if (commrank == 0) {
+        cout << Energytrans<<"  "<<denominatortrans <<endl;
+        cout << Energyvar<<"  "<<denominatorvar <<endl;
+        cout <<"trans energy "<< Energytrans/denominatortrans <<endl;
+        cout <<"var energy "<< Energyvar/denominatorvar <<endl;
+        JAresidue -= (Energytrans/denominatortrans) * rdm;
+        JAresidue /= denominatortrans;
+        //cout << "residue"<<endl;
+        //cout << JAresidue <<endl;
+        cout << "residue norm: "<<JAresidue.norm() <<endl;
+      }
+    }
+/////////////////
+    
+   
+
+    /*
+    {
+
+      cout << "Jastrow optimization "<<endl;
+      VectorXd braVars(2* (2*norbs-nelec) * nelec); braVars.setZero();
+      boost::function<int (const VectorXd&, VectorXd&)> JastrowGrad
+          = boost::bind(&GetResidual::getJastrowResidue, &res, _1, boost::ref(braVars), _2);
+      NewtonMethod(JA, JastrowGrad);
+
+      HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(JastrowGrad);
+      solver.solveNumericalDiffInit(variables);
+      int info = solver.solveNumericalDiff(JA);
+      cout << info <<endl;
+      VectorXd Jastrowres = JA;
+      cout << JastrowGrad(JA, Jastrowres)<<endl;
+      cout << Jastrowres.norm()<<endl;
+    }
+///////////////////////
+
+
+
+    /*
+    variables.block(0,0,nJastrowVars, 1) = JA;
+    variables.block(nJastrowVars,0,braVars.size(),1) = braVars;
+
+    cout <<endl<< "Combined optimization "<<endl;
+    boost::function<double (const VectorXd&, VectorXd&)> totalGrad
+        = boost::bind(&GetResidual::getResidue, &res, _1, _2, true, true);
+
+
+    //optimizeJastrowParams(variables, res);
+    NewtonMethod(variables, totalGrad);
+    //SGDwithDIIS(variables, totalGrad);
+    */
+
+    
+    //optimizeOrbitalParams(variables, totalGrad, residual);
+    
+    //HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(totalGrad);
+    //solver.solveNumericalDiffInit(variables);
+    //int info = solver.solveNumericalDiff(variables);
+    //totalGrad(variables, residue);
+    //double norm = residue.norm();
+    //std::cout << format("%14.8f   %14.6f \n") %(residual.Energy()) %(norm);
+
+
+    /*
+    boost::function<int (const VectorXd&, VectorXd&)> fJastrow
+        = boost::bind(&Residuals::getJastrowResidue, &residual, _1, _2);
+    boost::function<int (const VectorXd&, VectorXd&)> forb
+        = boost::bind(&getOrbGradient, boost::ref(residual), _1, _2);
+
+    //double norm = 10.;
+
+    //CERES SOLVER
+    /*
+    {
+      char ** argv;
+      google::InitGoogleLogging(argv[0]);
+      Problem problem;
+      //boost::function<bool (const double* const, double*)> costfun
+      //  = boost::bind(&NumericCeresCostFunc, boost::ref(residual), _1, _2);
+      NumericCeresCostFunc costfun(residual);
+      
+      CostFunction* cost_function =
+          new DynamicNumericDiffCostFunction<NumericCeresCostFunc, ceres::CENTRAL>(costfun);
+      problem.AddResidualBlock(cost_function, NULL, &JA(0));
+      
+      Solver::Options options;
+      options.minimizer_progress_to_stdout = true;
+      Solver::Summary summary;
+      ceres::Solve(options, &problem, &summary);
+      std::cout << summary.BriefReport() << "\n";
+    }
+    */
+    /*
+    {
+      cout << residual.Energy() <<endl;
+      ResidualGradient::Residuals residue(norbs, nalpha, nbeta, bra, ngrid);
+      double error;
+      VectorXd grad = JA;
+      for (int i=0; i<300; i++) {
+        stan::math::gradient(residue, JA, error, grad);
+        JA -= 0.002* grad;
+        cout <<"RESIDUE "<< error <<"  "<<grad.norm()<<endl;
+      }
+      cout << residual.Energy() <<endl;
+    }
+    */
+    //auto Jresidue = JA;
+    //fJastrow(JA, Jresidue);
+    /*
+    HybridNonLinearSolver<boost::function<int (const VectorXd&, VectorXd&)>> solver(fJastrow);
+    solver.solveNumericalDiffInit(JA);
+    int info = solver.solveNumericalDiff(JA);
+    fJastrow(JA, Jresidue);
+    norm = Jresidue.norm();
+    std::cout << format("%14.8f   %14.6f \n") %(residual.Energy()) %(norm);
+    cout << info <<endl;
+    //optimizeOrbitalParams(braReal, forb, residual);
+
+    int iter = 0;    
+    while(norm > 1.e-6 && iter <10) {
+      //cout << JA <<endl;
+      int info = solver.solveNumericalDiffOneStep(JA);
+      residual.Jastrow = JA;
+      fJastrow(JA, Jresidue);
+      norm = Jresidue.norm();
+      cout <<"info: "<< info <<endl;
+      std::cout << format("%14.8f   %14.6f \n") %(residual.E0) %(norm);
+      iter++;
+    }
+    cout << residual.Energy() <<endl;
+    optimizeJastrowParams(JA, fJastrow, residual);
+    optimizeOrbitalParams(braReal, forb, residual);
+    exit(0);
+    */
+    //optimizeJastrowParams(JA, fJastrow, residual);
+    /*
+    for (int i=0; i<20; i++) {
+      optimizeJastrowParams(JA, fJastrow, residual);
+      optimizeOrbitalParams(braReal, forb, residual);
+    }
+    */
+    //optimizeOrbitalParams(braReal, forb, residual);
+    //optimizeJastrowParams(JA, fJastrow, residual);
+    //optimizeOrbitalParams(braReal, forb, residual);
+
+
+    /*
+    cout << "Optimizing orbitals"<<endl;
+    VectorXd braReal(2*2*norbs * (nalpha+nbeta));
+    VectorXd braResidue(2*2*norbs * (nalpha+nbeta));
+    for (int i=0; i<2*norbs; i++) 
+      for (int j=0; j<bra.cols(); j++) {
+        braReal(2*i*bra.cols()+j  ) = bra(i,j).real();
+        braReal(2*i*bra.cols()+j+1) = bra(i,j).imag();
+      }
+    //cout <<endl<<endl<< braReal<<endl<<endl;
+    double Energy;
+    optimizeParams(braReal, forb, residual);
+
+    cout << "Optimizing Jastrows"<<endl;
+    optimizeParams(JA, fJastrow, residual);
+    
+    cout << residual.bra<<endl<<endl;
+    cout << residual.ket[0]<<endl<<endl;
+    cout << residual.ket[1]<<endl<<endl;
+
+    //cout <<endl<<endl<< braReal<<endl<<endl;
+    
+    cout << residual.Energy() <<endl;
+    optimizeParams(braReal, forb, residual);
+
+    cout << "Optimizing Jastrows"<<endl;
+    optimizeParams(JA, fJastrow, residual);
+    exit(0);
+    */

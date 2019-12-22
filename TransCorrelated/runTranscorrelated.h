@@ -22,16 +22,10 @@
 #include <sys/stat.h>
 #include "input.h"
 #include "TransevaluateE.h"
-#include "amsgrad.h"
-#include "sgd.h"
-#include "ftrl.h"
-#include "sr.h"
-#include "linearMethod.h"
-//#include "variance.h"
 
 
-template<typename Wave, typename Walker>
-void runTranscorrelated(Wave& wave, Walker& walk) {
+template<typename Wave>
+void runTranscorrelated(Wave& wave) {
 
   if (schd.restart || schd.fullrestart)
     wave.readWave();
@@ -44,11 +38,11 @@ void runTranscorrelated(Wave& wave, Walker& walk) {
     cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getCorr().getNumVariables() << endl;
   }
   
-  getTranscorrelationWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
+  getTranscorrelationWrapper<Wave> wrapper(wave);
 
   double Energy, stddev, rt;
   VectorXd grad;
-  wrapper.getTransGradient(vars, grad, Energy, stddev, rt, true);
+  wrapper.optimizeWavefunction();
   
   if (schd.printVars && commrank==0) wave.printVariables();
   
