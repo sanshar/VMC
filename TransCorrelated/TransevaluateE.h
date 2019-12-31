@@ -33,6 +33,7 @@
 #include <boost/algorithm/string.hpp>
 #include "DirectJacobian.h"
 #include "Residuals.h"
+#include "ResidualsGJ.h"
 #include "CorrelatedWavefunction.h"
 #include "Complex.h"
 
@@ -97,6 +98,60 @@ class getTranscorrelationWrapper
   getTranscorrelationWrapper(Wfn &pwr) : w(pwr)
   {};
 
+
+  double optimizeWavefunctionGJ()
+  {
+    auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                            std::ref(generator));
+    //using T = stan::math::var;
+    using T = double;
+    using complexT = complex<T>;
+    //using complexT = Complex<T>;
+    using MatrixXcT = Matrix<complexT, Dynamic, Dynamic>;
+    using VectorXcT = Matrix<complexT, Dynamic, 1>;
+    using MatrixXT = Matrix<T, Dynamic, Dynamic>;
+    using VectorXT = Matrix<T, Dynamic, 1>;
+    
+    int norbs = Determinant::norbs;
+    int nalpha = Determinant::nalpha;
+    int nbeta = Determinant::nbeta;
+    int nelec = nalpha + nbeta;
+    
+    int nJastrowVars = norbs;
+    int nOrbitalVars = (2*norbs-nelec)*(nelec);
+    VectorXT variables(nJastrowVars + 2*nOrbitalVars);
+    VectorXT Jastrow(nJastrowVars), Lambda(nJastrowVars);
+    //Jastrow = VectorXT::Random(norbs);//just for debugging
+    for (int i=0; i<nJastrowVars; i++) {
+      Lambda[i] = 0.0;
+      Jastrow[i] = 0.01;
+    }
+    //Lambda.setZero(); Jastrow.setZero();
+
+    MatrixXcd& hforbs = w.getRef().HforbsA;
+    
+    MatrixXcT bra(2*norbs, nelec);
+    for (int i=0; i<2*norbs; i++)
+      for (int j=0; j<nelec; j++) {
+        bra(i,j).real(hforbs(i,j).real());
+        bra(i,j).imag(hforbs(i,j).imag());
+      }
+    int ngrid = 4; //FOR THE SZ PROJECTOR
+
+
+    GetResidualGJ<T, complexT> resGJ(ngrid);
+    T E = resGJ.getLagrangian(bra, Jastrow, Lambda);
+    cout << E<<"  "<<getTime()-startofCalc<<endl;
+
+    /*
+    grad(E.vi_);
+    for (int i=0; i<2*norbs; i++)
+      for (int j=0; j<nelec; j++)
+        cout << bra(i,j)<<"  "<<bra(i,j).real().adj()<<"  "<<bra(i,j).imag().adj()<<endl;
+    cout << "***** "<<getTime()-startofCalc<<endl;
+    */
+  }
+  
   double optimizeWavefunction()
   {
     auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
@@ -125,11 +180,11 @@ class getTranscorrelationWrapper
     VectorXT JRed(2*norbs*(2*norbs+1)/2 - nJastrowVars), JnonRed(nJastrowVars);
 
     fillJastrowfromWfn(w.getCorr().SpinCorrelator, JA);
-
     RedundantAndNonRedundantJastrow(JA, JRed, JnonRed, NonRedundantMap);
+    JnonRed = VectorXT::Random(norbs);//just for debugging
     
     VectorXT braVars(2* nOrbitalVars); braVars.setZero();
-    int ngrid = 5; //FOR THE SZ PROJECTOR
+    int ngrid = 4; //FOR THE SZ PROJECTOR
 
 
     MatrixXcT hforbs(2*norbs, 2*norbs);
@@ -148,10 +203,18 @@ class getTranscorrelationWrapper
         = boost::bind(&GetResidual<T, complexT>::getOrbitalResidue, &res, boost::ref(JnonRed), _1, _2, _3);
     boost::function<T (const VectorXT&, VectorXT&, bool)> JastrowGrad
         = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braVars), _2, _3);
+
     double E = totalGrad(variables, residual, true);
     if (commrank == 0) cout << "INITIAL E: "<<E<<endl;
+    cout << getTime()-startofCalc<<endl;
+    cout << residual.block(0,0,norbs, 1)<<endl<<endl;
+    cout << norbs<<"  "<<JnonRed.size()<<endl;
 
-
+    GetResidualGJ<T, complexT> resGJ(ngrid); VectorXT Lambda(norbs); Lambda.setZero();
+    T Egj = resGJ.getLagrangian(hforbs.block(0,0,2*norbs, nelec), JnonRed, Lambda);
+    cout << Egj<<endl;
+    exit(0);
+    
     if (!(schd.restart || schd.fullrestart)) {
       auto ograd = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
         E0 = OrbitalGrad(vars, res, true);
@@ -174,9 +237,8 @@ class getTranscorrelationWrapper
     }
 
 
-    SGDwithDIIS(variables, totalGrad, schd.maxIter, 5.e-4, true);
-    exit(0);
-    //NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
+    SGDwithDIIS(variables, totalGrad, schd.maxIter, 5.e-4, true);      
+    NewtonMethod(variables, totalGrad, schd.maxIter, 1.e-6);
 
     for (int i=0; i<schd.maxMacroIter; i++)
     {

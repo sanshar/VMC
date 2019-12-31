@@ -25,12 +25,10 @@
 
 
 template<typename Wave>
-void runTranscorrelated(Wave& wave) {
+void runTranscorrelated(Wave& wave, bool isGutzwiller = false) {
 
   if (schd.restart || schd.fullrestart)
     wave.readWave();
-  VectorXd vars; wave.getVariables(vars);
-
   
   if (commrank == 0)
   {
@@ -42,7 +40,12 @@ void runTranscorrelated(Wave& wave) {
 
   double Energy, stddev, rt;
   VectorXd grad;
+  wrapper.optimizeWavefunctionGJ();
   wrapper.optimizeWavefunction();
+  if (isGutzwiller)
+    wrapper.optimizeWavefunctionGJ();
+  else
+    wrapper.optimizeWavefunction();
   
   if (schd.printVars && commrank==0) wave.printVariables();
   
