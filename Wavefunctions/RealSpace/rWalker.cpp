@@ -149,12 +149,10 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
           for (int n = 0; n < schd.Ncharge[I]; n++)
           {
               Vector3d r(random(), random(), random());
-              int index = i / 2;
-              if (i % 2 == 0) //alpha electron
-                  d.coord[index] = schd.Ncoords[I] + r;
-              else //beta electron
-                  d.coord[index + nalpha] = schd.Ncoords[I] + r;
+              d.coord[i] = schd.Ncoords[I] + r;
               i++;
+
+              //cout << d << endl;
           }
       }
   }

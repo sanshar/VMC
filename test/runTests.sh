@@ -244,7 +244,7 @@ then
     ../clean.sh
 fi
 
-cd $here/H6_ghf_trans/
+cd $here/h6_ghf_trans/
 ../clean.sh
 printf "...running H6 transcorrelated\n"
 $MPICOMMAND $TRANSPATH > trans.out
