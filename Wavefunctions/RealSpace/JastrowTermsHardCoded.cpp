@@ -329,6 +329,13 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
 
       double rjNbar, dfjN, d2fjN;
       scaledRij(rjN, rjNbar, dfjN, d2fjN);
+      
+      VectorXd iNPowers = VectorXd::Zero(maxQ+1), jNPowers = VectorXd::Zero(maxQ+1), ijPowers = VectorXd::Zero(maxQ+1);
+      for (int m = 0; m <= maxQ; m++) {
+        iNPowers[m] = pow(riNbar, m);
+        jNPowers[m] = pow(rjNbar, m);
+        ijPowers[m] = pow(rijbar, m);
+      }
 
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
@@ -336,8 +343,8 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
         if (n == 0 && o == 0) continue; //EN term
 
         double factor = params[startIndex + index];
-        double value1 = pow(riNbar, m) * pow(rjNbar, n) * pow(rijbar, o);
-        double value2 = pow(rjNbar, m) * pow(riNbar, n) * pow(rijbar, o);
+        double value1 = iNPowers[m] * jNPowers[n] * ijPowers[o];
+        double value2 = jNPowers[m] * iNPowers[n] * ijPowers[o];
       
         value   += factor*(value1 + value2);
         grad(0) += factor * (
@@ -410,13 +417,20 @@ double JastrowEENValue(int i, int j, int maxQ,
       double rjNbar, dfjN, d2fjN;
       scaledRij(rjN, rjNbar, dfjN, d2fjN);
 
+      VectorXd iNPowers = VectorXd::Zero(maxQ+1), jNPowers = VectorXd::Zero(maxQ+1), ijPowers = VectorXd::Zero(maxQ+1);
+      for (int m = 0; m <= maxQ; m++) {
+        iNPowers[m] = pow(riNbar, m);
+        jNPowers[m] = pow(rjNbar, m);
+        ijPowers[m] = pow(rijbar, m);
+      }
+
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
         
-        value += (pow(riNbar, m) * pow(rjNbar, n)
-                  + pow(rjNbar, m) * pow(riNbar, n)) * pow(rijbar, o)
+        value += (iNPowers[m] * jNPowers[n]
+                  + jNPowers[m] * iNPowers[n]) * ijPowers[o]
             * params[startIndex + index];
         index++;
 
@@ -475,14 +489,23 @@ void JastrowEEN(int i, int j, int maxQ,
 
       double rjNbar, dfjN, d2fjN;
       scaledRij(rjN, rjNbar, dfjN, d2fjN);
+      
+      VectorXd iNPowers = VectorXd::Zero(maxQ+1), jNPowers = VectorXd::Zero(maxQ+1), ijPowers = VectorXd::Zero(maxQ+1);
+      for (int m = 0; m <= maxQ; m++) {
+        iNPowers[m] = pow(riNbar, m);
+        jNPowers[m] = pow(rjNbar, m);
+        ijPowers[m] = pow(rijbar, m);
+      }
 
+      double lapIntermediateI = (xiN * xij + yiN * yij + ziN * zij) / riN / rij;
+      double lapIntermediateJ = (-xjN * xij - yjN * yij - zjN * zij) / rjN / rij;
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
         
-        double value1 = pow(riNbar, m) * pow(rjNbar, n) * pow(rijbar, o);
-        double value2 = pow(rjNbar, m) * pow(riNbar, n) * pow(rijbar, o);
+        double value1 = iNPowers[m] * jNPowers[n] * ijPowers[o];
+        double value2 = jNPowers[m] * iNPowers[n] * ijPowers[o];
       
         values[startIndex + index] += factor*(value1 + value2);
 
@@ -506,7 +529,7 @@ void JastrowEEN(int i, int j, int maxQ,
                
             + 2 * ( m  / riNbar * dfiN * value1 +  n  / riNbar * dfiN * value2)
                 * (o / rijbar * dfij )
-                * (xiN * xij + yiN * yij + ziN * zij) / riN / rij);
+                * lapIntermediateI);
                
 
         gx(j, startIndex + index) += factor * (
@@ -529,7 +552,7 @@ void JastrowEEN(int i, int j, int maxQ,
                
             + 2 * ( m  / rjNbar * dfjN * value2 +  n  / rjNbar * dfjN * value1)
                 * (o / rijbar * dfij )
-                * (-xjN * xij - yjN * yij - zjN * zij) / rjN / rij);
+                * lapIntermediateJ);
         
         
         index++;
