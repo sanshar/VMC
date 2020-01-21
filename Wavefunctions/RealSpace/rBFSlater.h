@@ -47,6 +47,8 @@ class rBFSlater {
         & ciExpansion 
         & HforbsA
         & HforbsB
+        & aN
+        & bN
         & a
         & b;
   }
@@ -58,7 +60,8 @@ class rBFSlater {
   std::vector<Determinant> determinants; //The set of determinants 
   std::vector<double> ciExpansion;       //The ci expansion
   Eigen::MatrixXcd HforbsA, HforbsB;     //mo coeffs, HforbsA=HforbsB for r/ghf
-  double a, b;                           //backflow params eta(r) = a exp(-(r/b)^2)
+  double aN, bN;                         //e-n bf parameters
+  std::array<double, 2> a, b;            //backflow params eta(r) = a exp(-(r/b)^2), parameters for opposite and same spin pairs 
 
   //read mo coeffs fomr hf.txt
   void initHforbs();
@@ -73,8 +76,9 @@ class rBFSlater {
   //void initWalker(HFWalker &walk) const;
   //void initWalker(HFWalker &walk, const Determinant &d) const;
 
-  double eta(const double rij) const;
-  double gFun(const double riN) const;
+  double eta(const double rij, const bool sameSpinQ) const;
+  double chi(const double riI) const;
+  double gFun(const double riI) const;
 
   //variables are ordered as:
   //cicoeffs of the reference multidet expansion, followed by hforbs (row major)

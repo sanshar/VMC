@@ -75,6 +75,7 @@ private:
       & hf
       & optimizeOrbs
       & optimizeCps
+      & optimizeBackflow
       & printVars
       & printGrad
       & Hamiltonian
@@ -149,6 +150,7 @@ public:
   std::string hf;
   bool optimizeOrbs;
   bool optimizeCps;
+  bool optimizeBackflow;
   bool printVars;
   bool printOpt;
   bool printGrad;

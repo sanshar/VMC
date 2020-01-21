@@ -85,6 +85,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.hf = "rhf";
       schd.optimizeOrbs = true;
       schd.optimizeCps = true;
+      schd.optimizeBackflow = true;
       schd.printVars = false;
       schd.printGrad = false;
       schd.debug = false;
@@ -448,6 +449,11 @@ void readInput(string input, schedule& schd, bool print) {
       else if (boost::iequals(ArgName, "dontoptimizecps"))
 	    {
 	      schd.optimizeCps = false;
+	    }
+      
+      else if (boost::iequals(ArgName, "dontoptimizebackflow"))
+	    {
+	      schd.optimizeBackflow = false;
 	    }
 
 	  else if (boost::iequals(ArgName, "hubbard"))

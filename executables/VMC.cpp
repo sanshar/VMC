@@ -70,6 +70,14 @@ int main(int argc, char *argv[])
 
   initSHM();
   //license();
+  if (commrank == 0) {
+    system("echo User:; echo $USER");
+    system("echo Hostname:; echo $HOSTNAME");
+    system("echo CPU info:; lscpu | head -15");
+    system("echo Computation started at:; date");
+    cout << "git commit: " << GIT_HASH << ", branch: " << GIT_BRANCH << ", compiled at: " << COMPILE_TIME << endl;
+    cout << "nproc used: " << commsize << " (NB: stochasticIter below is per proc)" << endl << endl; 
+  }
 
   cout.precision(10);
   string inputFile = "input.dat";

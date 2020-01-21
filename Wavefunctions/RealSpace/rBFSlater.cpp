@@ -43,7 +43,15 @@ rBFSlater::rBFSlater()
 {
   initHforbs();
   initDets();
-  a = 0.05; b = 0.7;
+  aN = -0.1; bN = 0.5; 
+  a[0] = 0.1; b[0] = 0.5;
+  a[1] = 0.1; b[1] = 0.5;
+  ifstream ifile("Backflow.txt");
+  if (ifile) {
+    ifile >> aN;   ifile >> bN;
+    ifile >> a[0]; ifile >> b[0];
+    ifile >> a[1]; ifile >> b[1];
+  }
 }
 
 int rBFSlater::getNumOfDets() const {return determinants.size();}
@@ -120,14 +128,19 @@ void rBFSlater::initDets()
   }
 }
 
-double rBFSlater::eta(const double rij) const
+double rBFSlater::eta(const double rij, const bool sameSpinQ) const
 {
-  return a*exp(-pow(rij/b, 2));
+  return a[sameSpinQ] * exp(-pow(rij / b[sameSpinQ], 2));
 }
 
-double rBFSlater::gFun(const double riN) const
+double rBFSlater::chi(const double riI) const
 {
-  return (1 - exp(-5*pow(riN, 2)));
+  return aN * exp(-pow(riI / bN, 2));
+}
+
+double rBFSlater::gFun(const double riI) const
+{
+  return (1 - exp(-5*pow(riI, 2)));
 }
 
 //I Assume that there is only single determinant in the ciexpansion
@@ -168,8 +181,12 @@ void rBFSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
       }
     }
   }
-  v[v.size() - 2] = a;
-  v[v.size() - 1] = b;
+  v[v.size() - 6] = aN;
+  v[v.size() - 5] = bN;
+  v[v.size() - 4] = a[0];
+  v[v.size() - 3] = b[0];
+  v[v.size() - 2] = a[1];
+  v[v.size() - 1] = b[1];
 }
 
 long rBFSlater::getNumVariables() const
@@ -184,7 +201,7 @@ long rBFSlater::getNumVariables() const
     numVars += 2 * nalpha * HforbsA.rows();
   else
     numVars += 2 * nelec * HforbsA.rows();
-  numVars += 2; //backflow
+  numVars += 6; //backflow
   return numVars;
 }
 
@@ -230,8 +247,12 @@ void rBFSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
       }
     }
   }
-  a = v[v.size() - 2];
-  b = v[v.size() - 1];
+  aN = v[v.size() - 6];
+  bN = v[v.size() - 5];
+  a[0] = v[v.size() - 4];
+  b[0] = v[v.size() - 3];
+  a[1] = v[v.size() - 2];
+  b[1] = v[v.size() - 1];
 }
 
 void rBFSlater::printVariables() const
@@ -257,7 +278,7 @@ void rBFSlater::printVariables() const
       cout << endl;
     }
   }
-  cout << "Backflow:  a = " << a << "  b = " << b << endl << endl;
+  cout << "Backflow:  aN = " << aN << ", bN = " << bN << ", aOS = " << a[0] << ", bOS = " << b[0] << ", aSS = " << a[1] << ", bSS = " << b[1]  << endl << endl;
 
 }
 

@@ -234,10 +234,12 @@ void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d,
                                                 Eigen::VectorBlock<VectorXd>& grad,
                                                 const double& ovlp) 
 {
-  if (schd.hf == "ghf")
-    OverlapWithGradientGhf(d, ref, grad);
-  else
-    OverlapWithGradient(d, ref, grad);
+  if (schd.optimizeOrbs) {
+    if (schd.hf == "ghf")
+      OverlapWithGradientGhf(d, ref, grad);
+    else
+      OverlapWithGradient(d, ref, grad);
+  }
 }
 
 void rWalkerHelper<rSlater>::HamOverlap(const rDeterminant& d, 
@@ -378,7 +380,7 @@ double calcHTerms(int i, const rBFSlater &w, const rDeterminant &d, const Vector
   double hi = 1.;
   vector<Array3d> DhVec;  //useful intermediate
   DhVec.resize(schd.Ncoords.size());
-  for(int N = 0; N < schd.Ncoords.size(); N++) {
+  for (int N = 0; N < schd.Ncoords.size(); N++) {
     double giN = w.gFun(RiN(N));
     hi *= giN;
     double DgDr = 10 * RiN(N) * (1 - giN);
@@ -400,9 +402,11 @@ double calcHTerms(int i, const rBFSlater &w, const rDeterminant &d, const Vector
 //Deta and D2eta are w.r.t. r_j components
 double calcEtaTerms(int i, int j, const rBFSlater &w, const rDeterminant &d, const double &rij, Array3d &Deta, Array3d &D2eta) 
 {
-  double etaij = w.eta(rij);
-  double DetaDr = -2 * rij * etaij / pow(w.b, 2);
-  double D2etaDr2 = 2 * etaij *(2 * pow(rij / w.b, 2) - 1) / pow(w.b, 2);
+  bool sameSpinQ = (i + 0.5 - d.nalpha) * (j + 0.5 - d.nalpha) < 0 ? 0 : 1;
+  double etaij = w.eta(rij, sameSpinQ);
+  double bij = w.b[sameSpinQ]; 
+  double DetaDr = -2 * rij * etaij / pow(bij, 2);
+  double D2etaDr2 = 2 * etaij * (2 * pow(rij / bij, 2) - 1) / pow(bij, 2);
   Array3d Dr = (d.coord[j] - d.coord[i]).array() / rij;
   Array3d D2r = 1 / rij - (d.coord[j] - d.coord[i]).array().square() / pow(rij, 3);
   Deta = DetaDr * Dr;
@@ -410,17 +414,39 @@ double calcEtaTerms(int i, int j, const rBFSlater &w, const rDeterminant &d, con
   return etaij;
 }
 
+//Deta and D2eta are w.r.t. r_j components
+double calcChiTerms(int i, int I, const rBFSlater &w, const rDeterminant &d, const double &riI, Array3d &Dchi, Array3d &D2chi) 
+{
+  double chiiI = w.chi(riI);
+  double DchiDr = -2 * riI * chiiI / pow(w.bN, 2);
+  double D2chiDr2 = 2 * chiiI * (2 * pow(riI / w.bN, 2) - 1) / pow(w.bN, 2);
+  Array3d Dr = (d.coord[i] - schd.Ncoords[I]).array() / riI;
+  Array3d D2r = 1 / riI - (d.coord[i] - schd.Ncoords[I]).array().square() / pow(riI, 3);
+  Dchi = DchiDr * Dr;
+  D2chi = DchiDr * D2r + D2chiDr2 * Dr.square();
+  return chiiI;
+}
+
 void rWalkerHelper<rBFSlater>::initPositionTables(const rBFSlater &w, const rDeterminant &d, const MatrixXd &Rij, const MatrixXd &RiN)
 {
   dp = d;
   displacements.resize(d.nelec);
-  gradDisplacements.resize(d.nelec);
+  gradaDisplacements.resize(d.nelec);
+  gradbDisplacements.resize(d.nelec);
+  gradaNDisplacements.resize(d.nelec);
+  gradbNDisplacements.resize(d.nelec);
   for (int i = 0; i < d.nelec; i++) {
     displacements[i].setZero();
-    gradDisplacements[i].setZero();
+    gradaDisplacements[i][0].setZero();
+    gradaDisplacements[i][1].setZero();
+    gradbDisplacements[i][0].setZero();
+    gradbDisplacements[i][1].setZero();
+    gradaNDisplacements[i].setZero();
+    gradbNDisplacements[i].setZero();
   }
   etaValues = MatrixXd::Zero(d.nelec, d.nelec);
   hValues = MatrixXd::Zero(d.nelec, schd.Ncoords.size());
+  chiValues = MatrixXd::Zero(d.nelec, schd.Ncoords.size());
   for (int mu = 0; mu < 3; mu++) {
     hGradient[mu] = VectorXd::Zero(d.nelec);
     hSecondDerivatives[mu] = VectorXd::Zero(d.nelec);
@@ -440,9 +466,33 @@ void rWalkerHelper<rBFSlater>::initPositionTables(const rBFSlater &w, const rDet
       hSecondDerivatives[mu][i] = D2h(mu);
     }
   
+    //chi_iI terms
+    for (int I = 0; I < schd.Ncoords.size(); I++) {
+      Array3d Dchi(0., 0., 0.); 
+      Array3d D2chi(0., 0., 0.);
+      chiValues(i, I) = calcChiTerms(i, I, w, d, RiN(i, I), Dchi, D2chi);
+      double chiiI = chiValues(i, I);
+      //sans hi factors
+      displacements[i] += chiiI * (d.coord[i] - schd.Ncoords[I]);
+      gradaNDisplacements[i] += chiiI * (d.coord[i] - schd.Ncoords[I]) / w.aN;
+      gradbNDisplacements[i] += chiiI * (d.coord[i] - schd.Ncoords[I]) * 2 * pow(RiN(i, I), 2) / pow(w.bN, 3);
+      MatrixXd rDchi = (d.coord[i] - schd.Ncoords[I]) * Dchi.matrix().transpose();
+      MatrixXd rD2chi = (d.coord[i] - schd.Ncoords[I]) * D2chi.matrix().transpose();
+      for (int mu = 0; mu < 3; mu++) {
+        for (int nu = 0; nu < 3; nu++) {
+          int munu = 3 * mu + nu;
+          double delta = mu == nu ? 1. : 0.;
+          rpGradient[munu](i, i) += chiiI * delta + rDchi(mu, nu);
+          rpSecondDerivatives[munu](i, i) += 2 * Dchi[nu] * delta + rD2chi(mu, nu);
+        }
+      }
+    }
+
     //eta_ij terms
     //j < i contributions are calculated in previous loop iterations
     for (int j = i + 1; j < d.nelec; j++) {
+      bool sameSpinQ = (i + 0.5 - d.nalpha) * (j + 0.5 - d.nalpha) < 0 ? 0 : 1;
+      double aij = w.a[sameSpinQ], bij = w.b[sameSpinQ];
       Array3d Deta(0., 0., 0.); 
       Array3d D2eta(0., 0., 0.);
       etaValues(i, j) = calcEtaTerms(i, j, w, d, Rij(i, j), Deta, D2eta);
@@ -452,8 +502,10 @@ void rWalkerHelper<rBFSlater>::initPositionTables(const rBFSlater &w, const rDet
       //sans hi factors, because these also serve as intermediates in second derivatrive calcs
       displacements[i] += etaij * (d.coord[i] - d.coord[j]);
       displacements[j] += etaij * (d.coord[j] - d.coord[i]);
-      gradDisplacements[i] += etaij * (d.coord[i] - d.coord[j]) * 2 * pow(Rij(i, j), 2) / pow(w.b, 3);
-      gradDisplacements[j] += etaij * (d.coord[j] - d.coord[i]) * 2 * pow(Rij(i, j), 2) / pow(w.b, 3);
+      gradaDisplacements[i][sameSpinQ] += etaij * (d.coord[i] - d.coord[j]) / aij;
+      gradaDisplacements[j][sameSpinQ] += etaij * (d.coord[j] - d.coord[i]) / aij;
+      gradbDisplacements[i][sameSpinQ] += etaij * (d.coord[i] - d.coord[j]) * 2 * pow(Rij(i, j), 2) / pow(bij, 3);
+      gradbDisplacements[j][sameSpinQ] += etaij * (d.coord[j] - d.coord[i]) * 2 * pow(Rij(i, j), 2) / pow(bij, 3);
 
       MatrixXd rDeta = (d.coord[i] - d.coord[j]) * Deta.matrix().transpose();
       MatrixXd rD2eta = (d.coord[i] - d.coord[j]) * D2eta.matrix().transpose();
@@ -550,13 +602,7 @@ void rWalkerHelper<rBFSlater>::calcSlaterDerivatives(const rBFSlater& w, const r
       cout << "proposedDetMatrix\n" << proposedDetMatrix<<endl<<endl;
       cout << thetaInv<<endl<<endl;
       cout << "d\n" << d << endl;
-      cout << "dp\n" << dp << endl;
-      cout << "proposed dp\n" << proposedDp << endl;
       cout << "thetaDet " << thetaDet << endl;
-      cout << "proposedThetaDet " << proposedThetaDet << endl;
-      cout << "a " << w.a << " b " << w.b << endl;
-      cout << "hValues\n" << hValues << endl;
-      cout << "etaValues\n" << etaValues << endl;
       exit(0);
     }
   }
@@ -619,10 +665,17 @@ double rWalkerHelper<rBFSlater>::getDetFactor(int i, Vector3d& newCoord, const r
   proposedDp = dp;
   proposedDp.coord[i] = newCoord;
   //calculate new backflow coordinates
+  for (int I = 0; I < schd.Ncoords.size(); I++) {
+    Vector3d riI = newCoord - schd.Ncoords[I];
+    double chiiI = w.chi(riI.norm());
+    proposedDp.coord[i] += hi * chiiI * riI;
+  }
+  
   for(int j = 0; j < d.nelec; j++) {
     if (i == j) continue;
     Vector3d rij = newCoord - d.coord[j];
-    double etaij = w.eta(rij.norm());
+    bool sameSpinQ = (i + 0.5 - d.nalpha) * (j + 0.5 - d.nalpha) < 0 ? 0 : 1;
+    double etaij = w.eta(rij.norm(), sameSpinQ);
     proposedDp.coord[j] += hValues(j) * (etaij * (-rij) - etaValues(j, i) * (d.coord[j] - d.coord[i]));
     proposedDp.coord[i] += hi * etaij * rij;
   }
@@ -643,7 +696,12 @@ void rWalkerHelper<rBFSlater>::updateWalker(int i, Vector3d& oldCoord, const rDe
 
   //update position derivatives
   displacements[i].setZero();
-  gradDisplacements[i].setZero();
+  gradaDisplacements[i][0].setZero();
+  gradaDisplacements[i][1].setZero();
+  gradbDisplacements[i][0].setZero();
+  gradbDisplacements[i][1].setZero();
+  gradaNDisplacements[i].setZero();
+  gradbNDisplacements[i].setZero();
   for (int mu = 0; mu < 3; mu++) {
     for (int nu = 0; nu < 3; nu++) {
       int munu = 3 * mu + nu;
@@ -656,18 +714,45 @@ void rWalkerHelper<rBFSlater>::updateWalker(int i, Vector3d& oldCoord, const rDe
   double hi = calcHTerms(i, w, d, RiN.row(i), Dh, D2h);
   hValues(i) = hi;
 
+  //e-n terms
+  for (int I = 0; I < schd.Ncoords.size(); I++) {
+    Array3d Dchi(0., 0., 0.); 
+    Array3d D2chi(0., 0., 0.);
+    chiValues(i, I) = calcChiTerms(i, I, w, d, RiN(i, I), Dchi, D2chi);
+    double chiiI = chiValues(i, I);
+    //sans hi factors
+    displacements[i] += chiiI * (d.coord[i] - schd.Ncoords[I]);
+    gradaNDisplacements[i] += chiiI * (d.coord[i] - schd.Ncoords[I]) / w.aN;
+    gradbNDisplacements[i] += chiiI * (d.coord[i] - schd.Ncoords[I]) * 2 * pow(RiN(i, I), 2) / pow(w.bN, 3);
+    MatrixXd rDchi = (d.coord[i] - schd.Ncoords[I]) * Dchi.matrix().transpose();
+    MatrixXd rD2chi = (d.coord[i] - schd.Ncoords[I]) * D2chi.matrix().transpose();
+    for (int mu = 0; mu < 3; mu++) {
+      for (int nu = 0; nu < 3; nu++) {
+        int munu = 3 * mu + nu;
+        double delta = mu == nu ? 1. : 0.;
+        rpGradient[munu](i, i) += hi * (chiiI * delta + rDchi(mu, nu));
+        rpSecondDerivatives[munu](i, i) += hi * (2 * Dchi[nu] * delta + rD2chi(mu, nu));
+      }
+    }
+  }
+  
+  //e-e terms
   for(int j = 0; j < d.nelec; j++) {
     if (i == j) continue;
     Array3d Deta(0., 0., 0.); 
     Array3d D2eta(0., 0., 0.);
     double etaij = calcEtaTerms(i, j, w, d, Rij(i, j), Deta, D2eta);
 
+    bool sameSpinQ = (i + 0.5 - d.nalpha) * (j + 0.5 - d.nalpha) < 0 ? 0 : 1;
+    double aij = w.a[sameSpinQ], bij = w.b[sameSpinQ];
     displacements[i] += etaij * (d.coord[i] - d.coord[j]);
-    gradDisplacements[i] += etaij * (d.coord[i] - d.coord[j]) * 2 * pow(Rij(i, j), 2) / pow(w.b, 3);
+    gradaDisplacements[i][sameSpinQ] += etaij * (d.coord[i] - d.coord[j]) / aij;
+    gradbDisplacements[i][sameSpinQ] += etaij * (d.coord[i] - d.coord[j]) * 2 * pow(Rij(i, j), 2) / pow(bij, 3);
     Vector3d deltaDj = etaij * (d.coord[j] - d.coord[i]) - etaValues(i, j) * (d.coord[j] - oldCoord);
     displacements[j] += deltaDj;
+    gradaDisplacements[j][sameSpinQ] += deltaDj / aij;
     double oldRij = (d.coord[j] - oldCoord).norm();
-    gradDisplacements[j] += (etaij * (d.coord[j] - d.coord[i]) * pow(Rij(i, j), 2) - etaValues(i, j) * (d.coord[j] - oldCoord) * pow(oldRij, 2)) * 2 / pow(w.b, 3);
+    gradbDisplacements[j][sameSpinQ] += (etaij * (d.coord[j] - d.coord[i]) * pow(Rij(i, j), 2) - etaValues(i, j) * (d.coord[j] - oldCoord) * pow(oldRij, 2)) * 2 / pow(bij, 3);
     MatrixXd rDeta = (d.coord[i] - d.coord[j]) * Deta.matrix().transpose();
     MatrixXd rD2eta = (d.coord[i] - d.coord[j]) * D2eta.matrix().transpose();
 
@@ -726,40 +811,56 @@ void rWalkerHelper<rBFSlater>::OverlapWithGradient(const rDeterminant& d,
   int nelec = nalpha+nbeta;
   int numDets = ref.determinants.size();
   std::complex<double> i(0.0, 1.0);
-  
-  MatrixXd AoRi = MatrixXd::Zero(nelec, 2*norbs);
-  aoValues.resize(norbs);
-  
-  for (int elec=0; elec<nelec; elec++) {
-    schd.basis->eval(dp.coord[elec], &aoValues[0]);
-    for (int orb = 0; orb<norbs; orb++) {
-      if (elec < nalpha)
-        AoRi(elec, orb) = aoValues[orb];
-      else
-        AoRi(elec, norbs+orb) = aoValues[orb];
+ 
+  if (schd.optimizeOrbs) {
+    MatrixXd AoRi = MatrixXd::Zero(nelec, 2*norbs);
+    aoValues.resize(norbs);
+    
+    for (int elec=0; elec<nelec; elec++) {
+      schd.basis->eval(dp.coord[elec], &aoValues[0]);
+      for (int orb = 0; orb<norbs; orb++) {
+        if (elec < nalpha)
+          AoRi(elec, orb) = aoValues[orb];
+        else
+          AoRi(elec, norbs+orb) = aoValues[orb];
+      }
+    }
+
+    //mo gradient
+    for (int mo=0; mo<nelec; mo++) {
+      for (int orb=0; orb< 2*norbs; orb++) {
+        std::complex<double> factor = thetaInv.row(mo) * AoRi.col(orb);
+        grad[numDets + 2*orb * nelec + 2*mo] = (factor * thetaDet).real() / thetaDet.real();
+        if (schd.ifComplex) grad[numDets + 2*orb * nelec + 2*mo + 1] = (i * factor * thetaDet).real() / thetaDet.real();
+      }
     }
   }
 
-  //mo gradient
-  for (int mo=0; mo<nelec; mo++) {
-    for (int orb=0; orb< 2*norbs; orb++) {
-      std::complex<double> factor = thetaInv.row(mo) * AoRi.col(orb);
-      grad[numDets + 2*orb * nelec + 2*mo] = (factor * thetaDet).real() / thetaDet.real();
-      if (schd.ifComplex) grad[numDets + 2*orb * nelec + 2*mo + 1] = (i * factor * thetaDet).real() / thetaDet.real();
+  if (schd.optimizeBackflow) {
+    //backflow gradient
+    std::complex<double> afactor1(0., 0.);
+    std::complex<double> afactor2(0., 0.);
+    std::complex<double> afactorN(0., 0.);
+    std::complex<double> bfactor1(0., 0.);
+    std::complex<double> bfactor2(0., 0.);
+    std::complex<double> bfactorN(0., 0.);
+    for (int i = 0; i < nelec; i++) {
+      for (int mu = 0; mu < 3; mu++) { 
+        afactor1 += rTable[mu](i, i) * hValues(i) * gradaDisplacements[i][0](mu);
+        afactor2 += rTable[mu](i, i) * hValues(i) * gradaDisplacements[i][1](mu);
+        afactorN += rTable[mu](i, i) * hValues(i) * gradaNDisplacements[i](mu);
+        bfactor1 += rTable[mu](i, i) * hValues(i) * gradbDisplacements[i][0](mu);
+        bfactor2 += rTable[mu](i, i) * hValues(i) * gradbDisplacements[i][1](mu);
+        bfactorN += rTable[mu](i, i) * hValues(i) * gradbNDisplacements[i](mu);
+      }
     }
+    grad[grad.size() - 6] = (afactorN * thetaDet).real() / thetaDet.real();
+    grad[grad.size() - 5] = (bfactorN * thetaDet).real() / thetaDet.real();
+    grad[grad.size() - 4] = (afactor1 * thetaDet).real() / thetaDet.real();
+    grad[grad.size() - 3] = (bfactor1 * thetaDet).real() / thetaDet.real();
+    grad[grad.size() - 2] = (afactor2 * thetaDet).real() / thetaDet.real();
+    grad[grad.size() - 1] = (bfactor2 * thetaDet).real() / thetaDet.real();
   }
-
-  //backflow gradient
-  std::complex<double> factor1(0., 0.);
-  std::complex<double> factor2(0., 0.);
-  for (int i = 0; i < nelec; i++) {
-    for (int mu = 0; mu < 3; mu++) { 
-      factor1 += rTable[mu](i, i) * hValues(i) * displacements[i](mu) / ref.a;
-      factor2 += rTable[mu](i, i) * hValues(i) * gradDisplacements[i](mu);
-    }
-  }
-  grad[grad.size() - 2] = (factor1 * thetaDet).real() / thetaDet.real();
-  grad[grad.size() - 1] = (factor2 * thetaDet).real() / thetaDet.real();
 }
 
 void rWalkerHelper<rBFSlater>::HamOverlap(const rDeterminant& d, 

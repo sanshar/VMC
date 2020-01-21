@@ -102,12 +102,16 @@ class rWalkerHelper<rBFSlater>
   rDeterminant dp;                             //backflow displaced positions
   rDeterminant proposedDp;                     //backflow displaced positions for the proposed move
   vector<Vector3d> displacements;              //backflow displacements without h factors
-  vector<Vector3d> gradDisplacements;          //sum_j (r_{i\mu} - r_{j\mu}) 2 r_{ij}^2 eta_0(r_{ij}) / b^3, helper for gradient
+  vector<std::array<Vector3d, 2>> gradbDisplacements; //sum_j (r_{i\mu} - r_{j\mu}) 2 r_{ij}^2 eta_0(r_{ij}) / b^3, opposite and same spin, helper for gradient
+  vector<std::array<Vector3d, 2>> gradaDisplacements; //sum_j (r_{i\mu} - r_{j\mu}) eta_0(r_{ij}), opposite and same spin, helper for gradient
+  vector<Vector3d> gradbNDisplacements; //sum_I (r_{i\mu} - r_{I\mu}) 2 r_{iI}^2 chi(r_{iI}) / b^3, helper for gradient
+  vector<Vector3d> gradaNDisplacements; //sum_I (r_{i\mu} - r_{I\mu}) chi(r_{iI}), helper for gradient
   mutable vector<double> aoValues;             //this is used to store the ao values and derivatives at some coordinate
   MatrixXd etaValues;                          //eta(r_{ij})
-  VectorXd hValues;                            //h(r_i) = \Pi_N g(r_{iN})
-  std::array<VectorXd, 3> hGradient;          //dh(r_i) / dr_{i\mu}
-  std::array<VectorXd, 3> hSecondDerivatives; //d^2h(r_i) / dr_{i\mu}^2
+  MatrixXd chiValues;                          //chi(r_{iI})
+  VectorXd hValues;                            //h(r_i) = \Pi_I g(r_{iI})
+  std::array<VectorXd, 3> hGradient;           //dh(r_i) / dr_{i\mu}
+  std::array<VectorXd, 3> hSecondDerivatives;  //d^2h(r_i) / dr_{i\mu}^2
   std::array<MatrixXd, 9> rpGradient;          //rp=r', dr'_{i\mu} / dr_{j\nu}
   std::array<MatrixXd, 9> rpSecondDerivatives; //rp=r', d^2r'_{i\mu} / dr_{j\nu}^2
   std::complex<double> thetaDet;               //determinant of the theta matrix, vector for multidet
@@ -118,8 +122,8 @@ class rWalkerHelper<rBFSlater>
   std::array<MatrixXcd, 3> rTable;             //gradient * thetaInv
   std::array<MatrixXcd, 6> MOSecondDerivatives;//second derivatives of mo's w.r.t. rp, order: xx, xy, xz, yy, yz, zz
   std::array<MatrixXcd, 3> MOGradient;         //each of three matrices is G(elec, mo) 
-  VectorXcd slaterLaplacianRatio;                   //w.r.t. r_i
-  std::array<VectorXcd, 3> slaterGradientRatio;     //w.r.t. r_i
+  VectorXcd slaterLaplacianRatio;              //w.r.t. r_i
+  std::array<VectorXcd, 3> slaterGradientRatio;//w.r.t. r_i
 
   rWalkerHelper() {};
   rWalkerHelper(const rBFSlater &w, const rDeterminant &d, const MatrixXd &Rij, const MatrixXd &RiN);

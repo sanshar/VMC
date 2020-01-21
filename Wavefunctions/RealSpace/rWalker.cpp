@@ -901,7 +901,7 @@ void rWalker<rJastrow, rBFSlater>::OverlapWithGradient(const rBFSlater &ref,
   corrHelper.OverlapWithGradient(cps, grad, d, factor1);
   
   Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - cps.getNumVariables());
-  if (schd.optimizeOrbs == false) return;
+  //if (schd.optimizeOrbs == false) return;
   refHelper.OverlapWithGradient(d, ref, gradtail, factor1);
 }
 
