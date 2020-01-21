@@ -45,6 +45,14 @@ void runVMC(Wave& wave, Walker& walk) {
   if (schd.restart || schd.fullrestart)
     wave.readWave();
   VectorXd vars; wave.getVariables(vars);
+
+  
+  if (commrank == 0)
+  {
+    cout << "Number of Jastrow vars: " << wave.getCorr().getNumVariables() << endl;
+    cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getCorr().getNumVariables() << endl;
+  }
+  
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
   functor1 getStochasticGradient = boost::bind(&getGradientWrapper<Wave, Walker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
   functor2 getStochasticGradientMetric = boost::bind(&getGradientWrapper<Wave, Walker>::getMetric, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);

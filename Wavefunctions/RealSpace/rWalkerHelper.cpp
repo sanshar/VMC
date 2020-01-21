@@ -1156,6 +1156,8 @@ void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDetermin
       exit(0);
     }
   }
-  
+  else {
+      thetaDet[0][1] = 1.0;
+  }
 }
 

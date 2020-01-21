@@ -109,7 +109,8 @@ private:
       & CorrSampleFrac
       & dTol
       & cgTol
-      & expCorrelator;
+      & expCorrelator
+      & maxMacroIter;
   }
 public:
 //General options
@@ -167,7 +168,8 @@ public:
   double alpha;
   double beta;
   double momentum;
-  int maxIter;                     
+  int maxIter;
+  int maxMacroIter;
   int avgIter;                     
   int sgdIter;
   bool direct; //boolean for direct application of H, S
