@@ -8,6 +8,8 @@ nalpha 2
 nbeta 2
 norbs 17
 
+qmaxeen 6 
+
 amsgrad
 stepsize 0.01
 decay1 0.1

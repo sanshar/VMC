@@ -99,6 +99,8 @@ private:
       & nalpha
       & nbeta
       & norbs
+      & Qmax
+      & QmaxEEN
       & realSpaceStep
       & Ncoords
       & Ncharge
@@ -139,6 +141,8 @@ public:
   std::string wavefunctionType;
   std::map<int, std::string> correlatorFiles;
   std::string determinantFile;
+  int Qmax;
+  int QmaxEEN;
 
 //Used in the stochastic calculation of E and PT evaluation
   int stochasticIter;                    //Number of stochastic steps
