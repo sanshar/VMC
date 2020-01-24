@@ -102,6 +102,7 @@ private:
       & realSpaceStep
       & Ncoords
       & Ncharge
+      & Nbasis
       & direct
       & rStepType
       & ifComplex
@@ -110,6 +111,7 @@ private:
       & dTol
       & cgTol
       & expCorrelator
+      & fourBodyJastrow
       & maxMacroIter;
   }
 public:
@@ -119,6 +121,7 @@ public:
   boost::shared_ptr<Pseudopotential> pseudo;
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
+  vector<int>   Nbasis;
 
   bool restart;                          //option to restart calculation
   bool fullrestart;                          //option to restart calculation
@@ -130,6 +133,7 @@ public:
   bool uagp;                             //brakes S^2 symmetry in uagp
 
   RSTEPTYPE rStepType;
+  bool fourBodyJastrow;
   
 //input file to define the correlator parts of the wavefunction
   int nalpha;
@@ -270,6 +274,7 @@ void readDeterminants(std::string input, std::vector<Determinant>& determinants,
 
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
+                  vector<int>  & Nbasis,
                   gaussianBasis& gBasis);
 
 #endif

@@ -725,6 +725,51 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   vector<double> aoValues(10 * Determinant::norbs, 0.0);
 
   double ovlpRatio = -1.0, proposalProb;
+  ///////////////////////////////////////////////
+  //Below will test overlap ratios from all the Jastrow functions
+  /*
+  cout << "Testing overlap factor" << endl;
+  Walker walk1, walk2;
+  wave.initWalker(walk1), wave.initWalker(walk2);
+  cout << "Before move" << endl;
+  cout << walk1.d << endl;
+  cout << walk1.corrHelper.exponential << endl;
+  cout << walk2.d << endl;
+  cout << walk2.corrHelper.exponential << endl << endl;
+  
+  Vector3d move(0.0, 1.0, 0.0);
+  move += walk1.d.coord[0];
+  
+  walk2.updateWalker(0, move, wave.getRef(), wave.getCorr());
+  
+  rDeterminant pd(walk1.d);
+  pd.coord[0] = move;
+  Walker walk3(wave.getCorr(), wave.getRef(), pd);
+  cout << "After move" << endl;
+  
+  cout << endl << "Init" << endl;
+  cout << walk3.d << endl;
+  cout << walk3.corrHelper.exponential << endl;
+  cout << walk3.corrHelper.exponential - walk1.corrHelper.exponential << endl;
+  cout << endl << "updateWalker" << endl;
+  cout << walk2.d << endl;
+  cout << walk2.corrHelper.exponential << endl;
+  cout << walk2.corrHelper.exponential - walk1.corrHelper.exponential << endl;
+  cout << endl << "OverlapFactorWalker" << endl;
+  wave.getOverlapFactor(0, move, walk1);
+  cout << endl;
+  wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
+  cout << endl << "Symmetry" << endl;
+  rDeterminant d1(walk1.d);
+  rDeterminant d2;
+  d2.coord[0] = d1.coord[1];
+  d2.coord[1] = d1.coord[0];
+  Walker Walk1(wave.getCorr(), wave.getRef(), d1);
+  Walker Walk2(wave.getCorr(), wave.getRef(), d2);
+  cout << Walk1.corrHelper.exponential << endl;
+  cout << Walk2.corrHelper.exponential << endl;
+  ////////////////////////////////////////// 
+  */
   while (iter < niter) {
     elecToMove = iter%nelec;
     walk.getStep(step, elecToMove, schd.realSpaceStep, wave.ref, wave.getCorr(), ovlpRatio, proposalProb);

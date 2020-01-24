@@ -157,6 +157,11 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
       }
   }
 /*
+d.coord[0] = schd.Ncoords[0] + Vector3d(0.0, 0.0, -1.0);
+d.coord[1] = schd.Ncoords[1] + Vector3d(0.0, 0.0, 1.0);
+*/
+
+/*
   cout << "Electrons" << endl;
   std::cout << d << endl << endl;
   cout << "Basis" << endl;

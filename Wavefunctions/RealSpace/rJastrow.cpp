@@ -51,7 +51,30 @@ rJastrow::rJastrow () {
   }
   EENoppositeSpinIndex = EENsameSpinIndex + schd.Ncharge.size()*EENterms;
 
-  _params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
+   //4body Jastrows
+   EENNlinearIndex = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
+   EENNIndex = EENNlinearIndex + schd.Ncharge.size();
+   
+   int numParams = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
+   if (schd.fourBodyJastrow) {
+       numParams = EENNIndex + schd.Ncharge.size() * (schd.Ncharge.size() + 1) / 2;
+   }
+   
+   /*
+   if (commrank == 0) {
+   cout << "Num: " << numParams << endl;
+   cout << "EEsameSpinIndex: " << EEsameSpinIndex << endl;
+   cout << "EEoppositeSpinIndex: " << EEoppositeSpinIndex << endl;
+   cout << "ENIndex: " << ENIndex << endl;
+   cout << "EENsameSpinIndex: " << EENsameSpinIndex << endl;
+   cout << "EENoppositeSpinIndex: " << EENoppositeSpinIndex << endl;
+   cout << "EENNlinearIndex: " << EENNlinearIndex << endl;
+   cout << "EENNIndex: " << EENNIndex << endl;
+   }
+   */ 
+
+  //_params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
+  _params.resize(numParams, 1.e-4);
   _params[EEsameSpinIndex] = 0.25;
   _params[EEoppositeSpinIndex] = 0.5;
   if (schd.optimizeCps == false) { _params.assign(_params.size(), 0.0); }

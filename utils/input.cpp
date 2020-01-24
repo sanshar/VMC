@@ -73,6 +73,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.momentum = 0.;
       schd.stepsize = 0.001;
       schd.realSpaceStep = 0.1;
+      schd.fourBodyJastrow = false;
       
       schd.stochasticIter = 1e4;
       schd.integralSampleSize = 10;
@@ -135,7 +136,7 @@ void readInput(string input, schedule& schd, bool print) {
             schd.walkerBasis = REALSPACEGTO;
             schd.basis = boost::shared_ptr<Basis>(new gaussianBasis);
             schd.basis->read();
-            readGeometry(schd.Ncoords, schd.Ncharge, dynamic_cast<gaussianBasis&>(*schd.basis));
+            readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
           }
 	  else if (boost::iequals(ArgName, "realspacesto")) {
             schd.walkerBasis = REALSPACESTO;
@@ -143,7 +144,7 @@ void readInput(string input, schedule& schd, bool print) {
             //read gaussian basis just to read the nuclear charge and coordinates
             gaussianBasis gBasis ;
             gBasis.read();
-            readGeometry(schd.Ncoords, schd.Ncharge, gBasis);
+            readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, gBasis);
             schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
             map<string, Vector3d> atomList;
             for (int i=0; i<schd.Ncoords.size(); i++) {
@@ -164,8 +165,11 @@ void readInput(string input, schedule& schd, bool print) {
 	    schd.rStepType = SPHERICAL;
           else if (boost::iequals(ArgName, "rdmcStep"))
 	    schd.rStepType = DMC;
-          else if (boost::iequals(ArgName, "rgaussian"))
+          else if (boost::iequals(ArgName, "rgaussianstep"))
 	    schd.rStepType = GAUSSIAN;
+          else if (boost::iequals(ArgName, "fourbodyjastrow"))
+        schd.fourBodyJastrow = true;
+
 
 	  else if (boost::iequals(ArgName, "fullrestart"))
 	    schd.fullrestart = true;
@@ -611,10 +615,12 @@ void readHF(MatrixXcd& HfmatrixA, MatrixXcd& HfmatrixB, std::string hf)
 
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
+                  vector<int> & Nbasis,
                   gaussianBasis& gBasis) {
   int N = gBasis.natm;
   Ncoords.resize(N);
   Ncharge.resize(N);
+  Nbasis.assign(N, 0);
 
   int stride = gBasis.atm.size()/N;
   for (int i=0; i<N; i++) {
@@ -624,6 +630,12 @@ void readGeometry(vector<Vector3d>& Ncoords,
     Ncoords[i][2] = gBasis.env[ gBasis.atm[i*stride+1] +2];
   }
 
+  for (int i = 0; i < gBasis.nbas; i++) {
+    int index = gBasis.bas[i * 8];
+    int l = gBasis.bas[i * 8 + 1];
+    int n = gBasis.bas[i * 8 + 3];
+    Nbasis[index] += n * (2 * l + 1);
+  }
 }
 
 void readPairMat(MatrixXd& pairMat) 

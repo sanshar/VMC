@@ -166,7 +166,9 @@ class rWalkerHelper<rJastrow>
       EEoppositeSpinIndex,
       ENIndex,
       EENsameSpinIndex,
-      EENoppositeSpinIndex;
+      EENoppositeSpinIndex,
+      EENNlinearIndex,
+      EENNIndex;
   
   //Equation 33 of  https://doi.org/10.1063/1.4948778
   double   exponential;

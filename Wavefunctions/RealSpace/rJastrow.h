@@ -39,7 +39,7 @@ class rJastrow {
   template<class Archive>
   void serialize (Archive & ar, const unsigned int version) {
     ar & _params & Qmax & EEsameSpinIndex & EEoppositeSpinIndex & ENIndex & EENsameSpinIndex
-        & EENoppositeSpinIndex;
+        & EENoppositeSpinIndex & EENNlinearIndex & EENNIndex;
   }
  public:
 
@@ -49,13 +49,14 @@ class rJastrow {
       EEoppositeSpinIndex,
       ENIndex,
       EENsameSpinIndex,
-      EENoppositeSpinIndex;
+      EENoppositeSpinIndex,
+      EENNlinearIndex,
+      EENNIndex;
   
 
   rJastrow ();
   
   long getNumVariables() const;
-
   void getVariables(Eigen::VectorXd &v) const;
   void updateVariables(const Eigen::VectorXd &v);
   void printVariables() const;
