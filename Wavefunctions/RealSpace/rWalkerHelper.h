@@ -162,6 +162,7 @@ class rWalkerHelper<rJastrow>
 {
  public:
   int Qmax;
+  int QmaxEEN;
   int EEsameSpinIndex,
       EEoppositeSpinIndex,
       ENIndex,

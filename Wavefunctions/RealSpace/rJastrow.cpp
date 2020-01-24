@@ -34,18 +34,19 @@ using namespace std;
 
 
 rJastrow::rJastrow () {
-  Qmax=6;
+  Qmax = schd.Qmax;
+  QmaxEEN = schd.QmaxEEN; //EEN jastrow is expensive -> use fewer powers
 
   EEsameSpinIndex = 0;
   EEoppositeSpinIndex = Qmax;
   ENIndex = 2*Qmax;
-  EENsameSpinIndex = 2*Qmax + schd.Ncharge.size()*Qmax;
+  EENsameSpinIndex = 2*QmaxEEN + schd.Ncharge.size()*QmaxEEN;
   
   //EENoppositeSpinIndex = EENsameSpinIndex;
   int EENterms = 0;
-  for (int m = 1; m <= Qmax; m++) 
+  for (int m = 1; m <= QmaxEEN; m++) 
   for (int n = 0; n <= m   ; n++) 
-  for (int o = 0; o <= (Qmax-m-n); o++) {
+  for (int o = 0; o <= (QmaxEEN-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
     EENterms++;
   }

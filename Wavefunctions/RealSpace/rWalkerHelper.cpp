@@ -878,6 +878,7 @@ void rWalkerHelper<rBFSlater>::HamOverlap(const rDeterminant& d,
 rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& d,
                                        MatrixXd& Rij, MatrixXd& RiN) {
   Qmax = cps.Qmax;
+  QmaxEEN = cps.QmaxEEN;
   jastrowParams = VectorXd::Zero(cps._params.size());
 
   for (int i=0; i<cps._params.size(); i++) 
@@ -928,10 +929,10 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
                 ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEoppositeSpinIndex, 0);
       
       if (!schd.fourBodyJastrow) {
-        JastrowEEN(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
+        JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
                    ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENsameSpinIndex, 1);
 
-        JastrowEEN(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
+        JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
                    ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENoppositeSpinIndex, 0);
       }
 
@@ -1000,10 +1001,10 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
               ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EEoppositeSpinIndex, 0);
     
     if (!schd.fourBodyJastrow) {
-      JastrowEEN(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
+      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
                  ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENsameSpinIndex, 1);
       
-      JastrowEEN(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
+      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
                  ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENoppositeSpinIndex, 0);
     }
   }
@@ -1037,10 +1038,10 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
               ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEoppositeSpinIndex, 0);
     
     if (!schd.fourBodyJastrow) {
-      JastrowEEN(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
+      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
                  ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENsameSpinIndex, 1);
       
-      JastrowEEN(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
+      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
                  ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENoppositeSpinIndex, 0);
     }
   }
@@ -1086,8 +1087,8 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
     diff += JastrowEEValue(i, j, Qmax, d.coord, jastrowParams, EEoppositeSpinIndex, 0);
 
     if (!schd.fourBodyJastrow) {
-      diff += JastrowEENValue(i, j, Qmax, d.coord, jastrowParams, EENsameSpinIndex, 1);
-      diff += JastrowEENValue(i, j, Qmax, d.coord, jastrowParams, EENoppositeSpinIndex, 0);    
+      diff += JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENsameSpinIndex, 1);
+      diff += JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENoppositeSpinIndex, 0);    
     }
   }
 
@@ -1110,9 +1111,11 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
     diff -= JastrowEEValue(i, j, Qmax, d.coord, jastrowParams, EEoppositeSpinIndex, 0);
 
     if (!schd.fourBodyJastrow) {
-      diff -= JastrowEENValue(i, j, Qmax, d.coord, jastrowParams, EENsameSpinIndex, 1);
-      diff -= JastrowEENValue(i, j, Qmax, d.coord, jastrowParams, EENoppositeSpinIndex, 0);    
+      diff -= JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENsameSpinIndex, 1);
+      diff -= JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENoppositeSpinIndex, 0);    
     }
+    diff -= JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENsameSpinIndex, 1);
+    diff -= JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENoppositeSpinIndex, 0);    
   }
 
   //cout << diff << endl;

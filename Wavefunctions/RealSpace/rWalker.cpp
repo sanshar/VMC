@@ -450,6 +450,7 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
   grad[0] += gxnew; grad[1] += gynew; grad[2] += gznew;
   
   int Qmax = corrHelper.Qmax; VectorXd& params = corrHelper.jastrowParams;
+  int QmaxEEN = corrHelper.QmaxEEN;
   int EEsameSpinIndex       = corrHelper.EEsameSpinIndex,
       EEoppositeSpinIndex   = corrHelper.EEoppositeSpinIndex,
       ENIndex               = corrHelper.ENIndex,
@@ -460,11 +461,11 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
   for (int j=0; j<d.nelec; j++) {
     if (j == elecI) continue;
 
-    diff -= JastrowEEValueGrad(elecI, j, Qmax,d.coord, gminus,  params, EEsameSpinIndex, 1);
-    diff -= JastrowEEValueGrad(elecI, j, Qmax,d.coord, gminus,  params, EEoppositeSpinIndex, 0);
+    diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEsameSpinIndex, 1);
+    diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEoppositeSpinIndex, 0);
 
-    diff -= JastrowEENValueGrad(elecI, j, Qmax,d.coord, gminus,  params, EENsameSpinIndex, 1);
-    diff -= JastrowEENValueGrad(elecI, j, Qmax,d.coord, gminus,params, EENoppositeSpinIndex, 0);
+    diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus,  params, EENsameSpinIndex, 1);
+    diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus,params, EENoppositeSpinIndex, 0);
   }
 
   Vector3d bkp = d.coord[elecI];
@@ -473,11 +474,11 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
   for (int j=0; j<d.nelec; j++) {
     if (j == elecI) continue;
     
-    diff += JastrowEEValueGrad(elecI, j, Qmax,d.coord, gplus,  params, EEsameSpinIndex, 1);
-    diff += JastrowEEValueGrad(elecI, j, Qmax,d.coord, gplus,  params, EEoppositeSpinIndex, 0);
+    diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus,  params, EEsameSpinIndex, 1);
+    diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus,  params, EEoppositeSpinIndex, 0);
 
-    diff += JastrowEENValueGrad(elecI, j, Qmax,d.coord, gplus, params, EENsameSpinIndex, 1);
-    diff += JastrowEENValueGrad(elecI, j, Qmax,d.coord, gplus, params, EENoppositeSpinIndex, 0);
+    diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENsameSpinIndex, 1);
+    diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENoppositeSpinIndex, 0);
   }
   d.coord[elecI] = bkp;
 

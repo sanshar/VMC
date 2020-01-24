@@ -74,7 +74,9 @@ void readInput(string input, schedule& schd, bool print) {
       schd.stepsize = 0.001;
       schd.realSpaceStep = 0.1;
       schd.fourBodyJastrow = false;
-      
+     
+      schd.Qmax = 6;
+      schd.QmaxEEN = 3;
       schd.stochasticIter = 1e4;
       schd.integralSampleSize = 10;
       schd.seed = getTime();
@@ -260,6 +262,12 @@ void readInput(string input, schedule& schd, bool print) {
 
 	  else if (boost::iequals(ArgName, "nbeta"))
             schd.nbeta = atoi(tok[1].c_str());
+	  
+      else if (boost::iequals(ArgName, "qmax"))
+            schd.Qmax = atoi(tok[1].c_str());
+      
+      else if (boost::iequals(ArgName, "qmaxeen"))
+            schd.QmaxEEN = atoi(tok[1].c_str());
 
           else if (boost::iequals(ArgName, "nondirect"))
             schd.direct = false;
