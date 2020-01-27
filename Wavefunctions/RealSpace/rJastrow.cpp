@@ -40,7 +40,7 @@ rJastrow::rJastrow () {
   EEsameSpinIndex = 0;
   EEoppositeSpinIndex = Qmax;
   ENIndex = 2*Qmax;
-  EENsameSpinIndex = 2*QmaxEEN + schd.Ncharge.size()*QmaxEEN;
+  EENsameSpinIndex = 2*Qmax + schd.Ncharge.size()*Qmax;
   
   //EENoppositeSpinIndex = EENsameSpinIndex;
   int EENterms = 0;
