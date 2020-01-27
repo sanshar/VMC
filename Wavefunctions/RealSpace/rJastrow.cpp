@@ -53,16 +53,26 @@ rJastrow::rJastrow () {
   EENoppositeSpinIndex = EENsameSpinIndex + schd.Ncharge.size()*EENterms;
 
    //4body Jastrows
-   EENNlinearIndex = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
-   EENNIndex = EENNlinearIndex + schd.Ncharge.size();
+   int norbs = schd.basis->getNorbs();
+   //EENNlinearIndex = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
+   EENNlinearIndex = EENsameSpinIndex;
+   if (schd.fourBodyJastrowBasis == FC)
+     EENNIndex = EENNlinearIndex + schd.Ncharge.size();
+   else if (schd.fourBodyJastrowBasis == AB)
+     EENNIndex = EENNlinearIndex + norbs;
    
    int numParams = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
+
    if (schd.fourBodyJastrow) {
+     if (schd.fourBodyJastrowBasis == FC)
        numParams = EENNIndex + schd.Ncharge.size() * (schd.Ncharge.size() + 1) / 2;
+     else if(schd.fourBodyJastrow == AB)
+       numParams = EENNIndex + norbs * (norbs + 1) / 2;
    }
    
    /*
    if (commrank == 0) {
+   cout << schd.fourBodyJastrowBasis << endl;
    cout << "Num: " << numParams << endl;
    cout << "EEsameSpinIndex: " << EEsameSpinIndex << endl;
    cout << "EEoppositeSpinIndex: " << EEoppositeSpinIndex << endl;
@@ -72,7 +82,7 @@ rJastrow::rJastrow () {
    cout << "EENNlinearIndex: " << EENNlinearIndex << endl;
    cout << "EENNIndex: " << EENNIndex << endl;
    }
-   */ 
+   */
 
   //_params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
   _params.resize(numParams, 1.e-4);

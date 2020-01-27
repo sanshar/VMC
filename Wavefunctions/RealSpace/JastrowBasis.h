@@ -63,6 +63,7 @@ struct FragmentCounter {
     values = num / denom;
   }
 
+
   void FC_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
   {
     vector<double>& Ncharge = schd.Ncharge;
@@ -104,6 +105,7 @@ struct FragmentCounter {
     grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
     grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
   }
+
 
   void FC_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &laplace)
   {
@@ -172,4 +174,63 @@ struct FragmentCounter {
 
 //};
 
+
+//Sorella Style, atomic basis is jastrow basis
+  void AB_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
+  {
+    int norbs = schd.basis->getNorbs();
+
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval(x[elec], &aoValues[0]);
+
+    values = VectorXd::Zero(norbs);
+    for (int i = 0; i < norbs; i++)
+      values[i] = aoValues[i];
+  }
+
+
+  void AB_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
+  {
+    int norbs = schd.basis->getNorbs();
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+
+    values = VectorXd::Zero(norbs);
+    grad[0] = VectorXd::Zero(norbs);
+    grad[1] = VectorXd::Zero(norbs);
+    grad[2] = VectorXd::Zero(norbs);
+    for (int i = 0; i < norbs; i++)
+    {
+      values[i] = aoValues[i];
+      grad[0][i] = aoValues[1*norbs + i];
+      grad[1][i] = aoValues[2*norbs + i];
+      grad[2][i] = aoValues[3*norbs + i];
+    }
+  }
+
+
+  void AB_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &laplace)
+  {
+    int norbs = schd.basis->getNorbs();
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+
+    values = VectorXd::Zero(norbs);
+    grad[0] = VectorXd::Zero(norbs);
+    grad[1] = VectorXd::Zero(norbs);
+    grad[2] = VectorXd::Zero(norbs);
+    laplace[0] = VectorXd::Zero(norbs);
+    laplace[1] = VectorXd::Zero(norbs);
+    laplace[2] = VectorXd::Zero(norbs);
+    for (int i = 0; i < norbs; i++)
+    {
+      values[i] = aoValues[i];
+      grad[0][i] = aoValues[1*norbs + i];
+      grad[1][i] = aoValues[2*norbs + i];
+      grad[2][i] = aoValues[3*norbs + i];
+      laplace[0][i] = aoValues[4*norbs + i];
+      laplace[1][i] = aoValues[7*norbs + i];
+      laplace[2][i] = aoValues[9*norbs + i];
+    }
+  }
 #endif

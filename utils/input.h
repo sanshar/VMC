@@ -36,6 +36,7 @@ class Determinant;
 enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod}; //varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
+enum JBASIS {FC, AB};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
 
 /**
@@ -114,6 +115,7 @@ private:
       & cgTol
       & expCorrelator
       & fourBodyJastrow
+      & fourBodyJastrowBasis
       & maxMacroIter;
   }
 public:
@@ -136,6 +138,7 @@ public:
 
   RSTEPTYPE rStepType;
   bool fourBodyJastrow;
+  JBASIS fourBodyJastrowBasis;
   
 //input file to define the correlator parts of the wavefunction
   int nalpha;

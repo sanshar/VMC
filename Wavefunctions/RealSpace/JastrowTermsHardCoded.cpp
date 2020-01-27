@@ -589,8 +589,14 @@ double JastrowEENNLinearValue(int i, const vector<Vector3d>& r, const VectorXd& 
   n /= denom;
   //cout << n.transpose() << endl << endl;
   */
+
   VectorXd n;
-  FC_eval(i, r, n);
+  if (schd.fourBodyJastrowBasis == FC) {
+    FC_eval(i, r, n);
+  }
+  else if (schd.fourBodyJastrowBasis == AB) {
+    AB_eval(i, r, n);
+  }
 
   double value = 0.0;
   for (int I = 0; I < n.size(); I++)
@@ -656,9 +662,16 @@ double JastrowEENNLinearValueGrad(int i, const vector<Vector3d>& r, Vector3d& gr
   }
   return value;
   */
-  array<VectorXd, 3> gradn;
+
   VectorXd n;
-  FC_eval_deriv(i, r, n, gradn);
+  array<VectorXd, 3> gradn;
+  if (schd.fourBodyJastrowBasis == FC) {
+    FC_eval_deriv(i, r, n, gradn);
+  }
+  else if (schd.fourBodyJastrowBasis == AB) {
+    AB_eval_deriv(i, r, n, gradn);
+  }
+
   double value = 0.0;
   grad = Vector3d::Zero(3);
   for (int I = 0; I < n.size(); I++)
@@ -747,9 +760,15 @@ void JastrowEENNLinear(int i, const vector<Vector3d>& r, VectorXd& values, Matri
       laplace(i, startIndex + I) += factor * (gradxxn[I] + gradyyn[I] + gradzzn[I]);
   }
 */
-  array<VectorXd, 3> gradn, grad2n;
   VectorXd n;
-  FC_eval_deriv2(i, r, n, gradn, grad2n);
+  array<VectorXd, 3> gradn, grad2n;
+  if (schd.fourBodyJastrowBasis == FC) {
+    FC_eval_deriv2(i, r, n, gradn, grad2n);
+  }
+  else if (schd.fourBodyJastrowBasis == AB) {
+    AB_eval_deriv2(i, r, n, gradn, grad2n);
+  }
+
   for (int I = 0; I < n.size(); I++)
   {
       values[startIndex + I] += factor * n[I];
@@ -815,8 +834,14 @@ double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd&
   if (electronsOfCorrectSpin(i, j, ss)) {
 
     VectorXd ni, nj;
-    FC_eval(i, r, ni);
-    FC_eval(j, r, nj);
+    if (schd.fourBodyJastrowBasis == FC) {
+      FC_eval(i, r, ni);
+      FC_eval(j, r, nj);
+    }
+    else if (schd.fourBodyJastrowBasis == AB) {
+      AB_eval(i, r, ni);
+      AB_eval(j, r, nj);
+    }
 
     for (int I = 0; I < ni.size(); I++)
     {
@@ -918,8 +943,15 @@ double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d gr
 
     array<VectorXd, 3> gradni, gradnj;
     VectorXd ni, nj;
-    FC_eval_deriv(i, r, ni, gradni);
-    FC_eval_deriv(j, r, nj, gradnj);
+
+    if (schd.fourBodyJastrowBasis == FC) {
+      FC_eval_deriv(i, r, ni, gradni);
+      FC_eval_deriv(j, r, nj, gradnj);
+    }
+    else if (schd.fourBodyJastrowBasis == AB) {
+      AB_eval_deriv(i, r, ni, gradni);
+      AB_eval_deriv(j, r, nj, gradnj);
+    }
 
     for (int I = 0; I < ni.size(); I++)
     {
@@ -1069,10 +1101,17 @@ void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, Matr
 
   if (electronsOfCorrectSpin(i, j, ss)) {
 
-    array<VectorXd, 3> gradni, gradnj, grad2ni, grad2nj;
     VectorXd ni, nj;
-    FC_eval_deriv2(i, r, ni, gradni, grad2ni);
-    FC_eval_deriv2(j, r, nj, gradnj, grad2nj);
+    array<VectorXd, 3> gradni, gradnj, grad2ni, grad2nj;
+
+    if (schd.fourBodyJastrowBasis == FC) {
+      FC_eval_deriv2(i, r, ni, gradni, grad2ni);
+      FC_eval_deriv2(j, r, nj, gradnj, grad2nj);
+    }
+    else if (schd.fourBodyJastrowBasis == AB) {
+      AB_eval_deriv2(i, r, ni, gradni, grad2ni);
+      AB_eval_deriv2(j, r, nj, gradnj, grad2nj);
+    }
 
 
     for (int I = 0; I < ni.size(); I++)

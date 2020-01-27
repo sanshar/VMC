@@ -161,17 +161,26 @@ void readInput(string input, schedule& schd, bool print) {
 	  else if (boost::iequals(ArgName, "restart"))
 	    schd.restart = true;
 
-          else if (boost::iequals(ArgName, "rsimplestep"))
+      else if (boost::iequals(ArgName, "rsimplestep"))
 	    schd.rStepType = SIMPLE;          
-          else if (boost::iequals(ArgName, "rsphericalStep"))
+      else if (boost::iequals(ArgName, "rsphericalStep"))
 	    schd.rStepType = SPHERICAL;
-          else if (boost::iequals(ArgName, "rdmcStep"))
+      else if (boost::iequals(ArgName, "rdmcStep"))
 	    schd.rStepType = DMC;
-          else if (boost::iequals(ArgName, "rgaussianstep"))
+      else if (boost::iequals(ArgName, "rgaussianstep"))
 	    schd.rStepType = GAUSSIAN;
-          else if (boost::iequals(ArgName, "fourbodyjastrow"))
+      else if (boost::iequals(ArgName, "fourbodyjastrow"))
+      {
         schd.fourBodyJastrow = true;
-
+        if (boost::iequals(tok[1].c_str(), "FC"))
+        {
+          schd.fourBodyJastrowBasis = FC;
+        }
+        else if (boost::iequals(tok[1].c_str(), "AB"))
+        {
+          schd.fourBodyJastrowBasis = AB;
+        }
+      }
 
 	  else if (boost::iequals(ArgName, "fullrestart"))
 	    schd.fullrestart = true;
