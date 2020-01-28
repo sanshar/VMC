@@ -244,6 +244,16 @@ then
     ../clean.sh
 fi
 
+cd $here/rMg_pp/
+../clean.sh
+printf "...running rMg with pseudopotentials\n"
+$MPICOMMAND $VMCPATH > vmc.out
+python ../testEnergy.py 'vmc' $tol
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
+
 cd $here/h6_ghf_trans/
 ../clean.sh
 printf "...running H6 transcorrelated\n"

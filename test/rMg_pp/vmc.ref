@@ -17,32 +17,44 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               3066.375
+CPU MHz:               3027.843
 Computation started at:
-Tue Jan 28 12:44:19 MST 2020
+Tue Jan 28 13:13:32 MST 2020
 git commit: 32ca516c2ad3abe7e55d514b42aa85451368c52e, branch: refactoring2, compiled at: Tue Jan 28 12:30:55 MST 2020
 nproc used: 4 (NB: stochasticIter below is per proc)
 
 jastrowslater
-ghf
-maxIter 3
-stochasticIter 25000
-complex
+rhf
+#ghf
+#complex
+dontoptimizecps
+#dontoptimizeorbs
 
-realspacesto
-nalpha 2
-nbeta 2
-norbs 17
-
-qmaxeen 6
-
-lm
-#printopt
-
+maxIter 1
+stochasticIter 50000
 seed 1
+#debug
 
-Number of Jastrow vars: 92
-Number of Reference vars: 273
-    0   -14.60534500 (5.77e-03)     0.54323432      2.0      0.8     1.43     1.43     1.43 
-    1   -14.62020567 (3.82e-03)     0.46432604      1.5      0.8     2.93     4.61     5.26 
-    2   -14.64005460 (3.14e-03)     0.03239788      1.4      0.8     6.56     8.78     9.44 
+realspacegto
+nalpha 1
+nbeta 1
+norbs 14
+
+#lm
+#direct
+#stepsizes 0.1 0.01 0.05 0.5 1.0
+#cgTol 1.e-3
+#dTol 1.e-3
+
+amsgrad
+stepsize 0.01
+decay1 0.1
+decay2 0.01
+
+#printOpt
+#printVars
+
+
+Number of Jastrow vars: 0
+Number of Reference vars: 29
+    0    -0.78632603 (7.84e-04)     0.00473183      1.7      0.7      50000  0.037365     0.00     2.14
