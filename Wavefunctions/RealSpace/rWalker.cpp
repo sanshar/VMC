@@ -158,6 +158,7 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
       }
   }
   */
+  int i = 0;
   int a = 0, b = 0;
   for (int I = 0; I < schd.Ncharge.size(); I++)
   {
@@ -169,6 +170,7 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
         //d.coord[a] = schd.Ncoords[I];
         a++;
         n++;
+        i++;
   //cout << d << endl;
       }
       if (n >= schd.Ncharge[I]) continue;
@@ -179,14 +181,18 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
         //d.coord[nalpha + b] = schd.Ncoords[I];
         b++;
         n++;
+        i++;
   //cout << d << endl;
       }
+
+      if (i >= nelec) break; //need this incase ion
     }
   }
   //cout << d << endl;
 
 /*
 d.coord[0] = schd.Ncoords[0] + Vector3d(0.0, 0.0, -1.0);
+if (d.coord.size() == 2)
 d.coord[1] = schd.Ncoords[1] + Vector3d(0.0, 0.0, 1.0);
 */
 

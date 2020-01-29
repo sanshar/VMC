@@ -227,7 +227,7 @@ void rSlater::printVariables() const
   cout << endl<<"DeterminantA"<<endl;
   //for r/ghf
   for (int i = 0; i < HforbsA.rows(); i++) {
-    for (int j = 0; j < HforbsA.rows(); j++)
+    for (int j = 0; j < HforbsA.cols(); j++)
       cout << "  " << HforbsA(i, j);
     cout << endl;
   }
@@ -236,7 +236,7 @@ void rSlater::printVariables() const
     cout << endl
          << "DeterminantB" << endl;
     for (int i = 0; i < HforbsB.rows(); i++) {
-      for (int j = 0; j < HforbsB.rows(); j++)
+      for (int j = 0; j < HforbsB.cols(); j++)
         cout << "  " << HforbsB(i, j);
       cout << endl;
     }

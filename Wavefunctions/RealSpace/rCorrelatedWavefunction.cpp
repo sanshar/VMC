@@ -282,8 +282,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
             std::complex<double> t1 = thetaInv[0].row(mo) * AOLaplacian.col(orb);
             std::complex<double> t2 = X.row(mo) * AoRi.col(orb);
             std::complex<double> factor = -0.5 * (t1 - t2);
-            RefGradcEloc[numDets + 2*orb * nelec + 2*mo] = factor;
-            RefGradcEloc[numDets + 2*orb * nelec + 2*mo + 1] = i * factor;
+            RefGradcEloc[numDets + 2*orb * nelec + 2*mo] += factor;
+            RefGradcEloc[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
           }
 
           //grad contribution
@@ -312,8 +312,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
           std::complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb);
           RefGradcOvlp[numDets + 2*orb * nelec + 2*mo] += factor;
           RefGradcOvlp[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
-          RefgradRatio[numDets + 2*orb * nelec + 2*mo] = (factor * thetaDet).real() / thetaDet.real();        
-          if (schd.ifComplex) RefgradRatio[numDets + 2*orb * nelec + 2*mo + 1] = (i * factor * thetaDet).real() / thetaDet.real();
+          RefgradRatio[numDets + 2*orb * nelec + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
+          if (schd.ifComplex) RefgradRatio[numDets + 2*orb * nelec + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
         } 
       }
     }
@@ -330,8 +330,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
               std::complex<double> t1 = thetaInv[0].row(mo) * AOLaplacian.col(orb).head(nalpha);
               std::complex<double> t2 = X.row(mo) * AoRi.col(orb).head(nalpha);
               std::complex<double> factor = -0.5 * (t1 - t2);
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] = factor;
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] = i * factor;
+              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
+              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
             }
 
             //grad contribution
@@ -360,8 +360,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
             std::complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb).head(nalpha);
             RefGradcOvlp[numDets + 2*orb * nalpha + 2*mo] += factor;
             RefGradcOvlp[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
-            RefgradRatio[numDets + 2*orb * nalpha + 2*mo] = (factor * thetaDet).real() / thetaDet.real();        
-            if (schd.ifComplex) RefgradRatio[numDets + 2*orb * nalpha + 2*mo + 1] = (i * factor * thetaDet).real() / thetaDet.real();
+            RefgradRatio[numDets + 2*orb * nalpha + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
+            if (schd.ifComplex) RefgradRatio[numDets + 2*orb * nalpha + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
           } 
         } 
       }
@@ -369,6 +369,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
       //beta
       int shift = 0;
       if (schd.hf == "uhf") { shift = 2*nalpha*norbs; }
+
       {
         MatrixXcd X = thetaInv[1] * Laplacian.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
         MatrixXcd Xgx = thetaInv[1] * Gradx.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
@@ -381,8 +382,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
               std::complex<double> t1 = thetaInv[1].row(mo) * AOLaplacian.col(orb).tail(nbeta);
               std::complex<double> t2 = X.row(mo) * AoRi.col(orb).tail(nbeta);
               std::complex<double> factor = -0.5 * (t1 - t2);
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] = factor;
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] = i * factor;
+              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
+              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
             }
 
             //grad contribution
@@ -411,11 +412,12 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
             std::complex<double> factor = thetaInv[1].row(mo) * AoRi.col(orb).tail(nbeta);
             RefGradcOvlp[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
             RefGradcOvlp[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
-            RefgradRatio[numDets + shift + 2*orb * nbeta + 2*mo] = (factor * thetaDet).real() / thetaDet.real();        
-            if (schd.ifComplex) RefgradRatio[numDets + shift + 2*orb * nbeta + 2*mo + 1] = (i * factor * thetaDet).real() / thetaDet.real();
+            RefgradRatio[numDets + shift + 2*orb * nbeta + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
+            if (schd.ifComplex) RefgradRatio[numDets + shift + 2*orb * nbeta + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
           } 
         }
       }
+
     }
   } //opt orbs
   RefhamRatio = ((cEloc * RefGradcOvlp + RefGradcEloc) * thetaDet).real() / thetaDet.real();
@@ -636,7 +638,6 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
   Pseudopotential &pp = *schd.pseudo;
   if (pp.size() != 0) //if pseudopotential object is not empty
   {
-    //MatrixXcd Bnl = MatrixXd::Zero(walk.refHelper.Laplacian.rows(), walk.refHelper.Laplacian.cols());
     MatrixXcd Bnl = MatrixXd::Zero(nelec, nelec);
     vector<double>& aoValues = const_cast<vector<double>&>(walk.refHelper.aoValues);
     aoValues.resize(norbs);  

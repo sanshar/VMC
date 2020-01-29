@@ -204,6 +204,13 @@ void rWalkerHelper<rSlater>::updateWalker(int elec, Vector3d& oldCoord, const rD
 
   schd.basis->eval_deriv2(d.coord[gelec], &aoValues[0]);
 
+  for (int j=0; j<norbs; j++) {
+      AOGradient[0](gelec, j) = aoValues[1*norbs+j];
+      AOGradient[1](gelec, j) = aoValues[2*norbs+j];
+      AOGradient[2](gelec, j) = aoValues[3*norbs+j];
+      AOLaplacian  (gelec, j) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
+  }
+
   VectorXcd newVec = VectorXd::Zero(nelec);
   for (int mo=0; mo<nelec; mo++) 
     for (int j=0; j<norbs; j++)  
@@ -1190,14 +1197,19 @@ void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDetermin
     }
   }
     
-  Eigen::FullPivLU<MatrixXcd> lua(DetMatrix[0]);
-  if (lua.isInvertible()) {
-    thetaInv[0] = lua.inverse();
-    thetaDet[0][0] = lua.determinant();
+  if (d.nalpha != 0) {
+    Eigen::FullPivLU<MatrixXcd> lua(DetMatrix[0]);
+    if (lua.isInvertible()) {
+      thetaInv[0] = lua.inverse();
+      thetaDet[0][0] = lua.determinant();
+    }
+    else {
+      cout << " overlap with alpha determinant not invertible" << endl;
+      exit(0);
+    }
   }
   else {
-    cout << " overlap with alpha determinant not invertible" << endl;
-    exit(0);
+    thetaDet[0][0] = 1.0;
   }
 
     

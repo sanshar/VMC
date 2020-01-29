@@ -1001,8 +1001,11 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
       H << ham, hamRatio;
 
       /*
-      //below is for debugging hamRatio, it calculated local energy gradient via finite difference
+      //below is for debugging hamRatio, it calculates local energy gradient via finite difference
       if (commrank == 0) {
+          cout << endl;
+          cout << "iteration: " << iter << endl;
+          cout << walk.d << endl;
         VectorXd v;
         wave.getVariables(v);
         Walker _walk;
@@ -1026,7 +1029,8 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
 
         //cout << "eloc: " << ham << endl;
         //VectorXd gradEloc = hamRatio - ham * gradRatio;
-        for (int m = 0; m < numVars; m++)
+        int numJastrowVars = wave.getNumJastrowVariables();
+        for (int m = numJastrowVars; m < numVars; m++)
         {
           cout << G(m) << "  " << G1(m) << "  |  ";
           cout << H(m) << "  " << H1(m) << endl;
