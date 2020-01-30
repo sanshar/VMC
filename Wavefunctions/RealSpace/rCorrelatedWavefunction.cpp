@@ -49,121 +49,42 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   Pseudopotential &pp = *schd.pseudo;
   if (pp.size() != 0) //if pseudopotential object is not empty
   {
+    //local potential
     for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
     {
       const ppHelper &ppatm = it->second;
-      for (int j = 0; j < ppatm.indices().size(); j++) //loop over indices of atom
+      for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
       {
-        int I = ppatm.indices()[j];
-        for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-        {
-          int l = it1->first; //angular momentum
+        int I = ppatm.indices()[a];
+        auto it1 = ppatm.begin();
+        int l = it1->first;
+        if (l == -1) {
           const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-          for (int i = 0; i < walk.d.nelec; i++) //loop over electrons
+          for (int i = 0; i < nelec; i++) //loop over electrons
           {
-            double Int = 1.0;
-            double C = 1.0;
-            Vector3d rI = schd.Ncoords[I];
-            Vector3d ri = walk.d.coord[i];
-            Vector3d riI = ri - rI;
-            
-            //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l != -1 && riI.norm() > 2.0) { continue; } 
-
-            //calculate potential
-            double val = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { val += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
-            
-            //integrate if nonlocal potential
-            if (l != -1) //angular momentum projector
-            {
-              Int = 0.0;
-              C = std::sqrt((2.0 * (double) l + 1.0) / (4.0 * M_PI));
-
-              /*
-              //sample 4 vertices of tetrahedral
-              std::vector<Vector3d> s;
-              double a = std::sqrt(1.0 / 3.0);
-              s.push_back(Vector3d(a, a, a));
-              s.push_back(Vector3d(a, -a, -a));
-              s.push_back(Vector3d(-a, a, -a));
-              s.push_back(Vector3d(-a, -a, a));
-              for (int v = 0; v < s.size(); v++)
-              {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s[v];
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Vector3d riprime = riIprime + rI;
-                  Int += boost::math::legendre_p<double>(l, costheta) * getOverlapFactor(i, riprime, walk); 
-              }
-              Int /= (double) s.size();
-              Int *= (C * 4.0 * M_PI);
-              */
- 
-              //sample 6 vertices of octahedral
-              std::vector<Vector3d> s1;
-              s1.push_back(Vector3d(1.0, 0.0, 0.0));
-              s1.push_back(Vector3d(-1.0, 0.0, 0.0));
-              s1.push_back(Vector3d(0.0, 1.0, 0.0));
-              s1.push_back(Vector3d(0.0, -1.0, 0.0));
-              s1.push_back(Vector3d(0.0, 0.0, 1.0));
-              s1.push_back(Vector3d(0.0, 0.0, -1.0));
-              for (int v = 0; v < s1.size(); v++)
-              {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s1[v];
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Vector3d riprime = riIprime + rI;
-                  Int += boost::math::legendre_p<double>(l, costheta) * getOverlapFactor(i, riprime, walk);
-              }
-              Int /= (double) s1.size();
-              Int *= (C * 4.0 * M_PI);
-
-              /*
-              //sample 12 vertices of icosahedral
-              double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
-              double roh = std::sqrt((5.0 + std::sqrt(5.0)) / 10.0);
-              std::vector<Vector3d> s2;
-              s2.push_back(Vector3d(0.0, lambda, roh));
-              s2.push_back(Vector3d(0.0, -lambda, roh));
-              s2.push_back(Vector3d(0.0, lambda, -roh));
-              s2.push_back(Vector3d(0.0, -lambda, -roh));
- 
-              s2.push_back(Vector3d(lambda, 0.0, roh));
-              s2.push_back(Vector3d(-lambda, 0.0, roh));
-              s2.push_back(Vector3d(lambda, 0.0, -roh));
-              s2.push_back(Vector3d(-lambda, 0.0, -roh));
- 
-              s2.push_back(Vector3d(lambda, roh, 0.0));
-              s2.push_back(Vector3d(-lambda, roh, 0.0));
-              s2.push_back(Vector3d(lambda, -roh, 0.0));
-              s2.push_back(Vector3d(-lambda, -roh, 0.0)); 
-              for (int v = 0; v < s2.size(); v++)
-              {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s2[v];
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Vector3d riprime = riIprime + rI;
-                  Int += boost::math::legendre_p<double>(l, costheta) * getOverlapFactor(i, riprime, walk);
-              }   
-              Int /= (double) s.size();
-              Int *= (C * 4.0 * M_PI);
-              */ 
-            }
-
-            potentiali_pp += val * C * Int;
+             //calculate potential
+             double v = 0.0;
+             for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
+             potentiali_pp += v;    
           }
         }
       }
     }
+
+    //nonlocal potential
+    std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
+    for (int i=0; i<nelec; i++) {
+      std::complex<double> factor = 0.0;
+      if (schd.hf == "ghf") { factor = walk.Bnl.row(i) * walk.refHelper.thetaInv[0].col(i); }
+      else
+      {
+        if (i < walk.d.nalpha) { factor = walk.Bnl.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
+        else { factor = walk.Bnl.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
+      }
+      potentiali_pp += (DetFactor * factor).real() / DetFactor.real();
+    } 
   }
-  
+
   double kinetic = 0.0; 
   std::complex<double> ckinetic = 0.0;
   {
@@ -426,6 +347,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   return Eloc;
 }
 
+
 template<>
 void rCorrelatedWavefunction<rJastrow, rSlater>::enforceCusp() {
   return;
@@ -517,260 +439,41 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
     }
   }
 
-  /*
   //pseudopotential
   Pseudopotential &pp = *schd.pseudo;
   if (pp.size() != 0) //if pseudopotential object is not empty
   {
-    for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
-    {
-      const ppHelper &ppatm = it->second;
-      for (int j = 0; j < ppatm.indices().size(); j++) //loop over indices of atom
-      {
-        int I = ppatm.indices()[j];
-        for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-        {
-          int l = it1->first; //angular momentum
-          const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-          for (int i = 0; i < walk.d.nelec; i++) //loop over electrons
-          {
-            double Int = 1.0;
-            double C = 1.0;
-            Vector3d rI = schd.Ncoords[I];
-            Vector3d ri = walk.d.coord[i];
-            Vector3d riI = ri - rI;
-            
-            //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l != -1 && riI.norm() > 2.0) { continue; } 
-
-            //calculate potential
-            double val = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { val += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
-            
-            //integrate if nonlocal potential
-            if (l != -1) //angular momentum projector
-            {
-              Int = 0.0;
-              C = std::sqrt((2.0 * (double) l + 1.0) / (4.0 * M_PI));
-
-              //sample 4 vertices of tetrahedral
-              std::vector<Vector3d> s;
-              double a = std::sqrt(1.0 / 3.0);
-              s.push_back(Vector3d(a, a, a));
-              s.push_back(Vector3d(a, -a, -a));
-              s.push_back(Vector3d(-a, a, -a));
-              s.push_back(Vector3d(-a, -a, a));
-              for (int v = 0; v < s.size(); v++)
-              {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s[v];
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Vector3d riprime = riIprime + rI;
-                  Int += boost::math::legendre_p<double>(l, costheta) * getOverlapFactor(i, riprime, walk); 
-              }
-              Int /= (double) s.size();
-              Int *= (C * 4.0 * M_PI);
- 
-              //sample 6 vertices of octahedral
-              std::vector<Vector3d> s1;
-              s1.push_back(Vector3d(1.0, 0.0, 0.0));
-              s1.push_back(Vector3d(-1.0, 0.0, 0.0));
-              s1.push_back(Vector3d(0.0, 1.0, 0.0));
-              s1.push_back(Vector3d(0.0, -1.0, 0.0));
-              s1.push_back(Vector3d(0.0, 0.0, 1.0));
-              s1.push_back(Vector3d(0.0, 0.0, -1.0));
-              for (int v = 0; v < s1.size(); v++)
-              {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s1[v];
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Vector3d riprime = riIprime + rI;
-                  Int += boost::math::legendre_p<double>(l, costheta) * getOverlapFactor(i, riprime, walk);
-              }
-              Int /= (double) s1.size();
-              Int *= (C * 4.0 * M_PI);
-
-              //sample 12 vertices of icosahedral
-              double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
-              double roh = std::sqrt((5.0 + std::sqrt(5.0)) / 10.0);
-              std::vector<Vector3d> s2;
-              s2.push_back(Vector3d(0.0, lambda, roh));
-              s2.push_back(Vector3d(0.0, -lambda, roh));
-              s2.push_back(Vector3d(0.0, lambda, -roh));
-              s2.push_back(Vector3d(0.0, -lambda, -roh));
- 
-              s2.push_back(Vector3d(lambda, 0.0, roh));
-              s2.push_back(Vector3d(-lambda, 0.0, roh));
-              s2.push_back(Vector3d(lambda, 0.0, -roh));
-              s2.push_back(Vector3d(-lambda, 0.0, -roh));
- 
-              s2.push_back(Vector3d(lambda, roh, 0.0));
-              s2.push_back(Vector3d(-lambda, roh, 0.0));
-              s2.push_back(Vector3d(lambda, -roh, 0.0));
-              s2.push_back(Vector3d(-lambda, -roh, 0.0)); 
-              for (int v = 0; v < s2.size(); v++)
-              {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s2[v];
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Vector3d riprime = riIprime + rI;
-                  Int += boost::math::legendre_p<double>(l, costheta) * getOverlapFactor(i, riprime, walk);
-              }   
-              Int /= (double) s.size();
-              Int *= (C * 4.0 * M_PI);
-            }
-
-            potentiali_pp += val * C * Int;
-          }
-        }
-      }
-    }
-  }
-  */
-
-  //pseudopotential
-  Pseudopotential &pp = *schd.pseudo;
-  if (pp.size() != 0) //if pseudopotential object is not empty
-  {
-    MatrixXcd Bnl = MatrixXd::Zero(nelec, nelec);
-    vector<double>& aoValues = const_cast<vector<double>&>(walk.refHelper.aoValues);
-    aoValues.resize(norbs);  
+    //local potential
     for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
     {
       const ppHelper &ppatm = it->second;
       for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
       {
         int I = ppatm.indices()[a];
-        for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-        {
-          int l = it1->first; //angular momentum
+        auto it1 = ppatm.begin();
+        int l = it1->first;
+        if (l == -1) {
           const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
           for (int i = 0; i < nelec; i++) //loop over electrons
           {
-            int nmo = nelec; //ghf
-            int shift = 0;
-            if (schd.hf != "ghf") { //rhf/uhf
-              if (i < nalpha) {
-                nmo =  nalpha;
-              }
-              else {
-                nmo =  nbeta;
-                shift = nalpha;
-              }
-            }
-
-            Vector3d rI = schd.Ncoords[I];
-            Vector3d ri = walk.d.coord[i];
-            Vector3d riI = ri - rI;
-            
-            //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l != -1 && riI.norm() > 2.0) { continue; } 
-
-            //calculate potential
-            double v = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
-            
-            if (l == -1) potentiali_pp += v; //accumulate if local potential
-            else if (l != -1) //integrate if nonlocal potential
-            {
-              double C = (2.0 * (double) l + 1.0) / (4.0 * M_PI);
-              std::vector<Vector3d> s;
-
-              /*
-              //sample 4 vertices of tetrahedral
-              double a = std::sqrt(1.0 / 3.0);
-              s.push_back(Vector3d(a, a, a));
-              s.push_back(Vector3d(a, -a, -a));
-              s.push_back(Vector3d(-a, a, -a));
-              s.push_back(Vector3d(-a, -a, a));
-              */
- 
-              //sample 6 vertices of octahedral
-              s.push_back(Vector3d(1.0, 0.0, 0.0));
-              s.push_back(Vector3d(-1.0, 0.0, 0.0));
-              s.push_back(Vector3d(0.0, 1.0, 0.0));
-              s.push_back(Vector3d(0.0, -1.0, 0.0));
-              s.push_back(Vector3d(0.0, 0.0, 1.0));
-              s.push_back(Vector3d(0.0, 0.0, -1.0));
-
-              /*
-              //sample 12 vertices of icosahedral
-              double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
-              double roh = std::sqrt((5.0 + std::sqrt(5.0)) / 10.0);
-              s.push_back(Vector3d(0.0, lambda, roh));
-              s.push_back(Vector3d(0.0, -lambda, roh));
-              s.push_back(Vector3d(0.0, lambda, -roh));
-              s.push_back(Vector3d(0.0, -lambda, -roh));
- 
-              s.push_back(Vector3d(lambda, 0.0, roh));
-              s.push_back(Vector3d(-lambda, 0.0, roh));
-              s.push_back(Vector3d(lambda, 0.0, -roh));
-              s.push_back(Vector3d(-lambda, 0.0, -roh));
- 
-              s.push_back(Vector3d(lambda, roh, 0.0));
-              s.push_back(Vector3d(-lambda, roh, 0.0));
-              s.push_back(Vector3d(lambda, -roh, 0.0));
-              s.push_back(Vector3d(-lambda, -roh, 0.0)); 
-              */
-
-              for (int j = 0; j < nmo; j++)
-              {
-                complex<double> Int = 0.0;
-                for (int q = 0; q < s.size(); q++)
-                {
-                    //calculate new vector, riprime
-                    Vector3d riIprime = riI.norm() * s[q];
-                    Vector3d riprime = riIprime + rI;
-
-                    //calculate mo at new coordinate
-                    complex<double> moval = 0.0;
-                    schd.basis->eval(riprime, &aoValues[0]);
-                    for (int ao = 0; ao < norbs; ao++) {
-                      if (schd.hf == "ghf") {
-                        if (i < nalpha)
-                          moval += aoValues[ao] * ref.getHforbs(0)(ao, j);
-                        else
-                          moval += aoValues[ao] * ref.getHforbs(0)(ao + norbs, j);
-                      }
-                      else if (schd.hf != "ghf") {
-                        if (i < nalpha)
-                          moval += aoValues[ao] * ref.getHforbs(0)(ao, j);
-                        else
-                          moval += aoValues[ao] * ref.getHforbs(1)(ao, j);
-                      } 
-                    }
-
-                    //calculate angle
-                    double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-
-                    //multiply legendre polynomial and wavefunction overlap ratio
-                    Int += boost::math::legendre_p<double>(l, costheta) * walk.corrHelper.OverlapRatio(i, riprime, corr, walk.d) * moval;
-                }
-                Int /= (double) s.size();
-                Int *= (C * 4.0 * M_PI);
-                Bnl(i, j + shift) += v * Int;
-              }
-
-            }
+             //calculate potential
+             double v = 0.0;
+             for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
+             potentiali_pp += v;    
           }
         }
       }
     }
 
+    //nonlocal potential
     std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
     for (int i=0; i<nelec; i++) {
       std::complex<double> factor = 0.0;
-      if (schd.hf == "ghf") { factor = Bnl.row(i) * walk.refHelper.thetaInv[0].col(i); }
+      if (schd.hf == "ghf") { factor = walk.Bnl.row(i) * walk.refHelper.thetaInv[0].col(i); }
       else
       {
-        if (i < walk.d.nalpha) { factor = Bnl.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
-        else { factor = Bnl.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
+        if (i < walk.d.nalpha) { factor = walk.Bnl.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
+        else { factor = walk.Bnl.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
       }
       potentiali_pp += (DetFactor * factor).real() / DetFactor.real();
     } 

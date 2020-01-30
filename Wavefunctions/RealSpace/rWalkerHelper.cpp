@@ -22,6 +22,8 @@
 #include "global.h"
 #include "input.h"
 #include "JastrowTermsHardCoded.h"
+#include <boost/math/special_functions/legendre.hpp>
+#include <boost/math/special_functions/spherical_harmonic.hpp>
 
 rWalkerHelper<rSlater>::rWalkerHelper(const rSlater &w, const rDeterminant &d) 
 {
@@ -94,8 +96,6 @@ void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeter
     exit(0);
       }
   }
-
-
 }
 
 double rWalkerHelper<rSlater>::getDetFactor(int i, Vector3d& newCoord, const rDeterminant &d, const rSlater& w) const

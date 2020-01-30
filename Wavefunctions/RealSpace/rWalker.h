@@ -45,6 +45,8 @@ struct rWalker<rJastrow, rSlater> {
   MatrixXd RNM;
   MatrixXd Rij;         //the inter-electron distances
   MatrixXd RiN;         //electron-nucleus distances  
+  MatrixXcd Bnl;        //Bnl(elec, mo) = Vnl * DetMatrix     
+  MatrixXd AOBnl;        //AOBnl(elec, ao) = \partial_{mocoeff} Vnl * DetMatrix    
   rWalkerHelper<rJastrow> corrHelper;
   rWalkerHelper<rSlater> refHelper;
   uniformRandom uR;
@@ -57,11 +59,16 @@ struct rWalker<rJastrow, rSlater> {
   rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd);
 
   void initR();
+
   void initHelpers(const rJastrow &corr, const rSlater &ref);
+
+  void initBnl(const rJastrow &corr, const rSlater &ref, double &local_potential);
+
+  void updateBnl(int nelec, const rJastrow &corr, const rSlater &ref);
   
   rDeterminant& getDet();
-  void readBestDeterminant(rDeterminant& d) const ;
 
+  void readBestDeterminant(rDeterminant& d) const ;
 
   double getDetOverlap(const rSlater &ref) const;
 

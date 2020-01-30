@@ -47,13 +47,12 @@ class rWalkerHelper<rSlater>
   std::array<MatrixXcd, 3>   Gradient;        //each of three matrices is G(elec, mo) 
   MatrixXd AOLaplacian;                      //ne X Ao matrix -> Del^2_i ao_j(r_i)
   std::array<MatrixXd,3>  AOGradient;        //ne X Ao matrix -> Del_ia ao_j(r_i), a=x,y,z
-  
+
   rWalkerHelper() {};
 
   rWalkerHelper(const rSlater &w, const rDeterminant &d) ;
 
   void initInvDetsTables(const rSlater& w, const rDeterminant &d);
-
 
   void initInvDetsTablesGhf(const rSlater& w, const rDeterminant &d);
 
