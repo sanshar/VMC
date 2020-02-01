@@ -111,8 +111,12 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
     int nalpha = rDeterminant::nalpha;
     int nbeta = rDeterminant::nbeta;
     int nelec = nalpha+nbeta;
+
+    int nmo = nelec; //ghf num molecular orbitals
+    int nao = schd.hf == "ghf" ? 2*norbs : norbs; //num atomic orbitals
     
     Bnl = MatrixXd::Zero(nelec, nelec);
+    AOBnl = MatrixXd::Zero(nelec, nao);
     local_potential = 0.0;
     refHelper.aoValues.resize(norbs);  
     if (pp.size() != 0)
@@ -128,19 +132,18 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
             int l = it1->first; //angular momentum
             const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
             for (int i = 0; i < nelec; i++) //loop over electrons
-            {
-              int nmo = nelec; //ghf
+            {  
               int shift = 0;
               if (schd.hf != "ghf") { //rhf/uhf
                 if (i < nalpha) {
-                  nmo =  nalpha;
+                  nmo = nalpha;
                 }
                 else {
-                  nmo =  nbeta;
+                  nmo = nbeta;
                   shift = nalpha;
                 }
               }
-      
+
               Vector3d rI = schd.Ncoords[I];
               Vector3d ri = d.coord[i];
               Vector3d riI = ri - rI;
@@ -195,6 +198,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                 s.push_back(Vector3d(-lambda, -roh, 0.0)); 
                 */
       
+                //Bnl
                 for (int j = 0; j < nmo; j++)
                 {
                   complex<double> Int = 0.0;
@@ -232,6 +236,40 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                   Int *= (C * 4.0 * M_PI);
                   Bnl(i, j + shift) += v * Int;
                 }
+
+                //AOBnl
+                for (int j = 0; j < norbs; j++)
+                {
+                  double Int = 0.0;
+                  for (int q = 0; q < s.size(); q++)
+                  {
+                      //calculate new vector, riprime
+                      Vector3d riIprime = riI.norm() * s[q];
+                      Vector3d riprime = riIprime + rI;
+      
+                      //calculate mo at new coordinate
+                      schd.basis->eval(riprime, &refHelper.aoValues[0]);
+                      double aoval = refHelper.aoValues[j];
+      
+                      //calculate angle
+                      double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
+      
+                      //multiply legendre polynomial and wavefunction overlap ratio
+                      Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(i, riprime, corr, d) * aoval;
+                  }
+                  Int /= (double) s.size();
+                  Int *= (C * 4.0 * M_PI);
+
+                  if (schd.hf == "ghf") {
+                    if (i < nalpha)
+                      AOBnl(i, j) += v * Int;
+                    else
+                      AOBnl(i, j + norbs) += v * Int;
+                  }
+                  else {
+                    AOBnl(i, j) += v * Int;
+                  }
+                }
       
               }
             }
@@ -249,7 +287,22 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
     int nbeta = rDeterminant::nbeta;
     int nelec = nalpha+nbeta;
     
-    Bnl.row(elec) = VectorXd::Zero(Bnl.cols());
+    int nao = 2*norbs;
+    int nmo = nelec; //ghf
+    int shift = 0;
+    if (schd.hf != "ghf") { //rhf/uhf
+      nao = norbs;
+      if (elec < nalpha) {
+        nmo = nalpha;
+      }
+      else {
+        nmo = nbeta;
+        shift = nalpha;
+      }
+    }
+
+    Bnl.row(elec) = VectorXd::Zero(nelec);
+    AOBnl.row(elec) = VectorXd::Zero(nao);
     double local_potential = 0.0;
     refHelper.aoValues.resize(norbs);  
     if (pp.size() != 0)
@@ -264,17 +317,6 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
           {
             int l = it1->first; //angular momentum
             const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-            int nmo = nelec; //ghf
-            int shift = 0;
-            if (schd.hf != "ghf") { //rhf/uhf
-              if (elec < nalpha) {
-                nmo =  nalpha;
-              }
-              else {
-                nmo =  nbeta;
-                shift = nalpha;
-              }
-            }
       
             Vector3d rI = schd.Ncoords[I];
             Vector3d ri = d.coord[elec];
@@ -335,37 +377,70 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
                 complex<double> Int = 0.0;
                 for (int q = 0; q < s.size(); q++)
                 {
-                    //calculate new vector, riprime
-                    Vector3d riIprime = riI.norm() * s[q];
-                    Vector3d riprime = riIprime + rI;
+                  //calculate new vector, riprime
+                  Vector3d riIprime = riI.norm() * s[q];
+                  Vector3d riprime = riIprime + rI;
       
-                    //calculate mo at new coordinate
-                    complex<double> moval = 0.0;
-                    schd.basis->eval(riprime, &refHelper.aoValues[0]);
-                    for (int ao = 0; ao < norbs; ao++) {
-                      if (schd.hf == "ghf") {
-                        if (elec < nalpha)
-                          moval += refHelper.aoValues[ao] * ref.getHforbs(0)(ao, j);
-                        else
-                          moval += refHelper.aoValues[ao] * ref.getHforbs(0)(ao + norbs, j);
-                      }
-                      else if (schd.hf != "ghf") {
-                        if (elec < nalpha)
-                          moval += refHelper.aoValues[ao] * ref.getHforbs(0)(ao, j);
-                        else
-                          moval += refHelper.aoValues[ao] * ref.getHforbs(1)(ao, j);
-                      } 
+                  //calculate mo at new coordinate
+                  complex<double> moval = 0.0;
+                  schd.basis->eval(riprime, &refHelper.aoValues[0]);
+                  for (int ao = 0; ao < norbs; ao++) {
+                    if (schd.hf == "ghf") {
+                      if (elec < nalpha)
+                        moval += refHelper.aoValues[ao] * ref.getHforbs(0)(ao, j);
+                      else
+                        moval += refHelper.aoValues[ao] * ref.getHforbs(0)(ao + norbs, j);
                     }
+                    else if (schd.hf != "ghf") {
+                      if (elec < nalpha)
+                        moval += refHelper.aoValues[ao] * ref.getHforbs(0)(ao, j);
+                      else
+                        moval += refHelper.aoValues[ao] * ref.getHforbs(1)(ao, j);
+                    } 
+                  }
       
-                    //calculate angle
-                    double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
+                  //calculate angle
+                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
       
-                    //multiply legendre polynomial and wavefunction overlap ratio
-                    Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d) * moval;
+                  //multiply legendre polynomial and wavefunction overlap ratio
+                  Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d) * moval;
                 }
                 Int /= (double) s.size();
                 Int *= (C * 4.0 * M_PI);
                 Bnl(elec, j + shift) += v * Int;
+              }
+
+              //AOBnl
+              for (int j = 0; j < norbs; j++)
+              {
+                double Int = 0.0;
+                for (int q = 0; q < s.size(); q++)
+                {
+                  //calculate new vector, riprime
+                  Vector3d riIprime = riI.norm() * s[q];
+                  Vector3d riprime = riIprime + rI;
+      
+                  //calculate ao at new coordinate
+                  schd.basis->eval(riprime, &refHelper.aoValues[0]);
+                  double aoval = refHelper.aoValues[j];
+      
+                  //calculate angle
+                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
+      
+                  //multiply legendre polynomial and wavefunction overlap ratio
+                  Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d) * aoval;
+                }
+                Int /= (double) s.size();
+                Int *= (C * 4.0 * M_PI);
+                if (schd.hf == "ghf") {
+                  if (elec < nalpha)
+                    AOBnl(elec, j) += v * Int;
+                  else
+                    AOBnl(elec, j + norbs) += v * Int;
+                }
+                else {
+                  AOBnl(elec, j) += v * Int;
+                }
               }
       
             }

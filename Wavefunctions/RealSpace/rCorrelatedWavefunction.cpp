@@ -47,8 +47,11 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
   //pseudopotential
   Pseudopotential &pp = *schd.pseudo;
+  bool pseudo = false;
   if (pp.size() != 0) //if pseudopotential object is not empty
   {
+    pseudo = true;
+
     //local potential
     for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
     {
@@ -192,12 +195,26 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
     }
     
     if (schd.hf == "ghf") {
+
       MatrixXcd X = thetaInv[0] * Laplacian * thetaInv[0];
       MatrixXcd Xgx = thetaInv[0] * Gradx * thetaInv[0];
       MatrixXcd Xgy = thetaInv[0] * Grady * thetaInv[0];
       MatrixXcd Xgz = thetaInv[0] * Gradz * thetaInv[0];
+      MatrixXcd Xnl;
+      if (pseudo) { Xnl = thetaInv[0] * walk.Bnl * thetaInv[0]; }
+
       for (int mo = 0; mo < nelec; mo++) { 
         for (int orb = 0; orb < 2*norbs; orb++) {
+          //nonlocal potential contribution 
+          if (pseudo)
+          {
+            std::complex<double> t1 = thetaInv[0].row(mo) * walk.AOBnl.col(orb);
+            std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb);
+            std::complex<double> factor = t1 - t2;
+            RefGradcEloc[numDets + 2*orb * nelec + 2*mo] += factor;
+            RefGradcEloc[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
+          }
+
           //laplacian contribution
           {
             std::complex<double> t1 = thetaInv[0].row(mo) * AOLaplacian.col(orb);
@@ -240,12 +257,26 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
     }
     else { //rhf/uhf
       {//alpha
+
         MatrixXcd X = thetaInv[0] * Laplacian.topLeftCorner(nalpha, nalpha) * thetaInv[0];
         MatrixXcd Xgx = thetaInv[0] * Gradx.topLeftCorner(nalpha, nalpha) * thetaInv[0];
         MatrixXcd Xgy = thetaInv[0] * Grady.topLeftCorner(nalpha, nalpha) * thetaInv[0];
         MatrixXcd Xgz = thetaInv[0] * Gradz.topLeftCorner(nalpha, nalpha) * thetaInv[0];
+        MatrixXcd Xnl;
+        if (pseudo) { Xnl = thetaInv[0] * walk.Bnl.topLeftCorner(nalpha, nalpha) * thetaInv[0]; }
+
         for (int mo = 0; mo < nalpha; mo++) { 
           for (int orb = 0; orb < norbs; orb++) {
+            //nonlocal potential contribution 
+            if (pseudo)
+            {
+              std::complex<double> t1 = thetaInv[0].row(mo) * walk.AOBnl.col(orb).head(nalpha);
+              std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb).head(nalpha);
+              std::complex<double> factor = t1 - t2;
+              RefGradcEloc[numDets + 2*orb * nelec + 2*mo] += factor;
+              RefGradcEloc[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
+            }
+
             //laplacian contribution
             {
               std::complex<double> t1 = thetaInv[0].row(mo) * AOLaplacian.col(orb).head(nalpha);
@@ -292,12 +323,26 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
       if (schd.hf == "uhf") { shift = 2*nalpha*norbs; }
 
       {
+
         MatrixXcd X = thetaInv[1] * Laplacian.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
         MatrixXcd Xgx = thetaInv[1] * Gradx.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
         MatrixXcd Xgy = thetaInv[1] * Grady.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
         MatrixXcd Xgz = thetaInv[1] * Gradz.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
+        MatrixXcd Xnl;
+        if (pseudo) { Xnl = thetaInv[1] * walk.Bnl.bottomRightCorner(nbeta, nbeta) * thetaInv[1]; }
+
         for (int mo = 0; mo < nbeta; mo++) { 
           for (int orb = 0; orb < norbs; orb++) {
+            //nonlocal potential contribution 
+            if (pseudo)
+            {
+              std::complex<double> t1 = thetaInv[1].row(mo) * walk.AOBnl.col(orb).tail(nbeta);
+              std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb).tail(nbeta);
+              std::complex<double> factor = t1 - t2;
+              RefGradcEloc[numDets + 2*orb * nelec + 2*mo] += factor;
+              RefGradcEloc[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
+            }
+
             //laplacian contribution
             {
               std::complex<double> t1 = thetaInv[1].row(mo) * AOLaplacian.col(orb).tail(nbeta);
@@ -479,6 +524,18 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
     } 
   }
 
+  /*
+  cout << "##############################################" << endl;
+  cout << "Update" << endl;
+  cout << walk.Bnl << endl << endl;
+  cout << walk.AOBnl << endl << endl;
+
+  cout << "init" << endl;
+  double test;
+  walk.initBnl(corr, ref, test);
+  cout << walk.Bnl << endl << endl;
+  cout << walk.AOBnl << endl << endl;
+  */
   
   double kinetic = 0.0;  
   {
