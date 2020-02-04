@@ -1038,8 +1038,8 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
       }
       */
 
-      Hessian += (G * H.transpose()-Hessian).eval()/(effIter+1);
-      Smatrix += (G * G.transpose()-Smatrix).eval()/(effIter+1);
+      Hessian.noalias() += (G * H.transpose()-Hessian)/(effIter+1);
+      Smatrix.noalias() += (G * G.transpose()-Smatrix)/(effIter+1);
 
       for (int i = 0; i < grad.rows(); i++)
       {
