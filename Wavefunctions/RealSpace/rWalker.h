@@ -25,6 +25,7 @@
 #include "igl/slice.h"
 #include "igl/slice_into.h"
 #include "rSlater.h"
+#include "rBFSlater.h"
 #include <random>
 
 template<typename jastrow, typename slater> class rCorrelatedWavefunction;
@@ -44,6 +45,8 @@ struct rWalker<rJastrow, rSlater> {
   MatrixXd RNM;
   MatrixXd Rij;         //the inter-electron distances
   MatrixXd RiN;         //electron-nucleus distances  
+  MatrixXcd Bnl;        //Bnl(elec, mo) = Vnl * DetMatrix     
+  MatrixXd AOBnl;        //AOBnl(elec, ao) = \partial_{mocoeff} Vnl * DetMatrix    
   rWalkerHelper<rJastrow> corrHelper;
   rWalkerHelper<rSlater> refHelper;
   uniformRandom uR;
@@ -56,11 +59,16 @@ struct rWalker<rJastrow, rSlater> {
   rWalker(const rJastrow &corr, const rSlater &ref, const rDeterminant &pd);
 
   void initR();
+
   void initHelpers(const rJastrow &corr, const rSlater &ref);
+
+  void initBnl(const rJastrow &corr, const rSlater &ref, double &local_potential);
+
+  void updateBnl(int nelec, const rJastrow &corr, const rSlater &ref);
   
   rDeterminant& getDet();
-  void readBestDeterminant(rDeterminant& d) const ;
 
+  void readBestDeterminant(rDeterminant& d) const ;
 
   double getDetOverlap(const rSlater &ref) const;
 
@@ -97,6 +105,108 @@ struct rWalker<rJastrow, rSlater> {
                                             const rSlater& ref) ;
   double getGradientAfterSingleElectronMovetemp(int elecI, Vector3d& move, Vector3d& grad,
                                             const rSlater& ref) ;
+  
+  friend ostream& operator<<(ostream& os, const rWalker<rJastrow, rSlater>& w) {
+    os << w.d << endl << endl;
+    os << "dets\n" << w.refHelper.thetaDet[0][0] << "  " << w.refHelper.thetaDet[0][1] << endl << endl;
+    os << "alphaInv\n" << w.refHelper.thetaInv[0] << endl << endl;
+    os << "betaInv\n" << w.refHelper.thetaInv[1] << endl << endl;
+    return os;
+  }
+  
+};
+
+template<>
+struct rWalker<rJastrow, rBFSlater> {
+
+  rDeterminant d;
+  MatrixXd RNM;
+  MatrixXd Rij;         //the inter-electron distances
+  MatrixXd RiN;         //electron-nucleus distances  
+  rWalkerHelper<rJastrow> corrHelper;
+  rWalkerHelper<rBFSlater> refHelper;
+  uniformRandom uR;
+  std::normal_distribution<double> nR;
+  
+  rWalker();
+  
+  rWalker(const rJastrow &corr, const rBFSlater &ref) ;
+
+  rWalker(const rJastrow &corr, const rBFSlater &ref, const rDeterminant &pd);
+
+  void initR();
+  void initHelpers(const rJastrow &corr, const rBFSlater &ref);
+  
+  rDeterminant& getDet();
+  void readBestDeterminant(rDeterminant& d) const ;
+
+
+  double getDetOverlap(const rBFSlater &ref) const;
+
+  /**
+   * makes det based on mo coeffs 
+   */
+  void guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXcd& HforbsA, const Eigen::MatrixXcd& HforbsB) const ;
+
+  void initDet(const MatrixXcd& HforbsA, const MatrixXcd& HforbsB) ;
+
+
+  void updateWalker(int elec, Vector3d& coord, const rBFSlater& ref, const rJastrow& corr);
+
+  void OverlapWithGradient(const rBFSlater &ref, const rJastrow& cps, VectorXd &grad) ;
+
+  void HamOverlap(const rBFSlater &ref, const rJastrow& cps, VectorXd &grad) ;
+
+  void getStep(Vector3d& coord, int elecI, double stepsize,
+               const rBFSlater& ref, const rJastrow& corr, double& ovlpRatio,
+               double& proposalProb) ;
+               
+  void getSimpleStep(Vector3d& coord,  double stepsize, double& ovlpRatio, double& proposalProb);
+
+  void getSphericalStep(Vector3d& coord, int elecToMove, double stepsize, const rBFSlater& ref,
+                        double& ovlpRatio, double& proposalProb);
+  void doDMCMove(Vector3d& coord, int elecI, double stepsize,
+                 const rBFSlater& ref, const rJastrow& corr, double& ovlpRatio,
+                 double& proposalProb) ;
+  void getGaussianStep(Vector3d& coord, int elecToMove, double stepsize,
+                       double& ovlpRatio, double& proposalProb);
+
+  void getGradient(int elecI, Vector3d& grad) ;
+  double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad,
+                                            const rBFSlater& ref) ;
+  
+  friend ostream& operator<<(ostream& os, const rWalker<rJastrow, rBFSlater>& w) {
+    os << "bare det\n" << w.d << endl << endl;
+    os << "quasiparticle det\n" << w.refHelper.dp << endl << endl;
+    os << "DetMatrix\n" << w.refHelper.DetMatrix << endl << endl;
+    os << "det overlap\n" << w.refHelper.thetaDet << endl << endl;
+    os << "hValues\n" << w.refHelper.hValues << endl << endl;
+    os << "etaValues\n" << w.refHelper.etaValues << endl << endl;
+    os << "hGradient0\n" << w.refHelper.hGradient[0] << endl << endl;
+    os << "hGradient1\n" << w.refHelper.hGradient[1] << endl << endl;
+    os << "hGradient2\n" << w.refHelper.hGradient[2] << endl << endl;
+    for (int i = 0; i < 9; i++) {
+      os << "rpGradient " << i << endl << w.refHelper.rpGradient[i] << endl << endl;
+    }
+    for (int i = 0; i < 9; i++) {
+      os << "rpSecondDerivatives " << i << endl << w.refHelper.rpSecondDerivatives[i] << endl << endl;
+    }
+    for (int i = 0; i < 3; i++) {
+      os << "MOGradient " << i << endl << w.refHelper.MOGradient[i] << endl << endl;
+    }
+    os << "thetaInv\n" << w.refHelper.thetaInv << endl << endl;
+    for (int i = 0; i < 3; i++) {
+      os << "rTable " << i << endl << w.refHelper.rTable[i] << endl << endl;
+    }
+    for (int i = 0; i < 6; i++) {
+      os << "MOSecondDerivatives " << i << endl << w.refHelper.MOSecondDerivatives[i] << endl << endl;
+    }
+    for (int i = 0; i < 3; i++) {
+      os << "slaterGradientRatio " << i << endl << w.refHelper.slaterGradientRatio[i] << endl << endl;
+    }
+    os << "slaterLaplacianRatio\n" << w.refHelper.slaterLaplacianRatio << endl << endl;
+    return os;
+  }
   
 };
 

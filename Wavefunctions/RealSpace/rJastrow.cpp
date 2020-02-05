@@ -34,7 +34,8 @@ using namespace std;
 
 
 rJastrow::rJastrow () {
-  Qmax=6;
+  Qmax = schd.Qmax;
+  QmaxEEN = schd.QmaxEEN; //EEN jastrow is expensive -> use fewer powers
 
   EEsameSpinIndex = 0;
   EEoppositeSpinIndex = Qmax;
@@ -43,15 +44,48 @@ rJastrow::rJastrow () {
   
   //EENoppositeSpinIndex = EENsameSpinIndex;
   int EENterms = 0;
-  for (int m = 1; m <= Qmax; m++) 
+  for (int m = 1; m <= QmaxEEN; m++) 
   for (int n = 0; n <= m   ; n++) 
-  for (int o = 0; o <= (Qmax-m-n); o++) {
+  for (int o = 0; o <= (QmaxEEN-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
     EENterms++;
   }
   EENoppositeSpinIndex = EENsameSpinIndex + schd.Ncharge.size()*EENterms;
 
-  _params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
+   //4body Jastrows
+   int norbs = schd.basis->getNorbs();
+   //EENNlinearIndex = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
+   EENNlinearIndex = EENsameSpinIndex;
+   if (schd.fourBodyJastrowBasis == FC)
+     EENNIndex = EENNlinearIndex + schd.Ncharge.size();
+   else if (schd.fourBodyJastrowBasis == AB)
+     EENNIndex = EENNlinearIndex + norbs;
+   
+   int numParams = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
+
+   if (schd.fourBodyJastrow) {
+     if (schd.fourBodyJastrowBasis == FC)
+       numParams = EENNIndex + schd.Ncharge.size() * (schd.Ncharge.size() + 1) / 2;
+     else if(schd.fourBodyJastrow == AB)
+       numParams = EENNIndex + norbs * (norbs + 1) / 2;
+   }
+   
+   /*
+   if (commrank == 0) {
+   cout << schd.fourBodyJastrowBasis << endl;
+   cout << "Num: " << numParams << endl;
+   cout << "EEsameSpinIndex: " << EEsameSpinIndex << endl;
+   cout << "EEoppositeSpinIndex: " << EEoppositeSpinIndex << endl;
+   cout << "ENIndex: " << ENIndex << endl;
+   cout << "EENsameSpinIndex: " << EENsameSpinIndex << endl;
+   cout << "EENoppositeSpinIndex: " << EENoppositeSpinIndex << endl;
+   cout << "EENNlinearIndex: " << EENNlinearIndex << endl;
+   cout << "EENNIndex: " << EENNIndex << endl;
+   }
+   */
+
+  //_params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
+  _params.resize(numParams, 1.e-4);
   _params[EEsameSpinIndex] = 0.25;
   _params[EEoppositeSpinIndex] = 0.5;
   if (schd.optimizeCps == false) { _params.assign(_params.size(), 0.0); }

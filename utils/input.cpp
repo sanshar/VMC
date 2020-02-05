@@ -73,7 +73,10 @@ void readInput(string input, schedule& schd, bool print) {
       schd.momentum = 0.;
       schd.stepsize = 0.001;
       schd.realSpaceStep = 0.1;
-      
+      schd.fourBodyJastrow = false;
+     
+      schd.Qmax = 6;
+      schd.QmaxEEN = 3;
       schd.stochasticIter = 1e4;
       schd.integralSampleSize = 10;
       schd.seed = getTime();
@@ -86,6 +89,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.hf = "rhf";
       schd.optimizeOrbs = true;
       schd.optimizeCps = true;
+      schd.optimizeBackflow = true;
       schd.printVars = false;
       schd.printGrad = false;
       schd.debug = false;
@@ -134,7 +138,7 @@ void readInput(string input, schedule& schd, bool print) {
             schd.walkerBasis = REALSPACEGTO;
             schd.basis = boost::shared_ptr<Basis>(new gaussianBasis);
             schd.basis->read();
-            readGeometry(schd.Ncoords, schd.Ncharge, dynamic_cast<gaussianBasis&>(*schd.basis));
+            readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
           }
 	  else if (boost::iequals(ArgName, "realspacesto")) {
             schd.walkerBasis = REALSPACESTO;
@@ -142,7 +146,7 @@ void readInput(string input, schedule& schd, bool print) {
             //read gaussian basis just to read the nuclear charge and coordinates
             gaussianBasis gBasis ;
             gBasis.read();
-            readGeometry(schd.Ncoords, schd.Ncharge, gBasis);
+            readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, gBasis);
             schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
             map<string, Vector3d> atomList;
             for (int i=0; i<schd.Ncoords.size(); i++) {
@@ -157,14 +161,26 @@ void readInput(string input, schedule& schd, bool print) {
 	  else if (boost::iequals(ArgName, "restart"))
 	    schd.restart = true;
 
-          else if (boost::iequals(ArgName, "rsimplestep"))
+      else if (boost::iequals(ArgName, "rsimplestep"))
 	    schd.rStepType = SIMPLE;          
-          else if (boost::iequals(ArgName, "rsphericalStep"))
+      else if (boost::iequals(ArgName, "rsphericalStep"))
 	    schd.rStepType = SPHERICAL;
-          else if (boost::iequals(ArgName, "rdmcStep"))
+      else if (boost::iequals(ArgName, "rdmcStep"))
 	    schd.rStepType = DMC;
-          else if (boost::iequals(ArgName, "rgaussian"))
+      else if (boost::iequals(ArgName, "rgaussianstep"))
 	    schd.rStepType = GAUSSIAN;
+      else if (boost::iequals(ArgName, "fourbodyjastrow"))
+      {
+        schd.fourBodyJastrow = true;
+        if (boost::iequals(tok[1].c_str(), "FC"))
+        {
+          schd.fourBodyJastrowBasis = FC;
+        }
+        else if (boost::iequals(tok[1].c_str(), "AB"))
+        {
+          schd.fourBodyJastrowBasis = AB;
+        }
+      }
 
 	  else if (boost::iequals(ArgName, "fullrestart"))
 	    schd.fullrestart = true;
@@ -255,6 +271,12 @@ void readInput(string input, schedule& schd, bool print) {
 
 	  else if (boost::iequals(ArgName, "nbeta"))
             schd.nbeta = atoi(tok[1].c_str());
+	  
+      else if (boost::iequals(ArgName, "qmax"))
+            schd.Qmax = atoi(tok[1].c_str());
+      
+      else if (boost::iequals(ArgName, "qmaxeen"))
+            schd.QmaxEEN = atoi(tok[1].c_str());
 
           else if (boost::iequals(ArgName, "nondirect"))
             schd.direct = false;
@@ -289,6 +311,9 @@ void readInput(string input, schedule& schd, bool print) {
           
       else if (boost::iequals(ArgName, "jastrowslater"))
 	    schd.wavefunctionType = "JastrowSlater";
+      
+      else if (boost::iequals(ArgName, "backflow"))
+	    schd.wavefunctionType = "Backflow";
       
       else if (boost::iequals(ArgName, "cicpsslater"))
 	    schd.wavefunctionType = "CICPSSlater";
@@ -453,6 +478,11 @@ void readInput(string input, schedule& schd, bool print) {
 	    {
 	      schd.optimizeCps = false;
 	    }
+      
+      else if (boost::iequals(ArgName, "dontoptimizebackflow"))
+	    {
+	      schd.optimizeBackflow = false;
+	    }
 
 	  else if (boost::iequals(ArgName, "hubbard"))
 	    {
@@ -602,10 +632,12 @@ void readHF(MatrixXcd& HfmatrixA, MatrixXcd& HfmatrixB, std::string hf)
 
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
+                  vector<int> & Nbasis,
                   gaussianBasis& gBasis) {
   int N = gBasis.natm;
   Ncoords.resize(N);
   Ncharge.resize(N);
+  Nbasis.assign(N, 0);
 
   int stride = gBasis.atm.size()/N;
   for (int i=0; i<N; i++) {
@@ -615,6 +647,12 @@ void readGeometry(vector<Vector3d>& Ncoords,
     Ncoords[i][2] = gBasis.env[ gBasis.atm[i*stride+1] +2];
   }
 
+  for (int i = 0; i < gBasis.nbas; i++) {
+    int index = gBasis.bas[i * 8];
+    int l = gBasis.bas[i * 8 + 1];
+    int n = gBasis.bas[i * 8 + 3];
+    Nbasis[index] += n * (2 * l + 1);
+  }
 }
 
 void readPairMat(MatrixXd& pairMat) 

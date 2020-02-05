@@ -32,23 +32,32 @@
 
 #include "Determinants.h"
 #include "rDeterminants.h"
-#include "rSlater.h"
+#include "rBFSlater.h"
 #include "global.h"
 #include "input.h"
 
 
 using namespace Eigen;
 
-rSlater::rSlater() 
+rBFSlater::rBFSlater() 
 {
   initHforbs();
   initDets();
+  aN = -0.1; bN = 0.5; 
+  a[0] = 0.1; b[0] = 0.5;
+  a[1] = 0.1; b[1] = 0.5;
+  ifstream ifile("Backflow.txt");
+  if (ifile) {
+    ifile >> aN;   ifile >> bN;
+    ifile >> a[0]; ifile >> b[0];
+    ifile >> a[1]; ifile >> b[1];
+  }
 }
 
-int rSlater::getNumOfDets() const {return determinants.size();}
+int rBFSlater::getNumOfDets() const {return determinants.size();}
 
 
-void rSlater::initHforbs() 
+void rBFSlater::initHforbs() 
 {
   int norbs = Determinant::norbs;
   int size; //dimension of the mo coeff matrix
@@ -83,7 +92,7 @@ void rSlater::initHforbs()
   }
 }
 
-void rSlater::initDets() 
+void rBFSlater::initDets() 
 {  
   int norbs = Determinant::norbs;
   int nalpha = rDeterminant::nalpha;
@@ -119,8 +128,23 @@ void rSlater::initDets()
   }
 }
 
+double rBFSlater::eta(const double rij, const bool sameSpinQ) const
+{
+  return a[sameSpinQ] * exp(-pow(rij / b[sameSpinQ], 2));
+}
+
+double rBFSlater::chi(const double riI) const
+{
+  return aN * exp(-pow(riI / bN, 2));
+}
+
+double rBFSlater::gFun(const double riI) const
+{
+  return (1 - exp(-5*pow(riI, 2)));
+}
+
 //I Assume that there is only single determinant in the ciexpansion
-void rSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
+void rBFSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
 { 
   v.setZero();
   int norbs = Determinant::norbs;  
@@ -157,24 +181,31 @@ void rSlater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
       }
     }
   }
+  v[v.size() - 6] = aN;
+  v[v.size() - 5] = bN;
+  v[v.size() - 4] = a[0];
+  v[v.size() - 3] = b[0];
+  v[v.size() - 2] = a[1];
+  v[v.size() - 1] = b[1];
 }
 
-long rSlater::getNumVariables() const
+long rBFSlater::getNumVariables() const
 {
   int nalpha = rDeterminant::nalpha;
   int nbeta = rDeterminant::nbeta;
   int nelec = nalpha + nbeta;
 
-  long numVars = 0;
+  long numVars = 0; 
   numVars += determinants.size();
   if (hftype == Restricted)
     numVars += 2 * nalpha * HforbsA.rows();
   else
     numVars += 2 * nelec * HforbsA.rows();
+  numVars += 6; //backflow
   return numVars;
 }
 
-void rSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v) 
+void rBFSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v) 
 {  
   int nalpha = rDeterminant::nalpha;
   int nbeta = rDeterminant::nbeta;
@@ -216,9 +247,15 @@ void rSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
       }
     }
   }
+  aN = v[v.size() - 6];
+  bN = v[v.size() - 5];
+  a[0] = v[v.size() - 4];
+  b[0] = v[v.size() - 3];
+  a[1] = v[v.size() - 2];
+  b[1] = v[v.size() - 1];
 }
 
-void rSlater::printVariables() const
+void rBFSlater::printVariables() const
 {
   cout << endl<<"CI-expansion"<<endl;
   for (int i = 0; i < determinants.size(); i++) {
@@ -227,7 +264,7 @@ void rSlater::printVariables() const
   cout << endl<<"DeterminantA"<<endl;
   //for r/ghf
   for (int i = 0; i < HforbsA.rows(); i++) {
-    for (int j = 0; j < HforbsA.cols(); j++)
+    for (int j = 0; j < HforbsA.rows(); j++)
       cout << "  " << HforbsA(i, j);
     cout << endl;
   }
@@ -236,12 +273,12 @@ void rSlater::printVariables() const
     cout << endl
          << "DeterminantB" << endl;
     for (int i = 0; i < HforbsB.rows(); i++) {
-      for (int j = 0; j < HforbsB.cols(); j++)
+      for (int j = 0; j < HforbsB.rows(); j++)
         cout << "  " << HforbsB(i, j);
       cout << endl;
     }
   }
-  cout << endl;
+  cout << "Backflow:  aN = " << aN << ", bN = " << bN << ", aOS = " << a[0] << ", bOS = " << b[0] << ", aSS = " << a[1] << ", bSS = " << b[1]  << endl << endl;
 
 }
 

@@ -111,4 +111,19 @@ void JastrowEEN(int i, int j, int maxQ,
                 MatrixXd& laplace, double factor,
                 int startIndex,
                 int ss) ;
+
+
+double JastrowEENNLinearValue(int i, const vector<Vector3d>& r, const VectorXd& params, int startIndex);
+ 
+double JastrowEENNLinearValueGrad(int i, const vector<Vector3d>& r, Vector3d& grad, const VectorXd& params, int startIndex);
+
+void JastrowEENNLinear(int i, const vector<Vector3d>& r, VectorXd& values, MatrixXd& gx, MatrixXd& gy, MatrixXd& gz, MatrixXd& laplace, double factor, int startIndex);
+
+
+double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd& params, int startIndex, int ss);
+
+double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d grad, const VectorXd& params, int startIndex, int ss);
+
+void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, MatrixXd& gx, MatrixXd& gy, MatrixXd& gz, MatrixXd& laplace, double factor, int startIndex, int ss);
+
 #endif

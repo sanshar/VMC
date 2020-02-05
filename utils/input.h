@@ -36,6 +36,7 @@ class Determinant;
 enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod}; //varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
+enum JBASIS {FC, AB};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
 
 /**
@@ -75,6 +76,7 @@ private:
       & hf
       & optimizeOrbs
       & optimizeCps
+      & optimizeBackflow
       & printVars
       & printGrad
       & Hamiltonian
@@ -98,9 +100,12 @@ private:
       & nalpha
       & nbeta
       & norbs
+      & Qmax
+      & QmaxEEN
       & realSpaceStep
       & Ncoords
       & Ncharge
+      & Nbasis
       & direct
       & rStepType
       & ifComplex
@@ -109,6 +114,8 @@ private:
       & dTol
       & cgTol
       & expCorrelator
+      & fourBodyJastrow
+      & fourBodyJastrowBasis
       & maxMacroIter;
   }
 public:
@@ -118,6 +125,7 @@ public:
   boost::shared_ptr<Pseudopotential> pseudo;
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
+  vector<int>   Nbasis;
 
   bool restart;                          //option to restart calculation
   bool fullrestart;                          //option to restart calculation
@@ -129,6 +137,8 @@ public:
   bool uagp;                             //brakes S^2 symmetry in uagp
 
   RSTEPTYPE rStepType;
+  bool fourBodyJastrow;
+  JBASIS fourBodyJastrowBasis;
   
 //input file to define the correlator parts of the wavefunction
   int nalpha;
@@ -138,6 +148,8 @@ public:
   std::string wavefunctionType;
   std::map<int, std::string> correlatorFiles;
   std::string determinantFile;
+  int Qmax;
+  int QmaxEEN;
 
 //Used in the stochastic calculation of E and PT evaluation
   int stochasticIter;                    //Number of stochastic steps
@@ -150,6 +162,7 @@ public:
   std::string hf;
   bool optimizeOrbs;
   bool optimizeCps;
+  bool optimizeBackflow;
   bool printVars;
   bool printOpt;
   bool printGrad;
@@ -268,6 +281,7 @@ void readDeterminants(std::string input, std::vector<Determinant>& determinants,
 
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
+                  vector<int>  & Nbasis,
                   gaussianBasis& gBasis);
 
 #endif

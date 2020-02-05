@@ -38,24 +38,26 @@ class rJastrow {
   friend class boost::serialization::access;
   template<class Archive>
   void serialize (Archive & ar, const unsigned int version) {
-    ar & _params & Qmax & EEsameSpinIndex & EEoppositeSpinIndex & ENIndex & EENsameSpinIndex
-        & EENoppositeSpinIndex;
+    ar & _params & Qmax & QmaxEEN & EEsameSpinIndex & EEoppositeSpinIndex & ENIndex & EENsameSpinIndex
+        & EENoppositeSpinIndex & EENNlinearIndex & EENNIndex;
   }
  public:
 
   std::vector<double> _params; 
   int Qmax;
+  int QmaxEEN; 
   int EEsameSpinIndex,
       EEoppositeSpinIndex,
       ENIndex,
       EENsameSpinIndex,
-      EENoppositeSpinIndex;
+      EENoppositeSpinIndex,
+      EENNlinearIndex,
+      EENNIndex;
   
 
   rJastrow ();
   
   long getNumVariables() const;
-
   void getVariables(Eigen::VectorXd &v) const;
   void updateVariables(const Eigen::VectorXd &v);
   void printVariables() const;

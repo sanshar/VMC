@@ -177,7 +177,7 @@ void slaterBasis::eval(const vector<Vector3d>& x, vector<double>& values) {
 
 void makeDeriv(double* values, int NR, int NX, int NY, int NZ, int &norbs,
                double* xN, double &RiN, double& eta, double& scale,
-               int& index) {
+               int& index, bool mixed = false) {
 
   double ex   = scale * exp(-eta*RiN);
   double poly = pow(RiN, NR);
@@ -215,11 +215,11 @@ void makeDeriv(double* values, int NR, int NX, int NY, int NZ, int &norbs,
   double D2angDx2 = NX >= 2 ?
       NX * (NX -1 ) * pow(xN[0],NX-2) * pow (xN[1], NY) * pow (xN[2], NZ) :
       0.0;
-
+  
   double D2angDy2 = NY >= 2 ?
       NY * (NY -1 ) * pow(xN[0],NX) * pow (xN[1], NY-2) * pow (xN[2], NZ) :
       0.0;
-
+  
   double D2angDz2 = NZ >= 2 ?
       NZ * (NZ -1 ) * pow(xN[0],NX) * pow (xN[1], NY) * pow (xN[2], NZ-2) :
       0.0;
@@ -243,6 +243,40 @@ void makeDeriv(double* values, int NR, int NX, int NY, int NZ, int &norbs,
                                  + 2 * (DfDr*DrDz) * DangDz
                                  + fr * D2angDz2;
 
+  //if (mixed) {
+
+    double D2rDxDy = - xN[0]*xN[1]/pow(RiN,3);
+    double D2rDxDz = - xN[0]*xN[2]/pow(RiN,3);
+    double D2rDyDz = - xN[1]*xN[2]/pow(RiN,3);
+    
+    double D2angDxDy = (NX >= 1 && NY >= 1) ?
+        NX * NY * pow(xN[0],NX-1) * pow (xN[1], NY-1) * pow (xN[2], NZ) :
+        0.0;
+    
+    double D2angDxDz = (NX >= 1 && NZ >= 1) ?
+        NX * NZ * pow(xN[0],NX-1) * pow (xN[1], NY) * pow (xN[2], NZ-1) :
+        0.0;
+
+    double D2angDyDz = (NY >= 1 && NZ >= 1) ?
+        NY * NZ * pow(xN[0],NX) * pow (xN[1], NY-1) * pow (xN[2], NZ-1) :
+        0.0;
+  
+    values[5* norbs + index] =  (D2fDr2*DrDx*DrDy + DfDr * D2rDxDy)*ang
+                                   + (DfDr*DrDx) * DangDy
+                                   + (DfDr*DrDy) * DangDx
+                                   + fr * D2angDxDy;
+    
+    values[6* norbs + index] =  (D2fDr2*DrDx*DrDz + DfDr * D2rDxDz)*ang
+                                   + (DfDr*DrDx) * DangDz
+                                   + (DfDr*DrDz) * DangDx
+                                   + fr * D2angDxDz;
+
+    values[8* norbs + index] =  (D2fDr2*DrDy*DrDz + DfDr * D2rDyDz)*ang
+                                   + (DfDr*DrDy) * DangDz
+                                   + (DfDr*DrDz) * DangDy
+                                   + fr * D2angDyDz;
+  
+  //}
 }
   
 

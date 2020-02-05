@@ -2,11 +2,6 @@ F77 = mpif77
 USE_MPI = yes
 USE_INTEL = yes
 
-#EIGEN=/projects/ilsa8974/apps/eigen/
-#BOOST=/projects/ilsa8974/apps/boost_1_66_0/
-#LIBIGL=/projects/ilsa8974/apps/libigl/include/
-#PYSCF=/projects/ilsa8974/apps/pyscf/pyscf/lib/
-#LIBCINT=/projects/ilsa8974/apps/pyscf/pyscf/lib/deps/lib
 SUNDIALS=/projects/ilsa8974/apps/sundials-3.1.0/stage/include
 STAN=/projects/sash2458/newApps/stanMath
 TBB=/curc/sw/intel/17.4/compilers_and_libraries_2017.4.196/linux/tbb/
@@ -21,6 +16,12 @@ OPT = -std=c++14 -w -g -O3 -qopenmp -D_REENTRANT -DNDEBUG
 #OPT = -std=c++14 -g -qopenmp -D_REENTRANT
 FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ 
 
+
+
+GIT_HASH=`git rev-parse HEAD`
+COMPILE_TIME=`date`
+GIT_BRANCH=`git branch | grep "^\*" | sed s/^..//`
+VERSION_FLAGS=-DGIT_HASH="\"$(GIT_HASH)\"" -DCOMPILE_TIME="\"$(COMPILE_TIME)\"" -DGIT_BRANCH="\"$(GIT_BRANCH)\""
 
 LFLAGS = -L${PYSCF} -lcgto -lnp_helper -L${LIBCINT} -lcint -L${TBB}/lib/intel64/gcc4.7/ -ltbb  
 
@@ -70,6 +71,7 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/Determinants.o \
 	obj/Slater.o \
 	obj/rSlater.o \
+	obj/rBFSlater.o \
 	obj/AGP.o \
 	obj/Pfaffian.o \
 	obj/rJastrow.o \
@@ -101,6 +103,7 @@ OBJ_TRANS = obj/staticVariables.o \
 	obj/Determinants.o \
 	obj/Slater.o \
 	obj/rSlater.o \
+	obj/rBFSlater.o \
 	obj/AGP.o \
 	obj/Pfaffian.o \
 	obj/rJastrow.o \
@@ -163,17 +166,18 @@ obj/%.o: utils/%.cpp
 obj/%.o: VMC/%.cpp  
 	$(CXX) $(FLAGS) -I./VMC $(OPT) -c $< -o $@
 obj/%.o: GFMC/%.cpp  
-	$(CXX) $(FLAGS) -I./GFMC $(OPT) -c $< -o $@
+	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./GFMC $(OPT) -c $< -o $@
 obj/%.o: executables/%.cpp  
-	$(CXX) $(FLAGS) -I./GFMC -I./VMC $(OPT) -c $< -o $@
+	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./GFMC -I./VMC $(OPT) -c $< -o $@
+
 
 all: bin/VMC bin/GFMC bin/slaterToGaussian bin/TRANS #bin/sPT  bin/GFMC
 
 bin/GFMC	: $(OBJ_GFMC) 
-	$(CXX)   $(FLAGS) $(OPT) -o  bin/GFMC $(OBJ_GFMC) $(LFLAGS)
+	$(CXX)   $(FLAGS) $(VERSION_FLAGS) $(OPT) -o  bin/GFMC $(OBJ_GFMC) $(LFLAGS) 
 
 bin/VMC	: $(OBJ_VMC) 
-	$(CXX)   $(FLAGS) $(OPT) -o  bin/VMC $(OBJ_VMC) $(LFLAGS)
+	$(CXX)   $(FLAGS) $(VERSION_FLAGS) $(OPT) -o  bin/VMC $(OBJ_VMC) $(LFLAGS)
 
 bin/TRANS	: $(OBJ_TRANS) 
 	$(CXX)   $(FLAGS) $(OPT) -o  bin/TRANS $(OBJ_TRANS) $(LFLAGS)
