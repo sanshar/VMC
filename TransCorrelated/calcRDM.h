@@ -10,7 +10,7 @@ template <
   typename DerivedC,
   typename DerivedY>
 void Slice(
-    const Eigen::DenseBase<DerivedX> & X,
+    const DerivedX & X,
     const vector<DerivedR> & R,
     const vector<DerivedC> & C,
     DerivedY & Y)
@@ -28,6 +28,42 @@ void Slice(
   }
 };
 
+template <
+  typename DerivedX,
+  typename DerivedR,
+  typename DerivedC,
+  typename DerivedY>
+void Slice(
+    const DerivedX & X,
+    const vector<DerivedR> & creID,
+    const vector<DerivedC> & desID,
+    const vector<DerivedR> & R,
+    const vector<DerivedC> & C,
+    DerivedY & Y)
+{
+  int ym = Y.rows();
+  int yn = Y.cols();
+
+  // loop over output rows, then columns
+  for(int i = 0;i<ym;i++)
+  {
+    for(int j = 0;j<yn;j++)
+    {
+      if (creID[j] < desID[i])
+        Y(i,j) = X(R[i],C[j]);
+      else {
+        if (R[i] == C[j]) {
+          Y(i,j).real( X(R[i], C[j]).real() - 1.0);
+          Y(i,j).imag(X(R[i], C[j]).imag());
+          //Y(i,j) = X(R[i],C[j])-1.0;
+        }
+        else
+          Y(i,j) = X(R[i],C[j]);
+      }
+    }
+  }
+};
+
 template<typename T, typename complexT>
 class calcRDM{
   using Matrix2cT = Eigen::Matrix<complexT, 2, 2>;
@@ -35,71 +71,171 @@ class calcRDM{
   using Matrix4cT = Eigen::Matrix<complexT, 4, 4>;
   using MatrixXcT = Eigen::Matrix<complexT, Eigen::Dynamic, Eigen::Dynamic>;
 
-  Matrix2cT rdmval2;
-  Matrix3cT rdmval3;
-  Matrix4cT rdmval4;
-  MatrixXcT rdmval5;
-  MatrixXcT rdmval6;
-  MatrixXcT rdmval7;
-  MatrixXcT rdmval8;
+  Matrix2cT rdmval2, rdmval2inv;
+  Matrix3cT rdmval3, rdmval3inv;
+  Matrix4cT rdmval4, rdmval4inv;
+  MatrixXcT rdmval5, rdmval5inv;
+  MatrixXcT rdmval6, rdmval6inv;
+  MatrixXcT rdmval7, rdmval7inv;
+  MatrixXcT rdmval8, rdmval8inv;
 
-  vector<int> rows, cols;
+  vector<int> rows, cols, creID, desID;
  public:
   calcRDM() {
     rows.resize(8,0); cols.resize(8,0);
+    creID.resize(8,0); desID.resize(8,0);
+    
     rdmval5.resize(5,5);
     rdmval6.resize(6,6);
     rdmval7.resize(7,7);
     rdmval8.resize(8,8);
+    rdmval5inv.resize(5,5);
+    rdmval6inv.resize(6,6);
+    rdmval7inv.resize(7,7);
+    rdmval8inv.resize(8,8);
   }
   
-  complexT getRDM(int a, int b, MatrixXcT& rdm) {
+  template<typename Mat>
+  complexT getRDM(int a, int b, Mat& rdm) {
     return rdm(b, a);
   }
 
-  complexT getRDM(int a, int b, int c, int d, MatrixXcT& rdm){
+  template<typename Mat>
+  void getRDMmultiplier(int a, int b, Mat& rdm, Mat& rdmmultiplier, complexT factor) {
+    rdmmultiplier(a,b) += factor;
+  }
+
+  template<typename Mat>
+  complexT getRDM(int a, int b, int c, int d, Mat& rdm){
     rows[0] = d; rows[1] = c;
     cols[0] = a; cols[1] = b;
     Slice(rdm, rows, cols, rdmval2);
     return rdmval2.determinant();
   }
 
-  complexT getRDM(int a, int b, int c, int d, int e, int f, MatrixXcT& rdm){
+  template<typename Mat>
+  complexT getRDM_(int a, int b, int c, int d, Mat& rdm){    
+    rows[0] = c; rows[1] = d;
+    cols[0] = a; cols[1] = b;
+    Slice(rdm, creID, desID, rows, cols, rdmval2);
+    return rdmval2.determinant();
+  }
+  
+  template<typename Mat>
+  void getRDMmultiplier(int a, int b, int c, int d, Mat& rdm, Mat& rdmmultiplier, complexT factor) {
+    rows[0] = d; rows[1] = c;
+    cols[0] = a; cols[1] = b;
+    Slice(rdm, rows, cols, rdmval2);
+    complexT detVal = rdmval2.determinant();
+    rdmval2inv = rdmval2.inverse();
+
+    for (int i=0; i<2; i++)
+      for (int j=0; j<2; j++)
+        rdmmultiplier(cols[i], rows[j]) += detVal*rdmval2inv(i, j)*factor;
+
+  }
+  
+  template<typename Mat>
+  complexT getRDM(int a, int b, int c, int d, int e, int f, Mat& rdm){
     rows[0] = f; rows[1] = e; rows[2] = d;
     cols[0] = a; cols[1] = b; cols[2] = c;
     Slice(rdm, rows, cols, rdmval3);
     return rdmval3.determinant();
   }
 
-  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, MatrixXcT& rdm){
+  template<typename Mat>
+  complexT getRDM_(int a, int b, int c, int d, int e, int f, Mat& rdm){
+    rows[0] = d; rows[1] = e; rows[2] = f;
+    cols[0] = a; cols[1] = b; cols[2] = c;
+    Slice(rdm, creID, desID, rows, cols, rdmval3);
+    return rdmval3.determinant();
+  }
+
+  template<typename Mat>
+  complexT getRDM_(int a, int b, int c, int d, int e, int f, Mat& rdm,
+                   T& xi, T& xj){
+    rows[0] = d; rows[1] = e; rows[2] = f;
+    cols[0] = a; cols[1] = b; cols[2] = c;
+    Slice(rdm, creID, desID, rows, cols, rdmval3);
+    rdmval3.row(0) *= xi; rdmval3(0,0) += 1.0;
+    rdmval3.row(2) *= xj; rdmval3(2,2) += 1.0;
+    return rdmval3.determinant();
+  }
+
+  template<typename Mat>
+  void getRDMmultiplier(int a, int b, int c, int d, int e, int f, Mat& rdm, Mat& rdmmultiplier, complexT factor) {
+    rows[0] = f; rows[1] = e; rows[2] = d;
+    cols[0] = a; cols[1] = b; cols[2] = c;
+    Slice(rdm, rows, cols, rdmval3);
+    complexT detVal = rdmval3.determinant();
+    rdmval3inv = rdmval3.inverse();
+    for (int i=0; i<3; i++)
+      for (int j=0; j<3; j++)
+        rdmmultiplier(cols[i], rows[j]) += detVal*rdmval3inv(i, j)*factor;
+  }
+  
+  template<typename Mat>
+  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, Mat& rdm){
     rows[0] = h; rows[1] = g; rows[2] = f; rows[3] = e;
     cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; 
     Slice(rdm, rows, cols, rdmval4);
     return rdmval4.determinant();
   }
 
-  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, MatrixXcT& rdm){
+  template<typename Mat>
+  complexT getRDM_(int a, int b, int c, int d, int e, int f, int g, int h, Mat& rdm){
+    rows[0] = e; rows[1] = f; rows[2] = g; rows[3] = h;
+    cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; 
+    Slice(rdm, creID, desID, rows, cols, rdmval4);
+    return rdmval4.determinant();
+  }
+  
+  template<typename Mat>
+  void getRDMmultiplier(int a, int b, int c, int d, int e, int f, int g, int h, Mat& rdm, Mat& rdmmultiplier, complexT factor) {
+    rows[0] = h; rows[1] = g; rows[2] = f; rows[3] = e;
+    cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; 
+    Slice(rdm, rows, cols, rdmval4);
+    complexT detVal = rdmval4.determinant();
+    rdmval4inv = rdmval4.inverse();
+    for (int i=0; i<4; i++)
+      for (int j=0; j<4; j++)
+        rdmmultiplier(cols[i], rows[j]) += detVal*rdmval4inv(i, j)*factor;
+  }
+  
+  template<typename Mat>
+  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, Mat& rdm){
     rows[0] = j; rows[1] = i; rows[2] = h; rows[3] = g; rows[4] = f;
     cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; cols[4] = e; 
     Slice(rdm, rows, cols, rdmval5);
     return rdmval5.determinant();
   }
 
-  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int k, int l, MatrixXcT& rdm){
+  template<typename Mat>
+  complexT getRDM_(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, Mat& rdm){
+    rows[0] = h; rows[1] = g; rows[2] = f; rows[3] = e;
+    cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; 
+    Slice(rdm, creID, desID, rows, cols, rdmval4);
+    return rdmval4.determinant();
+  }
+
+  template<typename Mat>
+  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int k, int l, Mat& rdm){
     rows[0] = l; rows[1] = k; rows[2] = j; rows[3] = i; rows[4] = h; rows[5] = g;
     cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; cols[4] = e; cols[5] = f;
     Slice(rdm, rows, cols, rdmval6);
     return rdmval6.determinant();
   }
 
-  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int k, int l, int m, int n, MatrixXcT& rdm){
+  template<typename Mat>
+  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int k, int l, int m, int n, Mat& rdm){
     rows[0] = n; rows[1] = m; rows[2] = l; rows[3] = k; rows[4] = j; rows[5] = i; rows[6] = h;
     cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; cols[4] = e; cols[5] = f; cols[6] = g;
     Slice(rdm, rows, cols, rdmval7);
     return rdmval7.determinant();
   }
 
-  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int k, int l, int m, int n, int o, int p, MatrixXcT& rdm){
+  template<typename Mat>
+  complexT getRDM(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int k, int l, int m, int n, int o, int p, Mat& rdm){
     rows[0] = p; rows[1] = o; rows[2] = n; rows[3] = m; rows[4] = l; rows[5] = k; rows[6] = j; rows[7] = i;
     cols[0] = a; cols[1] = b; cols[2] = c; cols[3] = d; cols[4] = e; cols[5] = f; cols[6] = g; cols[7] = h;
     Slice(rdm, rows, cols, rdmval8);
@@ -107,103 +243,169 @@ class calcRDM{
   }
 
   //computer generated
-  complexT calcTermGJ1(int I, int K, MatrixXcT& rdm,
-                       int P, int Q, T xiP, T xiQ){
+  template<typename Mat>
+  complexT calcTermGJ1(int I, int K, Mat& rdm,
+                       int P, int Q, T xiP, T xiQ,
+                       Mat& rdmgrad, complexT factor,
+                       VectorXd& JasGrad, MatrixXd& JasHess){
+    
     //P = Ispatial + opposite spin
     //Q = Jspatial + opposite spin
 
-    complexT contribution = complexT(0., 0.);
-    contribution += xiP * getRDM(P,I,K,P, rdm );
-    contribution += xiQ * getRDM(Q,I,K,Q, rdm );
+    creID[0] = 0; creID[1] = 2; creID[2] = 4;
+    desID[0] = 1; desID[1] = 3; desID[2] = 5;
+    rows[0] = P; rows[1] = K; rows[2] = Q;
+    cols[0] = P; cols[1] = I; cols[2] = Q;
+    
+    Slice(rdm, creID, desID, rows, cols, rdmval3);
+    rdmval3.row(0) *= xiP; rdmval3(0,0) += 1.0;
+    rdmval3.row(2) *= xiQ; rdmval3(2,2) += 1.0;
 
-    complexT contributionik = complexT(0, 0);
-    if (P == I && K == Q)
-      contributionik += 1.0*getRDM(P,Q, rdm );
+    complexT detVal = rdmval3.determinant();
+    rdmval3inv = rdmval3.inverse();
 
-    else if (K == Q)
-      contributionik += 1.0*getRDM(I,P,P,Q, rdm );
+    rdmval3(0,0) -= 1.0; rdmval3(2,2) -=1.0;
+    JasGrad[min(I, P)] += (-2.*rdmval3.row(0).conjugate().dot(rdmval3inv.col(0)) * detVal * factor * (xiP+1)/xiP).real();
+    JasGrad[min(K, Q)] += ( 2.*rdmval3.row(2).conjugate().dot(rdmval3inv.col(2)) * detVal * factor * (xiQ+1)/xiQ).real();
+    rdmval3(0,0) += 1.0; rdmval3(2,2) +=1.0;
+    
+    rdmval3inv.col(0) *= xiP; rdmval3inv.col(2) *= xiQ;
+    for (int i=0; i<3; i++)
+      for (int j=0; j<3; j++) {
+        rdmgrad(rows[i], cols[j]) += factor * detVal * rdmval3inv(j, i);
+      }
 
-    else if (P == Q)
-      contributionik += -1.0*getRDM(I,P,K,Q, rdm );
-
-    else if (P == I)
-      contributionik += -1.0*getRDM(P,Q,K,Q, rdm );
-
-    else
-      contributionik += -1.0*getRDM(I,P,Q,K,P,Q, rdm );
-
-    return contribution + xiP * xiQ * contributionik;
+    return detVal*factor;
   }
 
   complexT calcTermGJ1jas(int N, int M, int I, int K, MatrixXcT& rdm,
-                          int P, int Q, T xiP, T xiQ) {
-    complexT contribution = complexT(0., 0.);
+                          int P, int Q, T xiP, T xiQ, MatrixXcT& rdmgrad,
+                          complexT factor, complexT lambda, MatrixXd& JasLamHess) {
+    
+    creID[0] = 0; creID[1] = 2; creID[2] = 4; creID[3] = 6; creID[4] = 8;
+    desID[0] = 1; desID[1] = 3; desID[2] = 5; desID[3] = 7; desID[4] = 9;
 
-    contribution  = calcTermGJ1jasA(N, M, I, K, rdm);                  
-    contribution += xiP * calcTermGJ1jasB(N, M, P, I, K, rdm);         
-    contribution += xiQ * calcTermGJ1jasC(N, M, I, K, Q, rdm);         
-    contribution += xiP * xiQ * calcTermGJ1jasD(N, M, P, I, K, Q, rdm);
-    return contribution;
+    rows[0] = N; rows[1] = M; rows[2] = P; rows[3] = K; rows[4] = Q;
+    cols[0] = N; cols[1] = M; cols[2] = P; cols[3] = I; cols[4] = Q;
+
+    Slice(rdm, creID, desID, rows, cols, rdmval5);
+    
+    rdmval5.row(2) *= xiP; rdmval5(2,2) += complexT(1.0, 0.);
+    rdmval5.row(4) *= xiQ; rdmval5(4,4) += complexT(1.0, 0.);
+
+    complexT detVal = rdmval5.determinant();
+
+    if (abs(detVal) <1.e-12) {
+      return 0.0;
+    }
+    rdmval5inv = rdmval5.inverse();
+
+    rdmval5(2,2) -= 1.0; rdmval5(4,4) -=1.0;
+    JasLamHess(N, min(I, P)) += (-2.*rdmval5.row(2).conjugate().dot(rdmval5inv.col(2)) * detVal * factor * (xiP+1)/xiP).real();
+    JasLamHess(N, min(K, Q)) += ( 2.*rdmval5.row(4).conjugate().dot(rdmval5inv.col(4)) * detVal * factor * (xiQ+1)/xiQ).real();
+    rdmval5(2,2) += 1.0; rdmval5(4,4) +=1.0;
+
+    
+    rdmval5inv.col(2) *= xiP; rdmval5inv.col(4) *= xiQ;
+    for (int i=0; i<5; i++)
+      for (int j=0; j<5; j++) {
+        rdmgrad(rows[i], cols[j]) += (lambda * factor * detVal * rdmval5inv(j, i));
+      }
+
+    return detVal * factor;
+
   }
   
   //computer generated
   complexT calcTermGJ2(int I, int J, int K, int L, MatrixXcT& rdm,
                        int P, int Q, int R, int S,
-                       double xiP, double xiQ, double xiR, double xiS){
+                       T xiP, T xiQ, T xiR, T xiS,
+                       MatrixXcT& rdmgrad, complexT factor,
+                       VectorXd& JasGrad, MatrixXd& JasHess){
 
-    complexT contribution = complexT(0., 0.);
-    //there are 16 terms
-    contribution  = getRDM(I,J,K,L, rdm);
-    contribution += xiP * calcTermGJ2a(P, I,J,K,L, rdm);
-    contribution += xiQ * calcTermGJ2a(Q, I,J,K,L, rdm);
-    contribution += xiR * calcTermGJ2b(I,J,K,L, R, rdm);
-    contribution += xiS * calcTermGJ2b(I,J,K,L, S, rdm);
+    ///return contribution;
+    creID[0] = 0; creID[1] = 2; creID[2] = 4; creID[3] = 5; creID[4] = 8; creID[5] = 10;
+    desID[0] = 1; desID[1] = 3; desID[2] = 6; desID[3] = 7; desID[4] = 9; desID[5] = 11;
+    rows[0] = P; rows[1] = Q; rows[2] = K; rows[3] = L; rows[4] = R; rows[5] = S;
+    cols[0] = P; cols[1] = Q; cols[2] = I; cols[3] = J; cols[4] = R; cols[5] = S;
+    Slice(rdm, creID, desID, rows, cols, rdmval6);
 
-    contribution += xiP * xiQ * calcTermGJ2c(P, Q, I, J, K, L, rdm);
-    contribution += xiP * xiR * calcTermGJ2d(P, I, J, K, L, R, rdm);
-    contribution += xiP * xiS * calcTermGJ2d(P, I, J, K, L, S, rdm);
-    contribution += xiQ * xiR * calcTermGJ2d(Q, I, J, K, L, R, rdm);
-    contribution += xiQ * xiS * calcTermGJ2d(Q, I, J, K, L, S, rdm);
-    contribution += xiR * xiS * calcTermGJ2e(I, J, K, L, R, S, rdm);
+    rdmval6.row(0) *= xiP;
+    rdmval6.row(1) *= xiQ;
+    rdmval6.row(4) *= xiR;
+    rdmval6.row(5) *= xiS;
+    rdmval6(0,0) += complexT(1.0, 0.);
+    rdmval6(1,1) += complexT(1.0, 0.);    
+    rdmval6(4,4) += complexT(1.0, 0.);    
+    rdmval6(5,5) += complexT(1.0, 0.);
     
-    contribution += xiP * xiQ * xiR * calcTermGJ2f(P, Q, I, J, K, L, R, rdm);
-    contribution += xiP * xiQ * xiS * calcTermGJ2f(P, Q, I, J, K, L, S, rdm);
-    contribution += xiP * xiR * xiS * calcTermGJ2g(P, I, J, K, L, R, S, rdm);
-    contribution += xiQ * xiR * xiS * calcTermGJ2g(Q, I, J, K, L, R, S, rdm);
 
-    contribution += xiP * xiQ * xiR * xiS * calcTermGJ2h(P, Q, I, J, K, L, R, S, rdm);
+    complexT detVal = rdmval6.determinant();
+    rdmval6inv = rdmval6.inverse();
 
-    return contribution;
+    rdmval6(0,0) -= 1.0; rdmval6(1,1) -=1.0; rdmval6(4,4) -= 1.0; rdmval6(5,5) -=1.0;
+    JasGrad[min(I, P)] -= (-2.*rdmval6.row(0).conjugate().dot(rdmval6inv.col(0)) * detVal * factor * (xiP+1)/xiP).real();
+    JasGrad[min(J, Q)] -= (-2.*rdmval6.row(1).conjugate().dot(rdmval6inv.col(1)) * detVal * factor * (xiQ+1)/xiQ).real();
+    JasGrad[min(K, R)] -= ( 2.*rdmval6.row(4).conjugate().dot(rdmval6inv.col(4)) * detVal * factor * (xiR+1)/xiR).real();
+    JasGrad[min(L, S)] -= ( 2.*rdmval6.row(5).conjugate().dot(rdmval6inv.col(5)) * detVal * factor * (xiS+1)/xiS).real();
+    rdmval6(0,0) += 1.0; rdmval6(1,1) +=1.0; rdmval6(4,4) += 1.0; rdmval6(5,5) +=1.0;
+    
+    rdmval6inv.col(0) *= xiP; rdmval6inv.col(1) *= xiQ;
+    rdmval6inv.col(4) *= xiR; rdmval6inv.col(5) *= xiS;
+    for (int i=0; i<6; i++)
+      for (int j=0; j<6; j++) {
+        rdmgrad(rows[i], cols[j]) -= (factor * detVal * rdmval6inv(j, i));
+      }
+    
+    return -detVal * factor;
   }
 
     //computer generated
   complexT calcTermGJ2jas(int M, int N, int I, int J, int K, int L, MatrixXcT& rdm,
                           int P, int Q, int R, int S,
-                          double xiP, double xiQ, double xiR, double xiS){
+                          T xiP, T xiQ, T xiR, T xiS,
+                          MatrixXcT& rdmgrad, complexT factor, complexT lambda,
+                          MatrixXd& JasLamHess){
 
-    complexT contribution = complexT(0., 0.);
-    //there are 16 terms
-    contribution  = calcTermGJ2c(M, N, I,J,K,L, rdm);   //already implemented
-    contribution += xiP * calcTermGJ2i(M, N, P, I,J,K, L, rdm);
-    contribution += xiQ * calcTermGJ2i(M, N, Q, I,J,K, L, rdm);
-    contribution += xiR * calcTermGJ2f(M, N, I, J,K,L, R, rdm);
-    contribution += xiS * calcTermGJ2f(M, N, I, J,K,L, S, rdm);
-
-    contribution += xiP * xiQ * calcTermGJ2j(M, N, P, Q, I, J, K, L, rdm);
-    contribution += xiP * xiR * calcTermGJ2k(M, N, P, I, J, K, L, R, rdm);
-    contribution += xiP * xiS * calcTermGJ2k(M, N, P, I, J, K, L, S, rdm);
-    contribution += xiQ * xiR * calcTermGJ2k(M, N, Q, I, J, K, L, R, rdm);
-    contribution += xiQ * xiS * calcTermGJ2k(M, N, Q, I, J, K, L, S, rdm);
-    contribution += xiR * xiS * calcTermGJ2h(M, N, I, J, K, L, R, S, rdm);
+    ///return contribution;
+    creID[0] = 0; creID[1] = 2; creID[2] = 4; creID[3] = 6; creID[4] = 8;  creID[5] =  9; creID[6] = 12; creID[7] = 14;
+    desID[0] = 1; desID[1] = 3; desID[2] = 5; desID[3] = 7; desID[4] = 10; desID[5] = 11; desID[6] = 13; desID[7] = 15;
     
-    contribution += xiP * xiQ * xiR * calcTermGJ2l(M, N, P, Q, I, J, K, L, R, rdm);
-    contribution += xiP * xiQ * xiS * calcTermGJ2l(M, N, P, Q, I, J, K, L, S, rdm);
-    contribution += xiP * xiR * xiS * calcTermGJ2m(M, N, P, I, J, K, L, R, S, rdm);
-    contribution += xiQ * xiR * xiS * calcTermGJ2m(M, N, Q, I, J, K, L, R, S, rdm);
+    rows[0] = M; rows[1] = N; rows[2] = P; rows[3] = Q; rows[4] = K; rows[5] = L; rows[6] = R; rows[7] = S;
+    cols[0] = M; cols[1] = N; cols[2] = P; cols[3] = Q; cols[4] = I; cols[5] = J; cols[6] = R; cols[7] = S;
+    Slice(rdm, creID, desID, rows, cols, rdmval8);
 
-    contribution += xiP * xiQ * xiR * xiS * calcTermGJ2n(M, N, P, Q, I, J, K, L, R, S, rdm);
+    rdmval8.row(2) *= xiP;
+    rdmval8.row(3) *= xiQ;
+    rdmval8.row(6) *= xiR;
+    rdmval8.row(7) *= xiS;
+    rdmval8(2,2) += complexT(1.0, 0.);
+    rdmval8(3,3) += complexT(1.0, 0.);    
+    rdmval8(6,6) += complexT(1.0, 0.);    
+    rdmval8(7,7) += complexT(1.0, 0.);
+    
+    complexT detVal = rdmval8.determinant();
+    if (abs(detVal) <1.e-12) {
+      return 0.0;
+    }
+    rdmval8inv = rdmval8.inverse();
 
-    return contribution;
+    rdmval8(2,2) -= 1.0; rdmval8(3,3) -=1.0; rdmval8(6,6) -= 1.0; rdmval8(7,7) -=1.0;
+    JasLamHess(M, min(I, P)) -= (-2.*rdmval8.row(2).conjugate().dot(rdmval8inv.col(2)) * detVal * factor * (xiP+1)/xiP).real();
+    JasLamHess(M, min(J, Q)) -= (-2.*rdmval8.row(3).conjugate().dot(rdmval8inv.col(3)) * detVal * factor * (xiQ+1)/xiQ).real();
+    JasLamHess(M, min(K, R)) -= ( 2.*rdmval8.row(6).conjugate().dot(rdmval8inv.col(6)) * detVal * factor * (xiR+1)/xiR).real();
+    JasLamHess(M, min(L, S)) -= ( 2.*rdmval8.row(7).conjugate().dot(rdmval8inv.col(7)) * detVal * factor * (xiS+1)/xiS).real();
+    rdmval8(2,2) += 1.0; rdmval8(3,3) +=1.0; rdmval8(6,6) += 1.0; rdmval8(7,7) +=1.0;
+    
+    rdmval8inv.col(2) *= xiP; rdmval8inv.col(3) *= xiQ;
+    rdmval8inv.col(6) *= xiR; rdmval8inv.col(7) *= xiS;
+    for (int i=0; i<8; i++)
+      for (int j=0; j<8; j++) {
+        rdmgrad(rows[i], cols[j]) -= (lambda * factor * detVal * rdmval8inv(j, i));
+      }
+    
+    return -detVal * factor;
+    //return -rdmval8.determinant();
   }
 
   complexT calcTermGJ1jasA(int N, int M, int I, int K, MatrixXcT& rdm) {
@@ -1251,8 +1453,9 @@ class calcRDM{
     else if (Q == I)
       contribution += -1.0*getRDM(J,P,Q,R,S,K,L,P,R,S, rdm );
 
-    else if (P == S)
-      contribution += -1.0*getRDM(I,J,P,Q,R,K,L,Q,R,S, rdm );
+    else if (P == S) 
+      contribution += -1.0*getRDM(P,Q,I,J,R,Q,K,L,R,S, rdm );
+    //contribution += -1.0*getRDM(I,J,P,Q,R,K,L,Q,R,S, rdm );
 
     else if (P == R)
       contribution += 1.0*getRDM(I,J,P,Q,S,K,L,Q,R,S, rdm );
@@ -6111,26 +6314,38 @@ class calcRDM{
     
   }
   
-  complexT calcTerm1(int P, int Q, int I, int K, MatrixXcT& rdm) {
+  template<typename Mat>
+  complexT calcTerm1(int P, int Q, int I, int K, Mat& rdm) {
     complexT contribution = complexT(0.,0.);
-    if (P == Q && Q == I)
-      contribution = 1.0*getRDM(P,K, rdm );
-
-    else if (Q == I)
+    if (Q == I)
       contribution = 1.0*getRDM(P,Q,K,P, rdm );
 
     else if (P == I)
       contribution = -1.0*getRDM(P,Q,K,Q, rdm );
-
-    else if (P == Q)
-      contribution = -1.0*getRDM(I,P,K,Q, rdm );
 
     else
       contribution = -1.0*getRDM(I,P,Q,K,P,Q, rdm );
     return contribution;
   }
 
-  complexT calcTerm1(int P, int Q, int I, int J, int K, int L, MatrixXcT& rdm) {
+  template<typename Mat>
+  void calcTermRDMmultiplier(int P, int Q, int I, int K, Mat& rdm, Mat& rdmmultiplier, complexT factor) {
+    if (Q == I) {
+      getRDMmultiplier(P,Q,K,P, rdm, rdmmultiplier, factor);
+    }
+    
+    else if (P == I)
+      getRDMmultiplier(P, Q, K, Q, rdm, rdmmultiplier, -factor);
+    //contribution = -1.0*getRDM(P,Q,K,Q, rdm );
+
+    else
+      getRDMmultiplier(I, P, Q, K, P, Q, rdm, rdmmultiplier, -factor);
+    //contribution = -1.0*getRDM(I,P,Q,K,P,Q, rdm );
+    //return contribution;
+  }
+  
+  template<typename Mat>
+  complexT calcTerm1(int P, int Q, int I, int J, int K, int L, Mat& rdm) {
     if (K == -1 && L == -1)
       return calcTerm1(P, Q, I, J, rdm);
     complexT contribution = complexT(0.,0.);

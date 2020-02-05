@@ -216,6 +216,7 @@ void applyProjector(
     const Matrix<complexT, Dynamic, Dynamic>& bra,
     vector<Matrix<complexT, Dynamic, Dynamic>>& ketvec,
     vector<complexT>& coeffs,
+    vector<VectorXcd>& Projector,
     T Sz,
     int ngrid) {
   
@@ -247,6 +248,7 @@ void applyProjector(
                                              exp(vp.real())*sin(vp.imag()));
         phi.segment(norbs,norbs) *= complexT(exp(vm.real())*cos(vm.imag()),
                                              exp(vm.real())*sin(vm.imag()));
+        Projector.push_back(phi);
         Matrix<complexT, Dynamic, Dynamic> mat = phi.asDiagonal()*bra;
         count ++;
 

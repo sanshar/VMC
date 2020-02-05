@@ -85,7 +85,8 @@ struct GetResidual {
     //apply the Sz projector and generate a linear combination of kets
     vector<MatrixXcT> ket(2*ngrid); vector<complexT> coeffs(2*ngrid);
     T Sz = 1.*(nalpha-nbeta);
-    applyProjector(bra, ket, coeffs, Sz, ngrid); 
+    vector<VectorXcT> Projector;
+    applyProjector(bra, ket, coeffs, Projector, Sz, ngrid); 
 
 
     MatrixXcT S;

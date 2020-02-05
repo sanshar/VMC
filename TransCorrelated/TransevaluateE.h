@@ -89,6 +89,17 @@ void saveWave(VectorXd& variables, Wfn& w,
 }
 
 
+void updateBra(MatrixXcd& bra, VectorXd& vars, int norbs, int nelec) {
+  for (int i=0; i<2*norbs; i++)
+    for (int j=0; j<nelec; j++) {
+      bra(i, j).real( vars(2 * (i*nelec + j)    ) );
+      bra(i, j).imag( vars(2 * (i*nelec + j) + 1) );
+    }
+}
+void updateJas(VectorXd& Jas, VectorXd& vars, int norbs, int nelec) {
+  for (int i=0; i<norbs; i++) 
+    Jas(i) = vars( 2*2*norbs*nelec + i);
+}
 
 template <typename Wfn>
 class getTranscorrelationWrapper
@@ -119,15 +130,11 @@ class getTranscorrelationWrapper
     
     int nJastrowVars = norbs;
     int nOrbitalVars = (2*norbs-nelec)*(nelec);
-    VectorXT variables(nJastrowVars + 2*nOrbitalVars);
-    VectorXT Jastrow(nJastrowVars), Lambda(nJastrowVars);
-    //Jastrow = VectorXT::Random(norbs);//just for debugging
-    for (int i=0; i<nJastrowVars; i++) {
-      Lambda[i] = 0.0;
-      Jastrow[i] = 0.01;
-    }
-    //Lambda.setZero(); Jastrow.setZero();
 
+    VectorXT Jastrow(nJastrowVars), Lambda(nJastrowVars);
+    Jastrow = 0.*VectorXT::Random(norbs); Lambda = 0.*VectorXT::Random(norbs);
+    //0.00*Jastrow.setOnes(); Lambda = 0.0*VectorXT::Random(norbs);
+    
     MatrixXcd& hforbs = w.getRef().HforbsA;
     
     MatrixXcT bra(2*norbs, nelec);
@@ -136,20 +143,265 @@ class getTranscorrelationWrapper
         bra(i,j).real(hforbs(i,j).real());
         bra(i,j).imag(hforbs(i,j).imag());
       }
-    int ngrid = 4; //FOR THE SZ PROJECTOR
+    int ngrid = 10; //FOR THE SZ PROJECTOR
 
-
+    MatrixXd JasLamHess;
+    MatrixXcT braGrad, ketGrad, ketdagGrad;
+    VectorXT JasVec(norbs), JasVecE(norbs), JastrowRes(norbs);
     GetResidualGJ<T, complexT> resGJ(ngrid);
-    T E = resGJ.getLagrangian(bra, Jastrow, Lambda);
-    cout << E<<"  "<<getTime()-startofCalc<<endl;
+    MatrixXcT ket = bra;
+
+    T E1 = resGJ.getLagrangian(bra, ket, Jastrow, Lambda, JastrowRes, braGrad, ketGrad, ketdagGrad, JasVec, JasVecE, JasLamHess);
+    //cout << E1<<endl;exit(0);
+    /*
+    auto optOrbs = [&] () {
+      auto braTbrainv = (bra.adjoint() * bra).inverse();
+      auto brainv = braTbrainv * bra.adjoint();
+      //auto rdm = bra * bra.adjoint();
+      //cout << (bra - rdm * bra * braTbrainv).norm()<<endl;
+      //cout << (bra.adjoint() - braTbrainv * (bra.adjoint()*rdm) ).norm()<<endl;
+      cout << ketGrad<<endl<<endl;
+      cout << braGrad + ketdagGrad<<endl<<endl;
+      MatrixXcd Fock = ketGrad * (bra * braTbrainv).transpose();
+      cout << Fock <<endl<<endl<<endl;
+      Fock = Fock + ((braGrad + ketdagGrad) * braTbrainv * bra.adjoint() ).transpose();
+      cout << Fock <<endl;
+      cout << (Fock - Fock.adjoint()).norm()<<endl;
+
+    };
+    optOrbs();
+    exit(0);
+    */
+    auto orbGrad = [&] (const VectorXd& vars, VectorXd& res, double& E1, double& stddev, double&rt) mutable -> double{
+      MatrixXcT bra(2*norbs, nelec);
+      VectorXd Jastrow(norbs), Lambda(norbs);
+      for (int i=0; i<2*norbs; i++)
+        for (int j=0; j<nelec; j++) {
+          bra(i, j).real( vars(2 * (i*nelec + j)    ) );
+          bra(i, j).imag( vars(2 * (i*nelec + j) + 1) );
+        }
+
+      for (int i=0; i<norbs; i++) 
+        Jastrow(i) = vars( 2*2*norbs*nelec + i);
+      for (int i=0; i<norbs; i++) 
+        Lambda(i) = vars( 2*2*norbs*nelec + norbs + i);
+
+      E1 = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, JastrowRes, braGrad, ketGrad, ketdagGrad, JasVec, JasVecE, JasLamHess);
+
+      for (int i=0; i<2*norbs; i++) 
+        for (int j = 0; j<nelec; j++) {
+          res( 2 * (i * nelec + j) ) = (ketGrad(i,j) + braGrad(i,j) + ketdagGrad(i,j)).real();
+          res( 2 * (i * nelec + j) + 1) = (complexT(0., 1.) * (ketGrad(i,j) - braGrad(i,j) - ketdagGrad(i,j))).real();
+        }
+      
+      for (int i=0; i<norbs; i++) 
+        res( 2*2*norbs*nelec + i) = 0.0;//JastrowRes(i);
+      for (int i=0; i<norbs; i++) 
+        res( 2*2*norbs *nelec + norbs + i) = 0.0;//JasVec(i);
+
+      stddev = 0;
+      rt = 1.;
+      return 1.0;
+    };
+    auto orbGradSGD = [&] (const VectorXd& vars, VectorXd& res, bool parallel) mutable -> double{
+      double E1, stddev, rt;
+      orbGrad(vars, res, E1, stddev, rt);
+      return E1;
+    };
+
+    auto JasGrad = [&] (const VectorXd& vars, VectorXd& res, double& E1, double& stddev, double& rt) mutable -> double{
+      MatrixXcT bra(2*norbs, nelec);
+      VectorXd Jastrow(norbs), Lambda(norbs);
+      for (int i=0; i<2*norbs; i++)
+        for (int j=0; j<nelec; j++) {
+          bra(i, j).real( vars(2 * (i*nelec + j)    ) );
+          bra(i, j).imag( vars(2 * (i*nelec + j) + 1) );
+        }
+
+      for (int i=0; i<norbs; i++) 
+        Jastrow(i) = vars( 2*2*norbs*nelec + i);
+      for (int i=0; i<norbs; i++) 
+        Lambda(i) = vars( 2*2*norbs*nelec + norbs + i);
+
+      E1 = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, JastrowRes, braGrad, ketGrad, ketdagGrad, JasVec, JasVecE, JasLamHess);
+
+      for (int i=0; i<2*norbs; i++) 
+        for (int j = 0; j<nelec; j++) {
+          res( 2 * (i * nelec + j) ) = 0.0;//(ketGrad(i,j) + braGrad(i,j) + ketdagGrad(i,j)).real();
+          res( 2 * (i * nelec + j) + 1) = 0.0;//(complexT(0., 1.) * (ketGrad(i,j) - braGrad(i,j) - ketdagGrad(i,j))).real();
+        }
+      
+      for (int i=0; i<norbs; i++) 
+        res( 2*2*norbs*nelec + i) = JastrowRes(i);
+      for (int i=0; i<norbs; i++) 
+        res( 2*2*norbs *nelec + norbs + i) = 0;//JastrowRes(i);
+
+      stddev = 0.0; rt = 1.0;
+      return 1.0;
+    };
+    auto JasGradSGD = [&] (const VectorXd& vars, VectorXd& res, bool parallel) mutable -> double{
+      double E1, stddev, rt;
+      JasGrad(vars, res, E1, stddev, rt);
+      return E1;
+    };
+    
+    VectorXd variables(2*norbs*nelec*2 + 2*norbs );
+    for (int i=0; i<2*norbs; i++) 
+      for (int j = 0; j<nelec; j++) {
+        variables( 2 * (i * nelec + j) ) = bra(i,j).real();
+        variables( 2 * (i * nelec + j) + 1) = bra(i,j).imag();
+      }
+    
+    for (int i=0; i<norbs; i++) 
+      variables( 2*2*norbs*nelec + i) = 0.000;
+    for (int i=0; i<norbs; i++) 
+      variables( 2*2*norbs *nelec + norbs + i) = 0.00;
+    //NewtonMethod(variables, allGrad, schd.maxIter, 1.e-6);
+    //SGDwithDIIS(variables, orbGrad, schd.maxIter, 5.e-4, true);
+
+    for (int i=0; i<10; i++) {
+      AMSGrad amsgrad; amsgrad.maxIter = 40;
+      amsgrad.optimize(variables, orbGrad, false);
+    
+      SGDwithDIIS(variables, JasGradSGD, 40, 5.e-4, true);
+
+      updateBra(bra, variables, norbs, nelec); updateJas(Jastrow, variables, norbs, nelec);
+      E1 = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, JastrowRes, braGrad, ketGrad, ketdagGrad, JasVec, JasVecE, JasLamHess);
+
+
+      VectorXd lam = -JasLamHess.transpose().inverse()*JasVecE;
+      for (int j=0; j<norbs; j++)
+        variables(2*2*norbs*nelec + norbs + j) = lam(j);
+
+      E1 = resGJ.getLagrangian(bra, bra, Jastrow, lam, JastrowRes, braGrad, ketGrad, ketdagGrad, JasVec, JasVecE, JasLamHess);
+    }
+    //amsgrad.optimize(variables, JasGrad, false);
+
+    //SGDwithDIIS(variables, orbGradSGD, schd.maxIter, 5.e-4, true);      
+    
+    /*
+    //grad(E1.vi_);
+
+    MatrixXT analGrad(2*norbs, nelec);
+    for (int i=0; i<2*norbs; i++) 
+      for (int j = 0; j<nelec; j++) 
+        analGrad(i,j) = bra(i,j).real().adj();
+    */
 
     /*
-    grad(E.vi_);
-    for (int i=0; i<2*norbs; i++)
-      for (int j=0; j<nelec; j++)
-        cout << bra(i,j)<<"  "<<bra(i,j).real().adj()<<"  "<<bra(i,j).imag().adj()<<endl;
-    cout << "***** "<<getTime()-startofCalc<<endl;
+    MatrixXcT braGrad2, ketGrad2, ketdagGrad2;
+    VectorXT JasVec2(norbs);
+    for (int i=0; i<norbs; i++) {
+      T eps = 1.e-4;
+      Jastrow[i] += eps;
+      T E = resGJ.getLagrangian(bra, ket, Jastrow, Lambda, braGrad2, ketGrad2, JasVec2);        
+      Jastrow[i] -= 2*eps;
+      T E2 = resGJ.getLagrangian(bra, ket, Jastrow, Lambda, braGrad2, ketGrad2, JasVec2);        
+      Jastrow[i] += eps;
+        
+      T grad = (E-E2)/eps/2.;
+      
+      cout <<E1<<"  "<< Jastrow[i]<<"  "<<grad<<"  "<<JasVec(i)<<"  "<<endl;
+    }
+    exit(0);
+
+    for (int i=0; i<2*norbs; i++) {
+      for (int j = 0; j<nelec; j++) {
+
+        complexT eps(1.e-5, 0.);
+        bra(i,j) += eps;
+        T E = resGJ.getLagrangian(bra, ket, Jastrow, Lambda, braGrad2, ketGrad2, JasVec2);        
+        bra(i,j) -= 2*eps;
+        T E2 = resGJ.getLagrangian(bra, ket, Jastrow, Lambda, braGrad2, ketGrad2, JasVec2);        
+        bra(i,j) += eps;
+        
+        T grad = (E-E2)/eps.real()/2.;
+
+        cout <<E1<<"  "<< bra(i, j)<<"  "<<grad<<"  "<<braGrad(i,j)<<"  "<<endl;
+      }
+    }
+
+    cout << endl<<endl<<endl;
+    for (int i=0; i<2*norbs; i++) {
+      for (int j = 0; j<nelec; j++) {
+
+        complexT eps(1.e-5, 0);
+        //complexT eps(0.,1.e-5);
+        bra(i,j) += eps;
+        T E = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, braGrad2, ketGrad2, ketdagGrad2, JasVec2);        
+        bra(i,j) -= 2*eps;
+        T E2 = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, braGrad2, ketGrad2, ketdagGrad2, JasVec2);        
+        bra(i,j) += eps;
+        
+        complexT grad = (E-E2)/std::abs(eps)/2.;
+
+        
+        cout << E1<<"  "<<grad<<"  "<<(ketGrad(i,j)+braGrad(i,j) + ketdagGrad(i,j)).real()<<"  "<<
+            (complexT(0, 1.0) *(ketGrad(i,j) - braGrad(i,j) - ketdagGrad(i,j))).real() <<endl;
+        if (abs(grad - (ketGrad(i,j)+braGrad(i,j) + ketdagGrad(i,j)).real()) > 1.e-7) {
+          cout << "error too large "<<endl;
+          exit(0);
+        }
+      }
+    }
+
+    
+    cout << endl<<endl<<endl;
+    for (int i=0; i<2*norbs; i++) {
+      for (int j = 0; j<nelec; j++) {
+
+        //complexT eps(1.e-5, 0);
+        complexT eps(0.,1.e-5);
+        bra(i,j) += eps;
+        T E = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, braGrad2, ketGrad2, ketdagGrad2, JasVec2);        
+        bra(i,j) -= 2*eps;
+        T E2 = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, braGrad2, ketGrad2, ketdagGrad2, JasVec2);        
+        bra(i,j) += eps;
+        
+        complexT grad = (E-E2)/std::abs(eps)/2.;
+
+        cout << E1<<"  "<<grad<<"  "<<(ketGrad(i,j)+braGrad(i,j) + ketdagGrad(i,j)).real()<<"  "<<
+            (complexT(0, 1.0) *(ketGrad(i,j) - braGrad(i,j) - ketdagGrad(i,j))).real() <<endl;
+        if (abs(grad - (complexT(0, 1.0) *(ketGrad(i,j) - braGrad(i,j) - ketdagGrad(i,j))).real()) > 1.e-7) {
+          cout << "error too large "<<endl;
+          exit(0);
+        }
+
+      }
+    }
+
+    cout << endl<<endl<<endl;
+    for (int i = 0; i<nelec; i++) {
+
+        T eps =1.e-5;
+        Jastrow(i) += eps;
+        T E = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, braGrad2, ketGrad2, ketdagGrad2, JasVec2);        
+        Jastrow(i) -= 2*eps;
+        T E2 = resGJ.getLagrangian(bra, bra, Jastrow, Lambda, braGrad2, ketGrad2, ketdagGrad2, JasVec2);        
+        Jastrow(i) += eps;
+        
+        complexT grad = (E-E2)/std::abs(eps)/2.;
+
+        cout << E1<<"  "<<grad<<"  "<<JasVec(i)<<endl;
+        if (abs(grad - JasVec(i)) > 1.e-7) {
+          cout << "error too large "<<endl;
+          exit(0);
+        }
+
+    }
+    
+    exit(0);
     */
+    //cout << "***** "<<getTime()-startofCalc<<endl<<endl;
+
+    //Lambda[0] = 1.0;
+    //cout << resGJ.getLagrangianGradient(bra, bra, Jastrow, Lambda) <<endl<<endl;
+    //exit(0);
+    //T E2 = resGJ.getEnergy(bra, Jastrow, Lambda);
+    //cout << E2<<"  "<<getTime()-startofCalc<<endl;
+    //exit(0);
+
+
   }
   
   double optimizeWavefunction()
@@ -204,15 +456,24 @@ class getTranscorrelationWrapper
     boost::function<T (const VectorXT&, VectorXT&, bool)> JastrowGrad
         = boost::bind(&GetResidual<T,complexT>::getJastrowResidue, &res, _1, boost::ref(braVars), _2, _3);
 
+    
+    VectorXT Lambda(norbs); Lambda=VectorXT::Random(norbs);
     double E = totalGrad(variables, residual, true);
     if (commrank == 0) cout << "INITIAL E: "<<E<<endl;
-    cout << getTime()-startofCalc<<endl;
-    cout << residual.block(0,0,norbs, 1)<<endl<<endl;
-    cout << norbs<<"  "<<JnonRed.size()<<endl;
-
-    GetResidualGJ<T, complexT> resGJ(ngrid); VectorXT Lambda(norbs); Lambda.setZero();
-    T Egj = resGJ.getLagrangian(hforbs.block(0,0,2*norbs, nelec), JnonRed, Lambda);
-    cout << Egj<<endl;
+    //cout << getTime()-startofCalc<<endl;
+    VectorXT JnonRedres = residual.block(0,0,norbs, 1);
+    if (commrank == 0) {
+      cout << JnonRedres<<endl<<endl;
+      cout << norbs<<"  "<<JnonRed.size()<<endl;
+      cout << Lambda<<endl;
+      cout << Lambda.dot(JnonRedres)<<endl;
+      cout << E + Lambda.dot(JnonRedres)<<endl<<endl;
+      cout << "Now residualgj "<<endl;
+    }
+    
+    GetResidualGJ<T, complexT> resGJ(ngrid);  MatrixXcT braGrad, ketGrad, ketdagGrad; MatrixXd JasLamHess; VectorXd JasGrad(norbs), JasGradE(norbs), JastrowRes(norbs);
+    T Egj = resGJ.getLagrangian(hforbs.block(0,0,2*norbs, nelec), hforbs.block(0,0,2*norbs, nelec), JnonRed, Lambda, JastrowRes, braGrad, ketGrad, ketdagGrad, JasGrad, JasGradE, JasLamHess);
+    if (commrank == 0) cout << Egj<<endl;
     exit(0);
     
     if (!(schd.restart || schd.fullrestart)) {
