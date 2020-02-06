@@ -106,6 +106,45 @@ void rWalker<rJastrow, rSlater>::initR() {
 
 void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &ref, double &local_potential)
 {
+    if (schd.pQuad = tetrahedral)
+    {
+      //sample 4 vertices of tetrahedral
+      double a = std::sqrt(1.0 / 3.0);
+      Q.push_back(Vector3d(a, a, a));
+      Q.push_back(Vector3d(a, -a, -a));
+      Q.push_back(Vector3d(-a, a, -a));
+      Q.push_back(Vector3d(-a, -a, a));
+    }
+    else if (schd.pQuad = octahedral)
+    {
+      //sample 6 vertices of octahedral
+      Q.push_back(Vector3d(1.0, 0.0, 0.0));
+      Q.push_back(Vector3d(-1.0, 0.0, 0.0));
+      Q.push_back(Vector3d(0.0, 1.0, 0.0));
+      Q.push_back(Vector3d(0.0, -1.0, 0.0));
+      Q.push_back(Vector3d(0.0, 0.0, 1.0));
+      Q.push_back(Vector3d(0.0, 0.0, -1.0));
+    }
+    else if (schd.pQuad = icosahedral)
+    {
+      //sample 12 vertices of icosahedral
+      double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
+      double roh = std::sqrt((5.0 + std::sqrt(5.0)) / 10.0);
+      Q.push_back(Vector3d(0.0, lambda, roh));
+      Q.push_back(Vector3d(0.0, -lambda, roh));
+      Q.push_back(Vector3d(0.0, lambda, -roh));
+      Q.push_back(Vector3d(0.0, -lambda, -roh));
+      
+      Q.push_back(Vector3d(lambda, 0.0, roh));
+      Q.push_back(Vector3d(-lambda, 0.0, roh));
+      Q.push_back(Vector3d(lambda, 0.0, -roh));
+      Q.push_back(Vector3d(-lambda, 0.0, -roh));
+      
+      Q.push_back(Vector3d(lambda, roh, 0.0));
+      Q.push_back(Vector3d(-lambda, roh, 0.0));
+      Q.push_back(Vector3d(lambda, -roh, 0.0));
+      Q.push_back(Vector3d(-lambda, -roh, 0.0)); 
+    }
     Pseudopotential &pp = *schd.pseudo;
     int norbs = Determinant::norbs;
     int nalpha = rDeterminant::nalpha;
@@ -159,53 +198,15 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
               else if (l != -1) //integrate if nonlocal potential
               {
                 double C = (2.0 * (double) l + 1.0) / (4.0 * M_PI);
-                std::vector<Vector3d> s;
-      
-                /*
-                //sample 4 vertices of tetrahedral
-                double a = std::sqrt(1.0 / 3.0);
-                s.push_back(Vector3d(a, a, a));
-                s.push_back(Vector3d(a, -a, -a));
-                s.push_back(Vector3d(-a, a, -a));
-                s.push_back(Vector3d(-a, -a, a));
-                */
-      
-                //sample 6 vertices of octahedral
-                s.push_back(Vector3d(1.0, 0.0, 0.0));
-                s.push_back(Vector3d(-1.0, 0.0, 0.0));
-                s.push_back(Vector3d(0.0, 1.0, 0.0));
-                s.push_back(Vector3d(0.0, -1.0, 0.0));
-                s.push_back(Vector3d(0.0, 0.0, 1.0));
-                s.push_back(Vector3d(0.0, 0.0, -1.0));
-      
-                /*
-                //sample 12 vertices of icosahedral
-                double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
-                double roh = std::sqrt((5.0 + std::sqrt(5.0)) / 10.0);
-                s.push_back(Vector3d(0.0, lambda, roh));
-                s.push_back(Vector3d(0.0, -lambda, roh));
-                s.push_back(Vector3d(0.0, lambda, -roh));
-                s.push_back(Vector3d(0.0, -lambda, -roh));
-      
-                s.push_back(Vector3d(lambda, 0.0, roh));
-                s.push_back(Vector3d(-lambda, 0.0, roh));
-                s.push_back(Vector3d(lambda, 0.0, -roh));
-                s.push_back(Vector3d(-lambda, 0.0, -roh));
-      
-                s.push_back(Vector3d(lambda, roh, 0.0));
-                s.push_back(Vector3d(-lambda, roh, 0.0));
-                s.push_back(Vector3d(lambda, -roh, 0.0));
-                s.push_back(Vector3d(-lambda, -roh, 0.0)); 
-                */
-      
+
                 //Bnl
                 for (int j = 0; j < nmo; j++)
                 {
                   complex<double> Int = 0.0;
-                  for (int q = 0; q < s.size(); q++)
+                  for (int q = 0; q < Q.size(); q++)
                   {
                       //calculate new vector, riprime
-                      Vector3d riIprime = riI.norm() * s[q];
+                      Vector3d riIprime = riI.norm() * Q[q];
                       Vector3d riprime = riIprime + rI;
       
                       //calculate mo at new coordinate
@@ -232,7 +233,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                       //multiply legendre polynomial and wavefunction overlap ratio
                       Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(i, riprime, corr, d) * moval;
                   }
-                  Int /= (double) s.size();
+                  Int /= (double) Q.size();
                   Int *= (C * 4.0 * M_PI);
                   Bnl(i, j + shift) += v * Int;
                 }
@@ -241,10 +242,10 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                 for (int j = 0; j < norbs; j++)
                 {
                   double Int = 0.0;
-                  for (int q = 0; q < s.size(); q++)
+                  for (int q = 0; q < Q.size(); q++)
                   {
                       //calculate new vector, riprime
-                      Vector3d riIprime = riI.norm() * s[q];
+                      Vector3d riIprime = riI.norm() * Q[q];
                       Vector3d riprime = riIprime + rI;
       
                       //calculate mo at new coordinate
@@ -257,7 +258,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                       //multiply legendre polynomial and wavefunction overlap ratio
                       Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(i, riprime, corr, d) * aoval;
                   }
-                  Int /= (double) s.size();
+                  Int /= (double) Q.size();
                   Int *= (C * 4.0 * M_PI);
 
                   if (schd.hf == "ghf") {
@@ -304,7 +305,7 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
     Bnl.row(elec) = VectorXd::Zero(nelec);
     AOBnl.row(elec) = VectorXd::Zero(nao);
     double local_potential = 0.0;
-    refHelper.aoValues.resize(norbs);  
+    refHelper.aoValues.resize(norbs);
     if (pp.size() != 0)
     {
       for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
@@ -333,52 +334,14 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
             else if (l != -1) //integrate if nonlocal potential
             {
               double C = (2.0 * (double) l + 1.0) / (4.0 * M_PI);
-              std::vector<Vector3d> s;
-      
-              /*
-              //sample 4 vertices of tetrahedral
-              double a = std::sqrt(1.0 / 3.0);
-              s.push_back(Vector3d(a, a, a));
-              s.push_back(Vector3d(a, -a, -a));
-              s.push_back(Vector3d(-a, a, -a));
-              s.push_back(Vector3d(-a, -a, a));
-              */
-      
-              //sample 6 vertices of octahedral
-              s.push_back(Vector3d(1.0, 0.0, 0.0));
-              s.push_back(Vector3d(-1.0, 0.0, 0.0));
-              s.push_back(Vector3d(0.0, 1.0, 0.0));
-              s.push_back(Vector3d(0.0, -1.0, 0.0));
-              s.push_back(Vector3d(0.0, 0.0, 1.0));
-              s.push_back(Vector3d(0.0, 0.0, -1.0));
-      
-              /*
-              //sample 12 vertices of icosahedral
-              double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
-              double roh = std::sqrt((5.0 + std::sqrt(5.0)) / 10.0);
-              s.push_back(Vector3d(0.0, lambda, roh));
-              s.push_back(Vector3d(0.0, -lambda, roh));
-              s.push_back(Vector3d(0.0, lambda, -roh));
-              s.push_back(Vector3d(0.0, -lambda, -roh));
-      
-              s.push_back(Vector3d(lambda, 0.0, roh));
-              s.push_back(Vector3d(-lambda, 0.0, roh));
-              s.push_back(Vector3d(lambda, 0.0, -roh));
-              s.push_back(Vector3d(-lambda, 0.0, -roh));
-      
-              s.push_back(Vector3d(lambda, roh, 0.0));
-              s.push_back(Vector3d(-lambda, roh, 0.0));
-              s.push_back(Vector3d(lambda, -roh, 0.0));
-              s.push_back(Vector3d(-lambda, -roh, 0.0)); 
-              */
-      
+
               for (int j = 0; j < nmo; j++)
               {
                 complex<double> Int = 0.0;
-                for (int q = 0; q < s.size(); q++)
+                for (int q = 0; q < Q.size(); q++)
                 {
                   //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s[q];
+                  Vector3d riIprime = riI.norm() * Q[q];
                   Vector3d riprime = riIprime + rI;
       
                   //calculate mo at new coordinate
@@ -405,7 +368,7 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
                   //multiply legendre polynomial and wavefunction overlap ratio
                   Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d) * moval;
                 }
-                Int /= (double) s.size();
+                Int /= (double) Q.size();
                 Int *= (C * 4.0 * M_PI);
                 Bnl(elec, j + shift) += v * Int;
               }
@@ -414,10 +377,10 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
               for (int j = 0; j < norbs; j++)
               {
                 double Int = 0.0;
-                for (int q = 0; q < s.size(); q++)
+                for (int q = 0; q < Q.size(); q++)
                 {
                   //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s[q];
+                  Vector3d riIprime = riI.norm() * Q[q];
                   Vector3d riprime = riIprime + rI;
       
                   //calculate ao at new coordinate
@@ -430,7 +393,7 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
                   //multiply legendre polynomial and wavefunction overlap ratio
                   Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d) * aoval;
                 }
-                Int /= (double) s.size();
+                Int /= (double) Q.size();
                 Int *= (C * 4.0 * M_PI);
                 if (schd.hf == "ghf") {
                   if (elec < nalpha)

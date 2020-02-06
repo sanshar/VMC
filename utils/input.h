@@ -38,6 +38,7 @@ enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
 enum JBASIS {FC, AB};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
+enum PSEUDOQUAD {tetrahedral, octahedral, icosahedral};
 
 /**
  * This stores all the input options
@@ -116,6 +117,7 @@ private:
       & expCorrelator
       & fourBodyJastrow
       & fourBodyJastrowBasis
+      & pQuad
       & maxMacroIter;
   }
 public:
@@ -137,6 +139,7 @@ public:
   bool uagp;                             //brakes S^2 symmetry in uagp
 
   RSTEPTYPE rStepType;
+  PSEUDOQUAD pQuad;
   bool fourBodyJastrow;
   JBASIS fourBodyJastrowBasis;
   

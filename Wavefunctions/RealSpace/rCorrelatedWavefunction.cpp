@@ -75,16 +75,15 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
     }
 
     //nonlocal potential
-    std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
     for (int i=0; i<nelec; i++) {
       std::complex<double> factor = 0.0;
-      if (schd.hf == "ghf") { factor = walk.Bnl.row(i) * walk.refHelper.thetaInv[0].col(i); }
+      if (schd.hf == "ghf") { factor = walk.Bnl.row(i) * thetaInv[0].col(i); }
       else
       {
-        if (i < walk.d.nalpha) { factor = walk.Bnl.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
-        else { factor = walk.Bnl.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
+        if (i < walk.d.nalpha) { factor = walk.Bnl.row(i).head(walk.d.nalpha) * thetaInv[0].col(i); }
+        else { factor = walk.Bnl.row(i).tail(walk.d.nbeta) * thetaInv[1].col(i - walk.d.nalpha); }
       }
-      potentiali_pp += (DetFactor * factor).real() / DetFactor.real();
+      potentiali_pp += (thetaDet * factor).real() / thetaDet.real();
     } 
   }
 
@@ -321,7 +320,6 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
       //beta
       int shift = 0;
       if (schd.hf == "uhf") { shift = 2*nalpha*norbs; }
-
       {
 
         MatrixXcd X = thetaInv[1] * Laplacian.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
