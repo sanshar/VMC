@@ -112,6 +112,11 @@ int main(int argc, char *argv[])
       runVMC(wave, walk);
     }
     
+    if (schd.wavefunctionType == "GutzwillerSlater") {
+      CorrelatedWavefunction<Gutzwiller, Slater> wave; Walker<Gutzwiller, Slater> walk;
+      runVMC(wave, walk);
+    }
+    
     else if (schd.wavefunctionType == "JastrowAGP") {
       CorrelatedWavefunction<Jastrow, AGP> wave; Walker<Jastrow, AGP> walk;
       runVMC(wave, walk);

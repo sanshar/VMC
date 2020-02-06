@@ -268,15 +268,11 @@ inline Complex<T> exp(const Complex<T> &z)  {
 }
 
 //This is a bit ugly because we are having to make a special case of the function with double
-
 Complex<stan::math::var> operator*(const Complex<stan::math::var> &LHS, const double &RHS);
 
 Complex<stan::math::var> operator*(const double &RHS, const Complex<stan::math::var> &LHS);
 
-//Complex<stan::math::var> operator/(const double &LHS, const Complex<stan::math::var> &RHS){
-//Complex<stan::math::var> zout(LHS.real()*RHS, LHS.imag()*RHS);
-//return zout;
-//}
+Complex<stan::math::var> operator/(const double &LHS, const Complex<stan::math::var> &RHS);
 
 Complex<stan::math::var> operator/(const Complex<stan::math::var> &LHS, const double &RHS);
 
