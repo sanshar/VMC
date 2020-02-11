@@ -74,11 +74,14 @@ int main(int argc, char *argv[])
     readIntegralsAndInitializeDeterminantStaticVariables("FCIDUMP");
     
     
-    CorrelatedWavefunction<Jastrow, Slater> wave;
-    if (schd.wavefunctionType == "JastrowSlater")
+    if (schd.wavefunctionType == "JastrowSlater") {
+      CorrelatedWavefunction<Jastrow, Slater> wave;
       runTranscorrelated(wave, false);
-    else if (schd.wavefunctionType == "GutzwillerSlater") 
+    }
+    else if (schd.wavefunctionType == "GutzwillerSlater") {
+      CorrelatedWavefunction<Gutzwiller, Slater> wave;
       runTranscorrelated(wave, true);
+    }
   }    
 
   boost::interprocess::shared_memory_object::remove(shciint2.c_str());

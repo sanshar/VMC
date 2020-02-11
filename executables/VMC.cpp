@@ -218,8 +218,20 @@ int main(int argc, char *argv[])
     if (commrank == 0) {
       cout << "oneRdm0\n" << oneRdm0 << endl << endl;
       cout << "oneRdm1\n" << oneRdm1 << endl << endl;
+      cout << "spat "<<oneRdm0+oneRdm1<<endl<<endl;
       cout << "Density correlations\n" << corr << endl << endl;
     }
+  }
+  
+  else if (schd.wavefunctionType == "slaterTwoRDM") {
+    CorrelatedWavefunction<Jastrow, Slater> wave; Walker<Jastrow, Slater> walk;
+    wave.readWave();
+    MatrixXd twoRdm;
+    //getOneRdmDeterministic(wave, walk, oneRdm0, 0);
+    //getOneRdmDeterministic(wave, walk, oneRdm1, 1);
+    //getDensityCorrelationsDeterministic(wave, walk, corr);
+    getStochasticTwoRdmContinuousTime(wave, walk, twoRdm, schd.stochasticIter);
+    //getTwoRdmDeterministic(wave, walk, twoRdm);
   }
   
   else if (schd.wavefunctionType == "agpRDM") {

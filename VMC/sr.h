@@ -22,6 +22,7 @@
 #include <boost/serialization/serialization.hpp>
 #include "iowrapper.h"
 #include "global.h"
+#include "input.h"
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
 #include <fstream>
