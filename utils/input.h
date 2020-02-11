@@ -38,6 +38,7 @@ enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
 enum JBASIS {FC, AB};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
+enum PSEUDOQUAD {tetrahedral, octahedral, icosahedral};
 
 /**
  * This stores all the input options
@@ -116,10 +117,10 @@ private:
       & expCorrelator
       & fourBodyJastrow
       & fourBodyJastrowBasis
-      & maxMacroIter
       & nGrid
       & nMaxMacroIter
       & nMaxMicroIter;
+    & pQuad;
   }
 public:
 //General options
@@ -144,6 +145,7 @@ public:
   int nMaxMicroIter;
   
   RSTEPTYPE rStepType;
+  PSEUDOQUAD pQuad;
   bool fourBodyJastrow;
   JBASIS fourBodyJastrowBasis;
   

@@ -248,7 +248,7 @@ class ContinuousTime
     }
     else
     {
-      S.Smatrix += T * (appended * appended.adjoint() - S.Smatrix) / cumT;
+      S.Smatrix.noalias() += T * (appended * appended.adjoint() - S.Smatrix) / cumT;
     }
   }
 
@@ -350,8 +350,8 @@ class ContinuousTime
     Gappended << 1.0, grad_ratio;
     Htemp = grad_Eloc + Eloc * grad_ratio;
     Happended << Eloc, Htemp;
-    Smatrix += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT_everyrk;
-    Hmatrix += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT_everyrk;
+    Smatrix.noalias() += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT_everyrk;
+    Hmatrix.noalias() += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT_everyrk;
   }
 
   void UpdateLM(Eigen::MatrixXd &Hmatrix, Eigen::MatrixXd &Smatrix, int sample)
@@ -362,8 +362,8 @@ class ContinuousTime
       Gappended << 1.0, grad_ratio;
       Htemp = grad_Eloc + Eloc * grad_ratio;
       Happended << Eloc, Htemp;
-      Smatrix += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT_everyrk;
-      Hmatrix += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT_everyrk;
+      Smatrix.noalias() += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT_everyrk;
+      Hmatrix.noalias() += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT_everyrk;
     }
   }
 

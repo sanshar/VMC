@@ -135,7 +135,7 @@ class LM
 
 
        double shift = hdiagshift * std::pow(decay, iter);
-       if (shift < 1.e-6) shift = 1.e-6;
+       if (shift < 1.e-8) shift = 1.e-8;
        for (int i=0; i<numVars+1; i++) {
          Hessian(i,i) += shift;
          Smatrix(i,i) += schd.sDiagShift;
@@ -528,7 +528,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
        double stddev = 0.0;
        VectorXd grad = VectorXd::Zero(numVars);
        double shift = hdiagshift * std::pow(LMDecay, numLMiter);
-       if (shift < 1.e-6) shift = 1.e-6;
+       if (shift < 1.e-8) shift = 1.e-8;
        DirectLM h(shift, schd.sDiagShift);
 
        double acceptedFrac = getHessian(vars, grad, h, E0, stddev, rt);

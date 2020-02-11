@@ -74,7 +74,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.stepsize = 0.001;
       schd.realSpaceStep = 0.1;
       schd.fourBodyJastrow = false;
-     
+      schd.fourBodyJastrowBasis = AB;
       schd.Qmax = 6;
       schd.QmaxEEN = 3;
       schd.stochasticIter = 1e4;
@@ -104,6 +104,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.direct = true;
       schd.sDiagShift = 0.01;
       schd.rStepType = SPHERICAL;
+      schd.pQuad = tetrahedral;
       schd.dTol = 1.e-3;
       schd.cgTol = 1.e-3;
       schd.decay = 0.65;
@@ -180,6 +181,15 @@ void readInput(string input, schedule& schd, bool print) {
         {
           schd.fourBodyJastrowBasis = AB;
         }
+      }
+      else if (boost::iequals(ArgName, "pseudo"))
+      {
+        if (boost::iequals(tok[1].c_str(), "tetrahedral"))
+          schd.pQuad = tetrahedral;
+        else if (boost::iequals(tok[1].c_str(), "octahedral"))
+          schd.pQuad = octahedral;
+        else if (boost::iequals(tok[1].c_str(), "icosahedral"))            
+          schd.pQuad = icosahedral;
       }
 
 	  else if (boost::iequals(ArgName, "fullrestart"))

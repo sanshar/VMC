@@ -47,6 +47,7 @@ struct rWalker<rJastrow, rSlater> {
   MatrixXd RiN;         //electron-nucleus distances  
   MatrixXcd Bnl;        //Bnl(elec, mo) = Vnl * DetMatrix     
   MatrixXd AOBnl;        //AOBnl(elec, ao) = \partial_{mocoeff} Vnl * DetMatrix    
+  std::vector<Vector3d> Q;  //qudrature points
   rWalkerHelper<rJastrow> corrHelper;
   rWalkerHelper<rSlater> refHelper;
   uniformRandom uR;

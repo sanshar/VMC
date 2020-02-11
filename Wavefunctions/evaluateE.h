@@ -36,6 +36,7 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <algorithm>
+#include "boost/format.hpp"
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -740,7 +741,7 @@ void getStochasticTwoRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &twoRdm, i
   if (commrank == 0) {
     char file[5000];
     int root = 0;
-    sprintf(file, "%s/spatialRDM.%d.%d.txt", schd.prefix[0].c_str(), root,
+    sprintf(file, "spatialRDM.%d.%d.txt", root,
             root);
     std::ofstream ofs(file, std::ios::out);
     ofs << norbs << endl;
@@ -751,7 +752,7 @@ void getStochasticTwoRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &twoRdm, i
           for (int b=0; b<norbs; b++) {
             ofs << str(boost::format("%3d   %3d   %3d   %3d   %10.8g\n") %
                        i % j % a % b %
-                       twoRdm(i * nSpatOrbs + j, a * nSpatOrbs + b)*0.5);
+                       (twoRdm(i * norbs + j, a * norbs + b)*0.5));
             //double int2 = I2 (2*i, 2*b, 2*j, 2*a);
             //Etwo += 0.5 * twoRdm(i*norbs + j , a*norbs + b) * int2;
           }
