@@ -1128,6 +1128,93 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
 }
 
 
+double rWalkerHelper<rJastrow>::OverlapRatioAndParamGradient(int i, Vector3d& coord, const rJastrow& cps, const rDeterminant &d, VectorXd &paramValues) const
+{
+  paramValues = VectorXd::Zero(ParamValues.size());
+  std::vector<MatrixXd> paramGradient(3, MatrixXd::Zero(ParamGradient[0].rows(), ParamGradient[0].cols()));
+  //MatrixXd ParamGradx = MatrixXd::Zero(ParamGradient[0].rows(), ParamGradient[0].cols());
+  //MatrixXd ParamGrady = MatrixXd::Zero(ParamGradient[1].rows(), ParamGradient[1].cols());
+  //MatrixXd ParamGradz = MatrixXd::Zero(ParamGradient[2].rows(), ParamGradient[2].cols());
+  MatrixXd paramLaplacian = MatrixXd::Zero(ParamLaplacian.rows(), ParamLaplacian.cols());
+
+  Vector3d bkp = d.coord[i];
+  const_cast<rDeterminant&>(d).coord[i] = coord;
+
+  JastrowEN(i, Qmax, d.coord, paramValues, paramGradient[0],
+            paramGradient[1], paramGradient[2], paramLaplacian, 1.0, ENIndex);
+
+  if (schd.fourBodyJastrow)
+    JastrowEENNLinear(i, d.coord, paramValues, paramGradient[0],
+                      paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENNlinearIndex);
+
+  for (int j=0; j<d.nelec; j++) {
+
+    if (schd.fourBodyJastrow)
+      JastrowEENN(i, j, d.coord, paramValues, paramGradient[0],
+                  paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENNIndex, 2);
+
+    if (i == j) continue;
+
+    if (schd.fourBodyJastrow)
+      JastrowEENN(j, i, d.coord, paramValues, paramGradient[0],
+                  paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENNIndex, 2);
+    
+    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
+              paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EEsameSpinIndex, 1);
+    
+    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
+              paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EEoppositeSpinIndex, 0);
+    
+    if (!schd.fourBodyJastrow) {
+      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
+                 paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENsameSpinIndex, 1);
+      
+      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
+                 paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENoppositeSpinIndex, 0);
+    }
+  }
+
+  const_cast<rDeterminant&>(d).coord[i] = bkp;
+
+  JastrowEN(i, Qmax, d.coord, paramValues, paramGradient[0],
+            paramGradient[1], paramGradient[2], paramLaplacian, -1.0, ENIndex);
+
+  if (schd.fourBodyJastrow)
+    JastrowEENNLinear(i, d.coord, paramValues, paramGradient[0],
+                      paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENNlinearIndex);
+
+  for (int j=0; j<d.nelec; j++) {
+
+    if (schd.fourBodyJastrow)
+      JastrowEENN(i, j, d.coord, paramValues, paramGradient[0],
+                  paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENNIndex, 2);
+
+    if (i == j) continue;
+
+    if (schd.fourBodyJastrow)
+      JastrowEENN(j, i, d.coord, paramValues, paramGradient[0],
+                  paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENNIndex, 2);
+
+    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
+              paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EEsameSpinIndex, 1);
+    
+    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
+              paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EEoppositeSpinIndex, 0);
+    
+    if (!schd.fourBodyJastrow) {
+      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
+                 paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENsameSpinIndex, 1);
+      
+      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
+                 paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENoppositeSpinIndex, 0);
+    }
+  }
+
+  double exp = paramValues.dot(jastrowParams);
+  return std::exp(exp);
+}
+
+
 void rWalkerHelper<rJastrow>::OverlapWithGradient(const rJastrow& cps,
                                                   VectorXd& grad,
                                                   const rDeterminant& d,

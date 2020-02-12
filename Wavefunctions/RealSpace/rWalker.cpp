@@ -145,7 +145,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
       Q.push_back(Vector3d(lambda, -roh, 0.0));
       Q.push_back(Vector3d(-lambda, -roh, 0.0)); 
     }
-    Pseudopotential &pp = *schd.pseudo;
+    const Pseudopotential &pp = *schd.pseudo;
     int norbs = Determinant::norbs;
     int nalpha = rDeterminant::nalpha;
     int nbeta = rDeterminant::nbeta;
@@ -282,7 +282,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
 
 void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const rSlater &ref)
 {
-    Pseudopotential &pp = *schd.pseudo;
+    const Pseudopotential &pp = *schd.pseudo;
     int norbs = Determinant::norbs;
     int nalpha = rDeterminant::nalpha;
     int nbeta = rDeterminant::nbeta;
