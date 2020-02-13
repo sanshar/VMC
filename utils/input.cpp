@@ -111,7 +111,7 @@ void readInput(string input, schedule& schd, bool print) {
       //schd.gradTol = 0.2;
       schd.sgdStepsize = 0.1;
       schd.CorrSampleFrac = 0.20;
-
+      schd.nGrid = 5;
       schd.pseudo = boost::shared_ptr<Pseudopotential>(new Pseudopotential);
 
       while (dump.good())
@@ -375,6 +375,8 @@ void readInput(string input, schedule& schd, bool print) {
       
       else if (boost::iequals(ArgName, "slaterrdm"))
 	    schd.wavefunctionType = "slaterRDM";
+      else if (boost::iequals(ArgName, "slatertwordm"))
+	    schd.wavefunctionType = "slaterTwoRDM";
       
       else if (boost::iequals(ArgName, "agprdm"))
 	    schd.wavefunctionType = "agpRDM";
@@ -417,6 +419,15 @@ void readInput(string input, schedule& schd, bool print) {
 
 	  else if (boost::iequals(ArgName, "seed"))
 	    schd.seed = atof(tok[1].c_str());
+
+          else if (boost::iequals(ArgName, "ngrid"))
+	    schd.nGrid = atoi(tok[1].c_str());
+
+          else if (boost::iequals(ArgName, "macroiter"))
+	    schd.nMaxMacroIter = atoi(tok[1].c_str());
+
+          else if (boost::iequals(ArgName, "microiter"))
+	    schd.nMaxMicroIter = atoi(tok[1].c_str());
 
 	  else if (boost::iequals(ArgName, "stepsize"))
 	    schd.stepsize = atof(tok[1].c_str());

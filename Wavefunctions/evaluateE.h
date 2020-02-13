@@ -36,6 +36,7 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <algorithm>
+#include "boost/format.hpp"
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -50,6 +51,23 @@ class twoInt;
 class twoIntHeatBathSHM;
 
 //############################################################Deterministic Evaluation############################################################################
+
+void updateTwoRdm(int i, int j, int a, int b, int norbs, double contribution,
+                  MatrixXd& twoRdm) {
+  
+  //spin to spatial
+  //int I = i/2, J = j/2, B = b/2, A = a/2;
+  int I = i/2, J = j/2, A = a/2, B = b/2;
+
+  twoRdm ( I*norbs+J, A*norbs+B) +=  contribution;
+  twoRdm ( J*norbs+I, B*norbs+A) +=  contribution;
+
+  if (i%2 == j%2) {
+    twoRdm ( J*norbs+I, A*norbs+B) += -contribution;
+    twoRdm ( I*norbs+J, B*norbs+A) += -contribution;
+  }
+}
+
 template<typename Wfn, typename Walker>
 void getEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
 {
@@ -159,6 +177,106 @@ template<typename Wfn, typename Walker> void getOneRdmDeterministic(Wfn &w, Walk
 #endif
 
   oneRdm = oneRdm / Overlap;
+};
+
+template<typename Wfn, typename Walker>
+void getTwoRdmDeterministic(Wfn &w, Walker& walk, MatrixXd &twoRdm)
+{
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
+  
+  vector<Determinant> allDets;
+  generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+
+  double Overlap = 0;
+  twoRdm = MatrixXd::Constant(norbs*norbs, norbs*norbs, 0.); 
+
+  double a1=0, a2=0;
+  for (int i = commrank; i < allDets.size(); i += commsize) {
+    w.initWalker(walk, allDets[i]);
+    double ovlp = w.Overlap(walk);
+    Overlap += ovlp * ovlp;
+    
+    vector<int> open;
+    vector<int> closed;
+    allDets[i].getOpenClosed(open, closed);
+
+    double contribution = ovlp*ovlp;
+    
+    //diagonal elements
+    for (int a = 0; a < closed.size(); a++) 
+      for (int b = 0; b < closed.size(); b++)  {
+        if (a == b) continue;
+        int A = closed[a]/2, B = closed[b]/2;
+        twoRdm(A*norbs + B, B*norbs +A) += contribution * 0.5;
+        twoRdm(B*norbs + A, A*norbs +B) += contribution * 0.5;
+        if (closed[a]%2 == closed[b]%2) {
+          twoRdm(A*norbs + B, A*norbs +B) += -contribution * 0.5;
+          twoRdm(B*norbs + A, B*norbs +A) += -contribution * 0.5;
+        }
+      }
+
+
+    //singleExcitations contribution
+    for (int a = 0; a < closed.size(); a++) 
+      for (int i = 0; i < open.size(); i++) {
+        if (closed[a]%2 != open[i]%2) continue; 
+        double ovlpratio = w.getOverlapFactor(closed[a], open[i], walk, 0);
+        for (int b = 0; b < closed.size(); b++) {          
+          if (a == b) continue;          
+          updateTwoRdm(closed[a], closed[b], closed[b], open[i], norbs, contribution*ovlpratio, twoRdm);          
+        }
+    }
+
+    
+    //twordm contribution
+    for (int a = 0; a < closed.size(); a++) 
+      for (int b = a+1; b < closed.size() ; b++)  {
+        for (int i = 0; i < open.size(); i++) 
+          for (int j = i+1; j < open.size() ; j++) {
+            if (closed[a]%2+closed[b]%2 - open[i]%2-open[j]%2 == 0) {
+              int A = closed[a], B = closed[b], I = open[i], J = open[j];
+              if (A%2 != I%2) {J = open[i]; I = open[j];}
+              
+              double ovlpratio = w.getOverlapFactor(A, B, I, J, walk, 0);
+              updateTwoRdm(A, B, J, I, norbs, contribution*ovlpratio, twoRdm);
+            }
+          }
+      }
+
+  }
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(Overlap), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, twoRdm.data(), norbs*norbs, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+  twoRdm = twoRdm / Overlap;
+
+  /*
+  double Etwo = 0.0, Eone = 0.0;
+  for (int i=0; i<norbs; i++)
+    for (int j=0; j<norbs; j++)
+      for (int a=0; a<norbs; a++)
+        for (int b=0; b<norbs; b++) {
+          //cout << i<<"  "<<j<<"  "<<a<<"  "<<b<<"  "<<twoRdm(i*norbs+j, a*norbs+b)/2.<<endl;
+          double int2 = I2 (2*i, 2*b, 2*j, 2*a);
+          Etwo += 0.5 * twoRdm(i*norbs + j , a*norbs + b) * int2;
+        }
+
+  MatrixXd oneRDM = MatrixXd::Constant(norbs, norbs, 0.0);
+  for (int i=0; i<norbs; i++)
+    for (int j=0; j<norbs; j++) {
+      for (int k=0; k<norbs; k++) 
+        oneRDM(i, j) += twoRdm(i*norbs+k, k*norbs+j)/(nelec-1);
+      double int1 = I1(2*i, 2*j);
+      Eone += oneRDM(i, j) * int1;
+    }
+  cout << oneRDM<<endl;
+  cout << "Energy "<< Etwo<<"  "<<Eone<<endl;
+  cout << Etwo + Eone + coreE<<endl;
+  exit(0);
+  */
 }
 
 template<typename Wfn, typename Walker> void getDensityCorrelationsDeterministic(Wfn &w, Walker& walk, MatrixXd &corr)
@@ -498,6 +616,150 @@ void getStochasticOneRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &oneRdm, b
     boost::archive::binary_oarchive save(ofs);
     save << bestDet;
   }
+}
+
+
+template<typename Wfn, typename Walker> 
+void getStochasticTwoRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &twoRdm, int niter)
+{
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
+  
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                          std::ref(generator));
+
+  workingArray work;
+  int iter = 0;
+  double ovlp = 0.;
+
+  twoRdm = MatrixXd::Constant(norbs* norbs, norbs* norbs, 0.0); 
+  double bestOvlp = 0.;
+
+  double cumdeltaT = 0., cumdeltaT2 = 0.;
+  w.initWalker(walk);
+  Determinant bestDet = walk.d;
+
+  while (iter < niter) {
+    work.setCounterToZero();
+    generateAllScreenedSingleExcitation(walk.d, schd.epsilon, schd.screen,
+                                        work, false);  
+    generateAllScreenedDoubleExcitation(walk.d, schd.epsilon, schd.screen,
+                                        work, false);  
+    double cumovlpRatio = 0;
+    for (int i = 0; i < work.nExcitations; i++) {
+      int ex1 = work.excitation1[i], ex2 = work.excitation2[i];
+      double tia = work.HijElement[i];
+      int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
+      int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
+      cumovlpRatio += abs(w.getOverlapFactor(I, J, A, B, walk, false));
+      work.ovlpRatio[i] = cumovlpRatio;
+    }
+    double deltaT = 1.0 / (cumovlpRatio);
+    double nextDetRandom = random() * cumovlpRatio;
+    int nextDet = std::lower_bound(work.ovlpRatio.begin(), (work.ovlpRatio.begin() + work.nExcitations), nextDetRandom) - work.ovlpRatio.begin();
+    cumdeltaT += deltaT;
+    double ratio = deltaT / cumdeltaT;
+
+    vector<int> open;
+    vector<int> closed;
+    walk.d.getOpenClosed(open, closed);
+    
+    twoRdm *= (1. - deltaT/cumdeltaT);
+
+    double contribution = deltaT/cumdeltaT;
+    
+    //diagonal elements
+    for (int a = 0; a < closed.size(); a++) 
+      for (int b = 0; b < closed.size(); b++)  {
+        if (a == b) continue;
+        int A = closed[a]/2, B = closed[b]/2;
+        twoRdm(A*norbs + B, B*norbs +A) += contribution * 0.5;
+        twoRdm(B*norbs + A, A*norbs +B) += contribution * 0.5;
+        if (closed[a]%2 == closed[b]%2) {
+          twoRdm(A*norbs + B, A*norbs +B) += -contribution * 0.5;
+          twoRdm(B*norbs + A, B*norbs +A) += -contribution * 0.5;
+        }
+      }
+
+
+    //singleExcitations contribution
+    for (int a = 0; a < closed.size(); a++) 
+      for (int i = 0; i < open.size(); i++) {
+        if (closed[a]%2 != open[i]%2) continue; 
+        double ovlpratio = w.getOverlapFactor(closed[a], open[i], walk, 0);
+        for (int b = 0; b < closed.size(); b++) {          
+          if (a == b) continue;          
+          updateTwoRdm(closed[a], closed[b], closed[b], open[i], norbs, contribution*ovlpratio, twoRdm);          
+        }
+    }
+
+    
+    //twordm contribution
+    for (int a = 0; a < closed.size(); a++) 
+      for (int b = a+1; b < closed.size() ; b++)  {
+        for (int i = 0; i < open.size(); i++) 
+          for (int j = i+1; j < open.size() ; j++) {
+            if (closed[a]%2+closed[b]%2 - open[i]%2-open[j]%2 == 0) {
+              int A = closed[a], B = closed[b], I = open[i], J = open[j];
+              if (A%2 != I%2) {J = open[i]; I = open[j];}
+              
+              double ovlpratio = w.getOverlapFactor(A, B, I, J, walk, 0);
+              updateTwoRdm(A, B, J, I, norbs, contribution*ovlpratio, twoRdm);
+            }
+          }
+      }
+    
+    
+    
+    iter++;
+    walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
+    double ovlp = w.Overlap(walk);
+    if (abs(ovlp) > bestOvlp)
+    {
+      bestOvlp = abs(ovlp);
+      bestDet = walk.getDet();
+    }
+  }
+  
+#ifndef SERIAL
+  size_t size = norbs*norbs*norbs*norbs;
+  MPI_Allreduce(MPI_IN_PLACE, twoRdm.data(), size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+  
+  twoRdm = twoRdm / commsize;
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestDeterminant.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << bestDet;
+  }
+
+  if (commrank == 0) {
+    char file[5000];
+    int root = 0;
+    sprintf(file, "spatialRDM.%d.%d.txt", root,
+            root);
+    std::ofstream ofs(file, std::ios::out);
+    ofs << norbs << endl;
+    double Etwo = 0.0, Eone = 0.0;
+    for (int i=0; i<norbs; i++)
+      for (int j=0; j<norbs; j++)
+        for (int a=0; a<norbs; a++)
+          for (int b=0; b<norbs; b++) {
+            ofs << str(boost::format("%3d   %3d   %3d   %3d   %10.8g\n") %
+                       i % j % a % b %
+                       (twoRdm(i * norbs + j, a * norbs + b)*0.5));
+            //double int2 = I2 (2*i, 2*b, 2*j, 2*a);
+            //Etwo += 0.5 * twoRdm(i*norbs + j , a*norbs + b) * int2;
+          }
+    ofs.close();
+    
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
 }
 
 template<typename Wfn, typename Walker> 

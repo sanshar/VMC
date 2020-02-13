@@ -38,10 +38,6 @@ void runTranscorrelated(Wave& wave, bool isGutzwiller = false) {
   
   getTranscorrelationWrapper<Wave> wrapper(wave);
 
-  double Energy, stddev, rt;
-  VectorXd grad;
-  wrapper.optimizeWavefunctionGJ();
-  wrapper.optimizeWavefunction();
   if (isGutzwiller)
     wrapper.optimizeWavefunctionGJ();
   else

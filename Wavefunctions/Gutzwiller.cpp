@@ -28,7 +28,7 @@ using namespace Eigen;
 Gutzwiller::Gutzwiller () {    
   //g = (VectorXd::Constant(Determinant::norbs, 1.0) + VectorXd::Random(Determinant::norbs))/20;
   int norbs = Determinant::norbs;
-  g = VectorXd::Constant(Determinant::norbs, 1.);
+  g = VectorXd::Constant(Determinant::norbs, 1.0001);
   bool readGutz = false;
   char file[5000];
   sprintf(file, "Gutzwiller.txt");

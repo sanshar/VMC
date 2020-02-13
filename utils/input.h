@@ -117,8 +117,10 @@ private:
       & expCorrelator
       & fourBodyJastrow
       & fourBodyJastrowBasis
-      & pQuad
-      & maxMacroIter;
+      & nGrid
+      & nMaxMacroIter
+      & nMaxMicroIter;
+    & pQuad;
   }
 public:
 //General options
@@ -138,6 +140,10 @@ public:
   bool ifComplex;                        //breaks and restores complex conjugation symmetry 
   bool uagp;                             //brakes S^2 symmetry in uagp
 
+  int nGrid;      //the grid used for projectors in transcorrelated calcs
+  int nMaxMacroIter;
+  int nMaxMicroIter;
+  
   RSTEPTYPE rStepType;
   PSEUDOQUAD pQuad;
   bool fourBodyJastrow;
