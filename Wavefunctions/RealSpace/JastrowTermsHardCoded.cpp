@@ -591,8 +591,8 @@ double JastrowEENNLinearValue(int i, const vector<Vector3d>& r, const VectorXd& 
   */
 
   VectorXd n;
-  if (schd.fourBodyJastrowBasis == FC) {
-    FC_eval(i, r, n);
+  if (schd.fourBodyJastrowBasis == NC) {
+    NC_eval(i, r, n);
   }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval(i, r, n);
@@ -665,8 +665,8 @@ double JastrowEENNLinearValueGrad(int i, const vector<Vector3d>& r, Vector3d& gr
 
   VectorXd n;
   array<VectorXd, 3> gradn;
-  if (schd.fourBodyJastrowBasis == FC) {
-    FC_eval_deriv(i, r, n, gradn);
+  if (schd.fourBodyJastrowBasis == NC) {
+    NC_eval_deriv(i, r, n, gradn);
   }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval_deriv(i, r, n, gradn);
@@ -762,8 +762,8 @@ void JastrowEENNLinear(int i, const vector<Vector3d>& r, VectorXd& values, Matri
 */
   VectorXd n;
   array<VectorXd, 3> gradn, grad2n;
-  if (schd.fourBodyJastrowBasis == FC) {
-    FC_eval_deriv2(i, r, n, gradn, grad2n);
+  if (schd.fourBodyJastrowBasis == NC) {
+    NC_eval_deriv2(i, r, n, gradn, grad2n);
   }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval_deriv2(i, r, n, gradn, grad2n);
@@ -834,9 +834,9 @@ double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd&
   if (electronsOfCorrectSpin(i, j, ss)) {
 
     VectorXd ni, nj;
-    if (schd.fourBodyJastrowBasis == FC) {
-      FC_eval(i, r, ni);
-      FC_eval(j, r, nj);
+    if (schd.fourBodyJastrowBasis == NC) {
+      NC_eval(i, r, ni);
+      NC_eval(j, r, nj);
     }
     else if (schd.fourBodyJastrowBasis == AB) {
       AB_eval(i, r, ni);
@@ -847,9 +847,12 @@ double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd&
     {
       for (int J = 0; J < nj.size(); J++)
       {
+        /*
         int _I = std::max(I, J);
         int _J = std::min(I, J);
         value += params[startIndex + _I * (_I + 1) / 2 + _J] * ni[I] * nj[J];
+        */
+        value += params[startIndex + I * ni.size() + J] * ni[I] * nj[J];
       }
     }
   }
@@ -944,9 +947,9 @@ double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d gr
     array<VectorXd, 3> gradni, gradnj;
     VectorXd ni, nj;
 
-    if (schd.fourBodyJastrowBasis == FC) {
-      FC_eval_deriv(i, r, ni, gradni);
-      FC_eval_deriv(j, r, nj, gradnj);
+    if (schd.fourBodyJastrowBasis == NC) {
+      NC_eval_deriv(i, r, ni, gradni);
+      NC_eval_deriv(j, r, nj, gradnj);
     }
     else if (schd.fourBodyJastrowBasis == AB) {
       AB_eval_deriv(i, r, ni, gradni);
@@ -957,6 +960,7 @@ double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d gr
     {
       for (int J = 0; J < nj.size(); J++)
       {
+        /*
         int _I = std::max(I, J);
         int _J = std::min(I, J);
 
@@ -965,6 +969,19 @@ double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d gr
         grad(0) += factor * (gradni[0][I] * nj[J]);
         grad(1) += factor * (gradni[1][I] * nj[J]);
         grad(2) += factor * (gradni[2][I] * nj[J]);
+        */
+        double factor = params[startIndex + I * ni.size() + J];
+        value += factor * ni[I] * nj[J];
+        if (i == j) {
+          grad(0) += factor * (gradni[0][I] * nj[J] + ni[I] * gradnj[0][J]);
+          grad(1) += factor * (gradni[1][I] * nj[J] + ni[I] * gradnj[1][J]);
+          grad(2) += factor * (gradni[2][I] * nj[J] + ni[I] * gradnj[2][J]);
+        }
+        else {
+          grad(0) += factor * (gradni[0][I] * nj[J]);
+          grad(1) += factor * (gradni[1][I] * nj[J]);
+          grad(2) += factor * (gradni[2][I] * nj[J]);
+        }
       }
     }
   }
@@ -1104,9 +1121,9 @@ void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, Matr
     VectorXd ni, nj;
     array<VectorXd, 3> gradni, gradnj, grad2ni, grad2nj;
 
-    if (schd.fourBodyJastrowBasis == FC) {
-      FC_eval_deriv2(i, r, ni, gradni, grad2ni);
-      FC_eval_deriv2(j, r, nj, gradnj, grad2nj);
+    if (schd.fourBodyJastrowBasis == NC) {
+      NC_eval_deriv2(i, r, ni, gradni, grad2ni);
+      NC_eval_deriv2(j, r, nj, gradnj, grad2nj);
     }
     else if (schd.fourBodyJastrowBasis == AB) {
       AB_eval_deriv2(i, r, ni, gradni, grad2ni);
@@ -1118,6 +1135,7 @@ void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, Matr
     {
       for (int J = 0; J < nj.size(); J++)
       {
+        /*
         int _I = std::max(I, J);
         int _J = std::min(I, J);
 
@@ -1136,6 +1154,32 @@ void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, Matr
         laplace(j, startIndex + _I * (_I + 1) / 2 + _J) += factor * (ni[I] * grad2nj[0][J]
                                                                    + ni[I] * grad2nj[1][J]
                                                                    + ni[I] * grad2nj[2][J]);
+        */
+        values[startIndex + I * ni.size() + J] += factor * ni[I] * nj[J];
+
+        gx(i, startIndex + I * ni.size() + J) += factor * gradni[0][I] * nj[J];
+        gy(i, startIndex + I * ni.size() + J) += factor * gradni[1][I] * nj[J];
+        gz(i, startIndex + I * ni.size() + J) += factor * gradni[2][I] * nj[J];
+        laplace(i, startIndex + I * ni.size() + J) += factor * (grad2ni[0][I] * nj[J]
+                                                              + grad2ni[1][I] * nj[J]
+                                                              + grad2ni[2][I] * nj[J]);
+
+        gx(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[0][J];
+        gy(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[1][J];
+        gz(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[2][J];
+        laplace(j, startIndex + I * ni.size() + J) += factor * (ni[I] * grad2nj[0][J]
+                                                              + ni[I] * grad2nj[1][J]
+                                                              + ni[I] * grad2nj[2][J]);
+
+        if (i == j) {
+          laplace(i, startIndex + I * ni.size() + J) += factor * (gradni[0][I] * gradnj[0][J]
+                                                                + gradni[1][I] * gradnj[1][J]
+                                                                + gradni[2][I] * gradnj[2][J]);
+
+          laplace(j, startIndex + I * ni.size() + J) += factor * (gradni[0][I] * gradnj[0][J]
+                                                                + gradni[1][I] * gradnj[1][J]
+                                                                + gradni[2][I] * gradnj[2][J]);
+        }
       }
     }
 
