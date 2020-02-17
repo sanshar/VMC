@@ -987,9 +987,9 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   vector<double> aoValues(10 * Determinant::norbs, 0.0);
 
   double ovlpRatio = -1.0, proposalProb;
+  /*
   ///////////////////////////////////////////////
   //Below will test overlap ratios from all the Jastrow functions
-  /*
   cout << "Testing overlap factor" << endl;
   Walker walk1, walk2;
   wave.initWalker(walk1), wave.initWalker(walk2);
@@ -1018,9 +1018,14 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   cout << walk2.corrHelper.exponential << endl;
   cout << walk2.corrHelper.exponential - walk1.corrHelper.exponential << endl;
   cout << endl << "OverlapFactorWalker" << endl;
-  wave.getOverlapFactor(0, move, walk1);
+  cout << wave.getOverlapFactor(0, move, walk1) << endl;
   cout << endl;
   wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
+  cout << endl << "GetGradientAfterElectronMove" << endl;
+  Vector3d vect;
+  cout << walk1.getGradientAfterSingleElectronMove(0, move, vect, wave.getRef()) << endl;
+  cout << wave.getOverlapFactor(0, move, walk1) << endl;
+
   cout << endl << "Symmetry" << endl;
   rDeterminant d1(walk1.d);
   rDeterminant d2;

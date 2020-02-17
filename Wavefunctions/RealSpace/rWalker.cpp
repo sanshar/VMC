@@ -606,12 +606,10 @@ void rWalker<rJastrow, rSlater>::getStep(Vector3d& coord, int elecI,
     return getGaussianStep(coord, elecI, stepsize, ovlpRatio, proposalProb);
 
   else if (schd.rStepType == DMC)
-    return doDMCMove(coord, elecI, stepsize, ref, corr,
-                      ovlpRatio, proposalProb);
+    return doDMCMove(coord, elecI, stepsize, ref, corr, ovlpRatio, proposalProb);
   
   else if (schd.rStepType == SPHERICAL)
-    return getSphericalStep(coord, elecI, stepsize, ref,
-                            ovlpRatio, proposalProb);
+    return getSphericalStep(coord, elecI, stepsize, ref, ovlpRatio, proposalProb);
 }
 
 void rWalker<rJastrow, rSlater>::getSimpleStep(Vector3d& coord,  double stepsize,
@@ -712,11 +710,8 @@ void rWalker<rJastrow, rSlater>::getGradient(int elecI, Vector3d& grad) {
 
 }
 
-double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI, Vector3d& newCoord,
-                                                                      Vector3d& grad,
-                                                                      const rSlater& ref){
-
-
+double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI, Vector3d& newCoord, Vector3d& grad, const rSlater& ref)
+{
   int norbs = Determinant::norbs;
   int nalpha = Determinant::nalpha;
   int nbeta = Determinant::nbeta;
@@ -750,37 +745,35 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
     if (elecI < nalpha) //alpha electron
     {
       for (int mo=0; mo<nalpha; mo++) {
-
         std::complex<double> moVal = 0, moGx=0, moGy=0, moGz=0;
-      for (int j=0; j<norbs; j++) {
-        moVal += aoValues[        j] * ref.getHforbs(0)(j, mo);
-        moGx  += aoValues[norbs+  j] * ref.getHforbs(0)(j, mo);
-        moGy  += aoValues[2*norbs+j] * ref.getHforbs(0)(j, mo);
-        moGz  += aoValues[3*norbs+j] * ref.getHforbs(0)(j, mo);
-      }
+        for (int j=0; j<norbs; j++) {
+          moVal += aoValues[        j] * ref.getHforbs(0)(j, mo);
+          moGx  += aoValues[norbs+  j] * ref.getHforbs(0)(j, mo);
+          moGy  += aoValues[2*norbs+j] * ref.getHforbs(0)(j, mo);
+          moGz  += aoValues[3*norbs+j] * ref.getHforbs(0)(j, mo);
+        }
       
-      Detratio += (moVal * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
-      gxnew    += (moGx  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
-      gynew    += (moGy  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
-      gznew    += (moGz  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+        Detratio += (moVal * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+        gxnew    += (moGx  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+        gynew    += (moGy  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
+        gznew    += (moGz  * refHelper.thetaInv[0](mo, elecI) * DetFactor).real() / DetFactor.real();        
       }
     }
     else //beta electron
     {
       for (int mo=0; mo<nbeta; mo++) {
-
         std::complex<double> moVal = 0, moGx=0, moGy=0, moGz=0;
-      for (int j=0; j<norbs; j++) {
-        moVal += aoValues[        j] * ref.getHforbs(1)(j, mo);
-        moGx  += aoValues[norbs+  j] * ref.getHforbs(1)(j, mo);
-        moGy  += aoValues[2*norbs+j] * ref.getHforbs(1)(j, mo);
-        moGz  += aoValues[3*norbs+j] * ref.getHforbs(1)(j, mo);
-      }
+        for (int j=0; j<norbs; j++) {
+          moVal += aoValues[        j] * ref.getHforbs(1)(j, mo);
+          moGx  += aoValues[norbs+  j] * ref.getHforbs(1)(j, mo);
+          moGy  += aoValues[2*norbs+j] * ref.getHforbs(1)(j, mo);
+          moGz  += aoValues[3*norbs+j] * ref.getHforbs(1)(j, mo);
+        }
       
-      Detratio += (moVal * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
-      gxnew    += (moGx  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
-      gynew    += (moGy  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
-      gznew    += (moGz  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
+        Detratio += (moVal * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
+        gxnew    += (moGx  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
+        gynew    += (moGy  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
+        gznew    += (moGz  * refHelper.thetaInv[1](mo, elecI - nalpha) * DetFactor).real() / DetFactor.real();        
       }
     }
   }
@@ -792,42 +785,64 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
   //cout << gxnew <<" update det "<<endl;
   //Do the new gx, gy, gz for the Jastrows
   double diff = 0;
-  Vector3d gi, gplus, gminus; gplus.setZero();
+  Vector3d gi, gplus, gminus;
+  gplus.setZero();
   gminus.setZero();
   grad = corrHelper.GradRatio.row(elecI);
   grad[0] += gxnew; grad[1] += gynew; grad[2] += gznew;
   
-  int Qmax = corrHelper.Qmax; VectorXd& params = corrHelper.jastrowParams;
+  VectorXd& params = corrHelper.jastrowParams;
+  int Qmax = corrHelper.Qmax;
   int QmaxEEN = corrHelper.QmaxEEN;
-  int EEsameSpinIndex       = corrHelper.EEsameSpinIndex,
-      EEoppositeSpinIndex   = corrHelper.EEoppositeSpinIndex,
-      ENIndex               = corrHelper.ENIndex,
-      EENsameSpinIndex      = corrHelper.EENsameSpinIndex,
-      EENoppositeSpinIndex  = corrHelper.EENoppositeSpinIndex;
+  int EEsameSpinIndex      = corrHelper.EEsameSpinIndex,
+      EEoppositeSpinIndex  = corrHelper.EEoppositeSpinIndex,
+      ENIndex              = corrHelper.ENIndex,
+      EENsameSpinIndex     = corrHelper.EENsameSpinIndex,
+      EENoppositeSpinIndex = corrHelper.EENoppositeSpinIndex,
+      EENNlinearIndex      = corrHelper.EENNlinearIndex,
+      EENNIndex            = corrHelper.EENNIndex;
 
   diff -= JastrowENValueGrad(elecI, Qmax, d.coord, gminus,  params, ENIndex);
+  if (schd.fourBodyJastrow) { diff -= JastrowEENNLinearValueGrad(elecI, d.coord, gminus, params, EENNlinearIndex); }
   for (int j=0; j<d.nelec; j++) {
+
+    if (schd.fourBodyJastrow) { diff -= JastrowEENNValueGrad(elecI, j, d.coord, gminus, params, EENNIndex, 2); }
+
     if (j == elecI) continue;
+
+    if (schd.fourBodyJastrow) { diff -= JastrowEENNValueGrad(j, elecI, d.coord, gminus, params, EENNIndex, 2); }
 
     diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEsameSpinIndex, 1);
     diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEoppositeSpinIndex, 0);
 
-    diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus,  params, EENsameSpinIndex, 1);
-    diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus,params, EENoppositeSpinIndex, 0);
+    if (!schd.fourBodyJastrow) {
+      diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus, params, EENsameSpinIndex, 1);
+      diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus, params, EENoppositeSpinIndex, 0);
+    }
   }
 
   Vector3d bkp = d.coord[elecI];
   d.coord[elecI] = newCoord;
-  diff += JastrowENValueGrad(elecI, Qmax, d.coord, gplus,  params, ENIndex);
-  for (int j=0; j<d.nelec; j++) {
-    if (j == elecI) continue;
-    
-    diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus,  params, EEsameSpinIndex, 1);
-    diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus,  params, EEoppositeSpinIndex, 0);
 
-    diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENsameSpinIndex, 1);
-    diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENoppositeSpinIndex, 0);
+  diff += JastrowENValueGrad(elecI, Qmax, d.coord, gplus,  params, ENIndex);
+  if (schd.fourBodyJastrow) { diff += JastrowEENNLinearValueGrad(elecI, d.coord, gplus, params, EENNlinearIndex); }
+  for (int j=0; j<d.nelec; j++) {
+
+    if (schd.fourBodyJastrow) { diff += JastrowEENNValueGrad(elecI, j, d.coord, gplus, params, EENNIndex, 2); }
+
+    if (j == elecI) continue;
+
+    if (schd.fourBodyJastrow) { diff += JastrowEENNValueGrad(j, elecI, d.coord, gplus, params, EENNIndex, 2); }
+    
+    diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus, params, EEsameSpinIndex, 1);
+    diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus, params, EEoppositeSpinIndex, 0);
+
+    if (!schd.fourBodyJastrow) {
+      diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENsameSpinIndex, 1);
+      diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENoppositeSpinIndex, 0);
+    }
   }
+
   d.coord[elecI] = bkp;
 
   //cout << grad[0] - gxnew + gplus[0] - gminus[0] <<endl;
@@ -836,6 +851,7 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
       
   double ovlpRatio = Detratio * exp(diff);
 
+  //cout << diff << endl;
   return ovlpRatio;
 }
 

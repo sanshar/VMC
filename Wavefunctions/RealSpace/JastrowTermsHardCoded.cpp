@@ -52,7 +52,6 @@ double JastrowEEValue(int i, int j, int maxQ,
                       const VectorXd& params,
                       int startIndex,
                       int ss) {
-
   double value = 0.0;
   //for (int i=0; i<r.size(); i++)
   //for (int j=0; j<i; j++)
@@ -127,9 +126,7 @@ void JastrowEE(int i, int j, int maxQ,
                MatrixXd& gy, MatrixXd& gz,
                MatrixXd& laplace, double factor,
                int startIndex,
-               int ss) {
-
-  
+               int ss) { 
   //for (int i=0; i<r.size(); i++)
   //for (int j=0; j<i; j++)
   {
@@ -179,7 +176,6 @@ double JastrowENValue(int i, int maxQ,
                       const vector<Vector3d>& r,
                       const VectorXd& params,
                       int startIndex) {
-
   vector<double>& Ncharge = schd.Ncharge;
   double value = 0.0;
   int natom = Ncharge.size();
@@ -210,7 +206,6 @@ double JastrowENValueGrad(int i, int maxQ,
                           Vector3d& grad,
                           const VectorXd& params,
                           int startIndex) {
-
   double value = 0.0;
   vector<double>& Ncharge = schd.Ncharge;
   
@@ -250,7 +245,6 @@ void JastrowEN(int i, int maxQ,
                MatrixXd& gy, MatrixXd& gz,
                MatrixXd& laplace, double factor,
                int startIndex) {
-
   vector<double>& Ncharge = schd.Ncharge;
   
   //for (int i=0; i<r.size(); i++)
@@ -370,8 +364,6 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
 
 
 
-
-
 // (riN^m  jN^n + rjN^m riN^n) rij^o
 // m + n + o <= maxQ
 //returns an array of values, gx, gy, gz
@@ -380,7 +372,6 @@ double JastrowEENValue(int i, int j, int maxQ,
                        const VectorXd& params,
                        int startIndex,
                        int ss) {
-
   vector<double>& Ncharge = schd.Ncharge;
   double value = 0.0;
   int index = 0;
@@ -452,7 +443,6 @@ void JastrowEEN(int i, int j, int maxQ,
                 MatrixXd& laplace, double factor,
                 int startIndex,
                 int ss) {
-
   vector<double>& Ncharge = schd.Ncharge;
   int index = 0;
   
@@ -565,31 +555,6 @@ void JastrowEEN(int i, int j, int maxQ,
 
 double JastrowEENNLinearValue(int i, const vector<Vector3d>& r, const VectorXd& params, int startIndex)
 {
-  /*
-  vector<double>& Ncharge = schd.Ncharge;
-  vector<int>& Nbasis = schd.Nbasis;
-  vector<Vector3d>& Ncoords = schd.Ncoords;
-
-  int norbs = schd.basis->getNorbs();
-  vector<double> aoValues(10*norbs, 0.0);
-  schd.basis->eval(r[i], &aoValues[0]);
-
-  VectorXd n = VectorXd::Zero(Ncharge.size());
-  double denom = 0.0;
-  int orb = 0;
-  for (int I = 0; I < n.size(); I++)
-  {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          n[I] += aoValues[orb] * aoValues[orb];
-          denom += aoValues[orb] * aoValues[orb];
-          orb++;
-      }
-  }
-  n /= denom;
-  //cout << n.transpose() << endl << endl;
-  */
-
   VectorXd n;
   if (schd.fourBodyJastrowBasis == NC) {
     NC_eval(i, r, n);
@@ -606,63 +571,9 @@ double JastrowEENNLinearValue(int i, const vector<Vector3d>& r, const VectorXd& 
   return value;
 }
 
+
 double JastrowEENNLinearValueGrad(int i, const vector<Vector3d>& r, Vector3d& grad, const VectorXd& params, int startIndex)
 {
-  /*
-  vector<double>& Ncharge = schd.Ncharge;
-  vector<int>& Nbasis = schd.Nbasis;
-  vector<Vector3d>& Ncoords = schd.Ncoords;
-
-  int norbs = schd.basis->getNorbs();
-  vector<double> aoValues(10*norbs, 0.0);
-  schd.basis->eval_deriv2(r[i], &aoValues[0]);
-
-  VectorXd n = VectorXd::Zero(Ncharge.size());
-  VectorXd num = VectorXd::Zero(Ncharge.size());
-  VectorXd gradxNum = VectorXd::Zero(Ncharge.size());
-  VectorXd gradyNum = VectorXd::Zero(Ncharge.size());
-  VectorXd gradzNum = VectorXd::Zero(Ncharge.size());
-  double denom = 0.0;
-  Vector3d gradDenom = Vector3d::Zero(3);
-  int orb = 0;
-  for (int I = 0; I < n.size(); I++)
-  {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          num[I] += aoValues[orb] * aoValues[orb];
-          denom += aoValues[orb] * aoValues[orb];
-          
-          //gradx
-          gradxNum[I] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradDenom[0] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          //grady
-          gradyNum[I] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradDenom[1] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          //gradz
-          gradzNum[I] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradDenom[2] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          orb++;
-      }
-  }
-  n = num / denom;
-  VectorXd gradxn = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
-  VectorXd gradyn = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
-  VectorXd gradzn = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
-
-
-  double value = 0.0;
-  grad = Vector3d::Zero(3);
-  for (int I = 0; I < Ncharge.size(); I++)
-  {
-      const double &factor = params[startIndex + I];
-      value += factor * n[I];
-      grad(0) += factor * gradxn[I];
-      grad(1) += factor * gradyn[I];
-      grad(2) += factor * gradzn[I];
-  }
-  return value;
-  */
-
   VectorXd n;
   array<VectorXd, 3> gradn;
   if (schd.fourBodyJastrowBasis == NC) {
@@ -685,81 +596,9 @@ double JastrowEENNLinearValueGrad(int i, const vector<Vector3d>& r, Vector3d& gr
   return value;
 }
 
+
 void JastrowEENNLinear(int i, const vector<Vector3d>& r, VectorXd& values, MatrixXd& gx, MatrixXd& gy, MatrixXd& gz, MatrixXd& laplace, double factor, int startIndex)
 {
-    /*
-  vector<double>& Ncharge = schd.Ncharge;
-  vector<int>& Nbasis = schd.Nbasis;
-  vector<Vector3d>& Ncoords = schd.Ncoords;
-
-  int norbs = schd.basis->getNorbs();
-  vector<double> aoValues(10*norbs, 0.0);
-  schd.basis->eval_deriv2(r[i], &aoValues[0]);
-
-  VectorXd n = VectorXd::Zero(Ncharge.size());
-  VectorXd num = VectorXd::Zero(Ncharge.size());
-  VectorXd gradxNum = VectorXd::Zero(Ncharge.size());
-  VectorXd gradyNum = VectorXd::Zero(Ncharge.size());
-  VectorXd gradzNum = VectorXd::Zero(Ncharge.size());
-  VectorXd gradxxNum = VectorXd::Zero(Ncharge.size());
-  VectorXd gradyyNum = VectorXd::Zero(Ncharge.size());
-  VectorXd gradzzNum = VectorXd::Zero(Ncharge.size());
-  double denom = 0.0;
-  Vector3d gradDenom = Vector3d::Zero(3);
-  Vector3d grad2Denom = Vector3d::Zero(3);
-  int orb = 0;
-  for (int I = 0; I < n.size(); I++)
-  {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          num[I] += aoValues[orb] * aoValues[orb];
-          denom += aoValues[orb] * aoValues[orb];
-          
-          //gradx
-          gradxNum[I] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradDenom[0] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradxxNum[I] += 2.0 * aoValues[1*norbs + orb] * aoValues[1*norbs + orb] + 2.0 * aoValues[orb] * aoValues[4*norbs + orb];
-          grad2Denom[0] += 2.0 * aoValues[1*norbs + orb] * aoValues[1*norbs + orb] + 2.0 * aoValues[orb] * aoValues[4*norbs + orb];
-
-          //grady
-          gradyNum[I] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradDenom[1] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradyyNum[I] += 2.0 * aoValues[2*norbs + orb] * aoValues[2*norbs + orb] + 2.0 * aoValues[orb] * aoValues[7*norbs + orb];
-          grad2Denom[1] += 2.0 * aoValues[2*norbs + orb] * aoValues[2*norbs + orb] + 2.0 * aoValues[orb] * aoValues[7*norbs + orb];
-
-          //gradz
-          gradzNum[I] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradDenom[2] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradzzNum[I] += 2.0 * aoValues[3*norbs + orb] * aoValues[3*norbs + orb] + 2.0 * aoValues[orb] * aoValues[9*norbs + orb];
-          grad2Denom[2] += 2.0 * aoValues[3*norbs + orb] * aoValues[3*norbs + orb] + 2.0 * aoValues[orb] * aoValues[9*norbs + orb];
-
-          orb++;
-      }
-  }
-  n = num / denom;
-  VectorXd gradxn = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
-  VectorXd gradyn = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
-  VectorXd gradzn = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
-
-  VectorXd gradxxn = (denom * denom * gradxxNum
-                    - denom * (2.0 * gradxNum * gradDenom[0] + num * grad2Denom[0])
-                    + 2.0 * num * gradDenom[0] * gradDenom[0]) / (denom * denom * denom);
-  VectorXd gradyyn = (denom * denom * gradyyNum
-                    - denom * (2.0 * gradyNum * gradDenom[1] + num * grad2Denom[1])
-                    + 2.0 * num * gradDenom[1] * gradDenom[1]) / (denom * denom * denom);
-  VectorXd gradzzn = (denom * denom * gradzzNum
-                    - denom * (2.0 * gradzNum * gradDenom[2] + num * grad2Denom[2])
-                    + 2.0 * num * gradDenom[2] * gradDenom[2]) / (denom * denom * denom);
-
-  for (int I = 0; I < Ncharge.size(); I++)
-  {
-      values[startIndex + I] += factor * n[I];
-      gx(i, startIndex + I) += factor * gradxn[I];
-      gy(i, startIndex + I) += factor * gradyn[I];
-      gz(i, startIndex + I) += factor * gradzn[I];
-      laplace(i, startIndex + I) += factor * (gradxxn[I] + gradyyn[I] + gradzzn[I]);
-  }
-*/
   VectorXd n;
   array<VectorXd, 3> gradn, grad2n;
   if (schd.fourBodyJastrowBasis == NC) {
@@ -786,50 +625,6 @@ void JastrowEENNLinear(int i, const vector<Vector3d>& r, VectorXd& values, Matri
 
 double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd& params, int startIndex, int ss)
 {
-  /*
-  vector<double>& Ncharge = schd.Ncharge;
-  vector<int>& Nbasis = schd.Nbasis;
-  vector<Vector3d>& Ncoords = schd.Ncoords;
-  double value = 0.0;
-
-  int norbs = schd.basis->getNorbs();
-  vector<double> aoValues(10*norbs, 0.0);
-
-  if (electronsOfCorrectSpin(i, j, ss)) {
-    //cout << "JastrowEENNValue" << endl;
-    VectorXd ni = VectorXd::Zero(Ncharge.size());
-    schd.basis->eval(r[i], &aoValues[0]);
-    double denom = 0.0;
-    int orb = 0;
-    for (int I = 0; I < ni.size(); I++)
-    {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          ni[I] += aoValues[orb] * aoValues[orb];
-          denom += aoValues[orb] * aoValues[orb];
-          orb++;
-      }
-    }
-    ni /= denom;
-    //cout << ni.transpose() << endl;
-
-    VectorXd nj = VectorXd::Zero(Ncharge.size());
-    schd.basis->eval(r[j], &aoValues[0]);
-    denom = 0.0;
-    orb = 0;
-    for (int I = 0; I < nj.size(); I++)
-    {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          nj[I] += aoValues[orb] * aoValues[orb];
-          denom += aoValues[orb] * aoValues[orb];
-          orb++;
-      }
-    }
-    nj /= denom;
-    //cout << nj.transpose() << endl << endl;
-    */
-
   double value = 0.0;
   if (electronsOfCorrectSpin(i, j, ss)) {
 
@@ -855,91 +650,13 @@ double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd&
         value += params[startIndex + I * ni.size() + J] * ni[I] * nj[J];
       }
     }
+
   }
   return value;
 }
 
 double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d grad, const VectorXd& params, int startIndex, int ss)
 {
-  /*
-  vector<double>& Ncharge = schd.Ncharge;
-  vector<int>& Nbasis = schd.Nbasis;
-  vector<Vector3d>& Ncoords = schd.Ncoords;
-
-  int norbs = schd.basis->getNorbs();
-  vector<double> aoValues(10*norbs, 0.0);
-
-  if (electronsOfCorrectSpin(i, j, ss)) {
-    //cout << "JastrowEENNValueGrad" << endl;
-    VectorXd ni = VectorXd::Zero(Ncharge.size());
-    VectorXd numi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradxNumi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradyNumi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradzNumi = VectorXd::Zero(Ncharge.size());
-    double denomi = 0.0;
-    Vector3d gradDenomi = Vector3d::Zero(3);
-    schd.basis->eval_deriv2(r[i], &aoValues[0]);
-    int orb = 0;
-    for (int I = 0; I < ni.size(); I++)
-    {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          numi[I] += aoValues[orb] * aoValues[orb];
-          denomi += aoValues[orb] * aoValues[orb];
-          
-          //gradx
-          gradxNumi[I] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradDenomi[0] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          //grady
-          gradyNumi[I] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradDenomi[1] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          //gradz
-          gradzNumi[I] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradDenomi[2] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          orb++;
-      }
-    }
-    ni = numi / denomi;
-    //cout << ni.transpose() << endl;
-    VectorXd gradxni = (gradxNumi * denomi - numi * gradDenomi[0]) / (denomi * denomi);
-    VectorXd gradyni = (gradyNumi * denomi - numi * gradDenomi[1]) / (denomi * denomi);
-    VectorXd gradzni = (gradzNumi * denomi - numi * gradDenomi[2]) / (denomi * denomi);
-
-    VectorXd nj = VectorXd::Zero(Ncharge.size());
-    VectorXd numj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradxNumj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradyNumj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradzNumj = VectorXd::Zero(Ncharge.size());
-    double denomj = 0.0;
-    Vector3d gradDenomj = Vector3d::Zero(3);
-    schd.basis->eval_deriv2(r[j], &aoValues[0]);
-    orb = 0;
-    for (int I = 0; I < ni.size(); I++)
-    {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          numj[I] += aoValues[orb] * aoValues[orb];
-          denomj += aoValues[orb] * aoValues[orb];
-          
-          //gradx
-          gradxNumj[I] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradDenomj[0] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          //grady
-          gradyNumj[I] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradDenomj[1] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          //gradz
-          gradzNumj[I] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradDenomj[2] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          orb++;
-      }
-    }
-    nj = numj / denomj;
-    //cout << nj.transpose() << endl;
-    VectorXd gradxnj = (gradxNumj * denomj - numj * gradDenomj[0]) / (denomj * denomj);
-    VectorXd gradynj = (gradyNumj * denomj - numj * gradDenomj[1]) / (denomj * denomj);
-    VectorXd gradznj = (gradzNumj * denomj - numj * gradDenomj[2]) / (denomj * denomj);
-    */
-
   double value = 0.0;
   grad = Vector3d::Zero(3);
   if (electronsOfCorrectSpin(i, j, ss)) {
@@ -990,132 +707,6 @@ double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d gr
 
 void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, MatrixXd& gx, MatrixXd& gy, MatrixXd& gz, MatrixXd& laplace, double factor, int startIndex, int ss)
 {
-  /*
-  vector<double>& Ncharge = schd.Ncharge;
-  vector<int>& Nbasis = schd.Nbasis;
-  vector<Vector3d>& Ncoords = schd.Ncoords;
-
-  int norbs = schd.basis->getNorbs();
-  vector<double> aoValues(10*norbs, 0.0);
-
-  if (electronsOfCorrectSpin(i, j, ss)) {
-    //cout << "JastrowEENN" << endl;
-    schd.basis->eval_deriv2(r[i], &aoValues[0]);
-    VectorXd ni = VectorXd::Zero(Ncharge.size());
-    VectorXd numi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradxNumi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradyNumi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradzNumi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradxxNumi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradyyNumi = VectorXd::Zero(Ncharge.size());
-    VectorXd gradzzNumi = VectorXd::Zero(Ncharge.size());
-    double denomi = 0.0;
-    Vector3d gradDenomi = Vector3d::Zero(3);
-    Vector3d grad2Denomi = Vector3d::Zero(3);
-    int orb = 0;
-    for (int I = 0; I < ni.size(); I++)
-    {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          numi[I] += aoValues[orb] * aoValues[orb];
-          denomi += aoValues[orb] * aoValues[orb];
-          
-          //gradx
-          gradxNumi[I] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradDenomi[0] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradxxNumi[I] += 2.0 * aoValues[1*norbs + orb] * aoValues[1*norbs + orb] + 2.0 * aoValues[orb] * aoValues[4*norbs + orb];
-          grad2Denomi[0] += 2.0 * aoValues[1*norbs + orb] * aoValues[1*norbs + orb] + 2.0 * aoValues[orb] * aoValues[4*norbs + orb];
-
-          //grady
-          gradyNumi[I] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradDenomi[1] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradyyNumi[I] += 2.0 * aoValues[2*norbs + orb] * aoValues[2*norbs + orb] + 2.0 * aoValues[orb] * aoValues[7*norbs + orb];
-          grad2Denomi[1] += 2.0 * aoValues[2*norbs + orb] * aoValues[2*norbs + orb] + 2.0 * aoValues[orb] * aoValues[7*norbs + orb];
-
-          //gradz
-          gradzNumi[I] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradDenomi[2] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradzzNumi[I] += 2.0 * aoValues[3*norbs + orb] * aoValues[3*norbs + orb] + 2.0 * aoValues[orb] * aoValues[9*norbs + orb];
-          grad2Denomi[2] += 2.0 * aoValues[3*norbs + orb] * aoValues[3*norbs + orb] + 2.0 * aoValues[orb] * aoValues[9*norbs + orb];
-
-          orb++;
-      }
-    }
-    ni = numi / denomi;
-    //cout << ni.transpose() << endl;
-    VectorXd gradxni = (gradxNumi * denomi - numi * gradDenomi[0]) / (denomi * denomi);
-    VectorXd gradyni = (gradyNumi * denomi - numi * gradDenomi[1]) / (denomi * denomi);
-    VectorXd gradzni = (gradzNumi * denomi - numi * gradDenomi[2]) / (denomi * denomi);
-
-    VectorXd gradxxni = (denomi * denomi * gradxxNumi
-                      - denomi * (2.0 * gradxNumi * gradDenomi[0] + numi * grad2Denomi[0])
-                      + 2.0 * numi * gradDenomi[0] * gradDenomi[0]) / (denomi * denomi * denomi);
-    VectorXd gradyyni = (denomi * denomi * gradyyNumi
-                      - denomi * (2.0 * gradyNumi * gradDenomi[1] + numi * grad2Denomi[1])
-                      + 2.0 * numi * gradDenomi[1] * gradDenomi[1]) / (denomi * denomi * denomi);
-    VectorXd gradzzni = (denomi * denomi * gradzzNumi
-                      - denomi * (2.0 * gradzNumi * gradDenomi[2] + numi * grad2Denomi[2])
-                      + 2.0 * numi * gradDenomi[2] * gradDenomi[2]) / (denomi * denomi * denomi);
-
-    schd.basis->eval_deriv2(r[j], &aoValues[0]);
-    VectorXd nj = VectorXd::Zero(Ncharge.size());
-    VectorXd numj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradxNumj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradyNumj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradzNumj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradxxNumj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradyyNumj = VectorXd::Zero(Ncharge.size());
-    VectorXd gradzzNumj = VectorXd::Zero(Ncharge.size());
-    double denomj = 0.0;
-    Vector3d gradDenomj = Vector3d::Zero(3);
-    Vector3d grad2Denomj = Vector3d::Zero(3);
-    orb = 0;
-    for (int I = 0; I < nj.size(); I++)
-    {
-      for (int mu = 0; mu < Nbasis[I]; mu++)
-      {
-          numj[I] += aoValues[orb] * aoValues[orb];
-          denomj += aoValues[orb] * aoValues[orb];
-          
-          //gradx
-          gradxNumj[I] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradDenomj[0] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
-          gradxxNumj[I] += 2.0 * aoValues[1*norbs + orb] * aoValues[1*norbs + orb] + 2.0 * aoValues[orb] * aoValues[4*norbs + orb];
-          grad2Denomj[0] += 2.0 * aoValues[1*norbs + orb] * aoValues[1*norbs + orb] + 2.0 * aoValues[orb] * aoValues[4*norbs + orb];
-
-          //grady
-          gradyNumj[I] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradDenomj[1] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
-          gradyyNumj[I] += 2.0 * aoValues[2*norbs + orb] * aoValues[2*norbs + orb] + 2.0 * aoValues[orb] * aoValues[7*norbs + orb];
-          grad2Denomj[1] += 2.0 * aoValues[2*norbs + orb] * aoValues[2*norbs + orb] + 2.0 * aoValues[orb] * aoValues[7*norbs + orb];
-
-          //gradz
-          gradzNumj[I] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradDenomj[2] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
-          gradzzNumj[I] += 2.0 * aoValues[3*norbs + orb] * aoValues[3*norbs + orb] + 2.0 * aoValues[orb] * aoValues[9*norbs + orb];
-          grad2Denomj[2] += 2.0 * aoValues[3*norbs + orb] * aoValues[3*norbs + orb] + 2.0 * aoValues[orb] * aoValues[9*norbs + orb];
-
-          orb++;
-      }
-    }
-    nj = numj / denomj;
-    //cout << nj.transpose() << endl;
-    VectorXd gradxnj = (gradxNumj * denomj - numj * gradDenomj[0]) / (denomj * denomj);
-    VectorXd gradynj = (gradyNumj * denomj - numj * gradDenomj[1]) / (denomj * denomj);
-    VectorXd gradznj = (gradzNumj * denomj - numj * gradDenomj[2]) / (denomj * denomj);
-
-    VectorXd gradxxnj = (denomj * denomj * gradxxNumj
-                      - denomj * (2.0 * gradxNumj * gradDenomj[0] + numj * grad2Denomj[0])
-                      + 2.0 * numj * gradDenomj[0] * gradDenomj[0]) / (denomj * denomj * denomj);
-    VectorXd gradyynj = (denomj * denomj * gradyyNumj
-                      - denomj * (2.0 * gradyNumj * gradDenomj[1] + numj * grad2Denomj[1])
-                      + 2.0 * numj * gradDenomj[1] * gradDenomj[1]) / (denomj * denomj * denomj);
-    VectorXd gradzznj = (denomj * denomj * gradzzNumj
-                      - denomj * (2.0 * gradzNumj * gradDenomj[2] + numj * grad2Denomj[2])
-                      + 2.0 * numj * gradDenomj[2] * gradDenomj[2]) / (denomj * denomj * denomj);
-
-    */
-
   if (electronsOfCorrectSpin(i, j, ss)) {
 
     VectorXd ni, nj;
@@ -1129,7 +720,6 @@ void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, Matr
       AB_eval_deriv2(i, r, ni, gradni, grad2ni);
       AB_eval_deriv2(j, r, nj, gradnj, grad2nj);
     }
-
 
     for (int I = 0; I < ni.size(); I++)
     {

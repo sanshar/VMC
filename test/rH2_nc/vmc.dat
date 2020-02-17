@@ -1,0 +1,35 @@
+jastrowslater
+rhf
+#complex
+#dontoptimizecps
+#dontoptimizeorbs
+
+maxIter 3
+stochasticIter 20000
+seed 1
+#debug
+
+realspacegto
+rsphericalstep
+fourbodyjastrow NC
+
+nalpha 1
+nbeta 1
+norbs 2
+
+#amsgrad
+#stepsize 0.01
+#decay1 0.1
+#decay2 0.01
+
+lm
+direct
+decay 0.1
+hdiagshift 0.1
+dTol 1.e-3
+cgTol 1.e-3
+stepsizes 0.1 0.01 0.05 0.5 1.0
+sgdIter 0
+
+#printOpt
+#printVars

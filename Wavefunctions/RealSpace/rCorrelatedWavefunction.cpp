@@ -162,8 +162,6 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
               const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
               for (int i = 0; i < walk.d.nelec; i++) //loop over electrons
               {
-                //double Int = 1.0;
-                //double Int1 = 1.0;
                 double C = 1.0;
                 Vector3d rI = schd.Ncoords[I];
                 Vector3d ri = walk.d.coord[i];
@@ -179,8 +177,6 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
                 //integrate if nonlocal potential
                 if (l != -1) //angular momentum projector
                 {
-                  //Int = 0.0;
-                  //Int1 = 0.0;
                   VectorXd G = VectorXd::Zero(CPShamRatio.size());
                   C = std::sqrt((2.0 * (double) l + 1.0) / (4.0 * M_PI));
 
@@ -202,32 +198,16 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
                       cout << "grad" << endl;
                       cout << g.transpose() << endl;
                       */
-                      //Int += boost::math::legendre_p<double>(l, costheta) * walk.refHelper.getDetFactor(i, riprime, walk.d, ref) * ratio;
-                      //Int1 += boost::math::legendre_p<double>(l, costheta) * getOverlapFactor(i, riprime, walk);
                   }
-                  //Int /= (double) walk.Q.size();
-                  //Int *= (C * 4.0 * M_PI);
-                  //Int1 /= (double) walk.Q.size();
-                  //Int1 *= (C * 4.0 * M_PI);
                   G /= (double) walk.Q.size();
                   G *= (C * 4.0 * M_PI);
-                  //cout << G.transpose() << endl;
                   CPShamRatio += val * C * G;
                 }
-                /*
-                cout << "#############" << endl;
-                cout << "Integration" << endl;
-                cout << Int << " " << Int1 << endl;
-                cout << endl;
-                */
-
-                //test += val * C * Int;
               }
             }
           }
         }
       }
-
 
       CPShamRatio[corr.EEsameSpinIndex] = 0.0;
       CPShamRatio[corr.EEoppositeSpinIndex] = 0.0;
