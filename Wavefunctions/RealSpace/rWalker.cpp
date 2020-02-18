@@ -810,8 +810,6 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
 
     if (j == elecI) continue;
 
-    if (schd.fourBodyJastrow) { diff -= JastrowEENNValueGrad(j, elecI, d.coord, gminus, params, EENNIndex, 2); }
-
     diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEsameSpinIndex, 1);
     diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEoppositeSpinIndex, 0);
 
@@ -832,8 +830,6 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
 
     if (j == elecI) continue;
 
-    if (schd.fourBodyJastrow) { diff += JastrowEENNValueGrad(j, elecI, d.coord, gplus, params, EENNIndex, 2); }
-    
     diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus, params, EEsameSpinIndex, 1);
     diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus, params, EEoppositeSpinIndex, 0);
 

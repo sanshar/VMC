@@ -53,8 +53,6 @@ double JastrowEEValue(int i, int j, int maxQ,
                       int startIndex,
                       int ss) {
   double value = 0.0;
-  //for (int i=0; i<r.size(); i++)
-  //for (int j=0; j<i; j++)
   {
     if (electronsOfCorrectSpin(i, j, ss)) {
       
@@ -127,8 +125,6 @@ void JastrowEE(int i, int j, int maxQ,
                MatrixXd& laplace, double factor,
                int startIndex,
                int ss) { 
-  //for (int i=0; i<r.size(); i++)
-  //for (int j=0; j<i; j++)
   {
     if (electronsOfCorrectSpin(i, j, ss)) {
       
@@ -180,7 +176,6 @@ double JastrowENValue(int i, int maxQ,
   double value = 0.0;
   int natom = Ncharge.size();
   
-  //for (int i=0; i<r.size(); i++)
   for (int N=0; N<natom; N++)
   {
     const Vector3d& di = r[i], &dN = schd.Ncoords[N];
@@ -209,7 +204,6 @@ double JastrowENValueGrad(int i, int maxQ,
   double value = 0.0;
   vector<double>& Ncharge = schd.Ncharge;
   
-  //for (int i=0; i<r.size(); i++)
   for (int N=0; N<Ncharge.size(); N++)
   {
     const Vector3d& di = r[i], &dN = schd.Ncoords[N];
@@ -247,7 +241,6 @@ void JastrowEN(int i, int maxQ,
                int startIndex) {
   vector<double>& Ncharge = schd.Ncharge;
   
-  //for (int i=0; i<r.size(); i++)
   for (int N=0; N<Ncharge.size(); N++)
   {
     const Vector3d& di = r[i], &dN = schd.Ncoords[N];
@@ -446,8 +439,6 @@ void JastrowEEN(int i, int j, int maxQ,
   vector<double>& Ncharge = schd.Ncharge;
   int index = 0;
   
-  //for (int i=0; i<r.size(); i++)
-  //for (int j=0; j<i; j++)
   for (int N=0; N<Ncharge.size(); N++)
   {
     if (electronsOfCorrectSpin(i, j, ss)) {
@@ -616,11 +607,6 @@ void JastrowEENNLinear(int i, const vector<Vector3d>& r, VectorXd& values, Matri
       gz(i, startIndex + I) += factor * gradn[2][I];
       laplace(i, startIndex + I) += factor * (grad2n[0][I] + grad2n[1][I] + grad2n[2][I]);
   }
-  /*
-  cout << "EENNlinear" << endl;
-  cout <<  i << " " << n.transpose() << endl;
-  cout << endl;
-  */
 }
 
 double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd& params, int startIndex, int ss)
@@ -642,12 +628,14 @@ double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd&
     {
       for (int J = 0; J < nj.size(); J++)
       {
-        /*
-        int _I = std::max(I, J);
-        int _J = std::min(I, J);
-        value += params[startIndex + _I * (_I + 1) / 2 + _J] * ni[I] * nj[J];
-        */
-        value += params[startIndex + I * ni.size() + J] * ni[I] * nj[J];
+        if (i == j)
+        {
+          value += params[startIndex + I * ni.size() + J] * ni[I] * nj[J];
+        }
+        else 
+        {
+          value += params[startIndex + I * ni.size() + J] * (ni[I] * nj[J] + nj[I] * ni[J]);
+        }
       }
     }
 
@@ -677,27 +665,18 @@ double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d gr
     {
       for (int J = 0; J < nj.size(); J++)
       {
-        /*
-        int _I = std::max(I, J);
-        int _J = std::min(I, J);
-
-        double factor = params[startIndex + _I * (_I + 1) / 2 + _J];
-        value += factor * ni[I] * nj[J];
-        grad(0) += factor * (gradni[0][I] * nj[J]);
-        grad(1) += factor * (gradni[1][I] * nj[J]);
-        grad(2) += factor * (gradni[2][I] * nj[J]);
-        */
         double factor = params[startIndex + I * ni.size() + J];
-        value += factor * ni[I] * nj[J];
         if (i == j) {
+          value += factor * ni[I] * nj[J];
           grad(0) += factor * (gradni[0][I] * nj[J] + ni[I] * gradnj[0][J]);
           grad(1) += factor * (gradni[1][I] * nj[J] + ni[I] * gradnj[1][J]);
           grad(2) += factor * (gradni[2][I] * nj[J] + ni[I] * gradnj[2][J]);
         }
         else {
-          grad(0) += factor * (gradni[0][I] * nj[J]);
-          grad(1) += factor * (gradni[1][I] * nj[J]);
-          grad(2) += factor * (gradni[2][I] * nj[J]);
+          value += factor * (ni[I] * nj[J] + nj[I] * ni[J]);
+          grad(0) += factor * (gradni[0][I] * nj[J] + nj[I] * gradni[0][J]);
+          grad(1) += factor * (gradni[1][I] * nj[J] + nj[I] * gradni[1][J]);
+          grad(2) += factor * (gradni[2][I] * nj[J] + nj[I] * gradni[2][J]);
         }
       }
     }
@@ -725,43 +704,23 @@ void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, Matr
     {
       for (int J = 0; J < nj.size(); J++)
       {
-        /*
-        int _I = std::max(I, J);
-        int _J = std::min(I, J);
+        if (i == j)
+        {
+          values[startIndex + I * ni.size() + J] += factor * ni[I] * nj[J];
+          gx(i, startIndex + I * ni.size() + J) += factor * gradni[0][I] * nj[J];
+          gy(i, startIndex + I * ni.size() + J) += factor * gradni[1][I] * nj[J];
+          gz(i, startIndex + I * ni.size() + J) += factor * gradni[2][I] * nj[J];
+          laplace(i, startIndex + I * ni.size() + J) += factor * (grad2ni[0][I] * nj[J]
+                                                                + grad2ni[1][I] * nj[J]
+                                                                + grad2ni[2][I] * nj[J]);
 
-        values[startIndex + _I * (_I + 1) / 2 + _J] += factor * ni[I] * nj[J];
+          gx(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[0][J];
+          gy(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[1][J];
+          gz(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[2][J];
+          laplace(j, startIndex + I * ni.size() + J) += factor * (ni[I] * grad2nj[0][J]
+                                                                + ni[I] * grad2nj[1][J]
+                                                                + ni[I] * grad2nj[2][J]);
 
-        gx(i, startIndex + _I * (_I + 1) / 2 + _J) += factor * gradni[0][I] * nj[J];
-        gy(i, startIndex + _I * (_I + 1) / 2 + _J) += factor * gradni[1][I] * nj[J];
-        gz(i, startIndex + _I * (_I + 1) / 2 + _J) += factor * gradni[2][I] * nj[J];
-        laplace(i, startIndex + _I * (_I + 1) / 2 + _J) += factor * (grad2ni[0][I] * nj[J]
-                                                                   + grad2ni[1][I] * nj[J]
-                                                                   + grad2ni[2][I] * nj[J]);
-
-        gx(j, startIndex + _I * (_I + 1) / 2 + _J) += factor * ni[I] * gradnj[0][J];
-        gy(j, startIndex + _I * (_I + 1) / 2 + _J) += factor * ni[I] * gradnj[1][J];
-        gz(j, startIndex + _I * (_I + 1) / 2 + _J) += factor * ni[I] * gradnj[2][J];
-        laplace(j, startIndex + _I * (_I + 1) / 2 + _J) += factor * (ni[I] * grad2nj[0][J]
-                                                                   + ni[I] * grad2nj[1][J]
-                                                                   + ni[I] * grad2nj[2][J]);
-        */
-        values[startIndex + I * ni.size() + J] += factor * ni[I] * nj[J];
-
-        gx(i, startIndex + I * ni.size() + J) += factor * gradni[0][I] * nj[J];
-        gy(i, startIndex + I * ni.size() + J) += factor * gradni[1][I] * nj[J];
-        gz(i, startIndex + I * ni.size() + J) += factor * gradni[2][I] * nj[J];
-        laplace(i, startIndex + I * ni.size() + J) += factor * (grad2ni[0][I] * nj[J]
-                                                              + grad2ni[1][I] * nj[J]
-                                                              + grad2ni[2][I] * nj[J]);
-
-        gx(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[0][J];
-        gy(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[1][J];
-        gz(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[2][J];
-        laplace(j, startIndex + I * ni.size() + J) += factor * (ni[I] * grad2nj[0][J]
-                                                              + ni[I] * grad2nj[1][J]
-                                                              + ni[I] * grad2nj[2][J]);
-
-        if (i == j) {
           laplace(i, startIndex + I * ni.size() + J) += factor * (gradni[0][I] * gradnj[0][J]
                                                                 + gradni[1][I] * gradnj[1][J]
                                                                 + gradni[2][I] * gradnj[2][J]);
@@ -770,34 +729,33 @@ void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, Matr
                                                                 + gradni[1][I] * gradnj[1][J]
                                                                 + gradni[2][I] * gradnj[2][J]);
         }
+        else
+        {
+          values[startIndex + I * ni.size() + J] += factor * (ni[I] * nj[J] + nj[I] * ni[J]);
+
+          gx(i, startIndex + I * ni.size() + J) += factor * (gradni[0][I] * nj[J] + nj[I] * gradni[0][J]);
+          gy(i, startIndex + I * ni.size() + J) += factor * (gradni[1][I] * nj[J] + nj[I] * gradni[1][J]);
+          gz(i, startIndex + I * ni.size() + J) += factor * (gradni[2][I] * nj[J] + nj[I] * gradni[2][J]);
+          laplace(i, startIndex + I * ni.size() + J) += factor * (grad2ni[0][I] * nj[J]
+                                                                + grad2ni[1][I] * nj[J]
+                                                                + grad2ni[2][I] * nj[J]
+                                                                + nj[I] * grad2ni[0][J]
+                                                                + nj[I] * grad2ni[1][J]
+                                                                + nj[I] * grad2ni[2][J]);
+
+
+
+          gx(j, startIndex + I * ni.size() + J) += factor * (ni[I] * gradnj[0][J] + gradnj[0][I] * ni[J]);
+          gy(j, startIndex + I * ni.size() + J) += factor * (ni[I] * gradnj[1][J] + gradnj[1][I] * ni[J]);
+          gz(j, startIndex + I * ni.size() + J) += factor * (ni[I] * gradnj[2][J] + gradnj[2][I] * ni[J]);
+          laplace(j, startIndex + I * ni.size() + J) += factor * (ni[I] * grad2nj[0][J]
+                                                                + ni[I] * grad2nj[1][J]
+                                                                + ni[I] * grad2nj[2][J]
+                                                                + grad2nj[0][I] * ni[J]
+                                                                + grad2nj[1][I] * ni[J]
+                                                                + grad2nj[2][I] * ni[J]);
+        }
       }
     }
-
-    /*
-    if (i == 0 && j == 1) {
-    cout << "EENN basis" << endl;
-    cout << r[0].transpose() << endl;
-    cout << r[1].transpose() << endl << endl;
-    cout << ni[0] << " " << nj[0] << " | " << ni[0] + nj[0] << endl;
-    cout << ni[1] << " " << nj[1] << " | " << ni[1] + nj[1] << endl;
-    cout << endl;
-    cout << i << endl;
-    cout << gradni[0].transpose() << endl;
-    cout << gradni[1].transpose() << endl;
-    cout << gradni[2].transpose() << endl << endl;
-    cout << grad2ni[0].transpose() << endl;
-    cout << grad2ni[1].transpose() << endl;
-    cout << grad2ni[2].transpose() << endl << endl;
-    cout << endl;
-    cout << j << endl;
-    cout << gradnj[0].transpose() << endl;
-    cout << gradnj[1].transpose() << endl;
-    cout << gradnj[2].transpose() << endl << endl;
-    cout << grad2nj[0].transpose() << endl;
-    cout << grad2nj[1].transpose() << endl;
-    cout << grad2nj[2].transpose() << endl << endl;
-    }
-    */
   }
 }
-
