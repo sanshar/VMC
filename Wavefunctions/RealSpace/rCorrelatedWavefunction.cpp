@@ -1,4 +1,5 @@
 #include "rCorrelatedWavefunction.h"
+#include "rPseudopotential.h"
 #include "global.h"
 #include "input.h"
 #include <boost/math/special_functions/legendre.hpp>
@@ -25,7 +26,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   double Eloc;
   std::complex<double> cEloc;
 
-  double potentialij = 0.0, potentiali = 0.0, potentiali_pp = 0.0, potentialN = 0.0;
+  double potentialij = 0.0, potentiali = 0.0, potentiali_ppl = 0.0, potentiali_ppnl = 0.0, potentialN = 0.0;
 
   //get potential
   for (int i=0; i<nelec; i++)
@@ -46,12 +47,9 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   }
 
   //pseudopotential
-  Pseudopotential &pp = *schd.pseudo;
-  bool pseudo = false;
-  if (pp.size() != 0) //if pseudopotential object is not empty
+  const Pseudopotential &pp = *schd.pseudo;
+  if (pp.size()) //if pseudopotential object is not empty
   {
-    pseudo = true;
-
     //local potential
     for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
     {
@@ -68,7 +66,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
              //calculate potential
              double v = 0.0;
              for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
-             potentiali_pp += v;    
+             potentiali_ppl += v;    
           }
         }
       }
@@ -83,7 +81,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
         if (i < walk.d.nalpha) { factor = walk.Bnl.row(i).head(walk.d.nalpha) * thetaInv[0].col(i); }
         else { factor = walk.Bnl.row(i).tail(walk.d.nbeta) * thetaInv[1].col(i - walk.d.nalpha); }
       }
-      potentiali_pp += (thetaDet * factor).real() / thetaDet.real();
+      potentiali_ppnl += (thetaDet * factor).real() / thetaDet.real();
     } 
   }
 
@@ -110,8 +108,11 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
       ckinetic += walk.corrHelper.LaplaceRatio[i];
     }
   }
-  Eloc = -0.5 * kinetic + potentialij + potentiali + potentiali_pp + potentialN; 
-  cEloc = -0.5 * ckinetic + potentialij + potentiali + potentiali_pp + potentialN; 
+  Eloc = -0.5 * kinetic + potentialij + potentiali + potentiali_ppl + potentiali_ppnl + potentialN; 
+  cEloc = -0.5 * ckinetic + potentialij + potentiali + potentiali_ppl + potentiali_ppnl + potentialN; 
+  //cout << "T\t\tVij\t\tViI\t\tVl\t\tVnl\t\tVIJ" << endl;
+  //cout << -0.5 * kinetic << " " << potentialij << " " << potentiali << " " << potentiali_ppl << " " << potentiali_ppnl << " " << potentialN; 
+  //cout << endl << endl;
  
   int numVars = 0;
   //*********calculate gradRatio and hamRatio for jastrows
@@ -146,6 +147,68 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
                                2.*walk.corrHelper.GradRatio(i,2)*walk.corrHelper.ParamGradient[2](i,j));
           }
       }
+
+      if (pp.size())
+      {
+        for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
+        {
+          const ppHelper &ppatm = it->second;
+          for (int j = 0; j < ppatm.indices().size(); j++) //loop over indices of atom
+          {
+            int I = ppatm.indices()[j];
+            for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
+            {
+              int l = it1->first; //angular momentum
+              const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
+              for (int i = 0; i < walk.d.nelec; i++) //loop over electrons
+              {
+                double C = 1.0;
+                Vector3d rI = schd.Ncoords[I];
+                Vector3d ri = walk.d.coord[i];
+                Vector3d riI = ri - rI;
+                
+                //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
+                if (l != -1 && riI.norm() > 2.0) { continue; } 
+
+                //calculate potential
+                double val = 0.0;
+                for (int m = 0; m < pec.size(); m = m + 3) { val += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
+                
+                //integrate if nonlocal potential
+                if (l != -1) //angular momentum projector
+                {
+                  VectorXd G = VectorXd::Zero(CPShamRatio.size());
+                  C = std::sqrt((2.0 * (double) l + 1.0) / (4.0 * M_PI));
+
+                  for (int q = 0; q < walk.Q.size(); q++)
+                  {
+                      //calculate new vector, riprime
+                      Vector3d riIprime = riI.norm() * walk.Q[q];
+                      //calculate angle
+                      double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
+                      //multiply legendre polynomial and wavefunction overlap ratio
+                      Vector3d riprime = riIprime + rI;
+                      VectorXd g;
+                      double ratio = walk.corrHelper.OverlapRatioAndParamGradient(i, riprime, corr, walk.d, g);
+                      G += boost::math::legendre_p<double>(l, costheta) * walk.refHelper.getDetFactor(i, riprime, walk.d, ref) * ratio * g;
+                      /*
+                      cout << "----------------" << endl;
+                      cout << "My func vs code func" << endl;
+                      cout << ratio << " " << walk.corrHelper.OverlapRatio(i, riprime, corr, walk.d) << endl;
+                      cout << "grad" << endl;
+                      cout << g.transpose() << endl;
+                      */
+                  }
+                  G /= (double) walk.Q.size();
+                  G *= (C * 4.0 * M_PI);
+                  CPShamRatio += val * C * G;
+                }
+              }
+            }
+          }
+        }
+      }
+
       CPShamRatio[corr.EEsameSpinIndex] = 0.0;
       CPShamRatio[corr.EEoppositeSpinIndex] = 0.0;
       CPSgradRatio[corr.EEsameSpinIndex] = 0.0;
@@ -193,19 +256,19 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
       AOGradz.row(mo) *= walk.corrHelper.GradRatio(mo,2);
     }
     
-    if (schd.hf == "ghf") {
-
+    if (schd.hf == "ghf")
+    {
       MatrixXcd X = thetaInv[0] * Laplacian * thetaInv[0];
       MatrixXcd Xgx = thetaInv[0] * Gradx * thetaInv[0];
       MatrixXcd Xgy = thetaInv[0] * Grady * thetaInv[0];
       MatrixXcd Xgz = thetaInv[0] * Gradz * thetaInv[0];
       MatrixXcd Xnl;
-      if (pseudo) { Xnl = thetaInv[0] * walk.Bnl * thetaInv[0]; }
+      if (pp.size()) { Xnl = thetaInv[0] * walk.Bnl * thetaInv[0]; }
 
       for (int mo = 0; mo < nelec; mo++) { 
         for (int orb = 0; orb < 2*norbs; orb++) {
           //nonlocal potential contribution 
-          if (pseudo)
+          if (pp.size())
           {
             std::complex<double> t1 = thetaInv[0].row(mo) * walk.AOBnl.col(orb);
             std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb);
@@ -246,142 +309,144 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
             RefGradcEloc[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
           }
 
-          std::complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb);
-          RefGradcOvlp[numDets + 2*orb * nelec + 2*mo] += factor;
-          RefGradcOvlp[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
-          RefgradRatio[numDets + 2*orb * nelec + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
-          if (schd.ifComplex) RefgradRatio[numDets + 2*orb * nelec + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
+          {
+            std::complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb);
+            RefGradcOvlp[numDets + 2*orb * nelec + 2*mo] += factor;
+            RefGradcOvlp[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
+            RefgradRatio[numDets + 2*orb * nelec + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
+            if (schd.ifComplex) RefgradRatio[numDets + 2*orb * nelec + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
+          }
         } 
       }
     }
-    else { //rhf/uhf
-      {//alpha
+    else
+    { //rhf/uhf
 
-        MatrixXcd X = thetaInv[0] * Laplacian.topLeftCorner(nalpha, nalpha) * thetaInv[0];
-        MatrixXcd Xgx = thetaInv[0] * Gradx.topLeftCorner(nalpha, nalpha) * thetaInv[0];
-        MatrixXcd Xgy = thetaInv[0] * Grady.topLeftCorner(nalpha, nalpha) * thetaInv[0];
-        MatrixXcd Xgz = thetaInv[0] * Gradz.topLeftCorner(nalpha, nalpha) * thetaInv[0];
-        MatrixXcd Xnl;
-        if (pseudo) { Xnl = thetaInv[0] * walk.Bnl.topLeftCorner(nalpha, nalpha) * thetaInv[0]; }
+      //alpha
+      MatrixXcd X = thetaInv[0] * Laplacian.topLeftCorner(nalpha, nalpha) * thetaInv[0];
+      MatrixXcd Xgx = thetaInv[0] * Gradx.topLeftCorner(nalpha, nalpha) * thetaInv[0];
+      MatrixXcd Xgy = thetaInv[0] * Grady.topLeftCorner(nalpha, nalpha) * thetaInv[0];
+      MatrixXcd Xgz = thetaInv[0] * Gradz.topLeftCorner(nalpha, nalpha) * thetaInv[0];
+      MatrixXcd Xnl;
+      if (pp.size()) { Xnl = thetaInv[0] * walk.Bnl.topLeftCorner(nalpha, nalpha) * thetaInv[0]; }
 
-        for (int mo = 0; mo < nalpha; mo++) { 
-          for (int orb = 0; orb < norbs; orb++) {
-            //nonlocal potential contribution 
-            if (pseudo)
-            {
-              std::complex<double> t1 = thetaInv[0].row(mo) * walk.AOBnl.col(orb).head(nalpha);
-              std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb).head(nalpha);
-              std::complex<double> factor = t1 - t2;
-              RefGradcEloc[numDets + 2*orb * nelec + 2*mo] += factor;
-              RefGradcEloc[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
-            }
+      for (int mo = 0; mo < nalpha; mo++) { 
+        for (int orb = 0; orb < norbs; orb++) {
+          //nonlocal potential contribution 
+          if (pp.size())
+          {
+            std::complex<double> t1 = thetaInv[0].row(mo) * walk.AOBnl.col(orb).head(nalpha);
+            std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb).head(nalpha);
+            std::complex<double> factor = t1 - t2;
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
+          }
 
-            //laplacian contribution
-            {
-              std::complex<double> t1 = thetaInv[0].row(mo) * AOLaplacian.col(orb).head(nalpha);
-              std::complex<double> t2 = X.row(mo) * AoRi.col(orb).head(nalpha);
-              std::complex<double> factor = -0.5 * (t1 - t2);
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
-            }
+          //laplacian contribution
+          {
+            std::complex<double> t1 = thetaInv[0].row(mo) * AOLaplacian.col(orb).head(nalpha);
+            std::complex<double> t2 = X.row(mo) * AoRi.col(orb).head(nalpha);
+            std::complex<double> factor = -0.5 * (t1 - t2);
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
+          }
 
-            //grad contribution
-            {
-              std::complex<double> t1 = thetaInv[0].row(mo) * AOGradx.col(orb).head(nalpha);
-              std::complex<double> t2 = Xgx.row(mo) * AoRi.col(orb).head(nalpha);
-              std::complex<double> factor = -(t1 - t2);
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
-            }
-            {
-              std::complex<double> t1 = thetaInv[0].row(mo) * AOGrady.col(orb).head(nalpha);
-              std::complex<double> t2 = Xgy.row(mo) * AoRi.col(orb).head(nalpha);
-              std::complex<double> factor = -(t1 - t2);
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
-            }
-            {
-              std::complex<double> t1 = thetaInv[0].row(mo) * AOGradz.col(orb).head(nalpha);
-              std::complex<double> t2 = Xgz.row(mo) * AoRi.col(orb).head(nalpha);
-              std::complex<double> factor = -(t1 - t2);
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
-              RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
-            }
+          //grad contribution
+          {
+            std::complex<double> t1 = thetaInv[0].row(mo) * AOGradx.col(orb).head(nalpha);
+            std::complex<double> t2 = Xgx.row(mo) * AoRi.col(orb).head(nalpha);
+            std::complex<double> factor = -(t1 - t2);
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
+          }
+          {
+            std::complex<double> t1 = thetaInv[0].row(mo) * AOGrady.col(orb).head(nalpha);
+            std::complex<double> t2 = Xgy.row(mo) * AoRi.col(orb).head(nalpha);
+            std::complex<double> factor = -(t1 - t2);
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
+          }
+          {
+            std::complex<double> t1 = thetaInv[0].row(mo) * AOGradz.col(orb).head(nalpha);
+            std::complex<double> t2 = Xgz.row(mo) * AoRi.col(orb).head(nalpha);
+            std::complex<double> factor = -(t1 - t2);
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
+          }
 
+          {
             std::complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb).head(nalpha);
             RefGradcOvlp[numDets + 2*orb * nalpha + 2*mo] += factor;
             RefGradcOvlp[numDets + 2*orb * nalpha + 2*mo + 1] += i * factor;
             RefgradRatio[numDets + 2*orb * nalpha + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
             if (schd.ifComplex) RefgradRatio[numDets + 2*orb * nalpha + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
-          } 
+          }
         } 
-      }
+      } 
 
       //beta
       int shift = 0;
       if (schd.hf == "uhf") { shift = 2*nalpha*norbs; }
-      {
 
-        MatrixXcd X = thetaInv[1] * Laplacian.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
-        MatrixXcd Xgx = thetaInv[1] * Gradx.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
-        MatrixXcd Xgy = thetaInv[1] * Grady.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
-        MatrixXcd Xgz = thetaInv[1] * Gradz.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
-        MatrixXcd Xnl;
-        if (pseudo) { Xnl = thetaInv[1] * walk.Bnl.bottomRightCorner(nbeta, nbeta) * thetaInv[1]; }
+      X = thetaInv[1] * Laplacian.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
+      Xgx = thetaInv[1] * Gradx.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
+      Xgy = thetaInv[1] * Grady.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
+      Xgz = thetaInv[1] * Gradz.bottomRightCorner(nbeta, nbeta) * thetaInv[1];
+      if (pp.size()) { Xnl = thetaInv[1] * walk.Bnl.bottomRightCorner(nbeta, nbeta) * thetaInv[1]; }
 
-        for (int mo = 0; mo < nbeta; mo++) { 
-          for (int orb = 0; orb < norbs; orb++) {
-            //nonlocal potential contribution 
-            if (pseudo)
-            {
-              std::complex<double> t1 = thetaInv[1].row(mo) * walk.AOBnl.col(orb).tail(nbeta);
-              std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb).tail(nbeta);
-              std::complex<double> factor = t1 - t2;
-              RefGradcEloc[numDets + 2*orb * nelec + 2*mo] += factor;
-              RefGradcEloc[numDets + 2*orb * nelec + 2*mo + 1] += i * factor;
-            }
+      for (int mo = 0; mo < nbeta; mo++) { 
+        for (int orb = 0; orb < norbs; orb++) {
+          //nonlocal potential contribution 
+          if (pp.size())
+          {
+            std::complex<double> t1 = thetaInv[1].row(mo) * walk.AOBnl.col(orb).tail(nbeta);
+            std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb).tail(nbeta);
+            std::complex<double> factor = t1 - t2;
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+          }
 
-            //laplacian contribution
-            {
-              std::complex<double> t1 = thetaInv[1].row(mo) * AOLaplacian.col(orb).tail(nbeta);
-              std::complex<double> t2 = X.row(mo) * AoRi.col(orb).tail(nbeta);
-              std::complex<double> factor = -0.5 * (t1 - t2);
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
-            }
+          //laplacian contribution
+          {
+            std::complex<double> t1 = thetaInv[1].row(mo) * AOLaplacian.col(orb).tail(nbeta);
+            std::complex<double> t2 = X.row(mo) * AoRi.col(orb).tail(nbeta);
+            std::complex<double> factor = -0.5 * (t1 - t2);
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+          }
 
-            //grad contribution
-            {
-              std::complex<double> t1 = thetaInv[1].row(mo) * AOGradx.col(orb).tail(nbeta);
-              std::complex<double> t2 = Xgx.row(mo) * AoRi.col(orb).tail(nbeta);
-              std::complex<double> factor = -(t1 - t2);
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
-            }
-            {
-              std::complex<double> t1 = thetaInv[1].row(mo) * AOGrady.col(orb).tail(nbeta);
-              std::complex<double> t2 = Xgy.row(mo) * AoRi.col(orb).tail(nbeta);
-              std::complex<double> factor = -(t1 - t2);
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
-            }
-            {
-              std::complex<double> t1 = thetaInv[1].row(mo) * AOGradz.col(orb).tail(nbeta);
-              std::complex<double> t2 = Xgz.row(mo) * AoRi.col(orb).tail(nbeta);
-              std::complex<double> factor = -(t1 - t2);
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-              RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
-            }
+          //grad contribution
+          {
+            std::complex<double> t1 = thetaInv[1].row(mo) * AOGradx.col(orb).tail(nbeta);
+            std::complex<double> t2 = Xgx.row(mo) * AoRi.col(orb).tail(nbeta);
+            std::complex<double> factor = -(t1 - t2);
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+          }
+          {
+            std::complex<double> t1 = thetaInv[1].row(mo) * AOGrady.col(orb).tail(nbeta);
+            std::complex<double> t2 = Xgy.row(mo) * AoRi.col(orb).tail(nbeta);
+            std::complex<double> factor = -(t1 - t2);
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+          }
+          {
+            std::complex<double> t1 = thetaInv[1].row(mo) * AOGradz.col(orb).tail(nbeta);
+            std::complex<double> t2 = Xgz.row(mo) * AoRi.col(orb).tail(nbeta);
+            std::complex<double> factor = -(t1 - t2);
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+          }
 
+          {
             std::complex<double> factor = thetaInv[1].row(mo) * AoRi.col(orb).tail(nbeta);
             RefGradcOvlp[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
             RefGradcOvlp[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
             RefgradRatio[numDets + shift + 2*orb * nbeta + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
             if (schd.ifComplex) RefgradRatio[numDets + shift + 2*orb * nbeta + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
-          } 
-        }
+          }
+        } 
       }
-
     }
   } //opt orbs
   RefhamRatio = ((cEloc * RefGradcOvlp + RefGradcEloc) * thetaDet).real() / thetaDet.real();
@@ -483,7 +548,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
   }
 
   //pseudopotential
-  Pseudopotential &pp = *schd.pseudo;
+  const Pseudopotential &pp = *schd.pseudo;
   if (pp.size() != 0) //if pseudopotential object is not empty
   {
     //local potential
@@ -587,7 +652,7 @@ double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFS
   }
 
   //pseudopotential
-  Pseudopotential &pp = *schd.pseudo;
+  const Pseudopotential &pp = *schd.pseudo;
   if (pp.size() != 0) //if pseudopotential object is not empty
   {
     for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential

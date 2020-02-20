@@ -53,9 +53,9 @@ class LM
     int iter;
     int maxIter;
     std::vector<double> stepsizes;
-    double decay, hdiagshift;
+    double decay, hdiagshift, sdiagshift;
 
-    LM(int _maxIter, std::vector<double> _stepsizes, double _hdiagshift, double _decay) : maxIter(_maxIter), hdiagshift(_hdiagshift), stepsizes(_stepsizes), decay(_decay)
+    LM(int _maxIter, std::vector<double> _stepsizes, double _hdiagshift, double _sdiagshift, double _decay) : maxIter(_maxIter), hdiagshift(_hdiagshift), sdiagshift(_sdiagshift), stepsizes(_stepsizes), decay(_decay)
     {
         iter = 0;
     }
@@ -138,7 +138,7 @@ class LM
        if (shift < 1.e-8) shift = 1.e-8;
        for (int i=0; i<numVars+1; i++) {
          Hessian(i,i) += shift;
-         Smatrix(i,i) += schd.sDiagShift;
+         Smatrix(i,i) += sdiagshift;
        }
 
        MatrixXd Uo = MatrixXd::Zero(numVars+1, numVars+1);       
@@ -453,13 +453,13 @@ class directLM
     int numLMiter;
     double rt;
     std::vector<double> LMStep;
-    double hdiagshift, LMDecay;
+    double hdiagshift, sdiagshift, LMDecay;
     int AMSGradIter;
     double AMSGradStep, AMSGradDecay1, AMSGradDecay2;
     VectorXd mom1;
     VectorXd mom2;
 
-    directLM(int _maxIter, std::vector<double> _LMStep, double _hdiagshift, double _LMDecay, int _AMSGradIter = 100, double _AMSGradStep = 0.001, double _AMSGradDecay1 = 0.1, double _AMSGradDecay2 = 0.001) : maxIter(_maxIter), LMStep(_LMStep), hdiagshift(_hdiagshift), LMDecay(_LMDecay), AMSGradIter(_AMSGradIter), AMSGradStep(_AMSGradStep), AMSGradDecay1(_AMSGradDecay1), AMSGradDecay2(_AMSGradDecay2)
+    directLM(int _maxIter, std::vector<double> _LMStep, double _hdiagshift, double _sdiagshift, double _LMDecay, int _AMSGradIter = 100, double _AMSGradStep = 0.001, double _AMSGradDecay1 = 0.1, double _AMSGradDecay2 = 0.001) : maxIter(_maxIter), LMStep(_LMStep), hdiagshift(_hdiagshift), sdiagshift(_sdiagshift), LMDecay(_LMDecay), AMSGradIter(_AMSGradIter), AMSGradStep(_AMSGradStep), AMSGradDecay1(_AMSGradDecay1), AMSGradDecay2(_AMSGradDecay2)
     {
         iter = 0;
         numLMiter = 0;
@@ -529,7 +529,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
        VectorXd grad = VectorXd::Zero(numVars);
        double shift = hdiagshift * std::pow(LMDecay, numLMiter);
        if (shift < 1.e-8) shift = 1.e-8;
-       DirectLM h(shift, schd.sDiagShift);
+       DirectLM h(shift, sdiagshift);
 
        double acceptedFrac = getHessian(vars, grad, h, E0, stddev, rt);
        write(vars);

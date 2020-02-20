@@ -925,8 +925,6 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
       if (schd.fourBodyJastrow) {
         JastrowEENN(i, j, d.coord, ParamValues, ParamGradient[0],
                 ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNIndex, 2);
-        JastrowEENN(j, i, d.coord, ParamValues, ParamGradient[0],
-                ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNIndex, 2);
       }
  
       JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
@@ -981,7 +979,7 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
   Vector3d bkp = d.coord[i];
   const_cast<Vector3d&>(d.coord[i]) = oldcoord;
 
-  
+ 
   JastrowEN(i, Qmax, d.coord, ParamValues, ParamGradient[0],
             ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, ENIndex);
 
@@ -996,11 +994,7 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
                   ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENNIndex, 2);
 
     if (i == j) continue;
-
-    if (schd.fourBodyJastrow)
-      JastrowEENN(j, i, d.coord, ParamValues, ParamGradient[0],
-                  ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENNIndex, 2);
-    
+ 
     JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
               ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EEsameSpinIndex, 1);
     
@@ -1033,10 +1027,6 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
                   ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNIndex, 2);
 
     if (i == j) continue;
-
-    if (schd.fourBodyJastrow)
-      JastrowEENN(j, i, d.coord, ParamValues, ParamGradient[0],
-                  ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNIndex, 2);
 
     JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
               ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEsameSpinIndex, 1);
@@ -1088,8 +1078,6 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
 
     if (i == j) continue;
 
-    if (schd.fourBodyJastrow) diff += JastrowEENNValue(j, i, d.coord, jastrowParams, EENNIndex, 2);
-
     diff += JastrowEEValue(i, j, Qmax, d.coord, jastrowParams, EEsameSpinIndex, 1);
     diff += JastrowEEValue(i, j, Qmax, d.coord, jastrowParams, EEoppositeSpinIndex, 0);
 
@@ -1112,8 +1100,6 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
 
     if (i == j) continue;
 
-    if (schd.fourBodyJastrow) diff -= JastrowEENNValue(j, i, d.coord, jastrowParams, EENNIndex, 2);
-
     diff -= JastrowEEValue(i, j, Qmax, d.coord, jastrowParams, EEsameSpinIndex, 1);
     diff -= JastrowEEValue(i, j, Qmax, d.coord, jastrowParams, EEoppositeSpinIndex, 0);
 
@@ -1125,6 +1111,82 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
 
   //cout << diff << endl;
   return exp(diff);
+}
+
+
+double rWalkerHelper<rJastrow>::OverlapRatioAndParamGradient(int i, Vector3d& coord, const rJastrow& cps, const rDeterminant &d, VectorXd &paramValues) const
+{
+  paramValues = VectorXd::Zero(ParamValues.size());
+  std::vector<MatrixXd> paramGradient(3, MatrixXd::Zero(ParamGradient[0].rows(), ParamGradient[0].cols()));
+  MatrixXd paramLaplacian = MatrixXd::Zero(ParamLaplacian.rows(), ParamLaplacian.cols());
+
+  Vector3d bkp = d.coord[i];
+  const_cast<rDeterminant&>(d).coord[i] = coord;
+
+  JastrowEN(i, Qmax, d.coord, paramValues, paramGradient[0],
+            paramGradient[1], paramGradient[2], paramLaplacian, 1.0, ENIndex);
+
+  if (schd.fourBodyJastrow)
+    JastrowEENNLinear(i, d.coord, paramValues, paramGradient[0],
+                      paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENNlinearIndex);
+
+  for (int j=0; j<d.nelec; j++) {
+
+    if (schd.fourBodyJastrow)
+      JastrowEENN(i, j, d.coord, paramValues, paramGradient[0],
+                  paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENNIndex, 2);
+
+    if (i == j) continue;
+
+    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
+              paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EEsameSpinIndex, 1);
+    
+    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
+              paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EEoppositeSpinIndex, 0);
+    
+    if (!schd.fourBodyJastrow) {
+      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
+                 paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENsameSpinIndex, 1);
+      
+      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
+                 paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENoppositeSpinIndex, 0);
+    }
+  }
+
+  const_cast<rDeterminant&>(d).coord[i] = bkp;
+
+  JastrowEN(i, Qmax, d.coord, paramValues, paramGradient[0],
+            paramGradient[1], paramGradient[2], paramLaplacian, -1.0, ENIndex);
+
+  if (schd.fourBodyJastrow)
+    JastrowEENNLinear(i, d.coord, paramValues, paramGradient[0],
+                      paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENNlinearIndex);
+
+  for (int j=0; j<d.nelec; j++) {
+
+    if (schd.fourBodyJastrow)
+      JastrowEENN(i, j, d.coord, paramValues, paramGradient[0],
+                  paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENNIndex, 2);
+
+    if (i == j) continue;
+
+    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
+              paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EEsameSpinIndex, 1);
+    
+    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
+              paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EEoppositeSpinIndex, 0);
+    
+    if (!schd.fourBodyJastrow) {
+      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
+                 paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENsameSpinIndex, 1);
+      
+      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
+                 paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENoppositeSpinIndex, 0);
+    }
+  }
+
+  double exp = paramValues.dot(jastrowParams);
+  return std::exp(exp);
 }
 
 

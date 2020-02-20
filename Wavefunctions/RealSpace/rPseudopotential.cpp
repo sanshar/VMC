@@ -5,19 +5,19 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/serialization/map.hpp>
 
-std::ostream &operator<<(std::ostream &os, Pseudopotential &PP)
+std::ostream &operator<<(std::ostream &os, const Pseudopotential &PP)
 {
     for (auto it = PP.begin(); it != PP.end(); ++it)
     {
         int atm = it->first;
-        ppHelper &ppatm = it->second;
+        const ppHelper &ppatm = it->second;
         os << atm << "\t" << ppatm.ncore() << "\tidx";
         for (int i = 0; i < ppatm.indices().size(); i++) { os << "\t" << ppatm.indices()[i]; }
         os << std::endl;
         for (auto it1 = ppatm.begin(); it1 != ppatm.end(); ++it1)
         {
             int l = it1->first;
-            std::vector<double> &lchannel = it1->second;
+            const std::vector<double> &lchannel = it1->second;
             os << l << std::endl;
             for (int i = 0; i < lchannel.size(); ++i)
             {

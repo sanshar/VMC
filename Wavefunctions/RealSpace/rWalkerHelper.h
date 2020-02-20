@@ -205,6 +205,9 @@ class rWalkerHelper<rJastrow>
                       const rDeterminant &d) const;
 
 
+  double OverlapRatioAndParamGradient(int i, Vector3d& coord, const rJastrow& cps, const rDeterminant &d, VectorXd &paramValues) const;
+
+
   void OverlapWithGradient(const rJastrow& cps,
                            VectorXd& grad,
                            const rDeterminant& d,

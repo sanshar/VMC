@@ -43,7 +43,7 @@ class ppHelper
 class Pseudopotential
 {
     private:
-    friend std::ostream &operator<<(std::ostream &os, Pseudopotential &PP);
+    friend std::ostream &operator<<(std::ostream &os, const Pseudopotential &PP);
     friend class boost::serialization::access;
     template<class Archive>
     void serialize(Archive &ar, const unsigned int version) { ar & Store; }
@@ -57,7 +57,7 @@ class Pseudopotential
     int ncore() const; //returns the total number of core electrons replaced by PP, (ie. this is summed over all atoms)
     const ppHelper &operator[](int atm) const { return Store.at(atm); }
 
-    std::size_t size() { return Store.size(); }
+    std::size_t size() const { return Store.size(); }
     auto find(int atm) { return Store.find(atm); }
     auto begin() { return Store.begin(); }
     auto end() { return Store.end(); }

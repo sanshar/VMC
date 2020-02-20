@@ -74,7 +74,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.stepsize = 0.001;
       schd.realSpaceStep = 0.1;
       schd.fourBodyJastrow = false;
-      schd.fourBodyJastrowBasis = AB;
+      schd.fourBodyJastrowBasis = NC;
       schd.Qmax = 6;
       schd.QmaxEEN = 3;
       schd.stochasticIter = 1e4;
@@ -173,9 +173,9 @@ void readInput(string input, schedule& schd, bool print) {
       else if (boost::iequals(ArgName, "fourbodyjastrow"))
       {
         schd.fourBodyJastrow = true;
-        if (boost::iequals(tok[1].c_str(), "FC"))
+        if (boost::iequals(tok[1].c_str(), "NC"))
         {
-          schd.fourBodyJastrowBasis = FC;
+          schd.fourBodyJastrowBasis = NC;
         }
         else if (boost::iequals(tok[1].c_str(), "AB"))
         {

@@ -9,36 +9,8 @@
 using namespace std;
 using namespace Eigen;
 
-
-/*
-struct JastrowBasis {
- private:
-  friend class boost::serialization::access;
-  template<class Archive>
-  void serialize(Archive & ar, const unsigned int version)
-  {
-      ar & ptr;
-  }
-  
- public:
-  double *ptr;
-
-  JastrowBasis(double *funcParams) ptr{funcParams} {}
-  
-  virtual void eval(int elec, const vector<Vector3d> &x, VectorXd &values) = 0;
-  virtual void eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad) = 0;
-  virtual void eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &laplace) = 0;
-};
-*/
-
-/*
-struct FragmentCounter {
-
-  FragmentCounter() {}
-  */
-
-//Fragment Counter
-  void FC_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
+//Number Counter
+  void NC_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
   {
     vector<double>& Ncharge = schd.Ncharge;
     vector<int>& Nbasis = schd.Nbasis;
@@ -64,7 +36,7 @@ struct FragmentCounter {
   }
 
 
-  void FC_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
+  void NC_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
   {
     vector<double>& Ncharge = schd.Ncharge;
     vector<int>& Nbasis = schd.Nbasis;
@@ -107,7 +79,7 @@ struct FragmentCounter {
   }
 
 
-  void FC_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &laplace)
+  void NC_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &laplace)
   {
     vector<double>& Ncharge = schd.Ncharge;
     vector<int>& Nbasis = schd.Nbasis;
@@ -172,7 +144,6 @@ struct FragmentCounter {
                + 2.0 * num * gradDenom[2] * gradDenom[2]) / (denom * denom * denom);
   }
 
-//};
 
 
 //Sorella Style, atomic basis is jastrow basis
