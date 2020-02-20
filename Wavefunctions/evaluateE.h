@@ -253,6 +253,28 @@ void getTwoRdmDeterministic(Wfn &w, Walker& walk, MatrixXd &twoRdm)
 #endif
   twoRdm = twoRdm / Overlap;
 
+  if (commrank == 0) {
+    char file[5000];
+    int root = 0;
+    sprintf(file, "spatialRDM.%d.%d.txt", root,
+            root);
+    std::ofstream ofs(file, std::ios::out);
+    ofs << norbs << endl;
+    double Etwo = 0.0, Eone = 0.0;
+    for (int i=0; i<norbs; i++)
+      for (int j=0; j<norbs; j++)
+        for (int a=0; a<norbs; a++)
+          for (int b=0; b<norbs; b++) {
+            ofs << str(boost::format("%3d   %3d   %3d   %3d   %10.8g\n") %
+                       i % j % b % a %
+                       (twoRdm(i * norbs + j, a * norbs + b)));
+            //double int2 = I2 (2*i, 2*b, 2*j, 2*a);
+            //Etwo += 0.5 * twoRdm(i*norbs + j , a*norbs + b) * int2;
+          }
+    ofs.close();
+    
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
   /*
   double Etwo = 0.0, Eone = 0.0;
   for (int i=0; i<norbs; i++)
@@ -751,8 +773,8 @@ void getStochasticTwoRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &twoRdm, i
         for (int a=0; a<norbs; a++)
           for (int b=0; b<norbs; b++) {
             ofs << str(boost::format("%3d   %3d   %3d   %3d   %10.8g\n") %
-                       i % j % a % b %
-                       (twoRdm(i * norbs + j, a * norbs + b)*0.5));
+                       i % j % b % a %
+                       (twoRdm(i * norbs + j, a * norbs + b)));
             //double int2 = I2 (2*i, 2*b, 2*j, 2*a);
             //Etwo += 0.5 * twoRdm(i*norbs + j , a*norbs + b) * int2;
           }
@@ -878,7 +900,7 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
   double cumdeltaT = 0.;
   double cumdeltaT2 = 0.;
   
-  int transIter = 0, nTransIter = 1000;
+  int transIter = 0, nTransIter = niter/2;
 
   while (transIter < nTransIter) {
     double cumovlpRatio = 0;

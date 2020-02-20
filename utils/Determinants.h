@@ -168,6 +168,12 @@ void getDifferenceInOccupation(const Determinant &bra, const Determinant &ket,
 
 double getParityForDiceToAlphaBeta(const Determinant& det);
 
+void generateScreenedSingleDoubleExcitation(const Determinant& d,
+                                             const double& THRESH,
+                                             const double& TINY,
+                                             workingArray& work,
+                                             bool doparity);
+
 void generateAllScreenedDoubleExcitation(const Determinant& det,
                                          const double& screen,
                                          const double& TINY,

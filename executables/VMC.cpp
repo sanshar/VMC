@@ -230,8 +230,10 @@ int main(int argc, char *argv[])
     //getOneRdmDeterministic(wave, walk, oneRdm0, 0);
     //getOneRdmDeterministic(wave, walk, oneRdm1, 1);
     //getDensityCorrelationsDeterministic(wave, walk, corr);
-    getStochasticTwoRdmContinuousTime(wave, walk, twoRdm, schd.stochasticIter);
-    //getTwoRdmDeterministic(wave, walk, twoRdm);
+    if (schd.deterministic)
+      getTwoRdmDeterministic(wave, walk, twoRdm);
+    else
+      getStochasticTwoRdmContinuousTime(wave, walk, twoRdm, schd.stochasticIter);
   }
   
   else if (schd.wavefunctionType == "agpRDM") {
