@@ -1,0 +1,14 @@
+#jastrowslater
+#gutzwillerslater
+noci 4
+ghf
+complex
+
+
+#restart
+macroiter 10
+microiter 100
+epsilon 1.e-8
+tol 1.e-8
+
+
