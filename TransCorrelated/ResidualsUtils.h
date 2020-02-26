@@ -256,12 +256,13 @@ void applyProjector(
         else  return mat.conjugate();
       };
 
-  coeffs.resize(2*ngrid);
-  std::transform(coeffs.begin(), coeffs.end(), coeffs.begin(),
+  size_t oldSize = coeffs.size();
+  coeffs.resize(oldSize + 2*ngrid);
+  std::transform(coeffs.begin() + oldSize, coeffs.end(), coeffs.begin() + oldSize,
                  CoeffF);
 
-  ketvec.resize(2*ngrid);
-  std::transform(ketvec.begin(), ketvec.end(), ketvec.begin(),
+  ketvec.resize(oldSize + 2*ngrid);
+  std::transform(ketvec.begin() + oldSize, ketvec.end(), ketvec.begin() + oldSize,
                  ketF);
 }
 
@@ -317,6 +318,29 @@ Matrix<complexT, Dynamic, Dynamic> fillWfnOrbs(Matrix<complexT, Dynamic, Dynamic
 
   Matrix<complexT, Dynamic, Dynamic> bra = orbitals.block(0, 0, 2*norbs, nelec)
       + orbitals.block(0, nelec, 2*norbs, 2*norbs-nelec) * U;
+  return bra;
+};
+
+
+template<typename T>
+Matrix<complex<T>, Dynamic, Dynamic> fillWfnOrbs(Matrix<T, Dynamic, 1>& variables)  {
+  int norbs  = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta  = Determinant::nbeta;
+  int nelec =  nalpha + nbeta;
+
+  //Use the rotation matrix variables and update the bra
+  Matrix<complex<T>, Dynamic, Dynamic> bra(2*norbs, nelec);
+  for (int a=0; a<2*norbs; a++) 
+    for (int i=0; i<nelec; i++) {
+      bra(a,i).real(variables( 2* (a*nelec+i)  ));
+      bra(a,i).imag(variables( 2* (a*nelec+i)+1));
+      
+      //U(a, i) = complexT( variables( 2* (a*nelec+i)  ),
+      //variables( 2* (a*nelec+i)+1)
+      //);
+    }
+
   return bra;
 };
 

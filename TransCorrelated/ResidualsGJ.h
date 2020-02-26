@@ -45,7 +45,7 @@ struct GetResidualGJ {
     }
 
     //apply the Sz projector and generate a linear combination of kets
-    vector<MatrixXcT> ket(2*ngrid); vector<complexT> coeffs(2*ngrid);
+    vector<MatrixXcT> ket; vector<complexT> coeffs;
     vector<VectorXcT> Projector;
     T Sz = 1.*(nalpha-nbeta);
     applyProjector(ketvec, ket, coeffs, Projector, Sz, ngrid); 
@@ -254,6 +254,114 @@ struct GetResidualGJ {
 
   };
 
+
+  T getLagrangianNoJastrow(const MatrixXcT& bra,
+                           const vector<MatrixXcT>& ketvec,
+                           MatrixXcT& NumGrad,
+                           MatrixXcT& DenGrad,
+                           VectorXd& NumVec,
+                           VectorXd& DenVec) {
+    
+    int norbs  = Determinant::norbs;
+    int nalpha = Determinant::nalpha;
+    int nbeta  = Determinant::nbeta;
+    int nelec =  nalpha + nbeta;
+
+    NumVec.setZero(); DenVec.setZero();
+    
+    //apply the Sz projector and generate a linear combination of kets
+    vector<MatrixXcT> ket; vector<complexT> coeffs;
+    vector<VectorXcT> Projector;
+    T Sz = 1.*(nalpha-nbeta);
+
+    //add projected bra to the ket
+    for (int i=0; i<ketvec.size(); i++) {
+      applyProjector(ketvec[i], ket, coeffs, Projector, Sz, ngrid);
+    }
+
+    MatrixXcT S;
+    T detovlp = 0.;
+
+    MatrixXcT mfRDM(2*norbs, 2*norbs);
+
+
+    MatrixXcT RDMGradE(2*norbs, 2*norbs);
+    RDMGradE.setZero();
+
+    //oneRDM.resize(2*norbs, 2*norbs);
+    for (int g = 0; g<ket.size(); g++) {
+      S = bra.adjoint()*ket[g] ;
+      MatrixXcT Sinv = S.inverse();
+      complexT Sdet = S.determinant();
+      detovlp += (Sdet * coeffs[g]).real();
+      complexT factor = Sdet *coeffs[g];
+      complexT Eiter = 0.0;
+      
+      mfRDM = (((ket[g] * Sinv)*bra.adjoint()));           
+      
+
+      auto oneRDM = [&](const int& i, const int &j, const double& i1) {
+        Eiter += mfRDM(j, i) * i1 * factor;
+        RDMGradE(j, i) += i1 * factor;
+        
+      };
+      loopOver1epar(oneRDM);
+
+      auto twoRDM = [&](const int& i, const int& j, const int& k,
+                        const int& l, const double& i2) {
+        double f1 = 1.0;
+        auto val = i2 * f1 * factor * (mfRDM(l, i)*mfRDM(k, j) - mfRDM(k, i)*mfRDM(l, j));
+        RDMGradE(l, i) += i2 * f1 * factor * mfRDM(k, j);
+        RDMGradE(k, j) += i2 * f1 * factor * mfRDM(l, i);
+        RDMGradE(k, i) -= i2 * f1 * factor * mfRDM(l, j);
+        RDMGradE(l, j) -= i2 * f1 * factor * mfRDM(k, i);
+
+
+        Eiter += val;        
+      };
+      loopOver2epar(twoRDM);
+
+#ifndef SERIAL
+      size_t two = 2;
+      MPI_Allreduce(MPI_IN_PLACE, &Eiter, two, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      
+      size_t jsize = 2*RDMGradE.size();
+      MPI_Allreduce(MPI_IN_PLACE, &RDMGradE(0,0), jsize, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      
+#endif
+
+      factor = 1.0;//(g / (2*norbs)) == ketvec.size()-1 ? 2.0 : 1.0;
+      
+      //Derivative w.r.t. BRA
+      {      
+        //BRAGradE += RDMGradE.transpose() * ket[g] * Sinv;
+        //BRAGradE -= mfRDM * RDMGradE.transpose() * ket[g] * Sinv;
+        //BRAGradE +=  (ket[g]*Sinv) * (Eiter);
+        NumGrad += factor * RDMGradE.transpose() * ket[g] * Sinv;
+        NumGrad -= factor * mfRDM * RDMGradE.transpose() * ket[g] * Sinv;
+        NumGrad += factor * (ket[g]*Sinv) * (Eiter);
+        
+        //BRAGraddetovlp +=  (ket[g]*Sinv) * Sdet * coeffs[g];
+        DenGrad += factor * (ket[g]*Sinv) * Sdet * coeffs[g];
+      }
+
+      
+      
+      RDMGradE.setZero();
+
+      NumVec[g / (2*ngrid)] += Eiter.real();
+      DenVec[g / (2*ngrid)] += (Sdet*coeffs[g]).real();
+    }
+
+    T Lagrangian = NumVec.sum();
+
+    //BraGrad = BRAGradE /detovlp
+    //- Lagrangian/detovlp/detovlp * BRAGraddetovlp;
+
+    return (Lagrangian/DenVec.sum() + coreE);
+    
+  };
+  
   
   //get both orbital and jastrow residues
   T getResidue(const VectorXT& variables,
@@ -286,7 +394,7 @@ struct GetResidualGJ {
     VectorXT braVarsResidue( 2*(2*norbs - nelec)* nelec); braVarsResidue.setZero();
     
     //apply the Sz projector and generate a linear combination of kets
-    vector<MatrixXcT> ket(2*ngrid); vector<complexT> coeffs(2*ngrid);
+    vector<MatrixXcT> ket; vector<complexT> coeffs;
     T Sz = 1.*(nalpha-nbeta);
     vector<VectorXcT> Projector;
     applyProjector(bra, ket, coeffs, Projector, Sz, ngrid); 

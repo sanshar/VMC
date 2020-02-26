@@ -38,7 +38,9 @@ void runTranscorrelated(Wave& wave, bool isGutzwiller = false) {
   
   getTranscorrelationWrapper<Wave> wrapper(wave);
 
-  if (isGutzwiller)
+  if (schd.wavefunctionType == "NOCI")
+    wrapper.optimizeWavefunctionNOCI(schd.nNociSlater);
+  else if (isGutzwiller)
     wrapper.optimizeWavefunctionGJ();
   else
     wrapper.optimizeWavefunction();

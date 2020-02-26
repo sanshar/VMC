@@ -119,8 +119,9 @@ private:
       & fourBodyJastrowBasis
       & nGrid
       & nMaxMacroIter
-      & nMaxMicroIter;
-    & pQuad;
+      & nMaxMicroIter
+      & pQuad
+      & nNociSlater;
   }
 public:
 //General options
@@ -155,6 +156,7 @@ public:
   int norbs;
   
   std::string wavefunctionType;
+  int nNociSlater;
   std::map<int, std::string> correlatorFiles;
   std::string determinantFile;
   int Qmax;

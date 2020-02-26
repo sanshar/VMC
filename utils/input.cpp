@@ -322,6 +322,11 @@ void readInput(string input, schedule& schd, bool print) {
       else if (boost::iequals(ArgName, "jastrowslater"))
 	    schd.wavefunctionType = "JastrowSlater";
       
+      else if (boost::iequals(ArgName, "noci")) {
+	    schd.wavefunctionType = "NOCI";
+            schd.nNociSlater = atoi(tok[1].c_str());
+      }
+      
       else if (boost::iequals(ArgName, "backflow"))
 	    schd.wavefunctionType = "Backflow";
       

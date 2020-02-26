@@ -113,6 +113,140 @@ class getTranscorrelationWrapper
   {};
 
 
+  double optimizeWavefunctionNOCI(int nslater)
+  {
+    auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
+                            std::ref(generator));
+    //using T = stan::math::var;
+    using T = double;
+    using complexT = complex<T>;
+    //using complexT = Complex<T>;
+    using MatrixXcT = Matrix<complexT, Dynamic, Dynamic>;
+    using VectorXcT = Matrix<complexT, Dynamic, 1>;
+    using MatrixXT = Matrix<T, Dynamic, Dynamic>;
+    using VectorXT = Matrix<T, Dynamic, 1>;
+    
+    int norbs = Determinant::norbs;
+    int nalpha = Determinant::nalpha;
+    int nbeta = Determinant::nbeta;
+    int nelec = nalpha + nbeta;
+    
+    //int nOrbitalVars = (2*norbs-nelec)*(nelec);
+    int nOrbitalVars = 2*(2*norbs)*(nelec);
+
+    MatrixXcd hforbs = w.getRef().HforbsA;    
+    MatrixXcT bra = hforbs.block(0, 0, 2*norbs, nelec);
+    int ngrid = schd.nGrid; //FOR THE SZ PROJECTOR
+
+
+    MatrixXcT DenGrad(2*norbs, nelec), NumGrad(2*norbs, nelec), braGrad(2*norbs, nelec);
+    VectorXd NumVec(nslater), DenVec(nslater); 
+
+    VectorXT orbVars(2*2*norbs*nelec);
+    for (int i=0; i<2*norbs; i++)
+      for (int j=0; j<nelec; j++) {
+        orbVars[2*(i*nelec+j)  ] = bra(i, j).real();
+        orbVars[2*(i*nelec+j)+1] = bra(i, j).imag();
+      }
+
+    
+    GetResidualGJ<T, complexT> resGJ(ngrid);
+
+    vector<MatrixXcT> bravec;
+
+    double pastE, pastO;
+    
+    //orbital variables are just the non-redundant variables
+    auto orbGradSGD = [&] (const VectorXd& vars, VectorXd& res, int index, bool parallel=true) mutable -> double{
+
+      int norbs  = Determinant::norbs;
+      int nalpha = Determinant::nalpha;
+      int nbeta  = Determinant::nbeta;
+      int nelec =  nalpha + nbeta;    
+
+      //MatrixXcT&& orbitals  = fillWfnOrbs(hforbs, const_cast<VectorXd&>(vars));
+      MatrixXcT&& orbitals = fillWfnOrbs(const_cast<VectorXd&>(vars));
+      
+      bravec[index] = orbitals;
+
+      NumVec.setZero(); DenVec.setZero();
+      DenGrad.setZero(); NumGrad.setZero();
+      double E1 = resGJ.getLagrangianNoJastrow(orbitals, bravec, NumGrad, DenGrad, NumVec, DenVec);
+
+      //cout << pastE<<"  "<<pastO<<endl;
+      //cout << NumVec.transpose()<<endl;
+      //cout << DenVec.transpose()<<endl;
+      double totalE = pastE + 2*NumVec.sum() - NumVec[index];
+      double totalO = pastO + 2*DenVec.sum() - DenVec[index];
+      double E = totalE/totalO + coreE;
+
+      braGrad = NumGrad / totalO - totalE / totalO / totalO * DenGrad;
+
+      
+      for (int i=0; i<2*norbs; i++)
+        for (int j=0; j<nelec; j++) {
+          res(2 * (i * nelec + j)    ) = braGrad(i,j).real();
+          res(2 * (i * nelec + j) + 1) = braGrad(i,j).imag();
+        }
+      /*
+      MatrixXcT nonRedundantOrbResidue =
+          hforbs.block(0,nelec, 2*norbs, 2*norbs - nelec).adjoint()*braGrad;
+
+      for (int i=0; i<2*norbs - nelec; i++)
+        for (int j=0; j<nelec; j++) {
+          res(2 * (i * nelec + j)    ) = nonRedundantOrbResidue(i,j).real();
+          res(2 * (i * nelec + j) + 1) = nonRedundantOrbResidue(i,j).imag();
+        }
+      */
+      return E;
+    };
+
+
+    pastE = 0.0; pastO = 0.0;
+    for (int i=0; i<nslater; i++) {
+      bravec.resize(i+1);
+      AMSGrad optimizerOrb; optimizerOrb.maxIter = schd.nMaxMicroIter;
+
+      auto orbGrad = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
+        E0 = orbGradSGD(vars, res, i, true);
+        stddev = 0; rt = 0;
+        return 1.0;
+      };
+
+
+      //make a random rotation
+      VectorXd vars = orbVars;
+      if (i != 0) {
+        VectorXT randomRotation=0.01*VectorXT::Random(2*(2*norbs -nelec)*nelec);
+        MatrixXcT Neworbs  = fillWfnOrbs(hforbs, const_cast<VectorXd&>(randomRotation));
+
+        for (int i=0; i<2*norbs; i++)
+          for (int j=0; j<nelec; j++) {
+            vars[2*(i*nelec+j)  ] = bra(i, j).real();
+            vars[2*(i*nelec+j)+1] = bra(i, j).imag();
+          }
+      }
+      
+      optimizerOrb.optimize(vars, orbGrad, false);
+
+      MatrixXcd orbitals = fillWfnOrbs(const_cast<VectorXd&>(vars));
+      bravec[i] = orbitals;
+
+      //orbitals = bra;//***
+      //bravec[0] = bra; //*******
+
+      NumVec.setZero(); DenVec.setZero();
+      DenGrad.setZero(); NumGrad.setZero();
+      double E1 = resGJ.getLagrangianNoJastrow(orbitals, bravec, NumGrad, DenGrad, NumVec, DenVec);
+      
+      pastE += 2*NumVec.sum() - NumVec[i];
+      pastO += 2*DenVec.sum() - DenVec[i];
+
+    }
+      
+
+  }
+  
   double optimizeWavefunctionGJ()
   {
     auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
@@ -148,11 +282,11 @@ class getTranscorrelationWrapper
     MatrixXd JasLamHess;
     MatrixXcT braGrad;
     VectorXT JasVecE(norbs), JastrowRes(norbs);
-    VectorXT orbVars=0.01*VectorXT::Random(2*(2*norbs -nelec)*nelec);
+    VectorXT orbVars=0.0*VectorXT::Random(2*(2*norbs -nelec)*nelec);
 
     GetResidualGJ<T, complexT> resGJ(ngrid);
 
-
+    vector<MatrixXcT> bravec;
     //orbital variables are just the non-redundant variables
     auto orbGradSGD = [&] (const VectorXd& vars, VectorXd& res, bool parallel=true) mutable -> double{
 
@@ -163,9 +297,10 @@ class getTranscorrelationWrapper
       MatrixXcT&& orbitals  = fillWfnOrbs(hforbs, const_cast<VectorXd&>(vars));
 
       double E1 = resGJ.getLagrangian(orbitals, orbitals, Jastrow, Lambda, JastrowRes,
-                               braGrad, JasVecE, JasLamHess);
+                                      braGrad, JasVecE, JasLamHess);
+      //double E1 = resGJ.getLagrangianNoJastrow(orbitals, orbitals, braGrad, bravec);
 
-
+      //      exit(0);
       MatrixXcT nonRedundantOrbResidue =
           hforbs.block(0,nelec, 2*norbs, 2*norbs - nelec).adjoint()*braGrad;
 
@@ -206,11 +341,14 @@ class getTranscorrelationWrapper
       param.max_iterations = schd.nMaxMicroIter;
       LBFGSSolver<double> solverOrb(param);
       double fx;
-      int niter = solverOrb.minimize(orbGradSGD, orbVars, fx);
+      //int niter = solverOrb.minimize(orbGradSGD, orbVars, fx);
 
+      //cout << fx<<endl;
+      //exit(0);
       //SGDwithDIIS(orbVars, orbGradSGD, schd.nMaxMicroIter, schd.tol, true);
-      //AMSGrad optimizerOrb; optimizerOrb.maxIter = schd.nMaxMicroIter;
-      //optimizerOrb.optimize(orbVars, orbGrad, false);
+      AMSGrad optimizerOrb; optimizerOrb.maxIter = schd.nMaxMicroIter;
+      optimizerOrb.optimize(orbVars, orbGrad, false);
+      //exit(0);
       
       if (commrank == 0) cout << "Jastrow"<<endl;
       //LBFGSSolver<double> solverJas(param);

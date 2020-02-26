@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
       CorrelatedWavefunction<Jastrow, Slater> wave;
       runTranscorrelated(wave, false);
     }
-    else if (schd.wavefunctionType == "GutzwillerSlater") {
+    else {
       CorrelatedWavefunction<Gutzwiller, Slater> wave;
       runTranscorrelated(wave, true);
     }
