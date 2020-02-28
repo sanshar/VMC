@@ -11,10 +11,11 @@ BOOST=/projects/sash2458/newApps/boost_1_67_0/
 LIBIGL=/projects/sash2458/apps/libigl/include/
 PYSCF=/projects/sash2458/newApps/pyscf/pyscf/lib/
 LIBCINT=/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib
+TACO=/projects/sash2458/newApps/taco/install
 
 OPT = -std=c++14 -w -g -O3 -qopenmp -D_REENTRANT -DNDEBUG
 #OPT = -std=c++14 -g -D_REENTRANT
-FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ -I/projects/sash2458/newApps/LBFGSpp/include/
+FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ -I/projects/sash2458/newApps/LBFGSpp/include/ -I${TACO}/include
 
 
 
@@ -23,7 +24,7 @@ COMPILE_TIME=`date`
 GIT_BRANCH=`git branch | grep "^\*" | sed s/^..//`
 VERSION_FLAGS=-DGIT_HASH="\"$(GIT_HASH)\"" -DCOMPILE_TIME="\"$(COMPILE_TIME)\"" -DGIT_BRANCH="\"$(GIT_BRANCH)\""
 
-LFLAGS = -L${PYSCF} -lcgto -lnp_helper -L${LIBCINT} -lcint -L${TBB}/lib/intel64/gcc4.7/ -ltbb  
+LFLAGS = -L${PYSCF} -lcgto -lnp_helper -L${LIBCINT} -lcint -L${TBB}/lib/intel64/gcc4.7/ -ltbb  -L${TACO}/lib -ltaco
 
 
 

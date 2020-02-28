@@ -2,9 +2,12 @@
 
 #include "ResidualsUtils.h"
 #include "calcRDM.h"
+#include <taco.h>
+#include <unsupported/Eigen/CXX11/Tensor>
 
 using namespace std;
 using namespace Eigen;
+
 
 template<typename T, typename complexT>
 struct GetResidualGJ {
@@ -13,11 +16,13 @@ struct GetResidualGJ {
   using MatrixXT = Matrix<T, Dynamic, Dynamic>;
   using VectorXT = Matrix<T, Dynamic, 1>;
   using DiagonalXT = Eigen::DiagonalMatrix<T, Eigen::Dynamic>;
-  
-  int ngrid;
 
+  using Tensor4d = taco::Tensor<complexT>;
+
+  int ngrid;
   GetResidualGJ(int pngrid=4) : ngrid(pngrid)
-  {};
+  {
+  };
 
   int getOtherSpin(int I, int norbs) {
     return I >= norbs ? I - norbs : I + norbs;
@@ -255,6 +260,9 @@ struct GetResidualGJ {
   };
 
 
+
+  
+  /*
   T getLagrangianNoJastrow(const MatrixXcT& bra,
                            const vector<MatrixXcT>& ketvec,
                            MatrixXcT& NumGrad,
@@ -361,7 +369,7 @@ struct GetResidualGJ {
     return (Lagrangian/DenVec.sum() + coreE);
     
   };
-  
+  */  
   
   //get both orbital and jastrow residues
   T getResidue(const VectorXT& variables,
@@ -459,4 +467,55 @@ struct GetResidualGJ {
 
 
 
+
+      /*
+      Eigen::array<IndexPair<int>, 2> Direct    = { IndexPair<int>(0, 1), IndexPair<int>(1, 0) };
+      Eigen::array<IndexPair<int>, 2> Direct2   = { IndexPair<int>(2, 1), IndexPair<int>(3, 0) };
+      Eigen::array<IndexPair<int>, 2> Exchange  = { IndexPair<int>(1, 0), IndexPair<int>(2, 1) };
+      Eigen::array<IndexPair<int>, 2> Exchange2 = { IndexPair<int>(3, 0), IndexPair<int>(0, 1) };
+
+      {//AA AA
+        Eigen::Tensor<complexT, 2> Inter = twoInt.contract(AARDM, Direct);
+        Eigen::Tensor<complexT, 0> Out = Inter.contract(AARDM, Direct); Eiter += 0.5 * factor * Out(0);
+        AAGrad += factor * Inter;
+      
+        Inter = twoInt.contract(AARDM, Exchange);
+        Out  = Inter.contract(AARDM, Direct); Eiter -= 0.5 * factor * Out(0);
+        AAGrad -= 0.5 * factor * Inter;
+        temp = twoInt.contract(AARDM, Exchange2); AAGrad -= 0.5 * factor * temp;
+      }
+      {//BB AA
+        Eigen::Tensor<complexT, 2> Inter = twoInt.contract(BBRDM, Direct);
+        Eigen::Tensor<complexT, 0> Out = Inter.contract(AARDM, Direct); Eiter += 0.5 * factor * Out(0);      
+        Inter = twoInt.contract(BARDM, Exchange);
+        Out  = Inter.contract(ABRDM, Direct); Eiter -= 0.5 * factor * Out(0);
+        
+        temp = twoInt.contract(BBRDM, Direct)   ; AAGrad += 0.5 * factor * temp;
+        temp = twoInt.contract(AARDM, Direct2)  ; BBGrad += 0.5 * factor * temp;
+        temp = twoInt.contract(BARDM, Exchange) ; ABGrad -= 0.5 * factor * temp;
+        temp = twoInt.contract(ABRDM, Exchange2); BAGrad -= 0.5 * factor * temp;
+      }
+      {//AA BB
+        Eigen::Tensor<complexT, 2> Inter = twoInt.contract(AARDM, Direct);
+        Eigen::Tensor<complexT, 0> Out = Inter.contract(BBRDM, Direct); Eiter += 0.5 * factor * Out(0);      
+        Inter = twoInt.contract(ABRDM, Exchange);
+        Out  = Inter.contract(BARDM, Direct); Eiter -= 0.5 * factor * Out(0);
+        
+        temp = twoInt.contract(AARDM, Direct)   ; BBGrad += 0.5 * factor * temp;
+        temp = twoInt.contract(BBRDM, Direct2)  ; AAGrad += 0.5 * factor * temp;
+        temp = twoInt.contract(ABRDM, Exchange) ; BAGrad -= 0.5 * factor * temp;
+        temp = twoInt.contract(BARDM, Exchange2); ABGrad -= 0.5 * factor * temp;
+      }
+      {//BB BB
+        Eigen::Tensor<complexT, 2> Inter = twoInt.contract(BBRDM, Direct);
+        Eigen::Tensor<complexT, 0> Out = Inter.contract(BBRDM, Direct); Eiter += 0.5 * factor * Out(0);      
+        Inter = twoInt.contract(BBRDM, Exchange);
+        Out  = Inter.contract(BBRDM, Direct); Eiter -= 0.5 * factor * Out(0);
+
+        temp = twoInt.contract(BBRDM, Direct)   ; BBGrad += 0.5 * factor * temp;
+        temp = twoInt.contract(BBRDM, Direct2)  ; BBGrad += 0.5 * factor * temp;
+        temp = twoInt.contract(BBRDM, Exchange) ; BBGrad -= 0.5 * factor * temp;
+        temp = twoInt.contract(BBRDM, Exchange2); BBGrad -= 0.5 * factor * temp;
+      }
+      */
 

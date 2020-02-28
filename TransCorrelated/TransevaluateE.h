@@ -34,16 +34,16 @@
 #include "DirectJacobian.h"
 #include "Residuals.h"
 #include "ResidualsGJ.h"
-#include "CorrelatedWavefunction.h"
-#include "Complex.h"
+//#include "CorrelatedWavefunction.h"
+//#include "Complex.h"
 
 #include "LevenbergHelper.h"
 #include <unsupported/Eigen/NumericalDiff>
 #include <unsupported/Eigen/NonLinearOptimization>
 #include "stan/math.hpp"
 #include "amsgrad.h"
-//#include "ceres/ceres.h"
-//#include "glog/logging.h"
+#include "taco.h"
+#include "Noci.h"
 
 #include <LBFGS.h>
 using namespace LBFGSpp;
@@ -125,7 +125,11 @@ class getTranscorrelationWrapper
     using VectorXcT = Matrix<complexT, Dynamic, 1>;
     using MatrixXT = Matrix<T, Dynamic, Dynamic>;
     using VectorXT = Matrix<T, Dynamic, 1>;
-    
+
+    //using Tensor4d = Eigen::Tensor<complexT, 4>;
+
+    taco::Format D4d({taco::Dense, taco::Dense, taco::Dense, taco::Dense});
+        
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
     int nbeta = Determinant::nbeta;
@@ -149,12 +153,25 @@ class getTranscorrelationWrapper
         orbVars[2*(i*nelec+j)+1] = bra(i, j).imag();
       }
 
+    MatrixXd oneInt({norbs, norbs});
+    for (int i=0; i<norbs; i++)
+      for (int j=0; j<norbs; j++)
+        oneInt(i, j) = I1(2*i, 2*j);
+
+    taco::Tensor<double> twoInt({norbs, norbs, norbs, norbs}, D4d);
+    for (int i=0; i<norbs; i++)
+      for (int j=0; j<norbs; j++)
+        for (int k=0; k<norbs; k++)
+          for (int l=0; l<norbs; l++) {
+            twoInt.insert({i, j, k,l}, I2(2*i, 2*j, 2*k, 2*l));
+            //twoInt.insert({i, j, k,l}, complexT(I2(2*i, 2*j, 2*k, 2*l)));
+          }
+    twoInt.pack();
     
-    GetResidualGJ<T, complexT> resGJ(ngrid);
-
+    NociResidual<T, complexT> Noci(norbs, twoInt, ngrid);
     vector<MatrixXcT> bravec;
-
     double pastE, pastO;
+
     
     //orbital variables are just the non-redundant variables
     auto orbGradSGD = [&] (const VectorXd& vars, VectorXd& res, int index, bool parallel=true) mutable -> double{
@@ -171,7 +188,8 @@ class getTranscorrelationWrapper
 
       NumVec.setZero(); DenVec.setZero();
       DenGrad.setZero(); NumGrad.setZero();
-      double E1 = resGJ.getLagrangianNoJastrow(orbitals, bravec, NumGrad, DenGrad, NumVec, DenVec);
+      double E1 = Noci.getLagrangianNoJastrow(orbitals, bravec, NumGrad, DenGrad, NumVec, DenVec,
+                                               oneInt);
 
       //cout << pastE<<"  "<<pastO<<endl;
       //cout << NumVec.transpose()<<endl;
@@ -203,6 +221,7 @@ class getTranscorrelationWrapper
 
 
     pastE = 0.0; pastO = 0.0;
+    VectorXd NormVals(nslater); NormVals.setZero();
     for (int i=0; i<nslater; i++) {
       bravec.resize(i+1);
       AMSGrad optimizerOrb; optimizerOrb.maxIter = schd.nMaxMicroIter;
@@ -217,7 +236,7 @@ class getTranscorrelationWrapper
       //make a random rotation
       VectorXd vars = orbVars;
       if (i != 0) {
-        VectorXT randomRotation=0.01*VectorXT::Random(2*(2*norbs -nelec)*nelec);
+        VectorXT randomRotation=0.05*VectorXT::Random(2*(2*norbs -nelec)*nelec);
         MatrixXcT Neworbs  = fillWfnOrbs(hforbs, const_cast<VectorXd&>(randomRotation));
 
         for (int i=0; i<2*norbs; i++)
@@ -237,16 +256,40 @@ class getTranscorrelationWrapper
 
       NumVec.setZero(); DenVec.setZero();
       DenGrad.setZero(); NumGrad.setZero();
-      double E1 = resGJ.getLagrangianNoJastrow(orbitals, bravec, NumGrad, DenGrad, NumVec, DenVec);
+      double E1 = Noci.getLagrangianNoJastrow(orbitals, bravec, NumGrad, DenGrad, NumVec, DenVec,
+                                               oneInt);
       
       pastE += 2*NumVec.sum() - NumVec[i];
       pastO += 2*DenVec.sum() - DenVec[i];
 
+      if (commrank == 0) {
+        cout << format("Wave function %d, Energy = %18.9f\n") %i %(E1) ;
+
+        NormVals[i] = (DenVec.sum());
+        for (int j=0; j<i; j++) 
+          NormVals[j] += DenVec[j];
+        
+        cout << "Wavefunction Norm:"<<endl;
+        for (int j=0; j<i+1; j++) {
+          cout << format("%d    %18.9f\n") %j %(NormVals[j]/pastO);
+        }
+
+      }
+    }
+
+    //write the states to disk
+    for (int i=0; i<nslater; i++) {
+      string fileName = boost::str(format("hf%d.txt")%i);
+      ofstream dump(fileName);
+      for (int j=0; j<2*norbs; j++)
+        for (int k=0; k<nelec; k++)
+          dump << bravec[i](j,k);
     }
       
 
   }
-  
+
+
   double optimizeWavefunctionGJ()
   {
     auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
@@ -378,7 +421,7 @@ class getTranscorrelationWrapper
     }
 
   }
-  
+
   double optimizeWavefunction()
   {
     auto random = std::bind(std::uniform_real_distribution<double>(0, 1),

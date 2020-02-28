@@ -1,9 +1,10 @@
-noci 4
+noci 10
 ghf
 complex
 
 
-microiter 100
+microiter 150
+#microiter 5
 epsilon 1.e-8
 
 
