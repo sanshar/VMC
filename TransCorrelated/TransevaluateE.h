@@ -170,7 +170,10 @@ class getTranscorrelationWrapper
     
     NociResidual<T, complexT> Noci(norbs, twoInt, ngrid);
     vector<MatrixXcT> bravec;
-    double pastE, pastO;
+
+    MatrixXd Emat(nslater, nslater), Omat(nslater, nslater);
+    Emat.setZero(); Omat.setZero();
+    //double pastE, pastO;
 
     
     //orbital variables are just the non-redundant variables
@@ -181,7 +184,6 @@ class getTranscorrelationWrapper
       int nbeta  = Determinant::nbeta;
       int nelec =  nalpha + nbeta;    
 
-      //MatrixXcT&& orbitals  = fillWfnOrbs(hforbs, const_cast<VectorXd&>(vars));
       MatrixXcT&& orbitals = fillWfnOrbs(const_cast<VectorXd&>(vars));
       
       bravec[index] = orbitals;
@@ -191,11 +193,11 @@ class getTranscorrelationWrapper
       double E1 = Noci.getLagrangianNoJastrow(orbitals, bravec, NumGrad, DenGrad, NumVec, DenVec,
                                                oneInt);
 
-      //cout << pastE<<"  "<<pastO<<endl;
-      //cout << NumVec.transpose()<<endl;
-      //cout << DenVec.transpose()<<endl;
-      double totalE = pastE + 2*NumVec.sum() - NumVec[index];
-      double totalO = pastO + 2*DenVec.sum() - DenVec[index];
+      Emat.col(index) = NumVec; Emat.row(index) = NumVec;
+      Omat.col(index) = DenVec; Omat.row(index) = DenVec;
+
+      double totalE = Emat.sum();
+      double totalO = Omat.sum();
       double E = totalE/totalO + coreE;
 
       braGrad = NumGrad / totalO - totalE / totalO / totalO * DenGrad;
@@ -206,74 +208,44 @@ class getTranscorrelationWrapper
           res(2 * (i * nelec + j)    ) = braGrad(i,j).real();
           res(2 * (i * nelec + j) + 1) = braGrad(i,j).imag();
         }
-      /*
-      MatrixXcT nonRedundantOrbResidue =
-          hforbs.block(0,nelec, 2*norbs, 2*norbs - nelec).adjoint()*braGrad;
-
-      for (int i=0; i<2*norbs - nelec; i++)
-        for (int j=0; j<nelec; j++) {
-          res(2 * (i * nelec + j)    ) = nonRedundantOrbResidue(i,j).real();
-          res(2 * (i * nelec + j) + 1) = nonRedundantOrbResidue(i,j).imag();
-        }
-      */
       return E;
     };
 
 
-    pastE = 0.0; pastO = 0.0;
-    VectorXd NormVals(nslater); NormVals.setZero();
-    for (int i=0; i<nslater; i++) {
-      bravec.resize(i+1);
-      AMSGrad optimizerOrb; optimizerOrb.maxIter = schd.nMaxMicroIter;
-
-      auto orbGrad = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
-        E0 = orbGradSGD(vars, res, i, true);
-        stddev = 0; rt = 0;
-        return 1.0;
-      };
-
-
-      //make a random rotation
-      VectorXd vars = orbVars;
-      if (i != 0) {
-        VectorXT randomRotation=0.05*VectorXT::Random(2*(2*norbs -nelec)*nelec);
-        MatrixXcT Neworbs  = fillWfnOrbs(hforbs, const_cast<VectorXd&>(randomRotation));
-
-        for (int i=0; i<2*norbs; i++)
-          for (int j=0; j<nelec; j++) {
-            vars[2*(i*nelec+j)  ] = bra(i, j).real();
-            vars[2*(i*nelec+j)+1] = bra(i, j).imag();
-          }
-      }
-      
-      optimizerOrb.optimize(vars, orbGrad, false);
-
-      MatrixXcd orbitals = fillWfnOrbs(const_cast<VectorXd&>(vars));
-      bravec[i] = orbitals;
-
-      //orbitals = bra;//***
-      //bravec[0] = bra; //*******
-
-      NumVec.setZero(); DenVec.setZero();
-      DenGrad.setZero(); NumGrad.setZero();
-      double E1 = Noci.getLagrangianNoJastrow(orbitals, bravec, NumGrad, DenGrad, NumVec, DenVec,
-                                               oneInt);
-      
-      pastE += 2*NumVec.sum() - NumVec[i];
-      pastO += 2*DenVec.sum() - DenVec[i];
-
-      if (commrank == 0) {
-        cout << format("Wave function %d, Energy = %18.9f\n") %i %(E1) ;
-
-        NormVals[i] = (DenVec.sum());
-        for (int j=0; j<i; j++) 
-          NormVals[j] += DenVec[j];
+    for(int macro=0; macro<schd.nMaxMacroIter; macro++) {
+      for (int i=0; i<nslater; i++) {
+        if (macro == 0)
+          bravec.resize(i+1);
         
-        cout << "Wavefunction Norm:"<<endl;
-        for (int j=0; j<i+1; j++) {
-          cout << format("%d    %18.9f\n") %j %(NormVals[j]/pastO);
+        AMSGrad optimizerOrb; optimizerOrb.maxIter = schd.nMaxMicroIter;
+        
+        auto orbGrad = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
+          E0 = orbGradSGD(vars, res, i, true);
+          stddev = 0; rt = 0;
+          return 1.0;
+        };
+        
+        
+        //make a random rotation
+        VectorXd vars = orbVars;
+        if (!(macro == 0 && i == 0)) {
+          VectorXT randomRotation=0.01*VectorXT::Random(2*(2*norbs -nelec)*nelec);
+          MatrixXcT Neworbs  = fillWfnOrbs(hforbs, const_cast<VectorXd&>(randomRotation));
+          if (macro != 0)
+            Neworbs = bravec[i];
+          
+          for (int i=0; i<2*norbs; i++)
+            for (int j=0; j<nelec; j++) {
+              vars[2*(i*nelec+j)  ] = Neworbs(i, j).real();
+              vars[2*(i*nelec+j)+1] = Neworbs(i, j).imag();
+            }
         }
-
+        
+        optimizerOrb.optimize(vars, orbGrad, false);
+        
+        if (commrank == 0) {
+          cout << format("MacroIter %d: Wave function %d, Energy = %18.9f\n") %macro %i %(Emat.sum()/Omat.sum()+coreE) ;
+        }
       }
     }
 
