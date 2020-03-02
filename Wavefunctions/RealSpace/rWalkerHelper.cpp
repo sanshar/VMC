@@ -45,12 +45,12 @@ void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeter
   aoValues.resize(10*norbs, 0.0);
 
   DetMatrix[0] = MatrixXcd::Zero(d.nelec, d.nelec);
-
   Gradient [0] = MatrixXcd::Zero(d.nelec, d.nelec);
   Gradient [1] = MatrixXcd::Zero(d.nelec, d.nelec);
   Gradient [2] = MatrixXcd::Zero(d.nelec, d.nelec);
-
   Laplacian = MatrixXcd::Zero(d.nelec, d.nelec);
+
+  AO = MatrixXd::Zero(d.nelec, 2*norbs);
   AOLaplacian = MatrixXd::Zero(d.nelec, 2*norbs);
   AOGradient[0]  = MatrixXd::Zero(d.nelec, 2*norbs);
   AOGradient[1]  = MatrixXd::Zero(d.nelec, 2*norbs);
@@ -61,6 +61,7 @@ void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeter
 
     for (int j=0; j<norbs; j++) {
       int J = elec < d.nalpha ? j : j+norbs;
+      AO(elec, J) = aoValues[j];
       AOGradient[0](elec, J) = aoValues[1*norbs+j];
       AOGradient[1](elec, J) = aoValues[2*norbs+j];
       AOGradient[2](elec, J) = aoValues[3*norbs+j];
@@ -161,6 +162,7 @@ void rWalkerHelper<rSlater>::updateWalkerGHF(int elec, Vector3d& oldCoord, const
 
   for (int j=0; j<norbs; j++) {
       int J = elec < d.nalpha ? j : j+norbs;
+      AO(elec, J) = aoValues[j];
       AOGradient[0](elec, J) = aoValues[1*norbs+j];
       AOGradient[1](elec, J) = aoValues[2*norbs+j];
       AOGradient[2](elec, J) = aoValues[3*norbs+j];
@@ -205,6 +207,7 @@ void rWalkerHelper<rSlater>::updateWalker(int elec, Vector3d& oldCoord, const rD
   schd.basis->eval_deriv2(d.coord[gelec], &aoValues[0]);
 
   for (int j=0; j<norbs; j++) {
+      AO(gelec, j) = aoValues[j];
       AOGradient[0](gelec, j) = aoValues[1*norbs+j];
       AOGradient[1](gelec, j) = aoValues[2*norbs+j];
       AOGradient[2](gelec, j) = aoValues[3*norbs+j];
@@ -270,11 +273,12 @@ void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d,
   int nalpha = rDeterminant::nalpha;
   int nbeta = rDeterminant::nbeta;
   int nelec = nalpha+nbeta;
+  int numDets = ref.determinants.size();
   
+  /*
   MatrixXd AoRia = MatrixXd::Zero(nalpha, norbs);
   MatrixXd AoRib = MatrixXd::Zero(nbeta, norbs);
   aoValues.resize(norbs);
-  int numDets = ref.determinants.size();
   
   for (int elec=0; elec<nalpha; elec++) {
     schd.basis->eval(d.coord[elec], &aoValues[0]);
@@ -287,12 +291,14 @@ void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d,
     for (int orb = 0; orb<norbs; orb++)
       AoRib(elec, orb) = aoValues[orb];
   }
+  */
   
   std::complex<double> DetFactor = thetaDet[0][0] * thetaDet[0][1];
   //Assuming a single determinant
   for (int moa=0; moa<nalpha; moa++) {//alpha mo 
     for (int orb=0; orb<norbs; orb++) {//ao
-      std::complex<double> factor = thetaInv[0].row(moa) * AoRia.col(orb);
+      //std::complex<double> factor = thetaInv[0].row(moa) * AoRia.col(orb);
+      std::complex<double> factor = thetaInv[0].row(moa) * AO.col(orb).head(nalpha);
       factor *= DetFactor / DetFactor.real();
       grad[numDets + 2*orb * nalpha + 2*moa] += factor.real();
       grad[numDets + 2*orb * nalpha + 2*moa + 1] += -factor.imag();
@@ -301,15 +307,19 @@ void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d,
   
   for (int mob=0; mob<nbeta; mob++) {//beta mo 
     for (int orb=0; orb<norbs; orb++) {//ao
-      if (ref.hftype == Restricted) {
-        std::complex<double> factor = thetaInv[1].row(mob) * AoRib.col(orb);
+        std::complex<double> factor = thetaInv[1].row(mob) * AO.col(orb).tail(nbeta);
         factor *= DetFactor / DetFactor.real();
+      if (ref.hftype == Restricted) {
+        //std::complex<double> factor = thetaInv[1].row(mob) * AoRib.col(orb);
+        //std::complex<double> factor = thetaInv[1].row(mob) * AO.col(orb).tail(nbeta);
+        //factor *= DetFactor / DetFactor.real();
         grad[numDets + 2*orb * nbeta + 2*mob] += factor.real();
         grad[numDets + 2*orb * nbeta + 2*mob + 1] += -factor.imag();
       }
       else {
-        std::complex<double> factor = thetaInv[1].row(mob) * AoRib.col(orb);
-        factor *= DetFactor / DetFactor.real();
+        //std::complex<double> factor = thetaInv[1].row(mob) * AoRib.col(orb);
+        //std::complex<double> factor = thetaInv[1].row(mob) * AO.col(orb).tail(nbeta);
+        //factor *= DetFactor / DetFactor.real();
         grad[numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob] += factor.real();
         grad[numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob + 1] += -factor.imag();
       }
@@ -333,6 +343,7 @@ void rWalkerHelper<rSlater>::OverlapWithGradientGhf(const rDeterminant& d,
   int numDets = ref.determinants.size();
   std::complex<double> i(0.0, 1.0);
   
+  /*
   MatrixXd AoRi = MatrixXd::Zero(nelec, 2*norbs);
   aoValues.resize(norbs);
   
@@ -345,10 +356,12 @@ void rWalkerHelper<rSlater>::OverlapWithGradientGhf(const rDeterminant& d,
         AoRi(elec, norbs+orb) = aoValues[orb];
     }
   }
+  */
 
   for (int mo=0; mo<nelec; mo++) {
     for (int orb=0; orb< 2*norbs; orb++) {
-      std:complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb);
+      //std:complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb);
+      std:complex<double> factor = thetaInv[0].row(mo) * AO.col(orb);
       grad[numDets + 2*orb * nelec + 2*mo] = (factor * thetaDet[0][0]).real() / thetaDet[0][0].real();
       if (schd.ifComplex) grad[numDets + 2*orb * nelec + 2*mo + 1] = (i * factor * thetaDet[0][0]).real() / thetaDet[0][0].real();
     }
@@ -1227,6 +1240,7 @@ void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDetermin
 
   Laplacian = MatrixXd::Zero(d.nelec, d.nelec);
 
+  AO = MatrixXd::Zero(d.nelec, norbs);
   AOLaplacian = MatrixXd::Zero(d.nelec, norbs);
   AOGradient[0]  = MatrixXd::Zero(d.nelec, norbs);
   AOGradient[1]  = MatrixXd::Zero(d.nelec, norbs);
@@ -1238,6 +1252,7 @@ void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDetermin
 
     for (int j=0; j<norbs; j++)
     {
+      AO(elec, j) = aoValues[j];
       AOGradient[0](elec, j) = aoValues[1*norbs+j];
       AOGradient[1](elec, j) = aoValues[2*norbs+j];
       AOGradient[2](elec, j) = aoValues[3*norbs+j];
@@ -1280,6 +1295,7 @@ void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDetermin
     schd.basis->eval_deriv2(d.coord[elec + d.nalpha], &aoValues[0]);
     for (int j=0; j<norbs; j++)
     {
+      AO(elec + d.nalpha, j) = aoValues[j];
       AOGradient[0](elec + d.nalpha, j) = aoValues[1*norbs+j];
       AOGradient[1](elec + d.nalpha, j) = aoValues[2*norbs+j];
       AOGradient[2](elec + d.nalpha, j) = aoValues[3*norbs+j];
