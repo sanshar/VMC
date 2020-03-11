@@ -504,9 +504,13 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
   //cout << d << endl;
 
 /*
-d.coord[0] = schd.Ncoords[0] + Vector3d(0.0, 0.0, -1.0);
-if (d.coord.size() == 2)
-d.coord[1] = schd.Ncoords[1] + Vector3d(0.0, 0.0, 1.0);
+d.coord[0] = schd.Ncoords[0] + Vector3d(1.0, 0.0, 0.0);
+if (d.coord.size() > 1)
+d.coord[1] = schd.Ncoords[0] + Vector3d(0.0, 1.0, 0.0);
+if (d.coord.size() > 2)
+d.coord[2] = schd.Ncoords[0] + Vector3d(-1.0, 0.0, 0.0);
+if (d.coord.size() > 3)
+d.coord[3] = schd.Ncoords[0] + Vector3d(0.0, -1.0, 0.0);
 */
 
 /*
@@ -803,10 +807,7 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
       EENNIndex            = corrHelper.EENNIndex;
 
   diff -= JastrowENValueGrad(elecI, Qmax, d.coord, gminus,  params, ENIndex);
-  if (schd.fourBodyJastrow) { diff -= JastrowEENNLinearValueGrad(elecI, d.coord, gminus, params, EENNlinearIndex); }
   for (int j=0; j<d.nelec; j++) {
-
-    if (schd.fourBodyJastrow) { diff -= JastrowEENNValueGrad(elecI, j, d.coord, gminus, params, EENNIndex, 2); }
 
     if (j == elecI) continue;
 
@@ -823,10 +824,7 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
   d.coord[elecI] = newCoord;
 
   diff += JastrowENValueGrad(elecI, Qmax, d.coord, gplus,  params, ENIndex);
-  if (schd.fourBodyJastrow) { diff += JastrowEENNLinearValueGrad(elecI, d.coord, gplus, params, EENNlinearIndex); }
   for (int j=0; j<d.nelec; j++) {
-
-    if (schd.fourBodyJastrow) { diff += JastrowEENNValueGrad(elecI, j, d.coord, gplus, params, EENNIndex, 2); }
 
     if (j == elecI) continue;
 
@@ -844,10 +842,23 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
   //cout << grad[0] - gxnew + gplus[0] - gminus[0] <<endl;
   
   grad += (gplus - gminus);
-      
-  double ovlpRatio = Detratio * exp(diff);
 
-  //cout << diff << endl;
+  if (schd.fourBodyJastrow) {
+    diff += JastrowEENNfactorAndGradient(elecI, newCoord, d.coord, corrHelper.N, corrHelper.n, corrHelper.gradn, grad, params, EENNlinearIndex);
+  }
+
+  /*
+  cout << "grad ratio" << endl;
+  Vector3d print = corrHelper.GradRatio.row(elecI);
+  if (schd.fourBodyJastrow) {
+    JastrowEENNfactorAndGradient(elecI, newCoord, d.coord, corrHelper.N, corrHelper.n, corrHelper.gradn, print, params, EENNlinearIndex);
+  }
+  print += (gplus - gminus);
+  cout << print.transpose() << endl;
+  */
+    
+  double ovlpRatio = Detratio * exp(diff);
+  //cout << "diff: " << diff << endl;
   return ovlpRatio;
 }
 

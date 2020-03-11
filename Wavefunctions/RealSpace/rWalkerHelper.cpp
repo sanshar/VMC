@@ -920,26 +920,14 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
   ParamValues                = VectorXd::Zero(cps._params.size());
   ParamLaplacian             = MatrixXd::Zero(d.nelec, cps._params.size());
   ParamGradient.resize(3, MatrixXd::Zero(d.nelec, cps._params.size()));
-  workMatrix                 = ParamLaplacian;
+  //workMatrix                 = ParamLaplacian;
 
   for (int i=0; i<d.nelec; i++) {
     JastrowEN(i, Qmax, d.coord, ParamValues, ParamGradient[0],
               ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, ENIndex);
 
-    if (schd.fourBodyJastrow) {
-      JastrowEENNLinear(i, d.coord, ParamValues, ParamGradient[0],
-                        ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNlinearIndex);
-      JastrowEENN(i, i, d.coord, ParamValues, ParamGradient[0],
-                        ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNIndex, 2);
-    }
-
     for (int j=0; j<i; j++) {
 
-      if (schd.fourBodyJastrow) {
-        JastrowEENN(i, j, d.coord, ParamValues, ParamGradient[0],
-                ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNIndex, 2);
-      }
- 
       JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
                 ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEsameSpinIndex, 1);
 
@@ -957,13 +945,18 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
     }
   }
 
+  if (schd.fourBodyJastrow) {
+    JastrowEENNinit(d.coord, N, n, gradn, lapn);
+    JastrowEENN(N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
+  }
+
   /*
   for (int i = EENNlinearIndex; i < ParamValues.size(); i++) {
       cout << i << " " << jastrowParams[i] << " Val: " << ParamValues[i] << endl;
-      cout << "GradxVal: " << ParamGradient[0](0, i) << " " << ParamGradient[0](1, i) << endl; 
-      cout << "GradyVal: " << ParamGradient[1](0, i) << " " << ParamGradient[1](1, i) << endl; 
-      cout << "GradzVal: " << ParamGradient[2](0, i) << " " << ParamGradient[2](1, i) << endl; 
-      cout << "LaplaceVal: " << ParamLaplacian(0, i) << " " << ParamLaplacian(1, i)<< endl; 
+      //cout << "GradxVal: " << ParamGradient[0](0, i) << " " << ParamGradient[0](1, i) << endl; 
+      //cout << "GradyVal: " << ParamGradient[1](0, i) << " " << ParamGradient[1](1, i) << endl; 
+      //cout << "GradzVal: " << ParamGradient[2](0, i) << " " << ParamGradient[2](1, i) << endl; 
+      //cout << "LaplaceVal: " << ParamLaplacian(0, i) << " " << ParamLaplacian(1, i)<< endl; 
       cout << endl;
   }
   cout << "################################" << endl;
@@ -992,52 +985,34 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
   Vector3d bkp = d.coord[i];
   const_cast<Vector3d&>(d.coord[i]) = oldcoord;
 
- 
   JastrowEN(i, Qmax, d.coord, ParamValues, ParamGradient[0],
             ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, ENIndex);
 
-  if (schd.fourBodyJastrow)
-    JastrowEENNLinear(i, d.coord, ParamValues, ParamGradient[0],
-                      ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENNlinearIndex);
-
   for (int j=0; j<d.nelec; j++) {
-
-    if (schd.fourBodyJastrow)
-      JastrowEENN(i, j, d.coord, ParamValues, ParamGradient[0],
-                  ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENNIndex, 2);
 
     if (i == j) continue;
  
-    JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
-              ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EEsameSpinIndex, 1);
+    JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0], 
+            ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EEsameSpinIndex, 1);
     
     JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
               ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EEoppositeSpinIndex, 0);
     
     if (!schd.fourBodyJastrow) {
-      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
-                 ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENsameSpinIndex, 1);
+      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0], 
+              ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENsameSpinIndex, 1);
       
       JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
                  ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENoppositeSpinIndex, 0);
     }
   }
 
-
   const_cast<Vector3d&>(d.coord[i]) = bkp;
   //  d.coord[i] = bkp;
   JastrowEN(i, Qmax, d.coord, ParamValues, ParamGradient[0],
             ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, ENIndex);
 
-  if (schd.fourBodyJastrow)
-    JastrowEENNLinear(i, d.coord, ParamValues, ParamGradient[0],
-                      ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNlinearIndex);
-
   for (int j=0; j<d.nelec; j++) {
-
-    if (schd.fourBodyJastrow)
-      JastrowEENN(i, j, d.coord, ParamValues, ParamGradient[0],
-                  ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENNIndex, 2);
 
     if (i == j) continue;
 
@@ -1056,12 +1031,28 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
     }
   }
 
+  if (schd.fourBodyJastrow) {
+    JastrowEENNupdate(i, bkp, d.coord, N, n, gradn, lapn, EENNlinearIndex);
+    JastrowEENN(N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
+  }
+ 
+  /*
+  for (int i = EENNlinearIndex; i < ParamValues.size(); i++) {
+      cout << i << " " << jastrowParams[i] << " Val: " << ParamValues[i] << endl;
+      //cout << "GradxVal: " << ParamGradient[0](0, i) << " " << ParamGradient[0](1, i) << endl; 
+      //cout << "GradyVal: " << ParamGradient[1](0, i) << " " << ParamGradient[1](1, i) << endl; 
+      //cout << "GradzVal: " << ParamGradient[2](0, i) << " " << ParamGradient[2](1, i) << endl; 
+      //cout << "LaplaceVal: " << ParamLaplacian(0, i) << " " << ParamLaplacian(1, i)<< endl; 
+      cout << endl;
+  }
+  cout << "################################" << endl;
+  */
+
   exponential = ParamValues.dot(jastrowParams);
   GradRatio.col(0) = ParamGradient[0]*jastrowParams;
   GradRatio.col(1) = ParamGradient[1]*jastrowParams;
   GradRatio.col(2) = ParamGradient[2]*jastrowParams;
   LaplaceRatioIntermediate = ParamLaplacian*jastrowParams;
-
   
   for (int i=0; i<d.nelec; i++) {
     LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
@@ -1076,18 +1067,17 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
 double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJastrow& cps,
                                              const rDeterminant &d) const
 {
-  //double exponent = this->exponential;
+  double diff = 0.0;
+  if (schd.fourBodyJastrow) {
+    diff += JastrowEENNfactor(i, coord, d.coord, N, n, jastrowParams, EENNlinearIndex);
+  }
   
   Vector3d bkp = d.coord[i];
   const_cast<rDeterminant&>(d).coord[i] = coord;
-
-  
-  double diff = JastrowENValue(i, Qmax, d.coord, jastrowParams, ENIndex);
-  if (schd.fourBodyJastrow) diff += JastrowEENNLinearValue(i, d.coord, jastrowParams, EENNlinearIndex);
+ 
+  diff += JastrowENValue(i, Qmax, d.coord, jastrowParams, ENIndex);
 
   for (int j=0; j<d.nelec; j++) {
-
-    if (schd.fourBodyJastrow) diff += JastrowEENNValue(i, j, d.coord, jastrowParams, EENNIndex, 2);
 
     if (i == j) continue;
 
@@ -1105,11 +1095,8 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
   //diff = 0.0;
   
   diff -= JastrowENValue(i, Qmax, d.coord, jastrowParams, ENIndex);
-  if (schd.fourBodyJastrow) diff -= JastrowEENNLinearValue(i, d.coord, jastrowParams, EENNlinearIndex);
 
   for (int j=0; j<d.nelec; j++) {
-
-    if (schd.fourBodyJastrow) diff -= JastrowEENNValue(i, j, d.coord, jastrowParams, EENNIndex, 2);
 
     if (i == j) continue;
 
@@ -1122,7 +1109,7 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
     }
   }
 
-  //cout << diff << endl;
+  //cout << "diff: " << diff << endl;
   return exp(diff);
 }
 
@@ -1133,21 +1120,17 @@ double rWalkerHelper<rJastrow>::OverlapRatioAndParamGradient(int i, Vector3d& co
   std::vector<MatrixXd> paramGradient(3, MatrixXd::Zero(ParamGradient[0].rows(), ParamGradient[0].cols()));
   MatrixXd paramLaplacian = MatrixXd::Zero(ParamLaplacian.rows(), ParamLaplacian.cols());
 
+  if (schd.fourBodyJastrow) {
+    JastrowEENNfactorVector(i, coord, d.coord, N, n, paramValues, EENNlinearIndex);
+  }
+
   Vector3d bkp = d.coord[i];
   const_cast<rDeterminant&>(d).coord[i] = coord;
 
   JastrowEN(i, Qmax, d.coord, paramValues, paramGradient[0],
             paramGradient[1], paramGradient[2], paramLaplacian, 1.0, ENIndex);
 
-  if (schd.fourBodyJastrow)
-    JastrowEENNLinear(i, d.coord, paramValues, paramGradient[0],
-                      paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENNlinearIndex);
-
   for (int j=0; j<d.nelec; j++) {
-
-    if (schd.fourBodyJastrow)
-      JastrowEENN(i, j, d.coord, paramValues, paramGradient[0],
-                  paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENNIndex, 2);
 
     if (i == j) continue;
 
@@ -1171,15 +1154,7 @@ double rWalkerHelper<rJastrow>::OverlapRatioAndParamGradient(int i, Vector3d& co
   JastrowEN(i, Qmax, d.coord, paramValues, paramGradient[0],
             paramGradient[1], paramGradient[2], paramLaplacian, -1.0, ENIndex);
 
-  if (schd.fourBodyJastrow)
-    JastrowEENNLinear(i, d.coord, paramValues, paramGradient[0],
-                      paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENNlinearIndex);
-
   for (int j=0; j<d.nelec; j++) {
-
-    if (schd.fourBodyJastrow)
-      JastrowEENN(i, j, d.coord, paramValues, paramGradient[0],
-                  paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENNIndex, 2);
 
     if (i == j) continue;
 
@@ -1198,7 +1173,20 @@ double rWalkerHelper<rJastrow>::OverlapRatioAndParamGradient(int i, Vector3d& co
     }
   }
 
+  /*
+  for (int i = EENNlinearIndex; i < ParamValues.size(); i++) {
+      cout << i << " " << jastrowParams[i] << " Val: " << paramValues[i] << endl;
+      //cout << "GradxVal: " << ParamGradient[0](0, i) << " " << ParamGradient[0](1, i) << endl; 
+      //cout << "GradyVal: " << ParamGradient[1](0, i) << " " << ParamGradient[1](1, i) << endl; 
+      //cout << "GradzVal: " << ParamGradient[2](0, i) << " " << ParamGradient[2](1, i) << endl; 
+      //cout << "LaplaceVal: " << ParamLaplacian(0, i) << " " << ParamLaplacian(1, i)<< endl; 
+      cout << endl;
+  }
+  cout << "################################" << endl;
+  */
+
   double exp = paramValues.dot(jastrowParams);
+  //cout << "diff: " << exp << endl;
   return std::exp(exp);
 }
 
@@ -1333,4 +1321,3 @@ void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDetermin
       thetaDet[0][1] = 1.0;
   }
 }
-

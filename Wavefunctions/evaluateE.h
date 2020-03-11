@@ -1012,12 +1012,34 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   /*
   ///////////////////////////////////////////////
   //Below will test overlap ratios from all the Jastrow functions
+  cout << endl;
   cout << "Testing overlap factor" << endl;
   Walker walk1, walk2;
   wave.initWalker(walk1), wave.initWalker(walk2);
-  cout << "Before move" << endl;
+  cout << "#############Before move################" << endl;
+  cout << "walk1" << endl;
   cout << walk1.d << endl;
   cout << walk1.corrHelper.exponential << endl;
+  cout << endl;
+  cout << "N" << endl;
+  cout << walk1.corrHelper.N.transpose() << endl;
+  cout << endl;
+  cout << "n" << endl;
+  cout << walk1.corrHelper.n << endl;
+  cout << endl;
+  cout << "gradn[0]" << endl;
+  cout << walk1.corrHelper.gradn[0] << endl;
+  cout << endl;
+  cout << "lapn" << endl;
+  cout << walk1.corrHelper.lapn << endl;
+  cout << endl;
+  cout << "grad ratio" << endl;
+  cout << walk1.corrHelper.GradRatio << endl << endl;
+  cout << "ParamValues" << endl;
+  cout << walk1.corrHelper.ParamValues.transpose() << endl;
+  cout << endl;
+
+  cout << "walk2" << endl;
   cout << walk2.d << endl;
   cout << walk2.corrHelper.exponential << endl << endl;
   
@@ -1029,34 +1051,84 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   rDeterminant pd(walk1.d);
   pd.coord[0] = move;
   Walker walk3(wave.getCorr(), wave.getRef(), pd);
-  cout << "After move" << endl;
+  cout << "#############After move################" << endl;
   
-  cout << endl << "Init" << endl;
+  cout << endl << "__Init__" << endl;
   cout << walk3.d << endl;
   cout << walk3.corrHelper.exponential << endl;
-  cout << walk3.corrHelper.exponential - walk1.corrHelper.exponential << endl;
-  cout << endl << "updateWalker" << endl;
+  cout << "diff: " << walk3.corrHelper.exponential - walk1.corrHelper.exponential << endl;
+  cout << endl;
+  cout << "N" << endl;
+  cout << walk3.corrHelper.N.transpose() << endl;
+  cout << endl;
+  cout << "n" << endl;
+  cout << walk3.corrHelper.n << endl;
+  cout << endl;
+  cout << "gradn[0]" << endl;
+  cout << walk3.corrHelper.gradn[0] << endl;
+  cout << endl;
+  cout << "lapn" << endl;
+  cout << walk3.corrHelper.lapn << endl;
+  cout << endl;
+  cout << "grad ratio" << endl;
+  cout << walk3.corrHelper.GradRatio << endl << endl;
+  cout << "ParamValues" << endl;
+  cout << walk3.corrHelper.ParamValues.transpose() << endl;
+  cout << endl;
+
+  cout << endl << "__updateWalker__" << endl;
   cout << walk2.d << endl;
   cout << walk2.corrHelper.exponential << endl;
-  cout << walk2.corrHelper.exponential - walk1.corrHelper.exponential << endl;
-  cout << endl << "OverlapFactorWalker" << endl;
-  cout << wave.getOverlapFactor(0, move, walk1) << endl;
+  cout << "diff: " << walk2.corrHelper.exponential - walk1.corrHelper.exponential << endl;
   cout << endl;
-  wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
-  cout << endl << "GetGradientAfterElectronMove" << endl;
-  Vector3d vect;
-  cout << walk1.getGradientAfterSingleElectronMove(0, move, vect, wave.getRef()) << endl;
-  cout << wave.getOverlapFactor(0, move, walk1) << endl;
+  cout << "N" << endl;
+  cout << walk2.corrHelper.N.transpose() << endl;
+  cout << endl;
+  cout << "n" << endl;
+  cout << walk2.corrHelper.n << endl;
+  cout << endl;
+  cout << "gradn[0]" << endl;
+  cout << walk2.corrHelper.gradn[0] << endl;
+  cout << endl;
+  cout << "lapn" << endl;
+  cout << walk2.corrHelper.lapn << endl;
+  cout << endl;
+  cout << "grad ratio" << endl;
+  cout << walk2.corrHelper.GradRatio << endl << endl;
+  cout << "ParamValues" << endl;
+  cout << walk2.corrHelper.ParamValues.transpose() << endl;
+  cout << endl;
+  cout << "Delta ParamValues" << endl;
+  cout << walk2.corrHelper.ParamValues.transpose() - walk1.corrHelper.ParamValues.transpose() << endl;
+  cout << endl;
 
-  cout << endl << "Symmetry" << endl;
+  cout << endl << "__GetGradientAndParamValues__" << endl;
+  VectorXd pvec;
+  cout << walk1.corrHelper.OverlapRatioAndParamGradient(0, move, wave.getCorr(), walk1.d, pvec) << endl;
+  cout << pvec.transpose() << endl;
+
+  cout << endl << "__OverlapFactorWalker__" << endl;
+  double a =  wave.getOverlapFactor(0, move, walk1);
+  cout << a << endl;
+  cout << endl;
+
+  cout << "__GetGradientAfterElectronMove__" << endl;
+  Vector3d vect;
+  double test = walk1.getGradientAfterSingleElectronMove(0, move, vect, wave.getRef());
+  cout << test << endl;
+  cout << vect.transpose() << endl;
+
+  cout << endl << "__Symmetry__" << endl;
   rDeterminant d1(walk1.d);
   rDeterminant d2;
   d2.coord[0] = d1.coord[1];
   d2.coord[1] = d1.coord[0];
   Walker Walk1(wave.getCorr(), wave.getRef(), d1);
   Walker Walk2(wave.getCorr(), wave.getRef(), d2);
-  cout << Walk1.corrHelper.exponential << endl;
-  cout << Walk2.corrHelper.exponential << endl;
+  cout << "walk 1: " << Walk1.corrHelper.exponential << endl;
+  cout << "walk 2: " << Walk2.corrHelper.exponential << endl;
+  cout << endl;
+  cout << "##############################" << endl;
   ////////////////////////////////////////// 
   */
   while (iter < niter) {

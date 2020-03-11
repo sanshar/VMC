@@ -51,7 +51,7 @@ class rWalkerHelper<rSlater>
 
   rWalkerHelper() {};
 
-  rWalkerHelper(const rSlater &w, const rDeterminant &d) ;
+  rWalkerHelper(const rSlater &w, const rDeterminant &d);
 
   void initInvDetsTables(const rSlater& w, const rDeterminant &d);
 
@@ -66,18 +66,16 @@ class rWalkerHelper<rSlater>
   void updateWalker(int i, Vector3d& oldCoord, const rDeterminant &d,
                     const rSlater& w);
 
-
   void updateWalkerGHF(int elec, Vector3d& oldCoord, const rDeterminant &d,
                        int sz, int nelec, const rSlater& w);
-  
-  
+   
   void updateWalker(int elec, Vector3d& oldCoord, const rDeterminant &d,
                     int sz, int nelec, const rSlater& w);
 
   void OverlapWithGradient(const rDeterminant& d, 
                            const rSlater& w,
                            Eigen::VectorBlock<VectorXd>& grad,
-                           const double& ovlp) ;
+                           const double& ovlp);
 
   void HamOverlap(const rDeterminant& d, 
                   const rSlater& w,
@@ -171,7 +169,7 @@ class rWalkerHelper<rJastrow>
       EENNlinearIndex,
       EENNIndex;
   
-  //Equation 33 of  https://doi.org/10.1063/1.4948778
+  //Equation 33 of https://doi.org/10.1063/1.4948778
   double   exponential;
   MatrixXd GradRatio; //nelec x 3 
   VectorXd LaplaceRatioIntermediate;
@@ -180,8 +178,14 @@ class rWalkerHelper<rJastrow>
   VectorXd ParamValues;
   MatrixXd ParamLaplacian;                      //nelec X njastrow matrix -> Del^2_i J_j
   std::vector<MatrixXd>  ParamGradient;         //vector of GradRatio for each Jastrow
-  MatrixXd workMatrix;
+  //MatrixXd workMatrix;
   VectorXd jastrowParams;
+
+  //for four body jastrow
+  VectorXd N; //Vector of N_I
+  MatrixXd n; //matrix of n_I (r_i)
+  std::array<MatrixXd, 3> gradn;
+  MatrixXd lapn;
 
   
   rWalkerHelper() {};

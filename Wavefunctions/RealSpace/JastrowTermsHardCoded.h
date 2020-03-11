@@ -110,7 +110,20 @@ void JastrowEEN(int i, int j, int maxQ,
                 MatrixXd& gy, MatrixXd& gz,
                 MatrixXd& laplace, double factor,
                 int startIndex,
-                int ss) ;
+                int ss);
+
+
+void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::array<MatrixXd, 3> &gradn, MatrixXd &lapn);
+
+void JastrowEENN(const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, const MatrixXd &lapn, VectorXd &ParamValues, std::vector<MatrixXd> &ParamGradient, MatrixXd &ParamLaplacian, int startIndex);
+
+double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, const VectorXd &params, int startIndex);
+
+double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, Vector3d &grad, const VectorXd &params, int startIndex);
+
+double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, VectorXd &ParamValues, int startIndex);
+
+void JastrowEENNupdate(int elec, const Vector3d &coord, const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::array<MatrixXd, 3> &gradn, MatrixXd &lapn, int startIndex);
 
 
 double JastrowEENNLinearValue(int i, const vector<Vector3d>& r, const VectorXd& params, int startIndex);
@@ -120,10 +133,10 @@ double JastrowEENNLinearValueGrad(int i, const vector<Vector3d>& r, Vector3d& gr
 void JastrowEENNLinear(int i, const vector<Vector3d>& r, VectorXd& values, MatrixXd& gx, MatrixXd& gy, MatrixXd& gz, MatrixXd& laplace, double factor, int startIndex);
 
 
-double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd& params, int startIndex, int ss);
+double JastrowEENNValue(int i, int j, const vector<Vector3d>& r, const VectorXd& params, int startIndex);
 
-double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d grad, const VectorXd& params, int startIndex, int ss);
+double JastrowEENNValueGrad(int i, int j, const vector<Vector3d>& r, Vector3d &grad, const VectorXd& params, int startIndex);
 
-void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, MatrixXd& gx, MatrixXd& gy, MatrixXd& gz, MatrixXd& laplace, double factor, int startIndex, int ss);
+void JastrowEENN(int i, int j, const vector<Vector3d>& r, VectorXd& values, MatrixXd& gx, MatrixXd& gy, MatrixXd& gz, MatrixXd& laplace, double factor, int startIndex);
 
 #endif

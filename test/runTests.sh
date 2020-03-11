@@ -276,9 +276,9 @@ fi
 
 cd $here/h6_ghf_trans/
 ../clean.sh
-printf "...running H6 transcorrelated\n"
-$MPICOMMAND $TRANSPATH > trans.out
-python ../testEnergy.py 'trans' $tol
+#printf "...running H6 transcorrelated\n"
+#$MPICOMMAND $TRANSPATH > trans.out
+#python ../testEnergy.py 'trans' $tol
 if [ $clean == 1 ]
 then
     ../clean.sh

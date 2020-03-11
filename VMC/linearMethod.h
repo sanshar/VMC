@@ -81,7 +81,7 @@ class LM
 	    char file[50];
             sprintf(file, "LM.bkp");
             std::ifstream ifs(file, std::ios::binary);
-	    boost::archive::binary_iarchive load(ifs);
+	        boost::archive::binary_iarchive load(ifs);
             load >> *this;
             load >> vars;
             ifs.close();
@@ -171,7 +171,6 @@ class LM
 
        double emin=1.e10; int eminIndex;
        for (int i=0; i<index; i++) {
-
          if (es.eigenvalues()(i).real() < emin) {
            emin = es.eigenvalues()(i).real();
            eminIndex = i;
@@ -208,6 +207,7 @@ class LM
              index = i;              
          }
          vars = V[index];
+
          if (schd.printOpt && commrank == 0)
          {
            cout << "Correlated Sampling: " << endl;
@@ -217,12 +217,6 @@ class LM
            }
            cout << endl;
          }
-/* 
-       for (int i = 0; i < vars.rows(); i++)
-       {
-         vars(i) += (x(i+1) / x(0));
-       } 
-*/
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
@@ -470,7 +464,7 @@ class directLM
     {
         if (commrank == 0)
         {
-	    char file[50];
+	        char file[50];
             sprintf(file, "directLM.bkp");
             std::ofstream ofs(file, std::ios::binary);
             boost::archive::binary_oarchive save(ofs);
@@ -487,7 +481,7 @@ class directLM
     {
         if (commrank == 0)
         {
-	    char file[50];
+	        char file[50];
             sprintf(file, "directLM.bkp");
             std::ifstream ifs(file, std::ios::binary);
 	        boost::archive::binary_iarchive load(ifs);
