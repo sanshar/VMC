@@ -547,6 +547,8 @@ void JastrowEEN(int i, int j, int maxQ,
 void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::array<MatrixXd, 3> &gradn, MatrixXd &lapn)
 {
   int norbs = schd.basis->getNorbs();
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
   int nelec = rDeterminant::nalpha + rDeterminant::nbeta;
 
   int Nsize;
@@ -557,7 +559,7 @@ void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::a
     Nsize = norbs;
   }
   
-  N.setZero(Nsize);
+  N.setZero(2 * Nsize);
  
   n.setZero(nelec, Nsize);
   gradn[0].setZero(nelec, Nsize);
@@ -587,41 +589,114 @@ void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::a
 
   for (int i = 0; i < Nsize; i++)
   {
-    N[i] = n.col(i).sum();
+    N[i] = n.col(i).head(nalpha).sum();
+    N[i + Nsize] = n.col(i).tail(nbeta).sum();
   }
    
 }
 
 void JastrowEENN(const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, const MatrixXd &lapn, VectorXd &ParamValues, std::vector<MatrixXd> &ParamGradient, MatrixXd &ParamLaplacian, int startIndex)
 {
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = rDeterminant::nalpha + rDeterminant::nbeta;
+  int Nsize = n.cols();
+
   //linear term
-  for (int I = 0; I < n.cols(); I++)
+  for (int I = 0; I < Nsize; I++)
   {
-    ParamValues[startIndex + I] = N[I];
-    for (int i = 0; i < n.rows(); i++)
+    int Ia = I;
+    int Ib = I + Nsize;
+
+    ParamValues[startIndex + Ia] = N[Ia];
+    ParamValues[startIndex + Ib] = N[Ib];
+    for (int i = 0; i < nelec; i++)
     {
-      ParamGradient[0](i, startIndex + I) = gradn[0](i, I);
-      ParamGradient[1](i, startIndex + I) = gradn[1](i, I);
-      ParamGradient[2](i, startIndex + I) = gradn[2](i, I);
-      ParamLaplacian(i, startIndex + I) = lapn(i, I);
+      if (i < nalpha)
+      {
+        ParamGradient[0](i, startIndex + Ia) = gradn[0](i, I);
+        ParamGradient[1](i, startIndex + Ia) = gradn[1](i, I);
+        ParamGradient[2](i, startIndex + Ia) = gradn[2](i, I);
+        ParamLaplacian(i, startIndex + Ia) = lapn(i, I);
+      }
+      else
+      {
+        ParamGradient[0](i, startIndex + Ib) = gradn[0](i, I);
+        ParamGradient[1](i, startIndex + Ib) = gradn[1](i, I);
+        ParamGradient[2](i, startIndex + Ib) = gradn[2](i, I);
+        ParamLaplacian(i, startIndex + Ib) = lapn(i, I);
+      }
     }
   }
 
   //quadratic term
-  for (int I = 0; I < n.cols(); I++)
+  for (int I = 0; I < Nsize; I++)
   {
-    for (int J = 0; J < n.cols(); J++)
+    for (int J = 0; J < Nsize; J++)
     {
-      int index = startIndex + N.size() + I * N.size() + J;
-      ParamValues[index] = N[I] * N[J];
-      for (int i = 0; i < n.rows(); i++)
+      int Ia = I;
+      int Ib = I + Nsize;
+      int Ja = J;
+      int Jb = J + Nsize;
+
+      int stride = 2 * Nsize;
+
+      int aaindex = startIndex + stride + Ia * stride + Ja;
+      int bbindex = startIndex + stride + Ib * stride + Jb;
+      int abindex = startIndex + stride + Ia * stride + Jb;
+      int baindex = startIndex + stride + Ib * stride + Ja;
+
+      ParamValues[aaindex] = N[Ia] * N[Ja];
+      ParamValues[bbindex] = N[Ib] * N[Jb];
+      ParamValues[abindex] = N[Ia] * N[Jb];
+      ParamValues[baindex] = N[Ib] * N[Ja];
+      
+      for (int i = 0; i < nelec; i++)
       {
-        ParamGradient[0](i, index) = gradn[0](i, I) * N[J] + N[I] * gradn[0](i, J);
-        ParamGradient[1](i, index) = gradn[1](i, I) * N[J] + N[I] * gradn[1](i, J);
-        ParamGradient[2](i, index) = gradn[2](i, I) * N[J] + N[I] * gradn[2](i, J);
-        ParamLaplacian(i, index) = lapn(i, I) * N[J] + N[I] * lapn(i, J) + 2.0 * gradn[0](i, I) * gradn[0](i, J) 
-                                                                         + 2.0 * gradn[1](i, I) * gradn[1](i, J) 
-                                                                         + 2.0 * gradn[2](i, I) * gradn[2](i, J);
+        if (i < nalpha)
+        {
+          ParamGradient[0](i, aaindex) = gradn[0](i, I) * N[Ja] + N[Ia] * gradn[0](i, J);
+          ParamGradient[1](i, aaindex) = gradn[1](i, I) * N[Ja] + N[Ia] * gradn[1](i, J);
+          ParamGradient[2](i, aaindex) = gradn[2](i, I) * N[Ja] + N[Ia] * gradn[2](i, J);
+
+          ParamGradient[0](i, abindex) = gradn[0](i, I) * N[Jb];
+          ParamGradient[1](i, abindex) = gradn[1](i, I) * N[Jb];
+          ParamGradient[2](i, abindex) = gradn[2](i, I) * N[Jb];
+
+          ParamGradient[0](i, baindex) = N[Ib] * gradn[0](i, J);
+          ParamGradient[1](i, baindex) = N[Ib] * gradn[1](i, J);
+          ParamGradient[2](i, baindex) = N[Ib] * gradn[2](i, J);
+
+          ParamLaplacian(i, aaindex) = lapn(i, I) * N[Ja] + N[Ia] * lapn(i, J) + 2.0 * gradn[0](i, I) * gradn[0](i, J) 
+                                                                               + 2.0 * gradn[1](i, I) * gradn[1](i, J) 
+                                                                               + 2.0 * gradn[2](i, I) * gradn[2](i, J);
+
+          ParamLaplacian(i, abindex) = lapn(i, I) * N[Jb];
+
+          ParamLaplacian(i, baindex) = N[Ib] * lapn(i, J);
+        }
+        else
+        {
+          ParamGradient[0](i, bbindex) = gradn[0](i, I) * N[Jb] + N[Ib] * gradn[0](i, J);
+          ParamGradient[1](i, bbindex) = gradn[1](i, I) * N[Jb] + N[Ib] * gradn[1](i, J);
+          ParamGradient[2](i, bbindex) = gradn[2](i, I) * N[Jb] + N[Ib] * gradn[2](i, J);
+
+          ParamGradient[0](i, abindex) = N[Ia] * gradn[0](i, J);
+          ParamGradient[1](i, abindex) = N[Ia] * gradn[1](i, J);
+          ParamGradient[2](i, abindex) = N[Ia] * gradn[2](i, J);
+
+          ParamGradient[0](i, baindex) = gradn[0](i, I) * N[Ja];
+          ParamGradient[1](i, baindex) = gradn[1](i, I) * N[Ja];
+          ParamGradient[2](i, baindex) = gradn[2](i, I) * N[Ja];
+
+          ParamLaplacian(i, bbindex) = lapn(i, I) * N[Jb] + N[Ib] * lapn(i, J) + 2.0 * gradn[0](i, I) * gradn[0](i, J) 
+                                                                               + 2.0 * gradn[1](i, I) * gradn[1](i, J) 
+                                                                               + 2.0 * gradn[2](i, I) * gradn[2](i, J);
+
+          ParamLaplacian(i, abindex) = N[Ia] * lapn(i, J);
+
+          ParamLaplacian(i, baindex) = lapn(i, I) * N[Ja];
+        }
       }
     }
   }    
@@ -629,6 +704,11 @@ void JastrowEENN(const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd
 
 double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, const VectorXd &params, int startIndex)
 {
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = rDeterminant::nalpha + rDeterminant::nbeta;
+  int Nsize = n.cols();
+
   Vector3d bkp = r[elec];
   const_cast<Vector3d&>(r[elec]) = coord;
 
@@ -642,28 +722,103 @@ double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d>
 
   const_cast<Vector3d&>(r[elec]) = bkp;
 
+  //spin
+  int sz = elec < nalpha ? 0 : 1;
+
+  //N prime
+  VectorXd Np = N;
+  for (int i = 0; i < Nsize; i++)
+  {
+    int shift = sz * Nsize;
+    Np(i + shift) += (nprime(i) - n(elec, i));
+  }
+
   //linear term
   double val = 0;
-  for (int I = 0; I < n.cols(); I++)
+  for (int I = 0; I < Nsize; I++)
   {
-    double factor = params[startIndex + I];
-    val += factor * (nprime[I] - n(elec, I));
+    int shift = sz * Nsize;
+    double factor = params[startIndex + I + shift];
+    val += factor * Np(I + shift);
+    val -= factor * N(I + shift);
   }
 
   //quadratic term
-  for (int I = 0; I < n.cols(); I++)
+  for (int I = 0; I < Nsize; I++)
   {
-    for (int J = 0; J < n.cols(); J++)
+    for (int J = 0; J < Nsize; J++)
     {
-      double factor = params[startIndex + N.size() + I * N.size() + J];
-      val += factor * (n(elec, I) * n(elec, J) 
-                     + nprime(I) * nprime(J) 
-                     + N(I) * nprime(J) 
-                     + nprime(I) * N(J)
-                     - n(elec, I) * nprime(J)
-                     - nprime(I) * n(elec, J)
-                     - N(I) * n(elec, J)
-                     - n(elec, I) * N(J));
+      int Ia = I;
+      int Ib = I + Nsize;
+      int Ja = J;
+      int Jb = J + Nsize;
+
+      int stride = 2 * Nsize;
+      if (sz = 0)
+      {
+        {
+          int aaindex = startIndex + stride + Ia * stride + Ja;
+          double factor = params[aaindex];
+          val += factor * Np(Ia) * Np(Ja);
+          val -= factor * N(Ia) * N(Ja);
+        }
+
+        /*
+        {
+          int abindex = startIndex + stride + Ia * stride + Jb;
+          double factor = params[abindex];
+          val += factor * Np(Ia) * Np(Jb);
+          val -= factor * N(Ia) * N(Jb);
+        }
+
+        {
+          int baindex = startIndex + stride + Ib * stride + Ja;
+          double factor = params[baindex];
+          val += factor * Np(Ib) * Np(Ja);
+          val -= factor * N(Ib) * N(Ja);
+        }
+        */
+      }
+      else
+      {
+        {
+          int bbindex = startIndex + stride + Ib * stride + Jb;
+          double factor = params[bbindex];
+          val += factor * Np(Ib) * Np(Jb);
+          val -= factor * N(Ib) * N(Jb);
+        }
+
+        /*
+        {
+          int abindex = startIndex + stride + Ia * stride + Jb;
+          double factor = params[abindex];
+          val += factor * Np(Ia) * Np(Jb);
+          val -= factor * N(Ia) * N(Jb);
+        }
+
+        {
+          int baindex = startIndex + stride + Ib * stride + Ja;
+          double factor = params[baindex];
+          val += factor * Np(Ib) * Np(Ja);
+          val -= factor * N(Ib) * N(Ja);
+        }
+        */
+      }
+
+      {
+        int abindex = startIndex + stride + Ia * stride + Jb;
+        double factor = params[abindex];
+        val += factor * Np(Ia) * Np(Jb);
+        val -= factor * N(Ia) * N(Jb);
+      }
+
+      {
+        int baindex = startIndex + stride + Ib * stride + Ja;
+        double factor = params[baindex];
+        val += factor * Np(Ib) * Np(Ja);
+        val -= factor * N(Ib) * N(Ja);
+      }
+
     }
   }
   return val;
@@ -671,6 +826,11 @@ double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d>
 
 double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, Vector3d &grad, const VectorXd &params, int startIndex)
 {
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = rDeterminant::nalpha + rDeterminant::nbeta;
+  int Nsize = n.cols();
+
   Vector3d bkp = r[elec];
   const_cast<Vector3d&>(r[elec]) = coord;
 
@@ -685,41 +845,143 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
 
   const_cast<Vector3d&>(r[elec]) = bkp;
 
-  VectorXd Np = N - n.row(elec) + np;
+  //spin
+  int sz = elec < nalpha ? 0 : 1;
+
+  //N prime
+  VectorXd Np = N;
+  for (int i = 0; i < Nsize; i++)
+  {
+    int shift = sz * Nsize;
+    Np(i + shift) += (np(i) - n(elec, i));
+  }
 
   //linear term
   double val = 0;
-  for (int I = 0; I < n.cols(); I++)
+  for (int I = 0; I < Nsize; I++)
   {
-    double factor = params[startIndex + I];
-    val += factor * (np[I] - n(elec, I));
+    int shift = sz * Nsize;
+    double factor = params[startIndex + I + shift];
+    val += factor * Np(I + shift);
+    val -= factor * N(I + shift);
+
     grad[0] += factor * (gradnp[0][I] - gradn[0](elec, I));
     grad[1] += factor * (gradnp[1][I] - gradn[1](elec, I));
     grad[2] += factor * (gradnp[2][I] - gradn[2](elec, I));
   }
 
   //quadratic term
-  for (int I = 0; I < n.cols(); I++)
+  for (int I = 0; I < Nsize; I++)
   {
-    for (int J = 0; J < n.cols(); J++)
+    for (int J = 0; J < Nsize; J++)
     {
-      double factor = params[startIndex + N.size() + I * N.size() + J];
-      val += factor * (n(elec, I) * n(elec, J) 
-                     + np(I) * np(J) 
-                     + N(I) * np(J) 
-                     + np(I) * N(J)
-                     - n(elec, I) * np(J)
-                     - np(I) * n(elec, J)
-                     - N(I) * n(elec, J)
-                     - n(elec, I) * N(J));
+      int Ia = I;
+      int Ib = I + Nsize;
+      int Ja = J;
+      int Jb = J + Nsize;
 
-      grad[0] += factor * (gradnp[0][I] * Np[J] + Np[I] * gradnp[0][J]);
-      grad[1] += factor * (gradnp[1][I] * Np[J] + Np[I] * gradnp[1][J]);
-      grad[2] += factor * (gradnp[2][I] * Np[J] + Np[I] * gradnp[2][J]);
+      int stride = 2 * Nsize;
+      if (sz = 0)
+      {
+        {
+          int aaindex = startIndex + stride + Ia * stride + Ja;
+          double factor = params[aaindex];
 
-      grad[0] -= factor * (gradn[0](elec, I) * N[J] + N[I] * gradn[0](elec, J));
-      grad[1] -= factor * (gradn[1](elec, I) * N[J] + N[I] * gradn[1](elec, J));
-      grad[2] -= factor * (gradn[2](elec, I) * N[J] + N[I] * gradn[2](elec, J));
+          val += factor * Np(Ia) * Np(Ja);
+          val -= factor * N(Ia) * N(Ja);
+
+          grad[0] += factor * (gradnp[0](I) * Np[Ja] + Np[Ia] * gradnp[0](J));
+          grad[1] += factor * (gradnp[1](I) * Np[Ja] + Np[Ia] * gradnp[1](J));
+          grad[2] += factor * (gradnp[2](I) * Np[Ja] + Np[Ia] * gradnp[2](J));
+
+          grad[0] -= factor * (gradn[0](elec, I) * N[Ja] + N[Ia] * gradn[0](elec, J));
+          grad[1] -= factor * (gradn[1](elec, I) * N[Ja] + N[Ia] * gradn[1](elec, J));
+          grad[2] -= factor * (gradn[2](elec, I) * N[Ja] + N[Ia] * gradn[2](elec, J));
+        }
+
+        {
+          int abindex = startIndex + stride + Ia * stride + Jb;
+          double factor = params[abindex];
+
+          val += factor * Np(Ia) * Np(Jb);
+          val -= factor * N(Ia) * N(Jb);
+
+          grad[0] += factor * gradnp[0](I) * Np[Jb];
+          grad[1] += factor * gradnp[1](I) * Np[Jb];
+          grad[2] += factor * gradnp[2](I) * Np[Jb];
+
+          grad[0] -= factor * gradn[0](elec, I) * N[Jb];
+          grad[1] -= factor * gradn[1](elec, I) * N[Jb];
+          grad[2] -= factor * gradn[2](elec, I) * N[Jb];
+        }
+
+        {
+          int baindex = startIndex + stride + Ib * stride + Ja;
+          double factor = params[baindex];
+
+          val += factor * Np(Ib) * Np(Ja);
+          val -= factor * N(Ib) * N(Ja);
+
+          grad[0] += factor * Np[Ib] * gradnp[0](J);
+          grad[1] += factor * Np[Ib] * gradnp[1](J);
+          grad[2] += factor * Np[Ib] * gradnp[2](J);
+
+          grad[0] -= factor * N[Ib] * gradn[0](elec, J);
+          grad[1] -= factor * N[Ib] * gradn[1](elec, J);
+          grad[2] -= factor * N[Ib] * gradn[2](elec, J);
+        }
+      }
+      else
+      {
+        {
+          int bbindex = startIndex + stride + Ib * stride + Jb;
+          double factor = params[bbindex];
+
+          val += factor * Np(Ib) * Np(Jb);
+          val -= factor * N(Ib) * N(Jb);
+
+          grad[0] += factor * (gradnp[0](I) * Np[Jb] + Np[Ib] * gradnp[0](J));
+          grad[1] += factor * (gradnp[1](I) * Np[Jb] + Np[Ib] * gradnp[1](J));
+          grad[2] += factor * (gradnp[2](I) * Np[Jb] + Np[Ib] * gradnp[2](J));
+
+          grad[0] -= factor * (gradn[0](elec, I) * N[Jb] + N[Ib] * gradn[0](elec, J));
+          grad[1] -= factor * (gradn[1](elec, I) * N[Jb] + N[Ib] * gradn[1](elec, J));
+          grad[2] -= factor * (gradn[2](elec, I) * N[Jb] + N[Ib] * gradn[2](elec, J));
+        }
+
+        {
+          int abindex = startIndex + stride + Ia * stride + Jb;
+          double factor = params[abindex];
+
+          val += factor * Np(Ia) * Np(Jb);
+          val -= factor * N(Ia) * N(Jb);
+
+          grad[0] += factor * Np[Ia] * gradnp[0](J);
+          grad[1] += factor * Np[Ia] * gradnp[1](J);
+          grad[2] += factor * Np[Ia] * gradnp[2](J);
+
+          grad[0] -= factor * N[Ia] * gradn[0](elec, J);
+          grad[1] -= factor * N[Ia] * gradn[1](elec, J);
+          grad[2] -= factor * N[Ia] * gradn[2](elec, J);
+        }
+
+        {
+          int baindex = startIndex + stride + Ib * stride + Ja;
+          double factor = params[baindex];
+
+          val += factor * Np(Ib) * Np(Ja);
+          val -= factor * N(Ib) * N(Ja);
+
+          grad[0] += factor * gradnp[0](I) * Np[Ja];
+          grad[1] += factor * gradnp[1](I) * Np[Ja];
+          grad[2] += factor * gradnp[2](I) * Np[Ja];
+
+          grad[0] -= factor * gradn[0](elec, I) * N[Ja];
+          grad[1] -= factor * gradn[1](elec, I) * N[Ja];
+          grad[2] -= factor * gradn[2](elec, I) * N[Ja];
+        }
+      }
+
     }
   }
   return val;
@@ -727,6 +989,11 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
 
 double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, VectorXd &ParamValues, int startIndex)
 {
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = rDeterminant::nalpha + rDeterminant::nbeta;
+  int Nsize = n.cols();
+
   Vector3d bkp = r[elec];
   const_cast<Vector3d&>(r[elec]) = coord;
 
@@ -740,10 +1007,28 @@ double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vec
 
   const_cast<Vector3d&>(r[elec]) = bkp;
 
-  //linear term
-  for (int I = 0; I < n.cols(); I++)
+  //spin
+  int sz = elec < nalpha ? 0 : 1;
+
+  //N prime
+  VectorXd Np = N;
+  for (int i = 0; i < Nsize; i++)
   {
-    ParamValues[startIndex + I] += (nprime[I] - n(elec, I));
+    int shift = sz * Nsize;
+    Np(i + shift) += (nprime(i) - n(elec, i));
+  }
+
+  //linear term
+  for (int I = 0; I < Nsize; I++)
+  {
+    int Ia = I;
+    int Ib = I + Nsize;
+
+    ParamValues[startIndex + Ia] += Np[Ia];
+    ParamValues[startIndex + Ia] -= N[Ia];
+
+    ParamValues[startIndex + Ib] += Np[Ib];
+    ParamValues[startIndex + Ib] -= N[Ib];
   }
 
   //quadratic term
@@ -751,20 +1036,38 @@ double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vec
   {
     for (int J = 0; J < n.cols(); J++)
     {
-      ParamValues[startIndex + N.size() + I * N.size() + J] += (n(elec, I) * n(elec, J) 
-                                                              + nprime(I) * nprime(J) 
-                                                              + N(I) * nprime(J) 
-                                                              + nprime(I) * N(J)
-                                                              - n(elec, I) * nprime(J)
-                                                              - nprime(I) * n(elec, J)
-                                                              - N(I) * n(elec, J)
-                                                              - n(elec, I) * N(J));
+      int Ia = I;
+      int Ib = I + Nsize;
+      int Ja = J;
+      int Jb = J + Nsize;
+
+      int stride = 2 * Nsize;
+
+      int aaindex = startIndex + stride + Ia * stride + Ja;
+      int bbindex = startIndex + stride + Ib * stride + Jb;
+      int abindex = startIndex + stride + Ia * stride + Jb;
+      int baindex = startIndex + stride + Ib * stride + Ja;
+
+      ParamValues[aaindex] += Np[Ia] * Np[Ja];
+      ParamValues[bbindex] += Np[Ib] * Np[Jb];
+      ParamValues[abindex] += Np[Ia] * Np[Jb];
+      ParamValues[baindex] += Np[Ib] * Np[Ja];
+
+      ParamValues[aaindex] -= N[Ia] * N[Ja];
+      ParamValues[bbindex] -= N[Ib] * N[Jb];
+      ParamValues[abindex] -= N[Ia] * N[Jb];
+      ParamValues[baindex] -= N[Ib] * N[Ja];
     }
   }
 }
 
 void JastrowEENNupdate(int elec, const Vector3d &coord, const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::array<MatrixXd, 3> &gradn, MatrixXd &lapn, int startIndex)
 {
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = rDeterminant::nalpha + rDeterminant::nbeta;
+  int Nsize = n.cols();
+
   Vector3d bkp = r[elec];
   const_cast<Vector3d&>(r[elec]) = coord;
 
@@ -779,12 +1082,18 @@ void JastrowEENNupdate(int elec, const Vector3d &coord, const vector<Vector3d> &
 
   const_cast<Vector3d&>(r[elec]) = bkp;
 
-  //update N, n, gradn, lapn
-  for (int i = 0; i < N.size(); i++)
+  //spin
+  int sz = elec < nalpha ? 0 : 1;
+
+  //N prime
+  VectorXd Np = N;
+  for (int i = 0; i < Nsize; i++)
   {
-    N(i) -= n.row(elec)(i);
-    N(i) += np(i);
+    int shift = sz * Nsize;
+    Np(i + shift) += (np(i) - n(elec, i));
   }
+
+  N = Np;
 
   n.row(elec) = np;
 
@@ -793,13 +1102,6 @@ void JastrowEENNupdate(int elec, const Vector3d &coord, const vector<Vector3d> &
   gradn[2].row(elec) = gradnp[2];
 
   lapn.row(elec) = grad2np[0] + grad2np[1] + grad2np[2];
-
-  /*
-  for (int i = 0; i < N.size(); i++)
-  {
-    N[i] = n.col(i).sum();
-  }
-  */
 }
 
 

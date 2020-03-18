@@ -1129,8 +1129,8 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   cout << "walk 2: " << Walk2.corrHelper.exponential << endl;
   cout << endl;
   cout << "##############################" << endl;
-  ////////////////////////////////////////// 
   */
+  ////////////////////////////////////////// 
   while (iter < niter) {
     elecToMove = iter%nelec;
     walk.getStep(step, elecToMove, schd.realSpaceStep, wave.ref, wave.getCorr(), ovlpRatio, proposalProb);

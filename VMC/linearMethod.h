@@ -206,7 +206,7 @@ class LM
            if (E[i] < E[index])
              index = i;              
          }
-         vars = V[index];
+         //vars = V[index];
 
          if (schd.printOpt && commrank == 0)
          {
@@ -216,6 +216,13 @@ class LM
              cout << stepsizes[i] << " " << E[i] << "|";
            }
            cout << endl;
+         }
+
+         //accept update only if "good" move
+         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 2)
+         {
+           //if (commrank == 0) cout << "update accepted" << endl;
+           vars = V[index];
          }
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -578,7 +585,8 @@ if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
            if (E[i] < E[index])
              index = i;              
          }
-         vars = V[index];
+         //vars = V[index];
+         
          if (schd.printOpt && commrank == 0)
          {
            cout << "Correlated Sampling: " << endl;
@@ -587,6 +595,13 @@ if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
              cout << LMStep[i] << " " << E[i] << " | ";
            }
            cout << endl;
+         }
+
+         //accept update only if "good" move
+         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 2)
+         {
+           //if (commrank == 0) cout << "update accepted" << endl;
+           vars = V[index];
          }
        } 
 #ifndef SERIAL

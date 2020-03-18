@@ -503,7 +503,7 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
   }
   //cout << d << endl;
 
-/*
+  /*
 d.coord[0] = schd.Ncoords[0] + Vector3d(1.0, 0.0, 0.0);
 if (d.coord.size() > 1)
 d.coord[1] = schd.Ncoords[0] + Vector3d(0.0, 1.0, 0.0);

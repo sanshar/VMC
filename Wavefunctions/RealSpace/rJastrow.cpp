@@ -57,9 +57,9 @@ rJastrow::rJastrow () {
    //EENNlinearIndex = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
    EENNlinearIndex = EENsameSpinIndex;
    if (schd.fourBodyJastrowBasis == NC)
-     EENNIndex = EENNlinearIndex + schd.Ncharge.size();
+     EENNIndex = EENNlinearIndex + 2 * schd.Ncharge.size();
    else if (schd.fourBodyJastrowBasis == AB)
-     EENNIndex = EENNlinearIndex + norbs;
+     EENNIndex = EENNlinearIndex + 2 * norbs;
    
    int numParams = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
 
@@ -73,9 +73,9 @@ rJastrow::rJastrow () {
    */
    if (schd.fourBodyJastrow) {
      if (schd.fourBodyJastrowBasis == NC)
-       numParams = EENNIndex + schd.Ncharge.size() * schd.Ncharge.size();
+       numParams = EENNIndex + 4 * schd.Ncharge.size() * schd.Ncharge.size();
      else if(schd.fourBodyJastrowBasis == AB)
-       numParams = EENNIndex + norbs * norbs;
+       numParams = EENNIndex + 4 * norbs * norbs;
    }
    
    /*
@@ -99,6 +99,7 @@ rJastrow::rJastrow () {
   _params[EEoppositeSpinIndex] = 0.5;
   if (schd.optimizeCps == false) { _params.assign(_params.size(), 0.0); }
   //if (commrank == 0) cout << "Num Jastrow terms "<<_params.size()<<endl;
+
   //if rJastrow.txt file exists
   ifstream ifile("rJastrow.txt");
   if (ifile) {
@@ -134,6 +135,54 @@ void rJastrow::updateVariables(const Eigen::VectorXd &v)
 
 void rJastrow::printVariables() const
 {
+  cout << endl;
+  cout << "__rJastrow parameters__" << endl;
+
+  cout << "EEsamespin" << endl;
+  for (int t=EEsameSpinIndex; t<EEoppositeSpinIndex; t++)
+    cout << _params[t] << " ";
+  cout << endl;
+
+  cout << "EEoppositespin" << endl;
+  for (int t=EEoppositeSpinIndex; t<ENIndex; t++)
+    cout << _params[t] << " ";
+  cout << endl;
+
+  cout << "EN" << endl;
+  for (int t=ENIndex; t<EENsameSpinIndex; t++) {
+    cout << _params[t] << " ";
+    if ((t + 1) % Qmax == 0) cout << endl;
+  }
+
+  if (schd.fourBodyJastrow == false) {
+    cout << "EENsamespin" << endl;
+    for (int t=EENsameSpinIndex; t<EENoppositeSpinIndex; t++)
+      cout << _params[t] << " ";
+    cout << endl;
+
+    cout << "EENoppositespin" << endl;
+    for (int t=EENoppositeSpinIndex; t<_params.size(); t++)
+      cout << _params[t] << " ";
+    cout << endl;
+  }
+  else {
+      cout << "EENNlinear" << endl;
+      int size = EENNIndex - EENNlinearIndex;
+      for (int i = 0; i < size; i++) {
+          cout << _params[i + EENNlinearIndex] << " ";
+      }
+      cout << endl;
+
+      cout << "EENNquadratic" << endl;
+      for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+          cout << _params[EENNlinearIndex + size + i * size + j] << " ";
+        }
+        cout << endl;
+      }
+  }
+
+  cout << "rJastrow.txt" << endl;
   for (int t=0; t<_params.size(); t++)
     cout << _params[t]<<"  " ;
   cout << endl;
