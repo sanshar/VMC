@@ -54,8 +54,8 @@ rJastrow::rJastrow () {
 
    //4body Jastrows
    int norbs = schd.basis->getNorbs();
-   //EENNlinearIndex = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
-   EENNlinearIndex = EENsameSpinIndex;
+   EENNlinearIndex = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
+   //EENNlinearIndex = EENsameSpinIndex;
    if (schd.fourBodyJastrowBasis == NC)
      EENNIndex = EENNlinearIndex + 2 * schd.Ncharge.size();
    else if (schd.fourBodyJastrowBasis == AB)
@@ -154,32 +154,32 @@ void rJastrow::printVariables() const
     if ((t + 1) % Qmax == 0) cout << endl;
   }
 
-  if (schd.fourBodyJastrow == false) {
-    cout << "EENsamespin" << endl;
-    for (int t=EENsameSpinIndex; t<EENoppositeSpinIndex; t++)
-      cout << _params[t] << " ";
+  cout << "EENsamespin" << endl;
+  for (int t=EENsameSpinIndex; t<EENoppositeSpinIndex; t++)
+    cout << _params[t] << " ";
+  cout << endl;
+
+  cout << "EENoppositespin" << endl;
+  for (int t=EENoppositeSpinIndex; t<EENNlinearIndex; t++)
+    cout << _params[t] << " ";
+  cout << endl;
+
+  if (schd.fourBodyJastrow == true) {
+    int size = EENNIndex - EENNlinearIndex;
+
+    cout << "EENNlinear" << endl;
+    for (int i = 0; i < size; i++) {
+        cout << _params[i + EENNlinearIndex] << " ";
+    }
     cout << endl;
 
-    cout << "EENoppositespin" << endl;
-    for (int t=EENoppositeSpinIndex; t<_params.size(); t++)
-      cout << _params[t] << " ";
-    cout << endl;
-  }
-  else {
-      cout << "EENNlinear" << endl;
-      int size = EENNIndex - EENNlinearIndex;
-      for (int i = 0; i < size; i++) {
-          cout << _params[i + EENNlinearIndex] << " ";
+    cout << "EENNquadratic" << endl;
+    for (int i = 0; i < size; i++) {
+      for (int j = 0; j < size; j++) {
+        cout << _params[EENNlinearIndex + size + i * size + j] << " ";
       }
       cout << endl;
-
-      cout << "EENNquadratic" << endl;
-      for (int i = 0; i < size; i++) {
-        for (int j = 0; j < size; j++) {
-          cout << _params[EENNlinearIndex + size + i * size + j] << " ";
-        }
-        cout << endl;
-      }
+    }
   }
 
   cout << "rJastrow.txt" << endl;

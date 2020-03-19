@@ -219,7 +219,7 @@ class LM
          }
 
          //accept update only if "good" move
-         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 2)
+         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
          {
            //if (commrank == 0) cout << "update accepted" << endl;
            vars = V[index];
@@ -598,7 +598,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
          }
 
          //accept update only if "good" move
-         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 2)
+         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
          {
            //if (commrank == 0) cout << "update accepted" << endl;
            vars = V[index];

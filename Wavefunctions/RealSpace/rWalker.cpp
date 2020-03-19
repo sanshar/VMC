@@ -503,7 +503,7 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
   }
   //cout << d << endl;
 
-  /*
+/*
 d.coord[0] = schd.Ncoords[0] + Vector3d(1.0, 0.0, 0.0);
 if (d.coord.size() > 1)
 d.coord[1] = schd.Ncoords[0] + Vector3d(0.0, 1.0, 0.0);
@@ -814,10 +814,8 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
     diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEsameSpinIndex, 1);
     diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEoppositeSpinIndex, 0);
 
-    if (!schd.fourBodyJastrow) {
       diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus, params, EENsameSpinIndex, 1);
       diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus, params, EENoppositeSpinIndex, 0);
-    }
   }
 
   Vector3d bkp = d.coord[elecI];
@@ -831,10 +829,8 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
     diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus, params, EEsameSpinIndex, 1);
     diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus, params, EEoppositeSpinIndex, 0);
 
-    if (!schd.fourBodyJastrow) {
       diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENsameSpinIndex, 1);
       diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENoppositeSpinIndex, 0);
-    }
   }
 
   d.coord[elecI] = bkp;
