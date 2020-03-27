@@ -19,6 +19,7 @@
 #ifndef WalkerHelper_HEADER_H
 #define WalkerHelper_HEADER_H
 
+#include <unordered_set>
 #include "Determinants.h"
 #include "igl/slice.h"
 #include "igl/slice_into.h"
@@ -29,6 +30,8 @@
 #include "CPS.h"
 #include "Jastrow.h"
 #include "Gutzwiller.h"
+#include "RBM.h"
+#include "JRBM.h"
 
 template<typename Reference>
 class WalkerHelper {
@@ -229,6 +232,165 @@ class WalkerHelper<Slater>
   }
 
 };
+
+//template<>
+//class WalkerHelper<BFSlater>
+//{
+//
+// public:
+//  HartreeFock hftype;                           //hftype same as that in slater
+//  std::array<MatrixXcd, 2> theta;
+//  std::array<MatrixXcd, 2> thetaInv;          //inverse of the theta matrix
+//  std::array<complex<double>, 2> thetaDet;    //determinant of the theta matrix
+//  std::array<vector<int>, 2> openOrbs;       //set of open orbitals in the walker
+//  std::array<vector<int>, 2> closedOrbs;     //set of closed orbitals in the walker
+//  std::vector<int> doublons, holons;         //doubly occupied and empty spatial orbs 
+//  std::array<vector<int>, 2> closedOrbsRef;  //set of closed orbitals in the reference
+//  std::array<MatrixXcd, 2> rTable;    //table used for efficiently
+//
+//  WalkerHelper() {};
+//  
+//  WalkerHelper(const BFSlater &w, const Determinant &d) 
+//  {
+//    hftype = w.hftype;
+// 
+//    fillOccupancyHelpers(d);
+//    closedOrbsRef[0].clear();
+//    closedOrbsRef[1].clear();
+//    w.det.getClosedAlphaBeta(closedOrbsRef[0], closedOrbsRef[1]);
+//
+//    if (hftype == Generalized) {
+//      initInvDetsTablesGhf(w);
+//    }
+//    else {
+//      initInvDetsTables(w);
+//    }
+//  }
+//
+//  void fillOccupancyHelpers(const Determinant &d)
+//  {
+//    //fill the spin strings for the walker
+//    openOrbs[0].clear();
+//    openOrbs[1].clear();
+//    closedOrbs[0].clear();
+//    closedOrbs[1].clear();
+//    d.getOpenClosedAlphaBeta(openOrbs[0], closedOrbs[0], openOrbs[1], closedOrbs[1]);
+//   
+//    //fill holons and doublons
+//    doublons.clear();
+//    holons.clear();
+//    set_intersection(closedOrbs[0].begin(), closedOrbs[0].end(), closedOrbs[1].begin(), closedOrbs[1].end(), back_inserter(doublons));
+//    set_intersection(openOrbs[0].begin(), openOrbs[0].end(), openOrbs[1].begin(), openOrbs[1].end(), back_inserter(holons));
+//  }
+//
+//  void initInvDetsTables(const BFSlater &w)
+//  {
+//    int norbs = Determinant::norbs;
+//    for (int sz = 0; sz < 2; sz++) {
+//      Eigen::Map<VectorXi> rowClosed(&closedOrbs[sz][0], closedOrbs[sz].size());
+//      Eigen::Map<VectorXi> colClosed(&closedOrbsRef[sz][0], closedOrbsRef[sz].size());
+//      MatrixXcd hforbs = w.getHforbs(sz);
+//      igl::slice(hforbs, rowClosed, colClosed, theta[sz]);
+//      for (int i = 0; i < doublons.size(); i++) {
+//        int relIndex = std::search_n(closedOrbs[sz].begin(), closedOrbs[sz].end(), 1, doublons[i]) - closedOrbs[sz].begin();
+//        for (int j = 0; j < holons.size(); j++) {
+//          theta[sz].row(relIndex) += w.bf(i, j) * hforbs.row(holons(j));
+//        }
+//      }
+//
+//      Eigen::FullPivLU<MatrixXcd> lua(theta[sz]);
+//      if (lua.isInvertible()) {
+//        thetaInv[sz] = lua.inverse();
+//        thetaDet[sz] = lua.determinant();
+//      }
+//      else {
+//        cout << sz << " overlap with determinant not invertible" << endl;
+//        exit(0);
+//      }
+//
+//      rTable[sz] = MatrixXcd::Zero(norbs, closedOrbs[sz].size()); 
+//      rTable[sz] = hforbs.block(0, 0, norbs, closedOrbs[sz].size()) * thetaInv[sz];
+//    }
+//  }
+//
+//  void concatenateGhf(const vector<int>& v1, const vector<int>& v2, vector<int>& result) const
+//  {
+//    int norbs = Determinant::norbs;
+//    result.clear();
+//    result = v1;
+//    result.insert(result.end(), v2.begin(), v2.end());    
+//    for (int j = v1.size(); j < v1.size() + v2.size(); j++)
+//      result[j] += norbs;
+//  }
+//
+//  void initInvDetsTablesGhf(const BFSlater &w)
+//  {
+//    int norbs = Determinant::norbs;
+//    vector<int> workingVec0, workingVec1;
+//    concatenateGhf(closedOrbs[0], closedOrbs[1], workingVec0);
+//    Eigen::Map<VectorXi> rowTheta(&workingVec0[0], workingVec0.size());
+//    concatenateGhf(closedOrbsRef[0], closedOrbsRef[1], workingVec1);
+//    Eigen::Map<VectorXi> colTheta(&workingVec1[0], workingVec1.size());
+//      
+//    MatrixXcd hforbs = w.getHforbs();
+//    igl::slice(hforbs, rowTheta, colTheta, theta[0]); 
+//    for (int i = 0; i < doublons.size(); i++) {
+//      int relIndexA = std::search_n(closedOrbs[0].begin(), closedOrbs[0].end(), 1, doublons[i]) - closedOrbs[0].begin();
+//      int relIndexB = std::search_n(closedOrbs[1].begin(), closedOrbs[1].end(), 1, doublons[i]) - closedOrbs[1].begin();
+//      for (int j = 0; j < holons.size(); j++) {
+//        theta[0].row(relIndexA) += w.bf(i, j) * hforbs.row(holons(j));
+//        theta[0].row(closedOrbs[0].size() + relIndexB) += w.bf(i, j) * hforbs.row(norbs + holons(j));
+//      }
+//    }
+//    Eigen::FullPivLU<MatrixXcd> lua(theta[0]);
+//    if (lua.isInvertible()) {
+//      thetaInv[0] = lua.inverse();
+//      thetaDet[0] = lua.determinant();
+//    }
+//    else {
+//      Eigen::Map<VectorXi> v1(&closedOrbs[0][0], closedOrbs[0].size());
+//      Eigen::Map<VectorXi> v2(&closedOrbs[1][0], closedOrbs[1].size());
+//      cout << "alphaClosed\n" << v1 << endl << endl;
+//      cout << "betaClosed\n" << v2 << endl << endl;
+//      cout << "col\n" << colTheta << endl << endl;
+//      cout << theta << endl << endl;
+//      cout << "overlap with theta determinant not invertible" << endl;
+//      exit(0);
+//    }
+//    thetaDet[1] = 1.;
+//    rTable[0] = MatrixXcd::Zero(2*norbs, closedOrbs[0].size() + closedOrbs[1].size()); 
+//    rTable[0] = w.getHforbs().block(0, 0, 2*norbs, closedOrbs[0].size() + closedOrbs[1].size()) * thetaInv[0];
+//    rTable[1] = rTable[0];
+//    //makeTableGhf(w, colTheta);
+//  }
+//
+//  void excitationUpdate(const BFSlater &w, const Determinant& excitedDet)
+//  {
+//    fillOccupancyHelpers(excitedDet);
+//    initInvDetsTables(w);
+//    //makeTable(w, thetaInv[sz], colClosed, 0, sz);
+//    //calcOtherDetsTables(w, sz);
+//  }
+//
+//  void excitationUpdateGhf(const BFSlater &w, const Determinant& excitedDet)
+//  {
+//    fillOccupancyHelpers(excitedDet);
+//    initInvDetsTablesGhf(w);
+//    //makeTableGhf(w, colTheta);
+//  }
+//
+//  void getRelIndices(int i, int &relI, int a, int &relA, bool sz) const 
+//  {
+//    //relI = std::lower_bound(closedOrbs[sz].begin(), closedOrbs[sz].end(), i) - closedOrbs[sz].begin();
+//    //relA = std::lower_bound(openOrbs[sz].begin(), openOrbs[sz].end(), a) - openOrbs[sz].begin();
+//    int factor = 0;
+//    if (hftype == 2 && sz != 0) factor = 1;
+//    relI = std::search_n(closedOrbs[sz].begin(), closedOrbs[sz].end(), 1, i) - closedOrbs[sz].begin() + factor * closedOrbs[0].size();
+//    //relA = std::search_n(openOrbs[sz].begin(), openOrbs[sz].end(), 1, a) - openOrbs[sz].begin() + factor * openOrbs[0].size();
+//    relA = a + factor * Determinant::norbs;
+//  }
+//
+//};
 
 template<>
 class WalkerHelper<AGP>
@@ -478,7 +640,7 @@ class WalkerHelper<CPS>
   std::vector<std::vector<int> > twoSitesToCorrelator;
 
   WalkerHelper() {};
-  WalkerHelper(const CPS& cps, const Determinant& d) {
+  WalkerHelper(CPS& cps, const Determinant& d) {
     int norbs = Determinant::norbs;
     intermediateForEachSpinOrb.resize(norbs*2);
     updateHelper(cps, d, 0, 0, 0);
@@ -501,7 +663,7 @@ class WalkerHelper<CPS>
   }
 
   //these update functions are really init functions
-  void updateHelper(const CPS& cps, const Determinant& d, int l, int a, bool sz) {
+  void updateHelper(CPS& cps, const Determinant& d, int l, int a, bool sz) {
     int norbs = Determinant::norbs;
 
     for (int i=0; i<2*norbs; i++) {
@@ -518,7 +680,7 @@ class WalkerHelper<CPS>
     }
   }
   
-  void updateHelper(const CPS& cps, const Determinant& d, int l, int m, int a, int b, bool sz) {
+  void updateHelper(CPS& cps, const Determinant& d, int l, int m, int a, int b, bool sz) {
     int norbs = Determinant::norbs;
 
     for (int i=0; i<2*norbs; i++) {
@@ -651,6 +813,11 @@ class WalkerHelper<CPS>
   
     return ovlp;
   }
+  
+  double OverlapRatio(const std::array<unordered_set<int> , 2> &from, const std::array<unordered_set<int> , 2> &to, const CPS& cps) const
+  {
+    return 0.;
+  }
 
 };
 
@@ -661,13 +828,13 @@ class WalkerHelper<Jastrow>
   std::vector<double> intermediateForEachSpinOrb;
 
   WalkerHelper() {};
-  WalkerHelper(const Jastrow& cps, const Determinant& d) {
+  WalkerHelper(Jastrow& cps, const Determinant& d) {
     int norbs = Determinant::norbs;
     intermediateForEachSpinOrb.resize(norbs*2);
     initHelper(cps, d);
   }
 
-  void initHelper(const Jastrow& cps, const Determinant& d) {
+  void initHelper(Jastrow& cps, const Determinant& d) {
     int norbs = Determinant::norbs;
 
     vector<int> closed;
@@ -683,7 +850,7 @@ class WalkerHelper<Jastrow>
     }
   }
   
-  void updateHelper(const Jastrow& cps, const Determinant& d, int i, int a, bool sz) {
+  void updateHelper(Jastrow& cps, const Determinant& d, int i, int a, bool sz) {
     i = 2 * i + sz; a = 2 * a + sz;
     int norbs = Determinant::norbs;
     for (int l = 0; l < 2 * norbs; l++) 
@@ -693,7 +860,7 @@ class WalkerHelper<Jastrow>
     //initHelper(cps, d);
   }
   
-  void updateHelper(const Jastrow& cps, const Determinant& d, int i, int j, int a, int b, bool sz) {
+  void updateHelper(Jastrow& cps, const Determinant& d, int i, int j, int a, int b, bool sz) {
     i = 2 * i + sz; a = 2 * a + sz;
     j = 2 * j + sz; b = 2 * b + sz;
     int norbs = Determinant::norbs;
@@ -720,6 +887,28 @@ class WalkerHelper<Jastrow>
         /intermediateForEachSpinOrb[i]/intermediateForEachSpinOrb[j]/
         cps(i,a)/cps(j,a)/cps(i,b)/cps(j,b);
   }
+  
+  double OverlapRatio(const std::array<unordered_set<int> , 2> &from, const std::array<unordered_set<int> , 2> &to, const Jastrow& cps) const
+  {
+    vector<int> fromSpin, toSpin;
+    fromSpin.clear(); toSpin.clear();
+    double ratio = 1.;
+    for (int sz = 0; sz < 2; sz++) {//iterate over spins
+      auto itFrom = from[sz].begin();
+      auto itTo = to[sz].begin();
+      for (int n = 0; n < from[sz].size(); n++) {//iterate over excitations
+        int i = 2 * (*itFrom) + sz, a = 2 * (*itTo) + sz;
+        itFrom = std::next(itFrom); itTo = std::next(itTo);
+        ratio *= intermediateForEachSpinOrb[a] / intermediateForEachSpinOrb[i] / cps(i, a);
+        for (int p = 0; p < fromSpin.size(); p++) {
+          ratio *= cps(i, fromSpin[p]) * cps(a, toSpin[p]) / cps(i, toSpin[p]) / cps(fromSpin[p], a);
+        }
+        fromSpin.push_back(i);
+        toSpin.push_back(a);
+      }
+    }
+    return ratio;
+  }
 };  
 
 template<>
@@ -728,11 +917,11 @@ class WalkerHelper<Gutzwiller>
  public:
 
   WalkerHelper() {};
-  WalkerHelper(const Gutzwiller& gutz, const Determinant& d) {}
+  WalkerHelper(Gutzwiller& gutz, const Determinant& d) {}
 
-  void updateHelper(const Gutzwiller& gutz, const Determinant& d, int i, int a, bool sz) {}
+  void updateHelper(Gutzwiller& gutz, const Determinant& d, int i, int a, bool sz) {}
   
-  void updateHelper(const Gutzwiller& gutz, const Determinant& d, int i, int j, int a, int b, bool sz) {}
+  void updateHelper(Gutzwiller& gutz, const Determinant& d, int i, int j, int a, int b, bool sz) {}
 
   double OverlapRatio(int i, int a, const Gutzwiller& gutz,
                       const Determinant &dcopy, const Determinant &d) const
@@ -762,17 +951,153 @@ class WalkerHelper<Gutzwiller>
       if (d.getoccA(i/2)) ratio /= gutz.g(i/2);  
       if (d.getoccA(a/2)) ratio *= gutz.g(a/2);
     }
+    Determinant dExc = d;
+    dExc.setocc(i, false); dExc.setocc(a, true);
     if (j % 2 == 0) { 
-      if (d.getoccB(j/2)) ratio /= gutz.g(j/2);  
-      if (d.getoccB(b/2)) ratio *= gutz.g(b/2);
+      if (dExc.getoccB(j/2)) ratio /= gutz.g(j/2);  
+      if (dExc.getoccB(b/2)) ratio *= gutz.g(b/2);
     }
     else { 
-      if (d.getoccA(j/2)) ratio /= gutz.g(j/2);  
-      if (d.getoccA(b/2)) ratio *= gutz.g(b/2);
+      if (dExc.getoccA(j/2)) ratio /= gutz.g(j/2);  
+      if (dExc.getoccA(b/2)) ratio *= gutz.g(b/2);
     }
     return ratio;
     //return gutz.OverlapRatio(dcopy, d);
   }
+  
+  double OverlapRatio(const std::array<unordered_set<int> , 2> &from, const std::array<unordered_set<int> , 2> &to, const Gutzwiller& gutz) const
+  {
+    return 0.;
+  }
 };  
 
+template<>
+class WalkerHelper<RBM>
+{
+ public:
+  //the intermediate data is stored in the wfn, this class initializes and updates it
+
+  WalkerHelper() {};
+  WalkerHelper(RBM& cps, const Determinant& d) {
+    int norbs = Determinant::norbs;
+    //cps.bwn = ArrayXd::Zero(cps.numHidden);
+    cps.bwn = VectorXd::Zero(cps.numHidden);
+    //cps.intermediates[0] = ArrayXXd::Zero(norbs, norbs);
+    //cps.intermediates[1] = ArrayXXd::Zero(norbs, norbs);
+    initHelper(cps, d);
+  }
+
+  void initHelper(RBM& cps, const Determinant& d) {
+    int norbs = Determinant::norbs;
+    vector<int> closed;
+    vector<int> open;
+    d.getOpenClosed(open, closed);
+    
+    //bwn
+    cps.bwn = cps.bVec;
+    for (int j = 0; j < closed.size(); j++) {
+      cps.bwn += cps.wMat.col(closed[j]);
+    }
+    cps.coshbwn = cosh(cps.bwn.array()).prod();
+
+    //intermediates
+    //ArrayXd tanhbwn = tanh(cps.bwn);
+    //for (int i = commrank; i < (norbs * (norbs-1)) / 2; i += commsize) {
+    //  //calc row (occupied) and column (unoccupied) up spatial orb indices
+    //  int occ = floor(0.5 + sqrt(1 + 8*i) / 2), unocc = i % occ;//bottom half
+    //  ArrayXd wDiff = cps.wMat.col(2 * unocc) - cps.wMat.col(2 * occ);
+    //  ArrayXd coshWDiff = cosh(wDiff), sinhWDiff = sinh(wDiff);
+    //  cps.intermediates[0](occ, unocc) = (coshWDiff + tanhbwn * sinhWDiff).prod();
+    //  cps.intermediates[0](unocc, occ) = (coshWDiff - tanhbwn * sinhWDiff).prod();//bottom half
+    //  wDiff = cps.wMat.col(2 * unocc + 1) - cps.wMat.col(2 * occ + 1);
+    //  coshWDiff = cosh(wDiff); sinhWDiff = sinh(wDiff);
+    //  cps.intermediates[1](occ, unocc) = (coshWDiff + tanhbwn * sinhWDiff).prod();
+    //  cps.intermediates[1](unocc, occ) = (coshWDiff - tanhbwn * sinhWDiff).prod();
+    //}
+//#ifndef SERIAL
+//  MPI_Allreduce(MPI_IN_PLACE, cps.intermediates[0].data(), norbs*norbs, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+//  MPI_Allreduce(MPI_IN_PLACE, cps.intermediates[1].data(), norbs*norbs, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+//#endif
+  }
+  
+  void updateHelper(RBM& cps, const Determinant& d, int i, int a, bool sz) {
+    i = 2 * i + sz; a = 2 * a + sz;
+    cps.bwn += cps.wMat.col(a) - cps.wMat.col(i);
+    cps.coshbwn = cosh(cps.bwn.array()).prod();
+  }
+  
+  void updateHelper(RBM& cps, const Determinant& d, int i, int j, int a, int b, bool sz) {
+    i = 2 * i + sz; a = 2 * a + sz;
+    j = 2 * j + sz; b = 2 * b + sz;
+    cps.bwn += cps.wMat.col(a) - cps.wMat.col(i) + cps.wMat.col(b) - cps.wMat.col(j);
+    cps.coshbwn = cosh(cps.bwn.array()).prod();
+  }
+
+  double OverlapRatio(int i, int a, const RBM& cps,
+                      const Determinant &dcopy, const Determinant &d) const
+  {
+    double aFac = exp(cps.aVec(a) - cps.aVec(i));
+    VectorXd bwnp = cps.bwn + cps.wMat.col(a) - cps.wMat.col(i);
+    return aFac * cosh(bwnp.array()).prod() / cps.coshbwn;
+  }
+  
+  double OverlapRatio(int i, int j, int a, int b, const RBM& cps,
+                      const Determinant &dcopy, const Determinant &d) const
+  {
+    double aFac = exp(cps.aVec(a) - cps.aVec(i) + cps.aVec(b) - cps.aVec(j));
+    VectorXd bwnp = cps.bwn + cps.wMat.col(a) - cps.wMat.col(i) + cps.wMat.col(b) - cps.wMat.col(j);
+    return aFac * cosh(bwnp.array()).prod() / cps.coshbwn;
+  }
+  
+  double OverlapRatio(const std::array<unordered_set<int> , 2> &from, const std::array<unordered_set<int> , 2> &to, const RBM& cps) const
+  {
+    return 0.;
+  }
+};  
+
+template<>
+class WalkerHelper<JRBM>
+{
+ public:
+  WalkerHelper<Jastrow> jastrowHelper;
+  WalkerHelper<RBM> RBMHelper;
+
+  WalkerHelper() {};
+  WalkerHelper(JRBM& cps, const Determinant& d) {
+    jastrowHelper = WalkerHelper<Jastrow>(cps.jastrow, d);
+    RBMHelper = WalkerHelper<RBM>(cps.rbm, d);
+  }
+
+  void initHelper(JRBM& cps, const Determinant& d) {
+    jastrowHelper.initHelper(cps.jastrow, d);
+    RBMHelper.initHelper(cps.rbm, d);
+  }
+  
+  void updateHelper(JRBM& cps, const Determinant& d, int i, int a, bool sz) {
+    jastrowHelper.updateHelper(cps.jastrow, d, i, a, sz);
+    RBMHelper.updateHelper(cps.rbm, d, i, a, sz);
+  }
+  
+  void updateHelper(JRBM& cps, const Determinant& d, int i, int j, int a, int b, bool sz) {
+    jastrowHelper.updateHelper(cps.jastrow, d, i, j, a, b, sz);
+    RBMHelper.updateHelper(cps.rbm, d, i, j, a, b, sz);
+  }
+
+  double OverlapRatio(int i, int a, const JRBM& cps,
+                      const Determinant &dcopy, const Determinant &d) const
+  {
+    return jastrowHelper.OverlapRatio(i, a, cps.jastrow, dcopy, d) * RBMHelper.OverlapRatio(i, a, cps.rbm, dcopy, d);
+  }
+  
+  double OverlapRatio(int i, int j, int a, int b, const JRBM& cps,
+                      const Determinant &dcopy, const Determinant &d) const
+  {
+    return jastrowHelper.OverlapRatio(i, j, a, b, cps.jastrow, dcopy, d) * RBMHelper.OverlapRatio(i, j, a, b, cps.rbm, dcopy, d);
+  }
+  
+  double OverlapRatio(const std::array<unordered_set<int> , 2> &from, const std::array<unordered_set<int> , 2> &to, const JRBM& cps) const
+  {
+    return 0.;
+  }
+};  
 #endif

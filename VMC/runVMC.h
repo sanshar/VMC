@@ -42,15 +42,14 @@ using functor6 = boost::function<double (VectorXd&, VectorXd&, DirectLM&, double
 template<typename Wave, typename Walker>
 void runVMC(Wave& wave, Walker& walk) {
 
-  if (schd.restart || schd.fullrestart)
-    wave.readWave();
+  if (schd.restart || schd.fullRestart) wave.readWave();
   VectorXd vars; wave.getVariables(vars);
 
   
   if (commrank == 0)
   {
-    cout << "Number of Jastrow vars: " << wave.getCorr().getNumVariables() << endl;
-    cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getCorr().getNumVariables() << endl;
+    //cout << "Number of Jastrow vars: " << wave.getNumJastrowVariables() << endl;
+    //cout << "Number of Reference vars: " << wave.getNumReferenceVariables() << endl;
   }
   
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
@@ -114,7 +113,7 @@ void runVMC(Wave& wave, Walker& walk) {
 template<typename Wave, typename Walker>
 void runVMCRealSpace(Wave& wave, Walker& walk) {
 
-  if (schd.restart || schd.fullrestart)
+  if (schd.restart || schd.fullRestart)
     wave.readWave();
 
   VectorXd vars; wave.getVariables(vars);
@@ -122,8 +121,8 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
   
   if (commrank == 0)
   {
-      cout << "Number of Jastrow vars: " << wave.getNumJastrowVariables() << endl;
-      cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getNumJastrowVariables() << endl;
+    cout << "Number of Jastrow vars: " << wave.getNumJastrowVariables() << endl;
+    cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getNumJastrowVariables() << endl;
   }
 
   functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);

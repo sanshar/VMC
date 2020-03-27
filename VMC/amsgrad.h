@@ -105,10 +105,15 @@ class AMSGrad
    template<typename Function>
     void optimize(VectorXd &vars, Function& getGradient, bool restart)
     {
-        if (restart)
+        if (restart || schd.fullRestart)
         {
-            if (commrank == 0)
-                read(vars);
+            if (commrank == 0) {
+              read(vars);
+              if (schd.fullRestart) {
+                mom1 = VectorXd::Zero(vars.rows());
+                mom2 = VectorXd::Zero(vars.rows());
+              }
+            }
 #ifndef SERIAL
 	    boost::mpi::communicator world;
 	    boost::mpi::broadcast(world, *this, 0);
@@ -130,7 +135,7 @@ class AMSGrad
         {
             double E0, stddev = 0.0, rt = 1.0;
             double acceptedFrac = getGradient(vars, grad, E0, stddev, rt);
-            //cout << grad << endl;
+            if (commrank == 0 && schd.printGrad) {cout << "totalGrad" << endl; cout << grad << endl;}
             write(vars);
             double oldNorm = stepNorm, dotProduct = 0.;
             stepNorm = 0.;

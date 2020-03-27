@@ -85,7 +85,7 @@ double Jastrow::OverlapRatio(int i, int j, int a, int b, const Determinant &dcop
 
 
 void Jastrow::OverlapWithGradient(const Determinant& d, 
-                              VectorXd& grad,
+                              Eigen::VectorBlock<VectorXd>& grad,
                               const double& ovlp) const {
   vector<int> closed;
   vector<int> open;
@@ -108,6 +108,16 @@ long Jastrow::getNumVariables() const
 }
 
 
+void Jastrow::getVariables(Eigen::VectorBlock<VectorXd> &v) const
+{
+  int numVars = 0;
+  for (int i=0; i<SpinCorrelator.rows(); i++)
+    for (int j=0; j<=i; j++) {
+      v[numVars] = SpinCorrelator(i,j);
+      numVars++;
+    }
+}
+
 void Jastrow::getVariables(Eigen::VectorXd &v) const
 {
   int numVars = 0;
@@ -116,6 +126,17 @@ void Jastrow::getVariables(Eigen::VectorXd &v) const
       v[numVars] = SpinCorrelator(i,j);
       numVars++;
     }
+}
+
+void Jastrow::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
+{
+  int numVars = 0;
+  for (int i=0; i<SpinCorrelator.rows(); i++)
+    for (int j=0; j<=i; j++) {
+      SpinCorrelator(i,j) = v[numVars];
+      numVars++;
+    }
+
 }
 
 void Jastrow::updateVariables(const Eigen::VectorXd &v)
@@ -127,6 +148,10 @@ void Jastrow::updateVariables(const Eigen::VectorXd &v)
       numVars++;
     }
 
+}
+
+void Jastrow::addNoise() {
+ SpinCorrelator += 0.01 * MatrixXd::Random(2*Determinant::norbs, 2*Determinant::norbs);
 }
 
 void Jastrow::printVariables() const

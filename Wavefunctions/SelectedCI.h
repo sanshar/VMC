@@ -25,10 +25,13 @@
 #include <vector>
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
+#include <map>
 #include <unordered_map>
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/unordered_map.hpp>
+#include "SimpleWalker.h"
+
 
 class SelectedCI
 {
@@ -37,32 +40,30 @@ class SelectedCI
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version) {
     ar & DetsMap
-        & coeffs
         & bestDeterminant;
   }
 
-  unordered_map<Determinant, int> DetsMap;
-  vector<double> coeffs;
+ public:
+  using CorrType = Determinant;
+  using ReferenceType = Determinant;
+  
+  unordered_map<Determinant, double, boost::hash<Determinant> > DetsMap;
+  //map<Determinant, double> DetsMap;
   Determinant bestDeterminant;
 
-  void readWave();
- public:
-  
   SelectedCI();
+  void readWave();
 
-  void initWalker(SimpleWalker &walk) {
-    walk.d = bestDeterminant;
-  }
+  void initWalker(SimpleWalker &walk); 
 
-  void initWalker(SimpleWalker &walk, Determinant& d) {
-    walk.d = d;
-  }
+  void initWalker(SimpleWalker &walk, Determinant& d);
 
   double getOverlapFactor(SimpleWalker& walk, Determinant& dcopy) ;
   
   double getOverlapFactor(int I, int A, SimpleWalker& walk, bool doparity);
 
   double Overlap(SimpleWalker& walk);
+  double Overlap(Determinant& d);
 
   
   double getOverlapFactor(int I, int J, int A, int B,
@@ -72,13 +73,25 @@ class SelectedCI
 			   double &factor,
 			   Eigen::VectorXd &grad);
 
-  void getVariables(Eigen::VectorXd &v);
+  void HamAndOvlp(SimpleWalker &walk,
+                  double &ovlp, double &ham, 
+                  workingArray& work, bool dontCalcEnergy=true);
+  
+  void HamAndOvlpLanczos(SimpleWalker &walk,
+                         Eigen::VectorXd &lanczosCoeffsSample,
+                         double &ovlpSample,
+                         workingArray& work,
+                         workingArray& moreWork, double &alpha) ;
+  //void getVariables(Eigen::VectorXd &v);
 
-  long getNumVariables();
+  //long getNumVariables();
 
-  void updateVariables(Eigen::VectorXd &v);
+  //void updateVariables(Eigen::VectorXd &v);
 
-  void printVariables();
+  //void printVariables();
+  Determinant& getRef() { return bestDeterminant; } //no ref and corr for selectedCI, defined to work with other wavefunctions
+  Determinant& getCorr() { return bestDeterminant; }
+  std::string getfileName() const { return "SelectedCI"; }
 };
 
 #endif

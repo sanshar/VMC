@@ -348,6 +348,7 @@ void getGradientDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &gr
   VectorXd grad_ratio_bar = VectorXd::Zero(grad.rows());
   for (int i = commrank; i < D.allDets.size(); i += commsize)
   {
+    //if (schd.debug) cout << "det   " << D.allDets[i] << endl;
     D.LocalEnergy(D.allDets[i]);
     D.LocalGradient();
     D.UpdateEnergy(Energy);
@@ -446,8 +447,11 @@ void getLanczosCoeffsDeterministic(Wfn &w, Walker &walk, double &alpha, Eigen::V
     w.initWalker(walk, allDets[i]);
     Eigen::VectorXd coeffsSample = Eigen::VectorXd::Zero(4);
     double overlapSample = 0.;
-    //cout << walk;
     w.HamAndOvlpLanczos(walk, coeffsSample, overlapSample, work, moreWork, alpha);
+    if (schd.debug) {
+      cout << "walker\n" << walk << endl;
+      cout << "coeffsSample\n" << coeffsSample << endl;
+    }
     //cout << "ham  " << ham[0] << "  " << ham[1] << "  " << ham[2] << endl;
     //cout << "ovlp  " << ovlp[0] << "  " << ovlp[1] << "  " << ovlp[2] << endl << endl;
     
@@ -902,22 +906,22 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
   
   int transIter = 0, nTransIter = niter/2;
 
-  while (transIter < nTransIter) {
-    double cumovlpRatio = 0;
-    //when using uniform probability 1./numConnection * max(1, pi/pj)
-    for (int i = 0; i < work.nExcitations; i++) {
-      cumovlpRatio += abs(work.ovlpRatio[i]);
-      work.ovlpRatio[i] = cumovlpRatio;
-    }
+  //while (transIter < nTransIter) {
+  //  double cumovlpRatio = 0;
+  //  //when using uniform probability 1./numConnection * max(1, pi/pj)
+  //  for (int i = 0; i < work.nExcitations; i++) {
+  //    cumovlpRatio += abs(work.ovlpRatio[i]);
+  //    work.ovlpRatio[i] = cumovlpRatio;
+  //  }
 
-    double nextDetRandom = random() * cumovlpRatio;
-    int nextDet = std::lower_bound(work.ovlpRatio.begin(), (work.ovlpRatio.begin() + work.nExcitations),
-                                   nextDetRandom) - work.ovlpRatio.begin();
+  //  double nextDetRandom = random() * cumovlpRatio;
+  //  int nextDet = std::lower_bound(work.ovlpRatio.begin(), (work.ovlpRatio.begin() + work.nExcitations),
+  //                                 nextDetRandom) - work.ovlpRatio.begin();
 
-    transIter++;
-    walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
-    w.HamAndOvlpLanczos(walk, coeffsSample, ovlpSample, work, moreWork, alpha);
-  }
+  //  transIter++;
+  //  walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
+  //  w.HamAndOvlpLanczos(walk, coeffsSample, ovlpSample, work, moreWork, alpha);
+  //}
 
   while (iter < niter) {
     double cumovlpRatio = 0;

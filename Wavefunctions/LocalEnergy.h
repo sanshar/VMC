@@ -31,7 +31,7 @@ class LocalEnergySolver
     template <typename T>
     T operator()(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars) const
     {
-        if (schd.wavefunctionType == "JastrowSlater")
+        if (schd.wavefunctionType == "jastrowslater")
         {
           int numVars = 0;
 
@@ -56,7 +56,7 @@ class LocalEnergySolver
           //Local energy evaluation
           return JastrowSlaterLocalEnergy<T> (D, work, J, Jmid, thetaDet, R);
         }
-        else if (schd.wavefunctionType == "JastrowPfaffian")
+        else if (schd.wavefunctionType == "jastrowpfaffian")
         {
           int numVars = 0;
       

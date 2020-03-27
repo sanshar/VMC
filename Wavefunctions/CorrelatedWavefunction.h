@@ -24,6 +24,7 @@
 #include <boost/serialization/vector.hpp>
 #include "Walker.h"
 #include "workingArray.h"
+#include <unordered_set>
 
 class oneInt;
 class twoInt;
@@ -57,12 +58,12 @@ struct CorrelatedWavefunction {
   Reference& getRef() { return ref; }
   Corr& getCorr() { return corr; }
 
-  void initWalker(Walker<Corr, Reference> &walk) const 
+  void initWalker(Walker<Corr, Reference> &walk)  
   {
     walk = Walker<Corr, Reference>(corr, ref);
   }
   
-  void initWalker(Walker<Corr, Reference> &walk, Determinant &d) const 
+  void initWalker(Walker<Corr, Reference> &walk, Determinant &d) 
   {
     walk = Walker<Corr, Reference>(corr, ref, d);
   }
@@ -132,7 +133,12 @@ struct CorrelatedWavefunction {
         * walk.getDetFactor(I, J, A, B, ref);
         //* slater.OverlapRatio(I, J, A, B, walk, doparity);
   }
-
+  
+  double getOverlapFactor(const Walker<Corr, Reference>& walk, std::array<unordered_set<int>, 2> &from, std::array<unordered_set<int>, 2> &to) const
+  {
+    //cout << "\ndet  " << walk.getDetFactor(from, to) << "  corr  " << walk.corrHelper.OverlapRatio(from, to, corr) << endl;
+    return walk.getDetFactor(from, to) * walk.corrHelper.OverlapRatio(from, to, corr);
+  }
 
   /**
    * This basically calls the overlapwithgradient(determinant, factor, grad)
@@ -142,7 +148,8 @@ struct CorrelatedWavefunction {
                            Eigen::VectorXd &grad) const
   {
     double factor1 = 1.0;
-    corr.OverlapWithGradient(walk.d, grad, factor1);
+    Eigen::VectorBlock<VectorXd> gradhead = grad.head(corr.getNumVariables());
+    corr.OverlapWithGradient(walk.d, gradhead, factor1);
   
     Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - corr.getNumVariables());
     walk.OverlapWithGradient(ref, gradtail);
@@ -157,9 +164,7 @@ struct CorrelatedWavefunction {
   void updateVariables(Eigen::VectorXd &v) 
   {
     if (schd.optimizeCps == true)
-      corr.updateVariables(v);
-    //Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
-    //ref.updateVariables(vtail);
+      corr.updateVariables(v.head(corr.getNumVariables()));
     if (schd.optimizeOrbs == true)
       ref.updateVariables(v.tail(v.rows() - corr.getNumVariables()));
   }
@@ -169,7 +174,8 @@ struct CorrelatedWavefunction {
     if (v.rows() != getNumVariables())
       v = VectorXd::Zero(getNumVariables());
 
-    corr.getVariables(v);
+    Eigen::VectorBlock<VectorXd> vhead = v.head(corr.getNumVariables());
+    corr.getVariables(vhead);
     Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
     ref.getVariables(vtail);
   }
@@ -211,8 +217,8 @@ struct CorrelatedWavefunction {
 
   void readWave()
   {
-    if (commrank == 0)
-    {
+    //if (commrank == 0)
+    //{
       char file[5000];
       //sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
       sprintf(file, (getfileName()+".bkp").c_str() );
@@ -220,10 +226,10 @@ struct CorrelatedWavefunction {
       boost::archive::binary_iarchive load(infs);
       load >> *this;
       infs.close();
-    }
+    //}
 #ifndef SERIAL
-    boost::mpi::communicator world;
-    boost::mpi::broadcast(world, *this, 0);
+    //boost::mpi::communicator world;
+    //boost::mpi::broadcast(world, *this, 0);
 #endif
   }
 
@@ -247,6 +253,7 @@ struct CorrelatedWavefunction {
   
     //loop over all the screened excitations
     //cout << "eloc excitations" << endl;
+    //if (schd.debug) cout << "phi0  d.energy" << ham << endl;
     for (int i=0; i<work.nExcitations; i++) {
       int ex1 = work.excitation1[i], ex2 = work.excitation2[i];
       double tia = work.HijElement[i];
@@ -258,10 +265,11 @@ struct CorrelatedWavefunction {
       //double ovlpRatio = getOverlapFactor(I, J, A, B, walk, dbig, dbigcopy, false);
 
       ham += tia * ovlpRatio;
-      if (schd.debug) cout << ex1 << "  " << ex2 << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << endl;
+      //if (schd.debug) cout << ex1 << "  " << ex2 << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << endl;
 
       work.ovlpRatio[i] = ovlpRatio;
     }
+    //if (schd.debug) cout << endl;
   }
 
   void OverlapWithLocalEnergyGradient(const Walker<Corr, Reference> &walk, workingArray &work, Eigen::VectorXd &gradEloc) const
@@ -304,6 +312,7 @@ struct CorrelatedWavefunction {
     lanczosCoeffsSample[1] = ovlp[0] * ovlp[1] * el0 / (ovlp[2] * ovlp[2]);
     el1 = walk.d.Energy(I1, I2, coreE);
 
+    //if (schd.debug) cout << "phi1  d.energy  " << el1 << endl;
     //workingArray work1;
     //cout << "E0  " << el1 << endl;
     //loop over all the screened excitations
@@ -316,8 +325,10 @@ struct CorrelatedWavefunction {
       ovlp1 = el0 * ovlp0;
       el1 += tia * ovlp1 / ovlp[1];
       work.ovlpRatio[i] = (ovlp0 + alpha * ovlp1) / ovlp[2];
+      //if (schd.debug) cout << work.excitation1[i] << "  " << work.excitation2[i] << "  tia  " << tia << "  ovlpRatio  " << ovlp1 / ovlp[1] << endl;
     }
 
+    //if (schd.debug) cout << endl;
     lanczosCoeffsSample[2] = ovlp[1] * ovlp[1] * el1 / (ovlp[2] * ovlp[2]);
     lanczosCoeffsSample[3] = ovlp[0] * ovlp[0] / (ovlp[2] * ovlp[2]);
     ovlpSample = ovlp[2];

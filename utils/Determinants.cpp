@@ -246,6 +246,14 @@ int Determinant::Nbeta() const {
   return nelec;
 }
 
+void Determinant::flipAlphaBeta() {
+  for (int i = 0; i < DetLen; i++) {
+    long temp = reprA[i];
+    reprA[i] = reprB[i];
+    reprB[i] = temp;
+  }
+}
+
 //Is the excitation between *this and d less than equal to 2.
 bool Determinant::connected(const Determinant& d) const {
   int ndiff = 0; long u;
@@ -366,6 +374,18 @@ ostream& operator<<(ostream& os, const Determinant& d) {
   return os;
 }
 
+size_t hash_value(Determinant const& d) {
+  std::size_t seed = 0;
+  //boost::hash_combine(seed, d.reprA[0]);
+  //boost::hash_combine(seed, d.reprB[0]);
+  boost::hash_combine(seed, d.reprA[0] * 2654435761);
+  boost::hash_combine(seed, d.reprB[0] * 2654435761);
+  //for (int i = 0; i < DetLen; i++) {
+  //  boost::hash_combine(seed, d.reprA[i]);
+  //  boost::hash_combine(seed, d.reprB[i]);
+  //}
+  return seed;
+}
 
 //=============================================================================
 double Determinant::Energy(const oneInt& I1, const twoInt&I2, const double& coreE) const {
@@ -956,13 +976,16 @@ void generateAllScreenedSingleExcitation(const Determinant& d,
   vector<int> open;
   d.getOpenClosed(open, closed);
 
+  //schd.active = number of active spatial orbitals, assumed to be contiguous and at the beginning
+  auto ub = upper_bound(open.begin(), open.end(), 2*schd.numActive - 1);
+  int indAct = distance(open.begin(), ub);
+
+
   for (int i = 0; i < closed.size(); i++) {
-    for (int a = 0; a < open.size(); a++) {
-      if (closed[i] % 2 == open[a] % 2)
+    for (int a = 0; a < indAct; a++) {
+      if (closed[i] % 2 == open[a] % 2 &&
+          abs(I2hb.Singles(closed[i], open[a])) > THRESH)
       {
-        //if (closed[i] % 2 == open[a] % 2 &&
-        //abs(I2hb.Singles(closed[i], open[a])) > THRESH)
-        //{
         int I = closed[i] / 2, A = open[a] / 2;
 
         const double tia = d.Hij_1ExciteScreened(open[a], closed[i], I2hb,
@@ -975,6 +998,113 @@ void generateAllScreenedSingleExcitation(const Determinant& d,
     }
   }
 
+}
+
+void generateAllScreenedSingleExcitationsDyall(const Determinant& det,
+                                         const Determinant& detAct,
+                                         const double& THRESH,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         bool doparity) {
+  int norbs = Determinant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  det.getOpenClosed(open, closed);
+
+  //schd.active = number of active spatial orbitals, assumed to be contiguous and at the beginning
+
+  for (int i = 0; i < closed.size(); i++) {
+    for (int a = 0; a < open.size(); a++) {
+      if (closed[i] % 2 == open[a] % 2)
+      {
+        //if (closed[i] % 2 == open[a] % 2 &&
+        //abs(I2hb.Singles(closed[i], open[a])) > THRESH)
+        //{
+        int I = closed[i] / 2, A = open[a] / 2;
+
+        const double tia = det.Hij_1ExciteScreened(open[a], closed[i], I2hb,
+                                                 TINY, doparity);
+       
+        double tiaD = 0.;
+        if (I < schd.nciAct && A < schd.nciAct) 
+          tiaD = detAct.Hij_1ExciteScreened(open[a], closed[i], I2hb,
+                                                 TINY, doparity);
+
+        if (abs(tia) > THRESH) {
+          work.appendValue(tiaD, closed[i]*2*norbs+open[a], 0, tia);//jailbreaking overlapRatio for Dyall ham element (tiaD)
+        }
+      }
+    }
+  }
+
+}
+
+
+//excitations from a CAS determinant d such that the resulting determinant is also in CAS
+void generateAllScreenedSingleExcitationsCAS(const Determinant& d,
+                                         const double& THRESH,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         bool doparity) {
+  int norbs = Determinant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+
+  //schd.active = number of active spatial orbitals, assumed to be contiguous and at the beginning
+  //auto ub = upper_bound(open.begin(), open.end(), 2*schd.numActive - 1);
+  auto ub = upper_bound(open.begin(), open.end(), 2*schd.nciAct - 1);
+  int indAct = distance(open.begin(), ub);
+  
+  for (int i = 0; i < closed.size(); i++) {
+    for (int a = 0; a < indAct; a++) {
+      if (closed[i] % 2 == open[a] % 2 &&
+          abs(I2hb.Singles(closed[i], open[a])) > THRESH)
+      {
+        int I = closed[i] / 2, A = open[a] / 2;
+
+        const double tia = d.Hij_1ExciteScreened(open[a], closed[i], I2hb,
+                                                 TINY, doparity);
+        
+        if (abs(tia) > THRESH) {
+          work.appendValue(0., closed[i]*2*norbs+open[a], 0, tia);
+        }
+      }
+    }
+  }
+}
+
+//excitations from a singly excited d such that the resulting determinant is in CAS
+void generateAllScreenedSingleExcitationsCAS(const Determinant& d,
+                                         const double& THRESH,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         const int& i,
+                                         bool doparity) {
+  int norbs = Determinant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+
+  //schd.active = number of active spatial orbitals, assumed to be contiguous and at the beginning
+  //auto ub = upper_bound(open.begin(), open.end(), 2*schd.numActive - 1);
+  auto ub = upper_bound(open.begin(), open.end(), 2*schd.nciAct - 1);
+  int indAct = distance(open.begin(), ub);
+  
+  for (int a = 0; a < indAct; a++) {
+    if (i % 2 == open[a] % 2 &&
+        abs(I2hb.Singles(i, open[a])) > THRESH)
+    {
+      int I = i / 2, A = open[a] / 2;
+
+      const double tia = d.Hij_1ExciteScreened(open[a], i, I2hb,
+                                               TINY, doparity);
+      
+      if (abs(tia) > THRESH) {
+        work.appendValue(0., i*2*norbs+open[a], 0, tia);
+      }
+    }
+  }
 }
 
 void generateAllScreenedDoubleExcitation(const Determinant& d,
@@ -1007,7 +1137,9 @@ void generateAllScreenedDoubleExcitation(const Determinant& d,
         int a = 2 * orbIndices[2 * index] + closed[i] % 2,
             b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;
 
-        if (!(d.getocc(a) || d.getocc(b))) {
+        if ((!(d.getocc(a) || d.getocc(b))) && (a < 2*schd.numActive) && (b < 2*schd.numActive)) {//uncomment for VMC active space calculations
+        //if (!(d.getocc(a) || d.getocc(b))) {
+          //cout << "a   " << a << "  b  " << b << endl;
           work.appendValue(0.0, closed[i] * 2 * norbs + a,
                            closed[j] * 2 * norbs + b, integrals[index]);
         }
@@ -1015,6 +1147,208 @@ void generateAllScreenedDoubleExcitation(const Determinant& d,
     }
   }
 
+}
+
+void generateAllScreenedDoubleExcitationsFOIS(const Determinant& d,
+                                         const double& THRESH,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         bool doparity) {
+  int norbs = Determinant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+
+  int nclosed = closed.size();
+  for (int i=0; i<nclosed; i++) {
+    for (int j = 0; j<i; j++) {
+      
+      const float *integrals; const short* orbIndices;
+      size_t numIntegrals;
+      I2hb.getIntegralArray(closed[i], closed[j], integrals, orbIndices, numIntegrals);
+      size_t numLargeIntegrals = std::lower_bound(integrals, integrals + numIntegrals, THRESH, [](const float &x, float val){ return fabs(x) > val; }) - integrals;
+
+      // for all HCI integrals
+      for (size_t index = 0; index < numLargeIntegrals; index++)
+      {
+        // if we are going below the criterion, break
+        //if (fabs(integrals[index]) < THRESH)
+        //  break;
+        
+        // otherwise: generate the determinant corresponding to the current excitation
+        int a = 2 * orbIndices[2 * index] + closed[i] % 2,
+            b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;
+        
+        if (a >= 2*schd.nciAct && b >= 2*schd.nciAct && closed[i] < 2*schd.nciAct && closed[j] < 2*schd.nciAct) continue; 
+        
+        //if ((!(d.getocc(a) || d.getocc(b))) && (a < 2*schd.numActive) && (b < 2*schd.numActive)) {//uncomment for VMC active space calculations
+        if (!(d.getocc(a) || d.getocc(b))) {
+          //cout << "a   " << a << "  b  " << b << endl;
+          work.appendValue(0.0, closed[i] * 2 * norbs + a,
+                           closed[j] * 2 * norbs + b, integrals[index]);
+        }
+      }
+    }
+  }
+
+}
+
+
+void generateAllScreenedDoubleExcitationsDyall(const Determinant& det,
+                                         const double& THRESH,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         bool doparity) {
+  int norbs = Determinant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  det.getOpenClosed(open, closed);
+  
+  for (int i=0; i<closed.size(); i++) {
+    for (int j = 0; j<i; j++) {
+      
+      const float *integrals; const short* orbIndices;
+      size_t numIntegrals;
+      I2hb.getIntegralArray(closed[i], closed[j], integrals, orbIndices, numIntegrals);
+      size_t numLargeIntegrals = std::lower_bound(integrals, integrals + numIntegrals, THRESH, [](const float &x, float val){ return fabs(x) > val; }) - integrals;
+
+      // for all HCI integrals
+      for (size_t index = 0; index < numLargeIntegrals; index++)
+      {
+        // if we are going below the criterion, break
+        //if (fabs(integrals[index]) < THRESH)
+        //  break;
+        
+        // otherwise: generate the determinant corresponding to the current excitation
+        int a = 2 * orbIndices[2 * index] + closed[i] % 2,
+            b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;
+      
+        double flag = 0.;
+        if (closed[i] < 2*schd.nciAct && a < 2*schd.nciAct && b < 2*schd.nciAct) flag = 1.0; //Dyall excitation, (note j < i, so no j condition)
+        //if ((!(d.getocc(a) || d.getocc(b))) && (a < 2*schd.numActive) && (b < 2*schd.numActive)) {//uncomment for VMC active space calculations
+        if (!(det.getocc(a) || det.getocc(b))) {
+          //cout << "a   " << a << "  b  " << b << endl;
+          work.appendValue(flag, closed[i] * 2 * norbs + a,
+                           closed[j] * 2 * norbs + b, integrals[index]);
+        }
+      }
+    }
+  }
+
+}
+
+//excitations from a doubly excited det d such that the resulting det is in CAS, only double excitations can take d into CAS
+void generateAllScreenedExcitationsCAS(const Determinant& d,
+                                         const double& THRESH,
+                                         workingArray& work,
+                                         const int& iExc, const int& jExc) {
+  int norbs = Determinant::norbs;
+  int i = max(iExc, jExc), j = min(iExc, jExc);
+  const float *integrals; const short* orbIndices;
+  size_t numIntegrals;
+  I2hbCAS.getIntegralArrayCAS(i, j, integrals, orbIndices, numIntegrals);
+  size_t numLargeIntegrals = std::lower_bound(integrals, integrals + numIntegrals, THRESH, [](const float &x, float val){ return fabs(x) > val; }) - integrals;
+
+  // for all HCI integrals
+  for (size_t index = 0; index < numLargeIntegrals; index++)
+  {
+    // if we are going below the criterion, break
+    //if (fabs(integrals[index]) < THRESH)
+    //  break;
+    
+    // otherwise: generate the determinant corresponding to the current excitation
+    int a = 2 * orbIndices[2 * index] + i % 2;
+    //if (a >= 2*schd.nciAct) continue; 
+    int b = 2 * orbIndices[2 * index + 1] + j % 2;
+    //if (b >= 2*schd.nciAct) continue; 
+    
+
+    //if ((!(d.getocc(a) || d.getocc(b))) && (a < 2*schd.numActive) && (b < 2*schd.numActive)) {//uncomment for VMC active space calculations
+    if (!(d.getocc(a) || d.getocc(b))) {
+      //cout << "a   " << a << "  b  " << b << endl;
+      work.appendValue(0.0, i * 2 * norbs + a, j * 2 * norbs + b, integrals[index]);
+    }
+  }
+}
+
+//double excitations from a singly excited det d such that the resulting det is in CAS
+void generateAllScreenedDoubleExcitationsCAS(const Determinant& d,
+                                         const double& THRESH,
+                                         workingArray& work,
+                                         const int& i) {
+  int norbs = Determinant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+  int nclosed = closed.size();
+  for (int n=0; n < nclosed-1; n++) {
+    int j = closed[n];
+    const float *integrals; const short* orbIndices;
+    size_t numIntegrals;
+    I2hb.getIntegralArrayCAS(i, j, integrals, orbIndices, numIntegrals);
+    size_t numLargeIntegrals = std::lower_bound(integrals, integrals + numIntegrals, THRESH, [](const float &x, float val){ return fabs(x) > val; }) - integrals;
+
+    // for all HCI integrals
+    for (size_t index = 0; index < numLargeIntegrals; index++)
+    {
+      // if we are going below the criterion, break
+      //if (fabs(integrals[index]) < THRESH)
+      //  break;
+      
+      // otherwise: generate the determinant corresponding to the current excitation
+      int a = 2 * orbIndices[2 * index] + i % 2;
+      //if (a >= 2*schd.nciAct) continue; 
+      int b = 2 * orbIndices[2 * index + 1] + j % 2;
+      //if (b >= 2*schd.nciAct) continue; 
+
+      //if ((!(d.getocc(a) || d.getocc(b))) && (a < 2*schd.numActive) && (b < 2*schd.numActive)) {//uncomment for VMC active space calculations
+      if (!(d.getocc(a) || d.getocc(b))) {
+        //cout << "a   " << a << "  b  " << b << endl;
+        work.appendValue(0.0, i * 2 * norbs + a, j * 2 * norbs + b, integrals[index]);
+      }
+    }
+  }
+}
+
+//double excitations from a CAS det d such that the resulting det is also in CAS
+void generateAllScreenedDoubleExcitationsCAS(const Determinant& d,
+                                         const double& THRESH,
+                                         workingArray& work) {
+  int norbs = Determinant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+  int nclosed = closed.size();
+  for (int i=0; i<nclosed; i++) {
+    for (int j = 0; j<i; j++) {
+      
+      const float *integrals; const short* orbIndices;
+      size_t numIntegrals;
+      I2hbCAS.getIntegralArrayCAS(closed[i], closed[j], integrals, orbIndices, numIntegrals);
+      size_t numLargeIntegrals = std::lower_bound(integrals, integrals + numIntegrals, THRESH, [](const float &x, float val){ return fabs(x) > val; }) - integrals;
+
+      // for all HCI integrals
+      for (size_t index = 0; index < numLargeIntegrals; index++)
+      {
+        // if we are going below the criterion, break
+        //if (fabs(integrals[index]) < THRESH)
+        //  break;
+        
+        // otherwise: generate the determinant corresponding to the current excitation
+        int a = 2 * orbIndices[2 * index] + closed[i] % 2; 
+        //if (a >= 2*schd.nciAct) continue; 
+        int b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;
+        //if (b >= 2*schd.nciAct) continue; 
+        
+        //if ((!(d.getocc(a) || d.getocc(b))) && (a < 2*schd.numActive) && (b < 2*schd.numActive)) {//uncomment for VMC active space calculations
+        if (!(d.getocc(a) || d.getocc(b))) {
+          //cout << "a   " << a << "  b  " << b << endl;
+          work.appendValue(0.0, closed[i] * 2 * norbs + a,
+                           closed[j] * 2 * norbs + b, integrals[index]);
+        }
+      }
+    }
+  }
 }
 
 bool applyExcitation(int a, int b, int k, int l, Determinant& dcopy) {

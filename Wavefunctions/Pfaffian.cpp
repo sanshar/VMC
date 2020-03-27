@@ -42,6 +42,7 @@ Pfaffian::Pfaffian()
   int norbs = Determinant::norbs;
   pairMat = MatrixXcd::Zero(2*norbs, 2*norbs);
   readMat(pairMat, "pairMat.txt");
+  if (!schd.ifComplex && !pairMat.imag().isZero(0)) schd.ifComplex = true;
   if (schd.ifComplex && pairMat.imag().isZero(0)) pairMat.imag() = 0.01 * MatrixXd::Random(2*norbs, 2*norbs);
   pairMat = (pairMat - pairMat.transpose().eval()) / 2;
   if (schd.ifComplex == false)

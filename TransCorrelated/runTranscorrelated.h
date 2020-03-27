@@ -27,7 +27,7 @@
 template<typename Wave>
 void runTranscorrelated(Wave& wave, bool isGutzwiller = false) {
 
-  if (schd.restart || schd.fullrestart)
+  if (schd.restart || schd.fullRestart)
     wave.readWave();
   
   if (commrank == 0)

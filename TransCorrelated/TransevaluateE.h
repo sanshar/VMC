@@ -451,7 +451,7 @@ class getTranscorrelationWrapper
     if (commrank == 0) cout << "INITIAL E: "<<E<<endl;
     //cout << getTime()-startofCalc<<endl;
     
-    if (!(schd.restart || schd.fullrestart)) {
+    if (!(schd.restart || schd.fullRestart)) {
       auto ograd = [&] (VectorXd& vars, VectorXd& res, double& E0, double& stddev, double& rt) {
         E0 = OrbitalGrad(vars, res, true);
         stddev = 0; rt = 0;

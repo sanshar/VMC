@@ -1,0 +1,20 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowslater",
+    "complex": true
+  },
+  "sampling":
+  {
+    "stochasticIter": 1000,
+    "seed": 1,
+    "epsilon": 1.0e-5
+  },
+  "optimizer":
+  {
+    "method": "sr",
+    "direct": false,
+    "stepsize": 0.01,
+    "maxIter": 10
+  }
+}

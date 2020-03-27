@@ -1,0 +1,29 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowslater",
+    "complex": true
+  },
+  "realspace":
+  {
+    "basis": "gto",
+    "nalpha": 1,
+    "nbeta": 1,
+    "norbs": 14
+  },
+  "sampling":
+  {
+    "stochasticIter": 10000,
+    "seed": 1
+  },
+  "optimizer":
+  {
+    "method": "lm",
+    "maxIter": 7,
+    "stepsizes": [0.1, 0.01, 0.05, 0.5, 1.0],
+    "hDiagShift": 0.1,
+    "decay": 0.1,
+    "cgTol": 1.0e-3,
+    "dTol": 1.0e-3
+  }
+}

@@ -52,9 +52,13 @@ private:
   {
     ar.template register_type<gaussianBasis>();
     ar.template register_type<slaterBasis>();    
-    ar & restart & fullrestart & deterministic
+    ar & restart & fullRestart & deterministic
       & tol & correlatorFiles
       & wavefunctionType
+      & numResonants
+      & singleJastrow
+      & readTransOrbs
+      & numPermutations
       & maxIter
       & avgIter
       & printLevel
@@ -78,6 +82,8 @@ private:
       & optimizeOrbs
       & optimizeCps
       & optimizeBackflow
+      & optimizeJastrow
+      & optimizeRBM
       & printVars
       & printGrad
       & Hamiltonian
@@ -87,6 +93,8 @@ private:
       & fn_factor
       & nGeneration
       & excitationLevel
+      & numActive
+      & nciAct
       & sDiagShift
       & hDiagShift
       & cgIter
@@ -121,7 +129,23 @@ private:
       & nMaxMacroIter
       & nMaxMicroIter
       & pQuad
-      & nNociSlater;
+      & nNociSlater
+      & ciCeption
+      & actWidth
+      & overlapCutoff
+      & diagMethod
+      & powerShift
+      & expCorrelator
+      & nAttemptsEach
+      & mainMemoryFac
+      & spawnMemoryFac
+      & shiftDamping
+      & initialShift
+      & minSpawn
+      & minPop
+      & initialPop
+      & targetPop
+      & numHidden;
   }
 public:
 //General options
@@ -133,13 +157,14 @@ public:
   vector<int>   Nbasis;
 
   bool restart;                          //option to restart calculation
-  bool fullrestart;                          //option to restart calculation
+  bool fullRestart;                          //option to restart calculation
   bool deterministic;                    //Performs a deterministic calculation   
   int printLevel;                        // How much stuff to print
   bool expCorrelator;                    //exponential correlator parameters, to enforce positivity
   bool debug;
   bool ifComplex;                        //breaks and restores complex conjugation symmetry 
   bool uagp;                             //brakes S^2 symmetry in uagp
+  bool ciCeption;                        //true, when using ci on top of selectedCI
 
   int nGrid;      //the grid used for projectors in transcorrelated calcs
   int nMaxMacroIter;
@@ -161,6 +186,10 @@ public:
   std::string determinantFile;
   int Qmax;
   int QmaxEEN;
+  int numResonants;
+  bool singleJastrow;
+  bool readTransOrbs;
+  int numPermutations;
 
 //Used in the stochastic calculation of E and PT evaluation
   int stochasticIter;                    //Number of stochastic steps
@@ -174,6 +203,8 @@ public:
   bool optimizeOrbs;
   bool optimizeCps;
   bool optimizeBackflow;
+  bool optimizeJastrow;//used in jrbm
+  bool optimizeRBM;//used in jrbm
   bool printVars;
   bool printOpt;
   bool printGrad;
@@ -224,8 +255,28 @@ public:
   double fn_factor;
   int nGeneration;
 
-  //option for configuration interaction
+  //options for configuration interaction
   int excitationLevel;
+  int numActive; //number of active spatial orbitals, assumed to be the first in the basis
+  int nciAct; //number of active spatial orbitals, assumed to be the first in the basis
+  double actWidth; //used in lanczos
+  double overlapCutoff; //used in SCCI
+  std::string diagMethod;
+  double powerShift;
+
+  //options for FCIQMC
+  int nAttemptsEach;
+  double shiftDamping;
+  double mainMemoryFac;
+  double spawnMemoryFac;
+  double initialShift;
+  double minSpawn;
+  double minPop;
+  double initialPop;
+  double targetPop;
+
+  //options for rbm
+  int numHidden;
 };
 
 /**
@@ -259,7 +310,7 @@ void readMat(Eigen::MatrixXd& mat, std::string fileName);
 
 void readMat(Eigen::MatrixXcd& mat, std::string fileName);
 
-void readInput(const std::string input, schedule& schd, bool print=true);
+void readInput(const std::string inputFile, schedule& schd, bool print=true);
 
 /**
  * We need information about the correlators because the wavefunction is
