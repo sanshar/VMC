@@ -28,6 +28,11 @@
 
 class oneInt;
 class twoInt;
+
+#ifdef Relativistic
+class oneIntSOC;
+#endif
+
 class twoIntHeatBathSHM;
 class workingArray;
 
