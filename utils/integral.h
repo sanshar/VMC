@@ -44,7 +44,6 @@ class compAbs {
 };
 
 
-
 class oneInt {
   private:
     friend class boost::serialization::access;
@@ -52,16 +51,34 @@ class oneInt {
       void serialize(Archive & ar, const unsigned int version){ ar & store & norbs; }
 
   public:
-    std::vector<double> store;
     int norbs;
     //I explicitly store all elements of the matrix
     //so for normal operator if i and j dont have the same spin
     //then it will just return zero. If we have SOC and
     // i and j have different spin then it can be a complex number.
+    std::vector<double> store;
     inline double& operator()(int i, int j) { return store.at(i*norbs+j); }
     inline double operator()(int i, int j) const { return store.at(i*norbs+j); }
 };
 
+#ifdef Relativistic
+class oneIntSOC {
+  private:
+    friend class boost::serialization::access;
+    template<class Archive>
+      void serialize(Archive & ar, const unsigned int version){ ar & store & norbs; }
+
+  public:
+    int norbs;
+    //I explicitly store all elements of the matrix
+    //so for normal operator if i and j dont have the same spin
+    //then it will just return zero. If we have SOC and
+    // i and j have different spin then it can be a complex number.
+    std::vector<std::complex<double>> store;
+    inline std::complex<double>& operator()(int i, int j) { return store.at(i*norbs+j); }
+    inline std::complex<double> operator()(int i, int j) const { return store.at(i*norbs+j); }
+};
+#endif
 
 
 class twoInt {
@@ -217,11 +234,12 @@ class twoIntHeatBathSHM {
 };
 
 
-#ifdef Complex
-void readSOCIntegrals(oneInt& I1soc, int norbs, string fileprefix);
+#ifdef Relativistic
+void readSOCIntegrals(string fileprefix);
 
 void readGTensorIntegrals(vector<oneInt>& I1soc, int norbs, string fileprefix);
 #endif
+
 
 int readNorbs(string fcidump);
 
