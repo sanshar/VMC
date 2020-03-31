@@ -111,6 +111,10 @@ void runVMC(Wave& wave, Walker& walk) {
 }
 
 
+
+
+
+
 template<typename Wave, typename Walker>
 void runVMCRealSpace(Wave& wave, Walker& walk) {
 
