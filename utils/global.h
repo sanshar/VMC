@@ -31,6 +31,10 @@ class twoInt;
 class oneInt;
 class twoIntHeatBathSHM;
 
+#ifdef Relativistic
+class oneIntSOC;
+#endif 
+
 extern int commrank, shmrank, localrank;
 extern int commsize, shmsize, localsize;
 
@@ -64,4 +68,9 @@ extern twoInt I2;
 extern oneInt I1;
 extern double coreE;
 extern twoIntHeatBathSHM I2hb;
+
+#ifdef Relativistic
+extern oneIntSOC I1SOC;
+#endif
+
 #endif
