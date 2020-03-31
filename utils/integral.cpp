@@ -481,3 +481,149 @@ void twoIntHeatBathSHM::getIntegralArray(int i, int j, const float* &integrals,
   orbIndices = i % 2 == j % 2 ? I2hb.sameSpinPairs+2*start : I2hb.oppositeSpinPairs+2*start;
   numIntegrals = end-start;
 }
+
+
+
+
+#ifdef Relativistic
+//=============================================================================
+void readSOCIntegrals(string fileprefix) {
+  //-----------------------------------------------------------------------------
+  /*!
+  Read SOC integrals from files, to be put in "I1"
+
+  :Inputs:
+      string fileprefix:
+          Basename of the SOC integral files
+  */
+  //-----------------------------------------------------------------------------
+
+#ifndef SERIAL
+  boost::mpi::communicator world;
+#endif
+
+  int norbs = I1.norbs/2;
+  //cout << "norbs:" << norbs << endl;
+  
+  I1SOC.store.clear();
+
+  I1SOC.store.resize(2*norbs*(2*norbs),0.0); I1SOC.norbs = 2*norbs;
+
+
+#ifndef SERIAL
+  if (commrank == 0) {
+#endif
+ 
+    vector<string> tok;
+    string msg;
+
+    // Read SOC.X
+    {
+      ifstream dump(str(boost::format("%s.X") % fileprefix));
+      int N;
+      dump >> N;
+      //cout << "N: " << N << " norbs: " << norbs << endl; 
+      if (N != norbs) {
+        cout << "number of orbitals in SOC.X should be equal to norbs in the "
+                "input file."
+             << endl;
+        //cout << N << " != " << norbs << endl;
+        exit(0);
+      }
+
+      // I1soc[1].store.resize(N*(N+1)/2, 0.0);
+      while (!dump.eof()) {
+        std::getline(dump, msg);
+        trim(msg);
+        boost::split(tok, msg, is_any_of(", \t="), token_compress_on);
+        if (tok.size() != 3)
+          continue;
+
+        double integral = atof(tok[0].c_str());
+        int a = atoi(tok[1].c_str()), b = atoi(tok[2].c_str());
+        // I1(2*(a-1), 2*(b-1)+1) += std::complex<double>(0,integral/2.);
+        // //alpha beta I1(2*(a-1)+1, 2*(b-1)) +=
+        // std::complex<double>(0,integral/2.);  //beta alpha
+        I1SOC(2 * (a - 1), 2 * (b - 1) + 1) +=
+            std::complex<double>(0, -integral); // alpha beta
+        I1SOC(2 * (a - 1) + 1, 2 * (b - 1)) +=
+            std::complex<double>(0, -integral); // beta alpha
+      }
+    }
+
+    // Read SOC.Y
+    {
+      ifstream dump(str(boost::format("%s.Y") % fileprefix));
+      // ifstream dump("SOC.Y");
+      int N;
+      dump >> N;
+      if (N != norbs) {
+        cout << "number of orbitals in SOC.Y should be equal to norbs in the "
+                "input file."
+             << endl;
+        cout << N << " != " << norbs << endl;
+        exit(0);
+      }
+
+      // I1soc[2].store.resize(N*(N+1)/2, 0.0);
+      while (!dump.eof()) {
+        std::getline(dump, msg);
+        trim(msg);
+        boost::split(tok, msg, is_any_of(", \t="), token_compress_on);
+        if (tok.size() != 3)
+          continue;
+
+        double integral = atof(tok[0].c_str());
+        int a = atoi(tok[1].c_str()), b = atoi(tok[2].c_str());
+        I1SOC(2 * (a - 1), 2 * (b - 1) + 1) +=
+            std::complex<double>(integral, 0); // alpha beta
+        I1SOC(2 * (a - 1) + 1, 2 * (b - 1)) +=
+            std::complex<double>(-integral, 0); // beta alpha
+        // I1(2*(a-1), 2*(b-1)+1) += std::complex<double>(-integral/2.,0);
+        // //alpha beta I1(2*(a-1)+1, 2*(b-1)) +=
+        // std::complex<double>(integral/2.,0);  //beta alpha
+      }
+    }
+
+    // Read SOC.Z
+    {
+      ifstream dump(str(boost::format("%s.Z") % fileprefix));
+      // ifstream dump("SOC.Z");
+      int N;
+      dump >> N;
+      if (N != norbs) {
+        cout << "number of orbitals in SOC.Z should be equal to norbs in the "
+                "input file."
+             << endl;
+        cout << N << " != " << norbs << endl;
+        exit(0);
+      }
+
+      // I1soc[3].store.resize(N*(N+1)/2, 0.0);
+      while (!dump.eof()) {
+        std::getline(dump, msg);
+        trim(msg);
+        boost::split(tok, msg, is_any_of(", \t="), token_compress_on);
+        if (tok.size() != 3)
+          continue;
+
+        double integral = atof(tok[0].c_str());
+        int a = atoi(tok[1].c_str()), b = atoi(tok[2].c_str());
+        I1SOC(2 * (a - 1), 2 * (b - 1)) +=
+            std::complex<double>(0, integral); // alpha, alpha
+        I1SOC(2 * (a - 1) + 1, 2 * (b - 1) + 1) +=
+            std::complex<double>(0, -integral); // beta, beta
+        // I1(2*(a-1), 2*(b-1)) += std::complex<double>(0,-integral/2); //alpha,
+        // alpha I1(2*(a-1)+1, 2*(b-1)+1) += std::complex<double>(0,integral/2);
+        // //beta, beta
+      }  
+    }
+#ifndef SERIAL
+  } // commrank=0
+  mpi::broadcast(world, I1SOC, 0);
+  world.barrier();
+#endif
+  cout << "read in SOC files" << endl;
+} // end readSOCIntegrals
+#endif
+
