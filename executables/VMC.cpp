@@ -54,6 +54,11 @@
 
 #include "rCorrelatedWavefunction.h"
 
+#ifdef Relativistic
+#include "relCorrelatedWavefunction.h"
+#endif
+
+
 using namespace Eigen;
 using namespace boost;
 using namespace std;
@@ -89,14 +94,27 @@ int main(int argc, char *argv[])
 
   if (schd.walkerBasis == ORBITALS) {
     readIntegralsAndInitializeDeterminantStaticVariables("FCIDUMP");
+    cout << "read integrals from FCIDUMP" << endl;
+ 
     
-    
-    //calculate the hessian/gradient
+//calculate the hessian/gradient
     if (schd.wavefunctionType == "CPSSlater") {
       CorrelatedWavefunction<CPS, Slater> wave; Walker<CPS, Slater> walk;
       runVMC(wave, walk);
     }
     
+#ifdef Relativistic  
+    else if (schd.ifSOC == true && schd.wavefunctionType == "relJastrowSlater") {
+      readSOCIntegrals("SOC");
+      relCorrelatedWavefunction<Jastrow, relSlater> wave; Walker<Jastrow, relSlater> walk;
+      cout << "here" << endl;
+      runRelVMC(wave, walk);
+      cout << "end of rel block" << endl;
+    }
+#endif
+
+
+
     else if (schd.wavefunctionType == "CPSAGP") {
       CorrelatedWavefunction<CPS, AGP> wave; Walker<CPS, AGP> walk;
       runVMC(wave, walk);
