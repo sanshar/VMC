@@ -60,6 +60,8 @@ void readInput(string input, schedule& schd, bool print) {
       schd.nalpha = -1;
       schd.nbeta = -1;
       schd.ifComplex = false;
+      schd.ifRelativistic = false;
+      schd.ifSOC = false;
       schd.uagp = false;
       schd.maxIter = 50;
       schd.maxMacroIter = 1;
@@ -204,6 +206,13 @@ void readInput(string input, schedule& schd, bool print) {
       else if (boost::iequals(ArgName, "complex"))
 	    schd.ifComplex = true;
 
+      else if (boost::iequals(ArgName, "Relativistic")){
+        schd.ifRelativistic = true;
+        if (boost::iequals(tok[1].c_str(), "MFSOC")){
+          schd.ifSOC = true;
+        }
+      } 
+
       else if (boost::iequals(ArgName, "uagp"))
 	    schd.uagp = true;
 	  
@@ -322,6 +331,9 @@ void readInput(string input, schedule& schd, bool print) {
       else if (boost::iequals(ArgName, "jastrowslater"))
 	    schd.wavefunctionType = "JastrowSlater";
       
+      else if (boost::iequals(ArgName, "relJastrowSlater"))
+            schd.wavefunctionType = "relJastrowSlater";
+
       else if (boost::iequals(ArgName, "noci")) {
 	    schd.wavefunctionType = "NOCI";
             schd.nNociSlater = atoi(tok[1].c_str());
