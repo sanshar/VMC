@@ -81,5 +81,25 @@ class Slater {
 
 };
 
+#ifdef Relativistic
+class relSlater : public Slater {
+  private:
+    friend class boost::serialization::access;
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version) {
+      ar & hftype
+         & determinants
+         & ciExpansion
+         & HforbsA
+         & HforbsB;
+    }
+
+
+  // add rel slater specific funtions
+  public:
+    string getfileName() const {return "relSlater";};
+};
+#endif
+
 
 #endif
