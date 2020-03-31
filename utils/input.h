@@ -110,6 +110,8 @@ private:
       & direct
       & rStepType
       & ifComplex
+      & ifRelativistic
+      & ifSOC
       & uagp
       & CorrSampleFrac
       & dTol
@@ -149,7 +151,11 @@ public:
   PSEUDOQUAD pQuad;
   bool fourBodyJastrow;
   JBASIS fourBodyJastrowBasis;
-  
+
+//for relativistic calculations --> VMC has to be compiled with flag Relativistic to be used
+  bool ifRelativistic;                   //to turn on relativistic calculation 
+  bool ifSOC;                            //to incorporate MFSOC
+
 //input file to define the correlator parts of the wavefunction
   int nalpha;
   int nbeta;
