@@ -37,8 +37,8 @@ namespace boost {
 	if(dim1 != a.rows() || dim2 != a.cols())
 	  a.resize(dim1, dim2);
 	for(int i=0;i<a.rows();++i)
-	for(int j=0;j<a.cols();++j)
-	  ar & a(i,j);
+	  for(int j=0;j<a.cols();++j)
+	    ar & a(i,j);
       }
 
     template<class Archive>
