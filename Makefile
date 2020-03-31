@@ -2,30 +2,38 @@ F77 = mpif77
 USE_MPI = yes
 USE_INTEL = yes
 
-SUNDIALS=/projects/ilsa8974/apps/sundials-3.1.0/stage/include
-STAN=/projects/sash2458/newApps/stanMath
+ENABLE_RELATIVISTIC = yes
+
+STAN=/projects/ilsa8974/apps/math
+TACO=/projects/ilsa8974/apps/taco/install
+
+
 TBB=/curc/sw/intel/17.4/compilers_and_libraries_2017.4.196/linux/tbb/
 
-EIGEN=/projects/sash2458/newApps/eigen/
-BOOST=/projects/sash2458/newApps/boost_1_67_0/
-LIBIGL=/projects/sash2458/apps/libigl/include/
-PYSCF=/projects/sash2458/newApps/pyscf/pyscf/lib/
-LIBCINT=/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib
-TACO=/projects/sash2458/newApps/taco/install
+SUNDIALS=/projects/nigl9570/apps/sundials/inst/include
+EIGEN=/projects/nigl9570/apps/eigen/eigen-3.3.3/
+BOOST=/projects/nigl9570/apps/boost/boost_1_67_0/
+LIBIGL=/projects/nigl9570/apps/libigl/libigl-master/include/
+PYSCF=/projects/nigl9570/apps/pyscf/pyscf/lib/
+LIBCINT=/projects/nigl9570/apps/pyscf/pyscf/pyscf/lib
+LIBCINT2=/projects/nigl9570/apps/pyscf/pyscf/pyscf/lib/deps/lib
+
 
 OPT = -std=c++14 -w -g -O3 -qopenmp -D_REENTRANT -DNDEBUG
 #OPT = -std=c++14 -g -D_REENTRANT
 FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ -I/projects/sash2458/newApps/LBFGSpp/include/ -I${TACO}/include
 
-
+ifeq ($(ENABLE_RELATIVISTIC), yes)
+  FLAGS += -I./Wavefunctions/Relativistic
+  OPT += -DRelativistic
+endif
 
 GIT_HASH=`git rev-parse HEAD`
 COMPILE_TIME=`date`
 GIT_BRANCH=`git branch | grep "^\*" | sed s/^..//`
 VERSION_FLAGS=-DGIT_HASH="\"$(GIT_HASH)\"" -DCOMPILE_TIME="\"$(COMPILE_TIME)\"" -DGIT_BRANCH="\"$(GIT_BRANCH)\""
 
-LFLAGS = -L${PYSCF} -lcgto -lnp_helper -L${LIBCINT} -lcint -L${TBB}/lib/intel64/gcc4.7/ -ltbb  -L${TACO}/lib -ltaco
-
+LFLAGS = -L${PYSCF} -lcgto -lnp_helper -L${LIBCINT} -L${LIBCINT2} -lcint -L${TBB}/lib/intel64/gcc4.7/ -ltbb  -L${TACO}/lib -ltaco
 
 
 
@@ -93,6 +101,13 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/VMC.o \
 	obj/rPseudopotential.o \
 	obj/Complex.o \
+
+
+
+# ifeq ($(ENABLE_RELATIVISTIC), yes)
+#   OBJ_VMC += obj/relWalker.o
+# endif
+
 
 
 OBJ_TRANS = obj/staticVariables.o \
