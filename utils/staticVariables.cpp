@@ -40,6 +40,11 @@ vector<string> slaterParser::AtomSymbols{"X",\
 
 twoInt I2;
 oneInt I1;
+
+#ifdef Relativistic
+oneIntSOC I1SOC;
+#endif
+
 double coreE;
 twoIntHeatBathSHM I2hb(1e-10);
 
