@@ -38,7 +38,9 @@ using namespace Eigen;
 using namespace boost;
 using namespace std;
 
-
+/*
+This is a functor for the linear method optimizer
+*/
 class LM
 {
   private:
@@ -64,7 +66,7 @@ class LM
     {
         if (commrank == 0)
         {
-	    char file[50];
+	        char file[50];
             sprintf(file, "LM.bkp");
             std::ofstream ofs(file, std::ios::binary);
             boost::archive::binary_oarchive save(ofs);
@@ -78,7 +80,7 @@ class LM
     {
         if (commrank == 0)
         {
-	    char file[50];
+	        char file[50];
             sprintf(file, "LM.bkp");
             std::ifstream ifs(file, std::ios::binary);
 	        boost::archive::binary_iarchive load(ifs);
@@ -92,10 +94,9 @@ class LM
    void optimize(VectorXd &vars, Function1& getHessian, Function2 &runCorrelatedSampling, bool restart)
    {
      int numVars = vars.rows();
-     if (restart)
+     if (restart || schd.fullRestart)
      {
-       if (commrank == 0) 
-         read(vars);
+       if (commrank == 0) read(vars);
 #ifndef SERIAL
 	    boost::mpi::communicator world;
 	    boost::mpi::broadcast(world, *this, 0);
@@ -112,11 +113,13 @@ class LM
        stddev = 0.0;
        grad.setZero(numVars);
 
+       //sampling
        double acceptedFrac = getHessian(vars, grad, Hessian, Smatrix, E0, stddev, rt);
        write(vars);
        double VMC_time = (getTime() - startofCalc);
 
        /*
+       //write matrices to disk
        ofstream Hout("H.txt");
        ofstream Sout("S.txt");
        for (int i = 0; i < Hessian.rows(); i++)
@@ -133,7 +136,7 @@ class LM
        Sout.close();
        */
 
-
+       //add diagonal shift to matrices
        double shift = hdiagshift * std::pow(decay, iter);
        if (shift < 1.e-8) shift = 1.e-8;
        for (int i=0; i<numVars+1; i++) {
@@ -141,18 +144,19 @@ class LM
          Smatrix(i,i) += sdiagshift;
        }
 
+       //orthogonalize tangent space to 0th order wavefunction
        MatrixXd Uo = MatrixXd::Zero(numVars+1, numVars+1);       
        Uo(0,0) = 1.0;
        for (int i=0; i<numVars; i++) {
          Uo(0, i+1) = -Smatrix(0, i+1);
          Uo(i+1, i+1) = 1.0;
-       }
-       
+       } 
        Smatrix = Uo.transpose()*(Smatrix * Uo);
        Hessian = Uo.transpose()*(Hessian * Uo);
 
+       //canonical orthogonalization
        SelfAdjointEigenSolver<MatrixXd> oes(Smatrix);
-
+       //remove small eigenvalues of overlap matrix
        int index = 0;
        Uo.setZero();
        for (int i = 0; i<numVars+1; i++) {
@@ -164,11 +168,12 @@ class LM
          }
        }
        Uo.conservativeResize(numVars+1, index);
-
        MatrixXd Hessian_prime = Uo.transpose()*(Hessian * Uo);
        //cout << Hessian_prime <<endl;
-       EigenSolver<MatrixXd> es(Hessian_prime);
 
+       //solve generalized eigenvalue problem
+       EigenSolver<MatrixXd> es(Hessian_prime);
+       //get smallest eigenvalue
        double emin=1.e10; int eminIndex;
        for (int i=0; i<index; i++) {
          if (es.eigenvalues()(i).real() < emin) {
@@ -178,62 +183,70 @@ class LM
        }
        //cout << es.eigenvalues().transpose().real() << endl << endl;
        
+       //update parameters
        VectorXd x = (Uo * es.eigenvectors().col(eminIndex)).real();
-       //VectorXd update = x.tail(numVars) / x(0);
-         //normalize parameter update
-         double ksi = 0.5;
-         VectorXd Sx = Smatrix * x;
-         double xSx = x.dot(Sx);
-         VectorXd N = -((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
-         double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
-         VectorXd update = x.tail(numVars) / (x(0) * norm);
-         double LM_time = (getTime() - startofCalc);
+       //normalize parameter update
+       double ksi = 0.5;
+       VectorXd Sx = Smatrix * x;
+       double xSx = x.dot(Sx);
+       VectorXd N = -((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
+       double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
+       VectorXd update = x.tail(numVars) / (x(0) * norm);
+       double LM_time = (getTime() - startofCalc);
+
        //if (commrank == 0) { 
        //cout << "Expected energy in next step :" << emin<<endl;
        //cout << "Number of non-redundant vars :" << index<<endl;
        //}
-         //correlated sampling
-         std::vector<Eigen::VectorXd> V(stepsizes.size(), vars);
-         std::vector<double> E(stepsizes.size(), 0.0);
-         for (int i = 0; i < V.size(); i++)
-         {
-           V[i] += stepsizes[i] * update;
-         }
-         runCorrelatedSampling(V, E);
-         index = 0;
+       
+       //correlated sampling
+       std::vector<Eigen::VectorXd> V(stepsizes.size(), vars);
+       std::vector<double> E(stepsizes.size(), 0.0);
+       for (int i = 0; i < V.size(); i++)
+       {
+         V[i] += stepsizes[i] * update;
+       }
+       runCorrelatedSampling(V, E);
+       index = 0;
+       for (int i = 0; i < E.size(); i++)
+       {
+         if (E[i] < E[index])
+           index = i;              
+       }
+       //vars = V[index];
+       //print
+       if (schd.printOpt && commrank == 0)
+       {
+         cout << "Correlated Sampling: " << endl;
          for (int i = 0; i < E.size(); i++)
          {
-           if (E[i] < E[index])
-             index = i;              
+           cout << stepsizes[i] << " " << E[i] << "|";
          }
-         //vars = V[index];
+         cout << endl;
+       }
 
-         if (schd.printOpt && commrank == 0)
-         {
-           cout << "Correlated Sampling: " << endl;
-           for (int i = 0; i < E.size(); i++)
-           {
-             cout << stepsizes[i] << " " << E[i] << "|";
-           }
-           cout << endl;
-         }
-
-         //accept update only if "good" move
-         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
-         {
-           //if (commrank == 0) cout << "update accepted" << endl;
-           vars = V[index];
-         }
+       //accept update only if "good" move
+       if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
+       {
+         //if (commrank == 0) cout << "update accepted" << endl;
+         vars = V[index];
+       }
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
+       //print
        if (commrank == 0)
          std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %10i %8.2f %8.2f %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (schd.stochasticIter) % (VMC_time) % (LM_time) % ((getTime() - startofCalc));
+    
+       //update iteration
        iter++;
-     }
-   }
+     }//while
+   }//optimize
 };   
 
+/*
+This is an object that applies the linear method matrices "directly", ie. without explicitly constructing the matrices in memory. Not to be confused with the optimizer functor below.
+*/
 class DirectLM
 {
   public:
@@ -241,9 +254,12 @@ class DirectLM
   std::vector<Eigen::VectorXd> G, H;
   double sdiagshift, hdiagshift;
   MatrixXd Smatrix, Hmatrix, GJD;
+
+  //constructors
   DirectLM() {}
   DirectLM(double _hdiagshift, double _sdiagshift) : hdiagshift(_hdiagshift), sdiagshift(_sdiagshift) {}
 
+  //constructs matrices
   void BuildMatrices()
   {
     double Tau = 0.0;
@@ -287,6 +303,7 @@ class DirectLM
       Hmatrix.col(0) += G_Eloc_bar - Energy * G_bar;
   }
 
+  //applies the overlap matrix, S onto the vector x
   void multiplyS(const VectorXd &x, VectorXd &Sx) const
   {
     VectorXd xcopy(x);
@@ -302,17 +319,18 @@ class DirectLM
       G_bar += T[i] * G[i];
     }
 #ifndef SERIAL
-      MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(Sx(0)), Sx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(G_bar(0)), G_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Sx(0)), Sx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(G_bar(0)), G_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-      Sx /= Tau;
-      G_bar /= Tau;
-      Sx -= G_bar * G_bar.dot(x);
-      Sx(0) += x(0); 
-      Sx += sdiagshift * xcopy;
+    Sx /= Tau;
+    G_bar /= Tau;
+    Sx -= G_bar * G_bar.dot(x);
+    Sx(0) += x(0); 
+    Sx += sdiagshift * xcopy;
   } 
 
+  //applies the Hamiltonian matrix, H, onto the vector x
   void multiplyH(const VectorXd &x, VectorXd &Hx) const
   {
     VectorXd xcopy(x);
@@ -334,27 +352,28 @@ class DirectLM
       H_bar += T[i] * H[i];
     }
 #ifndef SERIAL
-      MPI_Allreduce(MPI_IN_PLACE, &(Energy), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(G_bar(0)), G_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(G_Eloc_bar(0)), G_Eloc_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(H_bar(0)), H_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(Hx(0)), Hx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Energy), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(G_bar(0)), G_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(G_Eloc_bar(0)), G_Eloc_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(H_bar(0)), H_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Hx(0)), Hx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-      Energy /= Tau;
-      H_bar /= Tau;
-      G_bar /= Tau;
-      G_Eloc_bar /= Tau;
-      Hx /= Tau;
-      Hx -= G_Eloc_bar * G_bar.dot(x);
-      Hx -= G_bar * H_bar.dot(x);
-      Hx += Energy * G_bar * G_bar.dot(x);
-      Hx(0) += Energy * x(0);
-      Hx(0) += (H_bar - Energy * G_bar).dot(x); 
-      Hx += (G_Eloc_bar - Energy * G_bar) * x(0); 
-      Hx += hdiagshift * xcopy;
+    Energy /= Tau;
+    H_bar /= Tau;
+    G_bar /= Tau;
+    G_Eloc_bar /= Tau;
+    Hx /= Tau;
+    Hx -= G_Eloc_bar * G_bar.dot(x);
+    Hx -= G_bar * H_bar.dot(x);
+    Hx += Energy * G_bar * G_bar.dot(x);
+    Hx(0) += Energy * x(0);
+    Hx(0) += (H_bar - Energy * G_bar).dot(x); 
+    Hx += (G_Eloc_bar - Energy * G_bar) * x(0); 
+    Hx += hdiagshift * xcopy;
   } 
 
+  //applies the matrix (H - \theta S) onto the vector x
   void multiplyH_thetaS(const VectorXd &x, double theta, VectorXd &Ax) const //Ax = (H - theta * S)x
   {
     VectorXd xcopy(x);
@@ -382,33 +401,34 @@ class DirectLM
       H_bar += T[i] * H[i];
     }
 #ifndef SERIAL
-      MPI_Allreduce(MPI_IN_PLACE, &(Energy), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(G_bar(0)), G_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(G_Eloc_bar(0)), G_Eloc_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(H_bar(0)), H_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(Hx(0)), Hx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &(Sx(0)), Sx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Energy), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(G_bar(0)), G_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(G_Eloc_bar(0)), G_Eloc_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(H_bar(0)), H_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Hx(0)), Hx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Sx(0)), Sx.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-      Energy /= Tau;
-      H_bar /= Tau;
-      G_bar /= Tau;
-      G_Eloc_bar /= Tau;
-      Hx /= Tau;
-      Sx /= Tau;
-      Sx -= G_bar * G_bar.dot(x);
-      Sx(0) += x(0); 
-      Sx += sdiagshift * xcopy;
-      Hx -= G_Eloc_bar * G_bar.dot(x);
-      Hx -= G_bar * H_bar.dot(x);
-      Hx += Energy * G_bar * G_bar.dot(x);
-      Hx(0) += Energy * x(0);
-      Hx(0) += (H_bar - Energy * G_bar).dot(x); 
-      Hx += (G_Eloc_bar - Energy * G_bar) * x(0); 
-      Hx += hdiagshift * xcopy;
-      Ax = Hx - theta * Sx;
+    Energy /= Tau;
+    H_bar /= Tau;
+    G_bar /= Tau;
+    G_Eloc_bar /= Tau;
+    Hx /= Tau;
+    Sx /= Tau;
+    Sx -= G_bar * G_bar.dot(x);
+    Sx(0) += x(0); 
+    Sx += sdiagshift * xcopy;
+    Hx -= G_Eloc_bar * G_bar.dot(x);
+    Hx -= G_bar * H_bar.dot(x);
+    Hx += Energy * G_bar * G_bar.dot(x);
+    Hx(0) += Energy * x(0);
+    Hx(0) += (H_bar - Energy * G_bar).dot(x); 
+    Hx += (G_Eloc_bar - Energy * G_bar) * x(0); 
+    Hx += hdiagshift * xcopy;
+    Ax = Hx - theta * Sx;
   }
 
+  //applies the matrix (1 - (Su) u^dag)(H - \theta S)(1 - u (Su)^\dag)
   void multiplyGJD(const VectorXd &x, double theta, const VectorXd &u, VectorXd &Ax) const
   {
     //1st projector
@@ -424,6 +444,7 @@ class DirectLM
     Ax = Ax - a;
   } 
  
+  //builds the above matrix
   void BuildGJD(double theta, const VectorXd &u)
   {
     BuildMatrices();
@@ -434,10 +455,15 @@ class DirectLM
   }
 };
 
+//generalized jacobi davidson solvers, see linearMethod.cpp for implementation
 void generalizedJacobiDavidson(const Eigen::MatrixXd &H, const Eigen::MatrixXd &S, double &lambda, Eigen::VectorXd &v);
 
 void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int cgIter, double cgTol, double dTol);
 
+/*
+This is a functor for the direct linear method optimizer
+Note that it performs amsgrad for an sgdIter number of iterations
+*/
 class directLM
 {
   private:
@@ -505,42 +531,45 @@ class directLM
    void optimize(VectorXd &vars, Function1 &getHessian, Function2 &runCorrelatedSampling, bool restart)
    {
      int numVars = vars.rows();
-     if (restart)
+     if (restart || schd.fullRestart)
      {
-       if (commrank == 0) 
-         read(vars);
+       if (commrank == 0) read(vars);
 #ifndef SERIAL
 	    boost::mpi::communicator world;
 	    boost::mpi::broadcast(world, *this, 0);
 	    boost::mpi::broadcast(world, vars, 0);
 #endif
      }
-     else if (mom1.rows() == 0)
+     else if (mom1.rows() == 0) //if amsgrad options are zero
      {
        mom1.setZero(numVars);
        mom2.setZero(numVars);
      }
+
      while (iter < maxIter)
      {
-if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
-       if (iter < AMSGradIter)
-         rt = 0.0;
+       if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
+
+       //init
+       if (iter < AMSGradIter) rt = 0.0;
        double E0 = 0.0;
        double stddev = 0.0;
        VectorXd grad = VectorXd::Zero(numVars);
+       //diagonal shift
        double shift = hdiagshift * std::pow(LMDecay, numLMiter);
        if (shift < 1.e-8) shift = 1.e-8;
        DirectLM h(shift, sdiagshift);
 
+       //sampling
        double acceptedFrac = getHessian(vars, grad, h, E0, stddev, rt);
        write(vars);
-
-if (commrank == 0 && schd.printOpt) std::cout << "VMC run complete" << endl;
-if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
+       if (commrank == 0 && schd.printOpt) std::cout << "VMC run complete" << endl;
+       if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
        double VMC_time = (getTime() - startofCalc);
        double LM_time = VMC_time;
 
-       if (iter < AMSGradIter)
+       //update parameters
+       if (iter < AMSGradIter) //performs amsgrad
        {
          for (int i = 0; i < vars.rows(); i++)
          {
@@ -550,15 +579,16 @@ if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
            vars(i) -= delta;
          }
        }
-       else
+       else //performs LM
        {
          numLMiter++;
+
+         //solve eigenproblem
          double lambda;
          VectorXd x(numVars + 1);
-         //VectorXd guess(numVars + 1);
-         //guess << 1.0, -(0.01 * grad);
          VectorXd guess = VectorXd::Unit(numVars + 1, 0);
          GeneralizedJacobiDavidson(h, E0, guess, lambda, x, schd.cgIter, schd.cgTol, schd.dTol);
+
          //normalize parameter update
          double ksi = 0.5;
          VectorXd Sx;
@@ -568,8 +598,9 @@ if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
          double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
          VectorXd update = x.tail(numVars) / (x(0) * norm);
          //VectorXd update = x.tail(numVars) / x(0);
-if (commrank == 0 && schd.printOpt) std::cout << "LM complete" << endl;
+         if (commrank == 0 && schd.printOpt) std::cout << "LM complete" << endl;
          LM_time = (getTime() - startofCalc);
+
          //correlated sampling
          std::vector<Eigen::VectorXd> V(LMStep.size(), vars);
          std::vector<double> E(LMStep.size(), 0.0);
@@ -578,7 +609,8 @@ if (commrank == 0 && schd.printOpt) std::cout << "LM complete" << endl;
            V[i] += LMStep[i] * update;
          }
          runCorrelatedSampling(V, E);
-if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
+         if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
+         //find lowest energy
          int index = 0;
          for (int i = 0; i < E.size(); i++)
          {
@@ -587,6 +619,7 @@ if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
          }
          //vars = V[index];
          
+         //print
          if (schd.printOpt && commrank == 0)
          {
            cout << "Correlated Sampling: " << endl;
@@ -603,17 +636,23 @@ if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
            //if (commrank == 0) cout << "update accepted" << endl;
            vars = V[index];
          }
-       } 
+       }//if
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
+       //print
        if (commrank == 0)
          std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %8.2f %8.2f %8.2f \n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (VMC_time) % (LM_time) % ((getTime() - startofCalc));
+
+       //update iteration
        iter++;
-     }
-   }
+     }//while
+   }//optimize
 };   
 
+/*
+Below is unfinished code that performs LM with the variance as the observabe of interest
+*/
 /*
 class DirectVarLM : public DirectLM
 {

@@ -16,6 +16,7 @@
 #include <boost/mpi.hpp>
 #endif
 
+//Conjugate gradient function performs the conjugate gradient algorithm using the DirectLM matrix object 
 void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, double tol, Eigen::VectorXd &x)
 {
   //double tol = 1.e-3;
@@ -56,6 +57,7 @@ void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorX
   }
 }
 
+//basic generalized jacobi davidson implementation with explicit matrix objects
 void generalizedJacobiDavidson(const Eigen::MatrixXd &H, const Eigen::MatrixXd &S, double &lambda, Eigen::VectorXd &v)
 {
     int dim = H.rows(); //dimension of problem
@@ -133,6 +135,7 @@ void generalizedJacobiDavidson(const Eigen::MatrixXd &H, const Eigen::MatrixXd &
     }
 }
 
+//returns the index of the closest value to target in the vector V
 int FindBound(const VectorXd &v, double target)
 {
     if (v.size() == 1 || v(0) > target)
@@ -148,6 +151,7 @@ int FindBound(const VectorXd &v, double target)
     }
 }
 
+//appends the vector z to the subspace matrices HV, SV, V. Uses the DirectLM matrix object
 void AppendVectorToSubspace(const DirectLM &H, const Eigen::VectorXd &z, Eigen::MatrixXd &V, Eigen::MatrixXd &HV, Eigen::MatrixXd &SV)
 {
     int dim = H.G[0].rows(); //dimension of problem
@@ -180,6 +184,7 @@ void AppendVectorToSubspace(const DirectLM &H, const Eigen::VectorXd &z, Eigen::
 }
 
 
+//basic self adjoint generalized jacobi davidson implementation with DirectLM matrix object
 void SelfAdjointGeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int n)
 {
   int dim = H.G[0].rows(); //dimension of problem
@@ -262,6 +267,7 @@ if (commrank == 0)
   }
 }                                       
 
+//constructs the canonical transformation matrix X from the overla matrix Smatrix ie. X = S^(-1/2)
 void CanonicalTransform(const Eigen::MatrixXd &Smatrix, Eigen::MatrixXd &X)
 {
   X.setZero(Smatrix.rows(), Smatrix.cols());
@@ -279,6 +285,7 @@ void CanonicalTransform(const Eigen::MatrixXd &Smatrix, Eigen::MatrixXd &X)
   X.conservativeResize(Smatrix.rows(), index);
 } 
 
+//sorts the eigenvalues in D and their respective eigenvectors in V in increasing order
 void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
 {
   Eigen::VectorXd Dcopy(D);
@@ -296,6 +303,7 @@ void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
   }   
 }
 
+//optimized generalized jacobi davidson implementation with DirectLM matrix object
 void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int cgIter, double cgTol, double dTol)
 {
   int dim = H.G[0].rows(); //dimension of problem

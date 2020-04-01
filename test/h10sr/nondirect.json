@@ -15,6 +15,7 @@
     "method": "sr",
     "direct": false,
     "stepsize": 0.01,
-    "maxIter": 10
+    "sdiagshift": 0.1,
+    "maxIter": 5
   }
 }

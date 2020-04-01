@@ -18,6 +18,6 @@
     "corrSampleFrac": 0.15,
     "cgIter": 5,
     "sgdIter": 1,
-    "maxIter": 10
+    "maxIter": 3
   }
 }

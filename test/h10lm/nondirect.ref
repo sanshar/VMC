@@ -1,28 +1,53 @@
-JastrowSlater
-ghf
-complex
+User:
+ilsa8974
+Hostname:
+bnode0303.rc.int.colorado.edu
+CPU info:
+Architecture:          x86_64
+CPU op-mode(s):        32-bit, 64-bit
+Byte Order:            Little Endian
+CPU(s):                28
+On-line CPU(s) list:   0-27
+Thread(s) per core:    1
+Core(s) per socket:    14
+Socket(s):             2
+NUMA node(s):          2
+Vendor ID:             GenuineIntel
+CPU family:            6
+Model:                 79
+Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
+Stepping:              1
+CPU MHz:               2662.781
+Computation started at:
+Tue Mar 31 18:03:47 MDT 2020
+git commit: eee030085abc85d9897844033b641990da36584c, branch: merged, compiled at: Tue Mar 31 17:27:18 MDT 2020
 
-maxIter 10
-stochasticIter 1000
-seed 1
+nproc used: 4 (NB: stochasticIter below is per proc)
 
-#printOpt
-lm
-nondirect
-hDiagShift 0.01
-decay 0.5
+**************************************************************
+Input file  :
+**************************************************************
+{
+    "wavefunction": {
+        "name": "jastrowslater",
+        "hfType": "ghf",
+        "complex": "true"
+    },
+    "sampling": {
+        "stochasticIter": "1000",
+        "seed": "1"
+    },
+    "optimizer": {
+        "method": "lm",
+        "direct": "false",
+        "hDiagShift": "0.01",
+        "sDiagShift": "1.0e-10",
+        "decay": "0.5",
+        "corrSampleFrac": "0.15",
+        "maxIter": "3"
+    }
+}
 
-CorrSampleFrac 0.15
-
-Number of Jastrow vars: 210
-Number of Reference vars: 801
-    0    -5.22100179 (9.03e-03)     0.13441897      1.8      1.0       1000     5.14     6.77     6.87
-    1    -5.34978582 (3.09e-03)     0.10648755      1.6      1.0       1000     9.71    11.39    11.48
-    2    -5.37476014 (2.30e-03)     0.07162169      1.1      1.0       1000    14.09    15.82    15.91
-    3    -5.38164656 (1.57e-03)     0.05842023      1.0      1.0       1000    20.90    22.62    22.71
-    4    -5.38349862 (1.44e-03)     0.05250288      1.0      1.0       1000    28.03    29.79    29.89
-    5    -5.38326897 (1.43e-03)     0.04199533      1.1      1.0       1000    35.03    36.79    36.89
-    6    -5.38269663 (1.36e-03)     0.04061334      1.1      1.0       1000    42.02    43.81    43.91
-    7    -5.38664270 (1.17e-03)     0.04438508      1.0      1.0       1000    48.96    50.69    50.79
-    8    -5.38565632 (1.27e-03)     0.04200559      1.2      1.0       1000    55.85    57.58    57.67
-    9    -5.38709558 (1.07e-03)     0.03504504      1.0      1.0       1000    63.03    64.79    64.89
+    0    -5.22100179 (9.03e-03)     0.13441897      1.8      1.0       1000     7.64     9.27     9.38
+    1    -5.34811322 (3.46e-03)     0.09679873      1.9      1.0       1000    13.32    14.98    15.09
+    2    -5.36024333 (2.85e-03)     0.09388642      1.4      1.0       1000    18.98    20.66    20.77

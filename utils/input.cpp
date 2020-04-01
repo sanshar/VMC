@@ -142,11 +142,13 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.numHidden = input.get("wavefunction.numHidden", 1);
 
     //realspace
+    schd.fourBodyJastrow = false;
     optional< property_tree::iptree& > fbj = input.get_child_optional("wavefunction.fourBodyJastrow");
     if (fbj) {
+      schd.fourBodyJastrow = true;
       string fbjBasis = input.get("wavefunction.fourBodyJastrow", "NC");
-      if (fbjBasis == "NC") schd.fourBodyJastrow = NC;
-      else if (fbjBasis == "AB") schd.fourBodyJastrow = AB;
+      if (fbjBasis == "NC") schd.fourBodyJastrowBasis = NC;
+      else if (fbjBasis == "AB") schd.fourBodyJastrowBasis = AB;
     }
     schd.Qmax = input.get("wavefunction.Qmax", 6);
     schd.QmaxEEN = input.get("wavefunction.QmaxEEN", 3);

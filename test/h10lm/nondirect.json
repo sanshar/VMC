@@ -15,8 +15,9 @@
     "method": "lm",
     "direct": false,
     "hDiagShift": 0.01,
+    "sDiagShift": 1.0e-10,
     "decay": 0.5,
     "corrSampleFrac": 0.15,
-    "maxIter": 10
+    "maxIter": 3
   }
 }

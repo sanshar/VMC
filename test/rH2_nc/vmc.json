@@ -1,0 +1,38 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowslater",
+    "hfType": "rhf",
+    "fourBodyJastrow": "NC",
+    "Qmax": 1,
+    "Qmaxeen": 0
+  },
+  "realspace":
+  {
+    "basis": "gto",
+    "nalpha": 1,
+    "nbeta": 1,
+    "norbs": 2
+  },
+  "sampling":
+  {
+    "stochasticIter": 20000,
+    "seed": 1
+  },
+  "optimizer":
+  {
+    "method": "lm",
+    "direct": true,
+    "stepsizes": [0.1, 0.01, 0.05, 0.5, 1.0],
+    "hdiagshift": 0.1,
+    "decay": 0.1,
+    "dTol": 1.0e-3,
+    "cgTol": 1.0e-3,
+    "sgdIter": 0,
+    "maxIter": 3
+  },
+  "print":
+  {
+    "vars": false
+  }
+}
