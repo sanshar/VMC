@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
   string inputFile = "input.dat";
   if (argc > 1)
     inputFile = string(argv[1]);
-  readInput(inputFile, schd, false);
+  readInput(inputFile, schd, true);
 
   generator = std::mt19937(schd.seed + commrank);
 

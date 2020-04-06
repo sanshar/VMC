@@ -125,6 +125,8 @@ double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vec
 
 void JastrowEENNupdate(int elec, const Vector3d &coord, const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::array<MatrixXd, 3> &gradn, MatrixXd &lapn, int startIndex);
 
+void JastrowEENNupdateParam(int elec, const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, const MatrixXd &lapn, VectorXd &ParamValues, std::vector<MatrixXd> &ParamGradient, MatrixXd &ParamLaplacian, int startIndex);
+
 
 double JastrowEENNLinearValue(int i, const vector<Vector3d>& r, const VectorXd& params, int startIndex);
  

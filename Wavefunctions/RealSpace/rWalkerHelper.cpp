@@ -1027,7 +1027,8 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
 
   if (schd.fourBodyJastrow) {
     JastrowEENNupdate(i, bkp, d.coord, N, n, gradn, lapn, EENNlinearIndex);
-    JastrowEENN(N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
+    //JastrowEENN(N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
+    JastrowEENNupdateParam(i, N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
   }
  
   /*
@@ -1047,7 +1048,7 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
   GradRatio.col(1) = ParamGradient[1]*jastrowParams;
   GradRatio.col(2) = ParamGradient[2]*jastrowParams;
   LaplaceRatioIntermediate = ParamLaplacian*jastrowParams;
-  
+
   for (int i=0; i<d.nelec; i++) {
     LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
         pow(GradRatio(i,0), 2) +

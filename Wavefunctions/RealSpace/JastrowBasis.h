@@ -204,6 +204,7 @@ using namespace Eigen;
   void AB_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &grad2)
   {
     int norbs = schd.basis->getNorbs();
+
     vector<double> aoValues(10*norbs, 0.0);
     schd.basis->eval_deriv2(x[elec], &aoValues[0]);
 
@@ -254,5 +255,70 @@ using namespace Eigen;
     grad2[2] = (denom * denom * gradzzNum
                - denom * (2.0 * gradzNum * gradDenom[2] + num * grad2Denom[2])
                + 2.0 * num * gradDenom[2] * gradDenom[2]) / (denom * denom * denom);
+  }
+
+
+
+//Sorella style, square of orbital value
+  void SS_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
+  {
+    int norbs = schd.basis->getNorbs();
+
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval(x[elec], &aoValues[0]);
+
+    values = VectorXd::Zero(norbs);
+    for (int I = 0; I < norbs; I++)
+    {
+        values[I] = aoValues[I];
+    }
+  }
+
+
+  void SS_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
+  {
+    int norbs = schd.basis->getNorbs();
+
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+
+    values = VectorXd::Zero(norbs);
+    grad[0] = VectorXd::Zero(norbs);
+    grad[1] = VectorXd::Zero(norbs);
+    grad[2] = VectorXd::Zero(norbs);
+    for (int I = 0; I < norbs; I++)
+    {
+      values[I] = aoValues[I];
+      grad[0][I] = aoValues[1*norbs + I];
+      grad[1][I] = aoValues[2*norbs + I];
+      grad[2][I] = aoValues[3*norbs + I];
+    }
+  }
+
+
+  void SS_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &grad2)
+  {
+    int norbs = schd.basis->getNorbs();
+
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+
+    values = VectorXd::Zero(norbs);
+    grad[0] = VectorXd::Zero(norbs);
+    grad[1] = VectorXd::Zero(norbs);
+    grad[2] = VectorXd::Zero(norbs);
+    grad2[0] = VectorXd::Zero(norbs);
+    grad2[1] = VectorXd::Zero(norbs);
+    grad2[2] = VectorXd::Zero(norbs);
+    for (int I = 0; I < norbs; I++)
+    {
+      values[I] = aoValues[I];
+      grad[0][I] = aoValues[1*norbs + I];
+      grad[1][I] = aoValues[2*norbs + I];
+      grad[2][I] = aoValues[3*norbs + I];
+      grad2[0][I] = aoValues[4*norbs + I];
+      grad2[1][I] = aoValues[7*norbs + I];
+      grad2[2][I] = aoValues[9*norbs + I];
+    }
   }
 #endif

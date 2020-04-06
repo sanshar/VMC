@@ -1013,9 +1013,9 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   vector<double> aoValues(10 * Determinant::norbs, 0.0);
 
   double ovlpRatio = -1.0, proposalProb;
-  /*
   ///////////////////////////////////////////////
   //Below will test overlap ratios from all the Jastrow functions
+  /*
   cout << endl;
   cout << "Testing overlap factor" << endl;
   Walker walk1, walk2;
@@ -1032,7 +1032,11 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   cout << walk1.corrHelper.n << endl;
   cout << endl;
   cout << "gradn[0]" << endl;
-  cout << walk1.corrHelper.gradn[0] << endl;
+  cout << walk2.corrHelper.gradn[0] << endl;
+  cout << "gradn[1]" << endl;
+  cout << walk2.corrHelper.gradn[1] << endl;
+  cout << "gradn[2]" << endl;
+  cout << walk2.corrHelper.gradn[2] << endl;
   cout << endl;
   cout << "lapn" << endl;
   cout << walk1.corrHelper.lapn << endl;
@@ -1047,15 +1051,17 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   cout << walk2.d << endl;
   cout << walk2.corrHelper.exponential << endl << endl;
   
+  cout << "#############After move################" << endl;
+  cout << "update" << endl;
   Vector3d move(0.0, 1.0, 0.0);
   move += walk1.d.coord[0];
   
   walk2.updateWalker(0, move, wave.getRef(), wave.getCorr());
   
+  cout << "init" << endl;
   rDeterminant pd(walk1.d);
   pd.coord[0] = move;
   Walker walk3(wave.getCorr(), wave.getRef(), pd);
-  cout << "#############After move################" << endl;
   
   cout << endl << "__Init__" << endl;
   cout << walk3.d << endl;
@@ -1069,7 +1075,11 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   cout << walk3.corrHelper.n << endl;
   cout << endl;
   cout << "gradn[0]" << endl;
-  cout << walk3.corrHelper.gradn[0] << endl;
+  cout << walk2.corrHelper.gradn[0] << endl;
+  cout << "gradn[1]" << endl;
+  cout << walk2.corrHelper.gradn[1] << endl;
+  cout << "gradn[2]" << endl;
+  cout << walk2.corrHelper.gradn[2] << endl;
   cout << endl;
   cout << "lapn" << endl;
   cout << walk3.corrHelper.lapn << endl;
@@ -1093,6 +1103,10 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   cout << endl;
   cout << "gradn[0]" << endl;
   cout << walk2.corrHelper.gradn[0] << endl;
+  cout << "gradn[1]" << endl;
+  cout << walk2.corrHelper.gradn[1] << endl;
+  cout << "gradn[2]" << endl;
+  cout << walk2.corrHelper.gradn[2] << endl;
   cout << endl;
   cout << "lapn" << endl;
   cout << walk2.corrHelper.lapn << endl;

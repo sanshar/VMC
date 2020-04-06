@@ -60,6 +60,8 @@ rJastrow::rJastrow () {
      EENNIndex = EENNlinearIndex + 2 * schd.Ncharge.size();
    else if (schd.fourBodyJastrowBasis == AB)
      EENNIndex = EENNlinearIndex + 2 * norbs;
+   else if (schd.fourBodyJastrowBasis == SS)
+     EENNIndex = EENNlinearIndex + 2 * norbs;
    
    int numParams = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
 
@@ -75,6 +77,8 @@ rJastrow::rJastrow () {
      if (schd.fourBodyJastrowBasis == NC)
        numParams = EENNIndex + 4 * schd.Ncharge.size() * schd.Ncharge.size();
      else if(schd.fourBodyJastrowBasis == AB)
+       numParams = EENNIndex + 4 * norbs * norbs;
+     else if(schd.fourBodyJastrowBasis == SS)
        numParams = EENNIndex + 4 * norbs * norbs;
    }
    

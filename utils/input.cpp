@@ -149,6 +149,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
       string fbjBasis = input.get("wavefunction.fourBodyJastrow", "NC");
       if (fbjBasis == "NC") schd.fourBodyJastrowBasis = NC;
       else if (fbjBasis == "AB") schd.fourBodyJastrowBasis = AB;
+      else if (fbjBasis == "SS") schd.fourBodyJastrowBasis = SS;
     }
     schd.Qmax = input.get("wavefunction.Qmax", 6);
     schd.QmaxEEN = input.get("wavefunction.QmaxEEN", 3);
@@ -403,6 +404,7 @@ void readGeometry(vector<Vector3d>& Ncoords,
     int l = gBasis.bas[i * 8 + 1];
     int n = gBasis.bas[i * 8 + 3];
     Nbasis[index] += n * (2 * l + 1);
+    if (l == 2) Nbasis[index] += 1; //we use a cartesian basis, this results in 6 d orbitals, not 5
   }
 }
 
