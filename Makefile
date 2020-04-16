@@ -15,7 +15,8 @@ TACO=/projects/sash2458/newApps/taco/install
 
 OPT = -std=c++14 -w -g -O3 -qopenmp -D_REENTRANT -DNDEBUG
 #OPT = -std=c++14 -g -D_REENTRANT
-FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ -I/projects/sash2458/newApps/LBFGSpp/include/ -I${TACO}/include
+FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/  -I${TACO}/include
+#-I/projects/sash2458/newApps/LBFGSpp/include/
 
 
 

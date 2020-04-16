@@ -214,6 +214,17 @@ then
     ../clean.sh
 fi
 
+cd $here/nociBenzene/
+../clean.sh
+printf "...running nociBenzene\n"
+$TRANSPATH > trans.out
+python ../testEnergy.py 'trans' $tol
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
+
+
 cd $here/rBe/
 ../clean.sh
 printf "...running rBe ghf\n"
