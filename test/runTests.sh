@@ -217,7 +217,7 @@ fi
 cd $here/nociBenzene/
 ../clean.sh
 printf "...running nociBenzene\n"
-$TRANSPATH > trans.out
+$TRANSPATH > trans.out 2>/dev/null
 python ../testEnergy.py 'trans' $tol
 if [ $clean == 1 ]
 then
