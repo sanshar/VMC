@@ -244,7 +244,8 @@ class getTranscorrelationWrapper
         optimizerOrb.optimize(vars, orbGrad, false);
         
         if (commrank == 0) {
-          cout << format("MacroIter %d: Wave function %d, Energy = %18.9f\n") %macro %i %(Emat.sum()/Omat.sum()+coreE) ;
+          cout << endl;
+          //cout << format("MacroIter %d: Wave function %d, Energy = %18.9f\n") %macro %i %(Emat.sum()/Omat.sum()+coreE) ;
         }
       }
     }
