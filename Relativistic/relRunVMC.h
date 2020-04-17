@@ -23,6 +23,7 @@
 #include "input.h"
 #include "relEvaluateE.h"
 #include "amsgrad.h"
+#include "relAMSGrad.h"
 #include "sgd.h"
 #include "ftrl.h"
 #include "sr.h"
@@ -34,8 +35,8 @@ using functor1r = boost::function<double (VectorXd&, VectorXd&, double&, double&
 
 
 
-template<typename Wave, typename Walker>
-void runRelVMC(Wave& wave, Walker& walk) {
+template<typename Wave, typename relWalker>
+void runRelVMC(Wave& wave, relWalker& walk) {
 
   if (schd.restart || schd.fullrestart)
     wave.readWave();
@@ -48,13 +49,14 @@ void runRelVMC(Wave& wave, Walker& walk) {
     cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getCorr().getNumVariables() << endl;
   }
 
-  relGetGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
-  functor1r relGetStochasticGradient = boost::bind(&relGetGradientWrapper<Wave, Walker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
+  relGetGradientWrapper<Wave, relWalker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
+  functor1r relGetStochasticGradient = boost::bind(&relGetGradientWrapper<Wave, relWalker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
   
   if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
       if (schd.stepsizes.empty()) {
-        AMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+        relAMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
         optimizer.optimize(vars, relGetStochasticGradient, schd.restart);
+        cout << "amsgrad optimization done" << endl;
       }
       else {
         //AMSGrad optimizer(schd.stepsizes, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);

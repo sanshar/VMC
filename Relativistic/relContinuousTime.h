@@ -2,24 +2,18 @@
 #define relCTMC_HEADER_H
 #include <Eigen/Dense>
 #include <vector>
-#include "Determinants.h"
 #include "relDeterminants.h"
+#include "Determinants.h"
 #include "relWorkingArray.h"
 #include "workingArray.h"
 #include "statistics.h"
-//#include "sr.h"
-//#include "linearMethod.h"
-//#include "variance.h"
 #include "global.h"
-//#include "evaluateE.h"
-//#include "LocalEnergy.h"
 #include <iostream>
 #include <fstream>
 #include <boost/serialization/serialization.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <algorithm>
-//#include <stan/math.hpp>
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -35,14 +29,14 @@ class relContinuousTime
   int norbs, nalpha, nbeta;
   relWorkingArray work;
   workingArray workd;
-  double T, Eloc;
-  std::complex<double> ovlp;
+  double T;
+  std::complex<double> ovlp, Eloc;
   double S1, oldEnergy;
   double cumT, cumT2, cumT_everyrk;
   Eigen::VectorXd grad_ratio, grad_Eloc;
   int nsample;
   Statistics Stats; //this is only used to calculate autocorrelation length
-  Determinant bestDet;
+  relDeterminant bestDet;
   double bestOvlp;
   
   double random()
@@ -55,16 +49,17 @@ class relContinuousTime
   {
     nsample = min(niter, 200000);
     numVars = w.getNumVariables();
-    norbs = Determinant::norbs;
-    nalpha = Determinant::nalpha;
-    nbeta = Determinant::nbeta;
+    norbs = relDeterminant::norbs;
+    nalpha = relDeterminant::nalpha;
+    nbeta = relDeterminant::nbeta;
     bestDet = walk.getDet();
     cumT = 0.0, cumT2 = 0.0, cumT_everyrk = 0.0, S1 = 0.0, oldEnergy = 0.0, bestOvlp = 0.0; 
   }
 
   void LocalEnergy()
   {
-    Eloc = 0.0, ovlp = 0.0;
+    Eloc = 0.0;
+    ovlp = (0.0, 0.0);
     w.HamAndOvlp(walk, ovlp, Eloc, work);
     if (schd.debug) {
       cout << walk << endl;
@@ -84,7 +79,7 @@ class relContinuousTime
     T = 1.0 / cumOvlp;
     double nextDetRand = random() * cumOvlp;
     //int nextDet = lower_bound(abs(work.ovlpRatio.begin()), abs(work.ovlpRatio.begin() + work.nExcitations), nextDetRand) - abs(work.ovlpRatio.begin());
-    int nextDet = lower_bound(workd.ovlpRatio.begin(), workd.ovlpRatio.begin() + workd.nExcitations, nextDetRand) - workd.ovlpRatio.begin();
+    int nextDet = lower_bound(workd.ovlpRatio.begin(), workd.ovlpRatio.begin() + workd.nExcitations, nextDetRand) - workd.ovlpRatio.begin(); //EDIT: since lower bound only works for double
     cumT += T;
     cumT2 += T * T;
     walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
@@ -133,11 +128,11 @@ class relContinuousTime
   void UpdateEnergy(double &Energy)
   {
     oldEnergy = Energy;
-    Energy += T * (Eloc - Energy) / cumT;
-    S1 += T * (Eloc - oldEnergy) * (Eloc - Energy);
+    Energy += T * (Eloc.real() - Energy) / cumT; //EDIT: here only real part of local energy is taken
+    S1 += T * ((Eloc - oldEnergy) * (Eloc - Energy)).real(); //EDIT DO: where to take the real part?
     if (Stats.X.size() < nsample)
     {
-      Stats.push_back(Eloc, T);
+      Stats.push_back(Eloc.real(), T); //EDIT DO: probably make pushback with complex
     }
   }
   
@@ -207,7 +202,7 @@ class relContinuousTime
   void UpdateGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar)
   {
     grad_ratio_bar += T * (grad_ratio - grad_ratio_bar) / cumT;
-    grad += T * (grad_ratio * Eloc - grad) / cumT;
+    grad += T * (grad_ratio * Eloc.real() - grad) / cumT; //EDIT: real part of local energy
   }
 
   void UpdateGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, int sample)
@@ -215,7 +210,7 @@ class relContinuousTime
     if (sample == 0)
     {
       grad_ratio_bar += T * (grad_ratio - grad_ratio_bar) / cumT_everyrk;
-      grad += T * (grad_ratio * Eloc - grad) / cumT_everyrk;
+      grad += T * (grad_ratio * Eloc.real() - grad) / cumT_everyrk; //EDIT: real part of local energy
     }
   }
 

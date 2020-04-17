@@ -30,7 +30,7 @@ struct relWorkingArray {
   //vector<double> ovlpRatio;
   vector<size_t> excitation1;
   vector<size_t> excitation2;
-  vector<double> HijElement;
+  vector<std::complex<double>> HijElement;
   int nExcitations;
 
   relWorkingArray(size_t initialSize = 1000000) {
@@ -49,7 +49,7 @@ struct relWorkingArray {
     HijElement.resize(newSize);
   }
   
-  void appendValue(double ovlp, size_t ex1, size_t ex2, double hij) {
+  void appendValue(double ovlp, size_t ex1, size_t ex2, std::complex<double> hij) {
     int ovlpsize = ovlpRatio.size();
     if (ovlpsize <= nExcitations) 
       incrementSize(1000000);

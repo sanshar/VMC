@@ -24,7 +24,6 @@
 #include <boost/serialization/vector.hpp>
 #include "relWalker.h"
 #include "relWorkingArray.h"
-#include "Determinants.h"
 #include "relDeterminants.h"
 
 class oneInt;
@@ -34,8 +33,8 @@ class oneIntSOC;
 
 class twoIntHeatBathSHM;
 class relWorkingArray;
-class Determinant;
 
+class relDeterminant;
 
 /**
  * This is the wavefunction, it is a product of the CPS and a linear combination of
@@ -67,7 +66,7 @@ struct relCorrelatedWavefunction {
     walk = relWalker<Corr, Reference>(corr, ref);
   }
   
-  void initWalker(relWalker<Corr, Reference> &walk, Determinant &d) const 
+  void initWalker(relWalker<Corr, Reference> &walk, relDeterminant &d) const 
   {
     walk = relWalker<Corr, Reference>(corr, ref, d);
   }
@@ -82,7 +81,7 @@ struct relCorrelatedWavefunction {
   }
 
 
-  std::complex<double> getOverlapFactor(const relWalker<Corr, Reference>& walk, Determinant& dcopy, bool doparity=false) const 
+  std::complex<double> getOverlapFactor(const relWalker<Corr, Reference>& walk, relDeterminant& dcopy, bool doparity=false) const 
   {
     std::complex<double> ovlpdetcopy;
     int excitationDistance = dcopy.ExcitationDistance(walk.d);
@@ -113,7 +112,7 @@ struct relCorrelatedWavefunction {
 
   std::complex<double> getOverlapFactor(int i, int a, const relWalker<Corr, Reference>& walk, bool doparity) const  
   {
-    Determinant dcopy = walk.d;
+    relDeterminant dcopy = walk.d;
     dcopy.setocc(i, false);
     dcopy.setocc(a, true);
       
@@ -127,7 +126,7 @@ struct relCorrelatedWavefunction {
     //singleexcitation
     if (J == 0 && B == 0) return getOverlapFactor(I, A, walk, doparity);
   
-    Determinant dcopy = walk.d;
+    relDeterminant dcopy = walk.d;
     dcopy.setocc(I, false);
     dcopy.setocc(J, false);
     dcopy.setocc(A, true);
@@ -188,7 +187,7 @@ struct relCorrelatedWavefunction {
 
   long getNumVariables() const
   {
-    int norbs = Determinant::norbs;
+    int norbs = relDeterminant::norbs;
     long numVars = 0;
     numVars += getNumJastrowVariables();
     numVars += ref.getNumVariables();
@@ -236,25 +235,27 @@ struct relCorrelatedWavefunction {
   //<psi_t| (H-E0) |D>
 
   void HamAndOvlp(const relWalker<Corr, Reference> &walk,
-                  std::complex<double> &ovlp, double &ham, 
+                  std::complex<double> &ovlp, std::complex<double> &ham, 
                   relWorkingArray& work, bool fillExcitations=true) const
   {
-    int norbs = Determinant::norbs;
+    int norbs = relDeterminant::norbs;
 
     ovlp = Overlap(walk);
-    ham = walk.d.Energy(I1, I2, coreE); 
+    ham = walk.d.Energy(I1SOC, I2, coreE); 
+    
+    if (1==0 && commrank==0) cout << "ovlp in HamAndOvlp " << ovlp << " ham " << ham << endl;
 
     work.setCounterToZero();
     generateAllScreenedSingleExcitation(walk.d, schd.epsilon, schd.screen,
                                         work, false);  
     generateAllScreenedDoubleExcitation(walk.d, schd.epsilon, schd.screen,
                                         work, false);  
-  
+    
     //loop over all the screened excitations
     //cout << "eloc excitations" << endl;
     for (int i=0; i<work.nExcitations; i++) {
       int ex1 = work.excitation1[i], ex2 = work.excitation2[i];
-      double tia = work.HijElement[i];
+      std::complex<double> tia = work.HijElement[i];
     
       int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
       int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
@@ -263,11 +264,16 @@ struct relCorrelatedWavefunction {
       //double ovlpRatio = getOverlapFactor(I, J, A, B, walk, false);
       //double ovlpRatio = getOverlapFactor(I, J, A, B, walk, dbig, dbigcopy, false);
 
-      ham += tia * ovlpRatio.real(); // EDIT: to only get real energies
-      if (schd.debug) cout << ex1 << "  " << ex2 << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << endl;
+      ham += (tia * ovlpRatio); // EDIT: now also complex energies
 
+      if (1==0 && commrank==0 && i==0) {
+        cout << ex1 << "  " << ex2 << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << endl;
+        cout << "   real part of ham   "  << (tia * ovlpRatio).real() << "   imaginary part of ham   " << (tia* ovlpRatio).imag() << endl;
+
+      }
       work.ovlpRatio[i] = ovlpRatio;
     }
+    
   }
 
   void OverlapWithLocalEnergyGradient(const relWalker<Corr, Reference> &walk, relWorkingArray &work, Eigen::VectorXd &gradEloc) const
@@ -280,7 +286,8 @@ struct relCorrelatedWavefunction {
       gradEloc.head(numCpsVars).setZero();
     if (schd.optimizeOrbs == false)
       gradEloc.tail(numRefVars).setZero();
-    if (schd.ifComplex == false)
+    /*
+    if (schd.ifComplex == false) // EDIT: disable!
     {
       for (int i = 0; i < numRefVars; i++)
       {
@@ -288,6 +295,7 @@ struct relCorrelatedWavefunction {
           gradEloc(i + numCpsVars) = 0.0;
       }
     }
+    */
   }  
 
   void HamAndOvlpLanczos(const relWalker<Corr, Reference> &walk,
@@ -297,7 +305,7 @@ struct relCorrelatedWavefunction {
                          relWorkingArray& moreWork, double &alpha)
   {
     work.setCounterToZero();
-    int norbs = Determinant::norbs;
+    int norbs = relDeterminant::norbs;
 
     double el0 = 0., el1 = 0., ovlp0 = 0., ovlp1 = 0.;
     HamAndOvlp(walk, ovlp0, el0, work);
@@ -308,7 +316,7 @@ struct relCorrelatedWavefunction {
 
     lanczosCoeffsSample[0] = ovlp[0] * ovlp[0] * el0 / (ovlp[2] * ovlp[2]);
     lanczosCoeffsSample[1] = ovlp[0] * ovlp[1] * el0 / (ovlp[2] * ovlp[2]);
-    el1 = walk.d.Energy(I1, I2, coreE);
+    el1 = walk.d.Energy(I1SOC, I2, coreE);
 
     //workingArray work1;
     //cout << "E0  " << el1 << endl;

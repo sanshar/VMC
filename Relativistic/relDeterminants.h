@@ -16,6 +16,7 @@
   You should have received a copy of the GNU General Public License along with this program.
   If not, see <http://www.gnu.org/licenses/>.
 */
+
 #ifndef relDeterminants_HEADER_H
 #define relDeterminants_HEADER_H
 
@@ -24,7 +25,6 @@
 #include <vector>
 #include <boost/serialization/serialization.hpp>
 #include <Eigen/Dense>
-
 
 class oneInt;
 class twoInt;
@@ -38,10 +38,6 @@ using namespace std;
 
 
 
-/**
-* This is the occupation number representation of a Determinants
-* with alpha, beta strings
-*/
 class relDeterminant {
 
  private:
@@ -53,6 +49,7 @@ class relDeterminant {
   }
 
  public:
+  
   // 0th position of 0th long is the first position
   // 63rd position of the last long is the last position
   long reprA[DetLen], reprB[DetLen];
@@ -61,13 +58,14 @@ class relDeterminant {
   static int norbs;
   static int nalpha, nbeta;
   static Eigen::Matrix<size_t, Eigen::Dynamic, Eigen::Dynamic> LexicalOrder;
-
+  
 
   //Constructors
   relDeterminant();
   relDeterminant(const relDeterminant& d);
   void operator=(const relDeterminant& d);
 
+  
   //mutates the Determinant
   void setoccA(int i, bool occ);
   void setoccB(int i, bool occ);
@@ -94,7 +92,6 @@ class relDeterminant {
   int Nalpha() const;
   int Nbeta() const;
 
-  
   double parityA(const int& a, const int& i) const;
   double parityB(const int& a, const int& i) const;
   double parity(const int& a, const int& i, const bool& sz) const;
@@ -105,31 +102,31 @@ class relDeterminant {
   double parityBB(const int& i, const int& j, const int& a, const int& b) const ;
 
   
-  double Energy(const oneInt& I1, const twoInt& I2, const double& coreE) const ;
-  CItype Hij_1ExciteScreened(const int& a, const int& i, const twoIntHeatBathSHM& Ishm,
+  std::complex<double> Energy(const oneIntSOC& I1, const twoInt& I2, const double& coreE) const ;
+  std::complex<double> Hij_1ExciteScreened(const int& a, const int& i, const twoIntHeatBathSHM& Ishm,
                              const double& TINY, bool doparity = true) const;
-  CItype Hij_1ExciteA(const int& a, const int& i, const oneInt&I1,  const twoInt& I2,
+  /*
+  std::complex<double> Hij_1ExciteA(const int& a, const int& i, const oneInt&I1,  const twoInt& I2,
                       bool doparity=true) const ;
-  CItype Hij_1ExciteB(const int& a, const int& i, const oneInt&I1, const twoInt& I2,
+  std::complex<double> Hij_1ExciteB(const int& a, const int& i, const oneInt&I1, const twoInt& I2,
                       bool doparity=true) const ;
-  CItype Hij_2ExciteAA(const int& a, const int& i, const int& b, const int& j,
+  std::complex<double> Hij_2ExciteAA(const int& a, const int& i, const int& b, const int& j,
                        const oneInt&I1, const twoInt& I2) const ;
-  CItype Hij_2ExciteBB(const int& a, const int& i, const int& b, const int& j,
+  std::complex<double> Hij_2ExciteBB(const int& a, const int& i, const int& b, const int& j,
                        const oneInt&I1, const twoInt& I2) const ;
-  CItype Hij_2ExciteAB(const int& a, const int& i, const int& b, const int& j,
+  std::complex<double> Hij_2ExciteAB(const int& a, const int& i, const int& b, const int& j,
                        const oneInt&I1, const twoInt& I2) const ;
 
-
-
-  bool connected(const Determinant& d) const;
-  int ExcitationDistance(const Determinant& d) const;
+  */
+  bool connected(const relDeterminant& d) const;
+  int ExcitationDistance(const relDeterminant& d) const;
 
 
   //operators
-  bool operator<(const Determinant& d) const;
-  bool operator==(const Determinant& d) const;
-  friend ostream& operator<<(ostream& os, const Determinant& d);
-
+  bool operator<(const relDeterminant& d) const;
+  bool operator==(const relDeterminant& d) const;
+  friend ostream& operator<<(ostream& os, const relDeterminant& d);
+ 
 };
 
 
@@ -152,23 +149,25 @@ void getDifferenceInOccupation(const Determinant &bra, const Determinant &ket, i
 void getDifferenceInOccupation(const Determinant &bra, const Determinant &ket,
                                int &I, int &J, int& A, int& B);
 
-double getParityForDiceToAlphaBeta(const Determinant& det);
+*/
+double getParityForDiceToAlphaBeta(const relDeterminant& det);
 
+/*
 void generateScreenedSingleDoubleExcitation(const Determinant& d,
                                              const double& THRESH,
                                              const double& TINY,
                                              relWorkingArray& work,
                                              bool doparity);
 
-*/
 
-void generateAllScreenedDoubleExcitation(const Determinant& det,
+*/
+void generateAllScreenedDoubleExcitation(const relDeterminant& det,
                                          const double& screen,
                                          const double& TINY,
                                          relWorkingArray& work,
                                          bool doparity = false);
 
-void generateAllScreenedSingleExcitation(const Determinant& det,
+void generateAllScreenedSingleExcitation(const relDeterminant& det,
                                          const double& screen,
                                          const double& TINY,
                                          relWorkingArray& work,

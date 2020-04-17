@@ -220,22 +220,18 @@ void getHfRelIndices(int i, int &relI, int a, int &relA, bool sz, const std::arr
 
 
 template<typename T>
-T JastrowSlaterLocalEnergy(const Determinant &D, const relWorkingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<T>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R)
+T JastrowSlaterLocalEnergy(const relDeterminant &D, const relWorkingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<T>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R)
 {
-    int norbs = Determinant::norbs;
-    int nalpha = Determinant::nalpha;
-    int nbeta = Determinant::nbeta;
+    int norbs = relDeterminant::norbs;
+    int nalpha = relDeterminant::nalpha;
+    int nbeta = relDeterminant::nbeta;
     std::array<vector<int>, 2> closedOrbs, openOrbs;
     D.getOpenClosedAlphaBeta(openOrbs[0], closedOrbs[0], openOrbs[1], closedOrbs[1]);
-    //workingArray work;
-    //work.setCounterToZero();
-    //generateAllScreenedSingleExcitation(D, schd.epsilon, schd.screen, work, false);
-    //generateAllScreenedDoubleExcitation(D, schd.epsilon, schd.screen, work, false);
     T Eloc = D.Energy(I1, I2, coreE);
     for (int l = 0; l < work.nExcitations; l++)
     {
         int ex1 = work.excitation1[l], ex2 = work.excitation2[l];
-        double tia = work.HijElement[l];
+        std::complex<T> tia = work.HijElement[l];
 
         int i = ex1 / 2 / norbs, a = ex1 - 2 * norbs * i;
         int j = ex2 / 2 / norbs, b = ex2 - 2 * norbs * j;
@@ -248,7 +244,7 @@ T JastrowSlaterLocalEnergy(const Determinant &D, const relWorkingArray &work, co
         if (j == b && b == 0) //single excitations
         {
             ovlpRatio *= Jmid[a] / Jmid[i] / J(std::max(i,a), std::min(i,a));
-            if (i % 2 == 0) //alpha
+            if (i % 2 == 0) //alphai //EDIT DO: maybe relevant spin flip
                 sz1 = 0; 
             else    //beta
                 sz1 = 1;
@@ -273,7 +269,7 @@ T JastrowSlaterLocalEnergy(const Determinant &D, const relWorkingArray &work, co
                 sz1 = 0;
                 sz2 = 1;
             }
-            else  //ba to ba
+            else  //ba to ba // EDIT DO: so far only spin conserved
             {
                 sz1 = 1;
                 sz2 = 0;
@@ -289,12 +285,15 @@ T JastrowSlaterLocalEnergy(const Determinant &D, const relWorkingArray &work, co
                 ovlpRatio *= ((R[sz1](ra, ri) * R[sz2](rb, rj)) * thetaDet[0] * thetaDet[1]) / (thetaDet[0] * thetaDet[1]);
             }
         }
-        Eloc += tia * ovlpRatio.real(); //EDIT to make energy real
+        std::complex<T> ovlpRatio_as_std;
+        ovlpRatio_as_std.real(ovlpRatio.real());
+        ovlpRatio_as_std.imag(ovlpRatio.imag());
+        Eloc += (tia * ovlpRatio_as_std).real(); //EDIT DO: now complex energy
     }
     return Eloc;
 }    
 template
-double JastrowSlaterLocalEnergy(const Determinant &D, const relWorkingArray &work, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<double, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<double>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<double>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
+double JastrowSlaterLocalEnergy(const relDeterminant &D, const relWorkingArray &work, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<double, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<double>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<double>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
 //template  // EDIT might be needed
 //stan::math::var JastrowSlaterLocalEnergy(const Determinant &D, const relWorkingArray &work, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<stan::math::var>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<stan::math::var>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
 

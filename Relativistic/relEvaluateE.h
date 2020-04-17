@@ -92,7 +92,7 @@ void getTransEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
   double Numerator =0., Denominator = 0.;
   double rdm = 0.;
   int orb1, orb2;
-  int norbs = Determinant::norbs;
+  int norbs = relDeterminant::norbs;
   VectorXd NiNjRDMH(2*norbs*(2*norbs+1)/2); NiNjRDMH.setZero();
   VectorXd NiNjRDM(2*norbs*(2*norbs+1)/2); NiNjRDM.setZero();
 
@@ -148,11 +148,11 @@ void getTransEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
 
 template<typename Wfn, typename Walker> void getOneRdmDeterministic(Wfn &w, Walker& walk, MatrixXd &oneRdm, bool sz)
 {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
+  int norbs = relDeterminant::norbs;
+  int nalpha = relDeterminant::nalpha;
+  int nbeta = relDeterminant::nbeta;
 
-  vector<Determinant> allDets;
+  vector<relDeterminant> allDets;
   generateAllDeterminants(allDets, norbs, nalpha, nbeta);
 
   double Overlap = 0;
@@ -186,12 +186,12 @@ template<typename Wfn, typename Walker> void getOneRdmDeterministic(Wfn &w, Walk
 template<typename Wfn, typename Walker>
 void getTwoRdmDeterministic(Wfn &w, Walker& walk, MatrixXd &twoRdm)
 {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
+  int norbs = relDeterminant::norbs;
+  int nalpha = relDeterminant::nalpha;
+  int nbeta = relDeterminant::nbeta;
   int nelec = nalpha + nbeta;
   
-  vector<Determinant> allDets;
+  vector<relDeterminant> allDets;
   generateAllDeterminants(allDets, norbs, nalpha, nbeta);
 
   double Overlap = 0;
@@ -307,11 +307,11 @@ void getTwoRdmDeterministic(Wfn &w, Walker& walk, MatrixXd &twoRdm)
 
 template<typename Wfn, typename Walker> void getDensityCorrelationsDeterministic(Wfn &w, Walker& walk, MatrixXd &corr)
 {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
+  int norbs = relDeterminant::norbs;
+  int nalpha = relDeterminant::nalpha;
+  int nbeta = relDeterminant::nbeta;
 
-  vector<Determinant> allDets;
+  vector<relDeterminant> allDets;
   generateAllDeterminants(allDets, norbs, nalpha, nbeta);
 
   double Overlap = 0;
@@ -432,11 +432,11 @@ void getGradientHessianDirectDeterministic(Wfn &w, Walker& walk, double &Energy,
 template<typename Wfn, typename Walker> 
 void getLanczosCoeffsDeterministic(Wfn &w, Walker &walk, double &alpha, Eigen::VectorXd &lanczosCoeffs)
 {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
+  int norbs = relDeterminant::norbs;
+  int nalpha = relDeterminant::nalpha;
+  int nbeta = relDeterminant::nbeta;
 
-  vector<Determinant> allDets;
+  vector<relDeterminant> allDets;
   generateAllDeterminants(allDets, norbs, nalpha, nbeta);
 
   workingArray work, moreWork;
@@ -493,27 +493,24 @@ void getStochasticEnergyContinuousTime(Wfn &w, Walker &walk, double &Energy, dou
 template<typename Wfn, typename Walker>
 void relGetStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &Energy, double &stddev, VectorXd &grad, double &rk, int niter)
 {
+  //cout << "here we go, iterations: " << niter << endl;
   relContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
   Energy = 0.0, stddev = 0.0, rk = 0.0;
   grad.setZero();
   VectorXd grad_ratio_bar = VectorXd::Zero(grad.rows());
   CTMC.LocalEnergy();
   CTMC.LocalGradient();
-  for (int iter = 0; iter < niter; iter++)
+  for (int iter = 0; iter < niter; iter++)  // EDIT DO: during the loop, the energy should be complex
   {
     CTMC.MakeMove();
     CTMC.UpdateEnergy(Energy);
     CTMC.UpdateGradient(grad, grad_ratio_bar);
-    //CTMC.LocalEnergy();
-    //CTMC.LocalGradient();
     CTMC.LocalEnergy();
     CTMC.LocalGradient();
     CTMC.UpdateBestDet();
-    //CTMC.UpdateEnergy(Energy);
-    //CTMC.UpdateGradient(grad, grad_ratio_bar);
   }
-  CTMC.FinishEnergy(Energy, stddev, rk);
-  CTMC.FinishGradient(grad, grad_ratio_bar, Energy);
+  CTMC.FinishEnergy(Energy, stddev, rk); // EDIT DO: now only the real part should be taken into account
+  CTMC.FinishGradient(grad, grad_ratio_bar, Energy); // EDIT DO: now only the real part should be taken into account
   CTMC.FinishBestDet();
 }
     
@@ -570,9 +567,9 @@ void getStochasticGradientVarianceContinuousTime(Wfn &w, Walker &walk, double &V
 template<typename Wfn, typename Walker> 
 void getStochasticOneRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &oneRdm, bool sz, int niter)
 {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
+  int norbs = relDeterminant::norbs;
+  int nalpha = relDeterminant::nalpha;
+  int nbeta = relDeterminant::nbeta;
 
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
@@ -587,7 +584,7 @@ void getStochasticOneRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &oneRdm, b
 
   double cumdeltaT = 0., cumdeltaT2 = 0.;
   w.initWalker(walk);
-  Determinant bestDet = walk.d;
+  relDeterminant bestDet = walk.d;
 
   while (iter < niter) {
     work.setCounterToZero();
@@ -651,9 +648,9 @@ void getStochasticOneRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &oneRdm, b
 template<typename Wfn, typename Walker> 
 void getStochasticTwoRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &twoRdm, int niter)
 {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
+  int norbs = relDeterminant::norbs;
+  int nalpha = relDeterminant::nalpha;
+  int nbeta = relDeterminant::nbeta;
   int nelec = nalpha + nbeta;
   
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
@@ -668,7 +665,7 @@ void getStochasticTwoRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &twoRdm, i
 
   double cumdeltaT = 0., cumdeltaT2 = 0.;
   w.initWalker(walk);
-  Determinant bestDet = walk.d;
+  relDeterminant bestDet = walk.d;
 
   while (iter < niter) {
     work.setCounterToZero();
@@ -794,9 +791,9 @@ void getStochasticTwoRdmContinuousTime(Wfn &w, Walker &walk, MatrixXd &twoRdm, i
 template<typename Wfn, typename Walker> 
 void getStochasticDensityCorrelationsContinuousTime(Wfn &w, Walker &walk, MatrixXd &corr, int niter)
 {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
+  int norbs = relDeterminant::norbs;
+  int nalpha = relDeterminant::nalpha;
+  int nbeta = relDeterminant::nbeta;
 
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
@@ -811,7 +808,7 @@ void getStochasticDensityCorrelationsContinuousTime(Wfn &w, Walker &walk, Matrix
 
   double cumdeltaT = 0., cumdeltaT2 = 0.;
   w.initWalker(walk);
-  Determinant bestDet = walk.d;
+  relDeterminant bestDet = walk.d;
 
   while (iter < niter) {
     work.setCounterToZero();
@@ -876,9 +873,9 @@ template<typename Wfn, typename Walker>
 void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::VectorXd &lanczosCoeffs, Eigen::VectorXd &stddev,
                                        Eigen::VectorXd &rk, int niter, double targetError)
 {
-  int norbs = Determinant::norbs;
-  int nalpha = Determinant::nalpha;
-  int nbeta = Determinant::nbeta;
+  int norbs = relDeterminant::norbs;
+  int nalpha = relDeterminant::nalpha;
+  int nbeta = relDeterminant::nbeta;
 
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
@@ -890,7 +887,7 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
   double ovlpSample = 0.;
 
   double bestOvlp = 0.;
-  Determinant bestDet = walk.getDet();
+  relDeterminant bestDet = walk.getDet();
 
   workingArray work, moreWork;
   w.HamAndOvlpLanczos(walk, coeffsSample, ovlpSample, work, moreWork, alpha);
@@ -1848,15 +1845,15 @@ class CorrSampleWrapper
 
 #endif
 
-template <typename Wfn, typename Walker>
+template <typename Wfn, typename relWalker>
 class relGetGradientWrapper
 {
  public:
   Wfn &w;
-  Walker &walk;
+  relWalker &walk;
   int stochasticIter;
   bool ctmc;
-  relGetGradientWrapper(Wfn &pw, Walker &pwalk, int niter, bool pctmc) : w(pw), walk(pwalk)
+  relGetGradientWrapper(Wfn &pw, relWalker &pwalk, int niter, bool pctmc) : w(pw), walk(pwalk)
   {
     stochasticIter = niter;
     ctmc = pctmc;
@@ -1876,11 +1873,13 @@ class relGetGradientWrapper
       {
         //getStochasticGradientMetropolis(w, walk, E0, stddev, grad, rt, stochasticIter);
         cout << "not implemented yet 0" << endl;
+        exit (0);
       }
     }
     else
     {
       cout << "not implemented yet 0" << endl;
+      exit (0);
       //stddev = 0.0;
       //rt = 1.0;
       //getGradientDeterministic(w, walk, E0, grad);

@@ -21,13 +21,14 @@
 #include "integral.h"
 #include <Eigen/Dense>
 #include <Eigen/Core>
-#include "Determinants.h"
 #include "relDeterminants.h"
+#include "Determinants.h"
 #include "input.h"
 #include "relWorkingArray.h"
 
 using namespace std;
 using namespace Eigen;
+
 /*
 BigDeterminant::BigDeterminant(const Determinant& d) {
   int norbs = Determinant::norbs;
@@ -45,29 +46,31 @@ char& BigDeterminant::operator[] (int j)
 {
   return occupation[j];
 }
+*/
 
-Determinant::Determinant() {
+
+relDeterminant::relDeterminant() {
   for (int i=0; i<DetLen; i++) {
     reprA[i] = 0;
     reprB[i] = 0;
   }
 }
 
-Determinant::Determinant(const Determinant& d) {
+relDeterminant::relDeterminant(const relDeterminant& d) {
   for (int i=0; i<DetLen; i++) {
     reprA[i] = d.reprA[i];
     reprB[i] = d.reprB[i];
   }
 }
 
-void Determinant::operator=(const Determinant& d) {
+void relDeterminant::operator=(const relDeterminant& d) {
   for (int i=0; i<DetLen; i++) {
     reprA[i] = d.reprA[i];
     reprB[i] = d.reprB[i];
   }
 }
 
-void Determinant::getOpenClosed( std::vector<int>& open, std::vector<int>& closed) const {
+void relDeterminant::getOpenClosed( std::vector<int>& open, std::vector<int>& closed) const {
   for (int i=0; i<norbs; i++) {
     if ( getoccA(i)) closed.push_back(2*i);
     else open.push_back(2*i);
@@ -76,7 +79,7 @@ void Determinant::getOpenClosed( std::vector<int>& open, std::vector<int>& close
   }
 }
 
-void Determinant::getOpenClosed( bool sz, std::vector<int>& open, std::vector<int>& closed) const {
+void relDeterminant::getOpenClosed( bool sz, std::vector<int>& open, std::vector<int>& closed) const {
   
   for (int i=0; i<norbs; i++) 
   {
@@ -94,7 +97,7 @@ void Determinant::getOpenClosed( bool sz, std::vector<int>& open, std::vector<in
 
 }
 
-void Determinant::getOpenClosedAlphaBeta( std::vector<int>& openAlpha,
+void relDeterminant::getOpenClosedAlphaBeta( std::vector<int>& openAlpha,
                                           std::vector<int>& closedAlpha,
                                           std::vector<int>& openBeta,
                                           std::vector<int>& closedBeta
@@ -107,7 +110,7 @@ void Determinant::getOpenClosedAlphaBeta( std::vector<int>& openAlpha,
   }
 }
 
-void Determinant::getClosedAlphaBeta( std::vector<int>& closedAlpha,
+void relDeterminant::getClosedAlphaBeta( std::vector<int>& closedAlpha,
                                       std::vector<int>& closedBeta ) const 
 {
   for (int i=0; i<norbs; i++) {
@@ -116,14 +119,14 @@ void Determinant::getClosedAlphaBeta( std::vector<int>& closedAlpha,
   }
 }
 
-void Determinant::getAlphaBeta(std::vector<int>& alpha, std::vector<int>& beta) const {
+void relDeterminant::getAlphaBeta(std::vector<int>& alpha, std::vector<int>& beta) const {
   for (int i=0; i<64*EffDetLen; i++) {
     if (getoccA(i)) alpha.push_back(i);
     if (getoccB(i)) beta .push_back(i);
   }
 }
 
-void Determinant::getClosed( bool sz, std::vector<int>& closed) const {
+void relDeterminant::getClosed( bool sz, std::vector<int>& closed) const {
   
   for (int i=0; i<norbs; i++) 
   {
@@ -139,7 +142,7 @@ void Determinant::getClosed( bool sz, std::vector<int>& closed) const {
 
 }
 
-int Determinant::getNbetaBefore(int i) const {
+int relDeterminant::getNbetaBefore(int i) const {
   int occ = 0;
   for (int n = 0; n < i/64; n++) {
     occ += CountNonZeroBits(reprB[n]);
@@ -150,7 +153,7 @@ int Determinant::getNbetaBefore(int i) const {
   return occ;
 }
 
-int Determinant::getNalphaBefore(int i) const {
+int relDeterminant::getNalphaBefore(int i) const {
   int occ = 0;
   for (int n = 0; n < i/64; n++) {
     occ += CountNonZeroBits(reprA[n]);
@@ -161,7 +164,8 @@ int Determinant::getNalphaBefore(int i) const {
   return occ;
 }
 
-double Determinant::parityA(const int& a, const int& i) const {
+
+double relDeterminant::parityA(const int& a, const int& i) const {
   double parity = 1.0;
   int occ = getNalphaBefore(i);
   occ += getNalphaBefore(a);
@@ -172,12 +176,12 @@ double Determinant::parityA(const int& a, const int& i) const {
   return parity;
 }
 
-double Determinant::parity(const int& a, const int& i, const bool& sz) const {
+double relDeterminant::parity(const int& a, const int& i, const bool& sz) const {
   if (sz == 0) return parityA(a, i);
   else return parityB(a, i);
 }
 
-double Determinant::parityB(const int& a, const int& i) const {
+double relDeterminant::parityB(const int& a, const int& i) const {
   double parity = 1.0;
   int occ = getNbetaBefore(i);
   occ += getNbetaBefore(a);
@@ -188,10 +192,10 @@ double Determinant::parityB(const int& a, const int& i) const {
   return parity;
 }
 
-double Determinant::parityA(const vector<int>& aArray, const vector<int>& iArray) const
+double relDeterminant::parityA(const vector<int>& aArray, const vector<int>& iArray) const
 {
   double p = 1.;
-  Determinant dcopy = *this;
+  relDeterminant dcopy = *this;
   for (int i = 0; i < iArray.size(); i++)
   {
     p *= dcopy.parityA(aArray[i], iArray[i]);
@@ -202,10 +206,10 @@ double Determinant::parityA(const vector<int>& aArray, const vector<int>& iArray
   return p;
 }
 
-double Determinant::parityB(const vector<int>& aArray, const vector<int>& iArray) const
+double relDeterminant::parityB(const vector<int>& aArray, const vector<int>& iArray) const
 {
   double p = 1.;
-  Determinant dcopy = *this;
+  relDeterminant dcopy = *this;
   for (int i = 0; i < iArray.size(); i++)
   {
     p *= dcopy.parityB(aArray[i], iArray[i]);
@@ -216,13 +220,13 @@ double Determinant::parityB(const vector<int>& aArray, const vector<int>& iArray
   return p;
 }
 
-double Determinant::parity(const vector<int>& aArray, const vector<int>& iArray, bool sz) const
+double relDeterminant::parity(const vector<int>& aArray, const vector<int>& iArray, bool sz) const
 {
   if (sz==0) return parityA(aArray, iArray);
   else return parityB(aArray, iArray);
 }
 
-int Determinant::Noccupied() const {
+int relDeterminant::Noccupied() const {
   int nelec = 0;
   for (int i=0; i<DetLen; i++) {
     nelec += CountNonZeroBits(reprA[i]);
@@ -231,7 +235,7 @@ int Determinant::Noccupied() const {
   return nelec;
 }
 
-int Determinant::Nalpha() const {
+int relDeterminant::Nalpha() const {
   int nelec = 0;
   for (int i=0; i<DetLen; i++) {
     nelec += CountNonZeroBits(reprA[i]);
@@ -239,7 +243,7 @@ int Determinant::Nalpha() const {
   return nelec;
 }
 
-int Determinant::Nbeta() const {
+int relDeterminant::Nbeta() const {
   int nelec = 0;
   for (int i=0; i<DetLen; i++) {
     nelec += CountNonZeroBits(reprB[i]);
@@ -248,7 +252,7 @@ int Determinant::Nbeta() const {
 }
 
 //Is the excitation between *this and d less than equal to 2.
-bool Determinant::connected(const Determinant& d) const {
+bool relDeterminant::connected(const relDeterminant& d) const {
   int ndiff = 0; long u;
 
   for (int i=0; i<DetLen; i++) {
@@ -262,7 +266,7 @@ bool Determinant::connected(const Determinant& d) const {
 
 //Get the number of electrons that need to be excited to get determinant d from *this determinant
 //e.g. single excitation will return 1
-int Determinant::ExcitationDistance(const Determinant& d) const {
+int relDeterminant::ExcitationDistance(const relDeterminant& d) const {
   int ndiff = 0;
   for (int i=0; i<DetLen; i++) {
     ndiff += CountNonZeroBits(reprA[i] ^ d.reprA[i]);
@@ -273,7 +277,7 @@ int Determinant::ExcitationDistance(const Determinant& d) const {
 
 
 //the comparison between determinants is performed
-bool Determinant::operator<(const Determinant& d) const {
+bool relDeterminant::operator<(const relDeterminant& d) const {
   for (int i=DetLen-1; i>=0 ; i--) {
     if (reprA[i] < d.reprA[i]) return true;
     else if (reprA[i] > d.reprA[i]) return false;
@@ -284,7 +288,7 @@ bool Determinant::operator<(const Determinant& d) const {
 }
 
 //check if the determinants are equal
-bool Determinant::operator==(const Determinant& d) const {
+bool relDeterminant::operator==(const relDeterminant& d) const {
   for (int i=DetLen-1; i>=0 ; i--) {
     if (reprA[i] != d.reprA[i]) return false;
     if (reprB[i] != d.reprB[i]) return false;
@@ -293,7 +297,7 @@ bool Determinant::operator==(const Determinant& d) const {
 }
 
 //set the occupation of the ith orbital
-void Determinant::setoccA(int i, bool occ) {
+void relDeterminant::setoccA(int i, bool occ) {
   long Integer = i/64, bit = i%64, one=1;
   if (occ)
     reprA[Integer] |= one << bit;
@@ -302,7 +306,7 @@ void Determinant::setoccA(int i, bool occ) {
 }
 
 //set the occupation of the ith orbital
-void Determinant::setoccB(int i, bool occ) {
+void relDeterminant::setoccB(int i, bool occ) {
   long Integer = i/64, bit = i%64, one=1;
   if (occ)
     reprB[Integer] |= one << bit;
@@ -310,37 +314,39 @@ void Determinant::setoccB(int i, bool occ) {
     reprB[Integer] &= ~(one<<bit);
 }
 
-void Determinant::setocc(int i, bool occ)  {
+void relDeterminant::setocc(int i, bool occ)  {
   if (i%2 == 0) return setoccA(i/2, occ);
   else return setoccB(i/2, occ);
 }
 
-void Determinant::setocc(int i, bool sz, bool occ)  {
+void relDeterminant::setocc(int i, bool sz, bool occ)  {
   if (sz == 0) return setoccA(i, occ);
   else return setoccB(i, occ);
 }
 
-bool Determinant::getocc(int i) const {
+bool relDeterminant::getocc(int i) const {
   if (i%2 == 0) return getoccA(i/2);
   else return getoccB(i/2);
 }
 
-bool Determinant::getocc(int i, bool sz) const {
+bool relDeterminant::getocc(int i, bool sz) const {
   if (sz == 0) return getoccA(i);
   else return getoccB(i);
 }
 
 //get the occupation of the ith orbital
-bool Determinant::getoccA(int i) const {
+bool relDeterminant::getoccA(int i) const {
   //asser(i<norbs);
-  long Integer = i/64, bit = i%64, reprBit = reprA[Integer];
+  //cout << "in getoccA, i: " << i << endl; 
+  long Integer = i/64, bit = i%64, reprBit = relDeterminant::reprA[Integer];
+  //cout << "in getoccA, reprBit: " << reprBit << endl; 
   if(( reprBit>>bit & 1) == 0)
     return false;
   else
     return true;
 }
 
-bool Determinant::getoccB(int i) const {
+bool relDeterminant::getoccB(int i) const {
   //asser(i<norbs);
   long Integer = i/64, bit = i%64, reprBit = reprB[Integer];
   if(( reprBit>>bit & 1) == 0)
@@ -351,8 +357,8 @@ bool Determinant::getoccB(int i) const {
 
 
 //Prints the determinant
-ostream& operator<<(ostream& os, const Determinant& d) {
-  for (int i=0; i<Determinant::norbs; i++) {
+ostream& operator<<(ostream& os, const relDeterminant& d) {
+  for (int i=0; i<d.norbs; i++) {
     if (d.getoccA(i)==false && d.getoccB(i) == false)
       os<<0<<" ";
     else if (d.getoccA(i)==true && d.getoccB(i) == false)
@@ -369,8 +375,8 @@ ostream& operator<<(ostream& os, const Determinant& d) {
 
 
 //=============================================================================
-double Determinant::Energy(const oneInt& I1, const twoInt&I2, const double& coreE) const {
-  double energy = 0.0;
+std::complex<double> relDeterminant::Energy(const oneIntSOC& I1, const twoInt&I2, const double& coreE) const {
+  std::complex<double> energy = 0.0;
   size_t one = 1;
   vector<int> closed;
   for(int i=0; i<DetLen; i++) {
@@ -391,11 +397,8 @@ double Determinant::Energy(const oneInt& I1, const twoInt&I2, const double& core
 
   for (int i=0; i<closed.size(); i++) {
     int I = closed.at(i);
-#ifdef Complex
-    energy += I1(I,I).real();
-#else
-    energy += I1(I,I);
-#endif
+    energy += I1(I,I); //EDIT; now energy complex
+
     for (int j=i+1; j<closed.size(); j++) {
       int J = closed.at(j);
       energy += I2.Direct(I/2,J/2);
@@ -410,7 +413,7 @@ double Determinant::Energy(const oneInt& I1, const twoInt&I2, const double& core
 
 
 
-
+/*
 
 //=============================================================================
 double Determinant::parityAA(const int& i, const int& j, const int& a, const int& b) const {
@@ -456,13 +459,13 @@ CItype Determinant::Hij_2ExciteAB(const int& a, const int& i, const int& b,
   sgn *= parityB(b,j);
   return sgn*I2(2*a,2*i,2*b+1,2*j+1);
 }
+*/
 
-
-CItype Determinant::Hij_1ExciteScreened(const int& a, const int& i,
+std::complex<double> relDeterminant::Hij_1ExciteScreened(const int& a, const int& i,
                                         const twoIntHeatBathSHM& I2hb, const double& TINY,
                                         bool doparity) const {
 
-  double tia = I1(a, i);
+  std::complex<double> tia = I1SOC(a, i);
   int X = max(i/2, a/2), Y = min(i/2, a/2);
   int pairIndex = X * (X + 1) / 2 + Y;
   size_t start = I2hb.startingIndicesSingleIntegrals[pairIndex];
@@ -482,7 +485,6 @@ CItype Determinant::Hij_1ExciteScreened(const int& a, const int& i,
     if (getocc(j) )
       tia += integrals[index];
   }
-
   double sgn = 1.0;
   int A = a/2, I = i/2;
   if (doparity && i%2 == 0) sgn *= parityA(A, I);
@@ -490,7 +492,7 @@ CItype Determinant::Hij_1ExciteScreened(const int& a, const int& i,
   return tia*sgn;
 }
 
-
+/*
 //=============================================================================
 CItype Determinant::Hij_1ExciteA(const int& a, const int& i, const oneInt&I1,
                                  const twoInt& I2, bool doparity) const {
@@ -868,12 +870,12 @@ void getDifferenceInOccupation(const Determinant &bra, const Determinant &ket, i
   }
 }
 
-
-double getParityForDiceToAlphaBeta(const Determinant& det) 
+*/
+double getParityForDiceToAlphaBeta(const relDeterminant& det) 
 {
   double parity = 1.0;
   int nalpha = det.Nalpha();
-  int norbs = Determinant::norbs;
+  int norbs = relDeterminant::norbs;
   for (int i=0; i<norbs; i++) 
   {
     if (det.getoccB(norbs-1-i))
@@ -886,6 +888,8 @@ double getParityForDiceToAlphaBeta(const Determinant& det)
   return parity;
 }
 
+
+/*
 void generateScreenedSingleDoubleExcitation(const Determinant& d,
                                             const double& THRESH,
                                             const double& TINY,
@@ -949,43 +953,39 @@ void generateScreenedSingleDoubleExcitation(const Determinant& d,
 */
 
 
-void generateAllScreenedSingleExcitation(const Determinant& d,
+void generateAllScreenedSingleExcitation(const relDeterminant& d,
                                          const double& THRESH,
                                          const double& TINY,
                                          relWorkingArray& work,
                                          bool doparity) {
-  int norbs = Determinant::norbs;
+  int norbs = relDeterminant::norbs;
   vector<int> closed;
   vector<int> open;
   d.getOpenClosed(open, closed);
 
   for (int i = 0; i < closed.size(); i++) {
     for (int a = 0; a < open.size(); a++) {
-      if (closed[i] % 2 == open[a] % 2)
-      {
-        //if (closed[i] % 2 == open[a] % 2 &&
-        //abs(I2hb.Singles(closed[i], open[a])) > THRESH)
-        //{
+      //if (closed[i] % 2 == open[a] % 2) //EDIT: is this where the spin is conserved?
+      //{
         int I = closed[i] / 2, A = open[a] / 2;
 
-        const double tia = d.Hij_1ExciteScreened(open[a], closed[i], I2hb,
-                                                 TINY, doparity);
+        const std::complex<double> tia = d.Hij_1ExciteScreened(open[a], closed[i], I2hb, TINY, doparity);
         
         if (abs(tia) > THRESH) {
           work.appendValue(0., closed[i]*2*norbs+open[a], 0, tia);
         }
-      }
+      //}
     }
   }
 
 }
 
-void generateAllScreenedDoubleExcitation(const Determinant& d,
+void generateAllScreenedDoubleExcitation(const relDeterminant& d,
                                          const double& THRESH,
                                          const double& TINY,
                                          relWorkingArray& work,
                                          bool doparity) {
-  int norbs = Determinant::norbs;
+  int norbs = relDeterminant::norbs;
   vector<int> closed;
   vector<int> open;
   d.getOpenClosed(open, closed);
@@ -1008,11 +1008,22 @@ void generateAllScreenedDoubleExcitation(const Determinant& d,
         
         // otherwise: generate the determinant corresponding to the current excitation
         int a = 2 * orbIndices[2 * index] + closed[i] % 2,
-            b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;
+            b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;  // EDIT: spin is conserved for both
+
+        int a_flip = 2 * orbIndices[2 * index] + (1 - (closed[i] % 2)),
+            b_flip = 2 * orbIndices[2 * index + 1] + (1 - (closed[j] % 2));  // EDIT: spin is flipped
 
         if (!(d.getocc(a) || d.getocc(b))) {
-          work.appendValue(0.0, closed[i] * 2 * norbs + a,
-                           closed[j] * 2 * norbs + b, integrals[index]);
+          work.appendValue(0.0, closed[i] * 2 * norbs + a, closed[j] * 2 * norbs + b, integrals[index]);
+        }
+        if (!(d.getocc(a) || d.getocc(b_flip))) {
+          work.appendValue(0.0, closed[i] * 2 * norbs + a, closed[j] * 2 * norbs + b_flip, integrals[index]);
+        }
+        if (!(d.getocc(a_flip) || d.getocc(b))) {
+          work.appendValue(0.0, closed[i] * 2 * norbs + a_flip, closed[j] * 2 * norbs + b, integrals[index]);
+        }
+        if (!(d.getocc(a_flip) || d.getocc(b_flip))) {
+          work.appendValue(0.0, closed[i] * 2 * norbs + a_flip, closed[j] * 2 * norbs + b_flip, integrals[index]);
         }
       }
     }
@@ -1140,3 +1151,5 @@ void readrelDeterminants(std::string input, vector<relDeterminant> &determinants
     }
 }
 */
+
+

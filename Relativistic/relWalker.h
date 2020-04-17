@@ -22,11 +22,12 @@
 #include "Determinants.h"
 #include "relDeterminants.h"
 #include "WalkerHelper.h"
+#include "relWalkerHelper.h"
 #include "relCorrelatedWavefunction.h"
 #include <array>
 #include "igl/slice.h"
 #include "igl/slice_into.h"
-#include "Slater.h"
+#include "relSlater.h"
 #include "AGP.h"
 #include "Pfaffian.h"
 #include "relWorkingArray.h"
@@ -51,25 +52,25 @@ template<typename Corr, typename Reference>
 struct relWalker { };
 
 template<typename Corr>
-struct relWalker<Corr, Slater> {
+struct relWalker<Corr, relSlater> {
 
-  Determinant d;
+  relDeterminant d;
   WalkerHelper<Corr> corrHelper;
-  WalkerHelper<Slater> refHelper;
+  WalkerHelper<relSlater> refHelper;
 
   relWalker() {};
   
-  relWalker(const Corr &corr, const Slater &ref) 
+  relWalker(const Corr &corr, const relSlater &ref) 
   {
-    initDet(ref.getHforbsA().real(), ref.getHforbsB().real());
-    refHelper = WalkerHelper<Slater>(ref, d);
+    initDet(ref.getHforbsA().real(), ref.getHforbsB().real()); //EDIT DO: does walker need complex initialisation ?
+    refHelper = WalkerHelper<relSlater>(ref, d);
     corrHelper = WalkerHelper<Corr>(corr, d);
   }
 
-  relWalker(const Corr &corr, const Slater &ref, const Determinant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
+  relWalker(const Corr &corr, const relSlater &ref, const relDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
 
-  Determinant& getDet() {return d;}
-  void readBestDeterminant(Determinant& d) const 
+  relDeterminant& getDet() {return d;}
+  void readBestDeterminant(relDeterminant& d) const 
   {
     if (commrank == 0) {
       char file[5000];
@@ -87,13 +88,13 @@ struct relWalker<Corr, Slater> {
   /**
    * makes det based on mo coeffs 
    */
-  void guessBestDeterminant(Determinant& d, const Eigen::MatrixXd& HforbsA, const Eigen::MatrixXd& HforbsB) const 
+  void guessBestDeterminant(relDeterminant& d, const Eigen::MatrixXd& HforbsA, const Eigen::MatrixXd& HforbsB) const 
   {
-    int norbs = Determinant::norbs;
-    int nalpha = Determinant::nalpha;
-    int nbeta = Determinant::nbeta;
+    int norbs = relDeterminant::norbs;
+    int nalpha = relDeterminant::nalpha;
+    int nbeta = relDeterminant::nbeta;
 
-    d = Determinant();
+    d = relDeterminant();
     if (boost::iequals(schd.determinantFile, "")) {
       for (int i = 0; i < nalpha; i++) {
         int bestorb = 0;
@@ -127,7 +128,7 @@ struct relWalker<Corr, Slater> {
       }
     }
     else if (boost::iequals(schd.determinantFile, "bestDet")) {
-      std::vector<Determinant> dets;
+      std::vector<relDeterminant> dets;
       std::vector<double> ci;
       readDeterminants(schd.determinantFile, dets, ci);
       d = dets[0];
@@ -156,7 +157,7 @@ struct relWalker<Corr, Slater> {
     return (refHelper.thetaDet[i][0] * refHelper.thetaDet[i][1]);
   }
 
-  std::complex<double> getDetOverlap(const Slater &ref) const
+  std::complex<double> getDetOverlap(const relSlater &ref) const
   {
     std::complex<double> ovlp = 0.0;
     for (int i = 0; i < refHelper.thetaDet.size(); i++) {
@@ -165,7 +166,7 @@ struct relWalker<Corr, Slater> {
     return ovlp;
   }
 
-  std::complex<double> getDetFactor(int i, int a, const Slater &ref) const 
+  std::complex<double> getDetFactor(int i, int a, const relSlater &ref) const 
   {
     if (i % 2 == 0)
       return getDetFactor(i / 2, a / 2, 0, ref);
@@ -173,7 +174,7 @@ struct relWalker<Corr, Slater> {
       return getDetFactor(i / 2, a / 2, 1, ref);
   }
 
-  std::complex<double> getDetFactor(int I, int J, int A, int B, const Slater &ref) const 
+  std::complex<double> getDetFactor(int I, int J, int A, int B, const relSlater &ref) const 
   {
     if (I % 2 == J % 2 && I % 2 == 0)
       return getDetFactor(I / 2, J / 2, A / 2, B / 2, 0, 0, ref);
@@ -185,7 +186,7 @@ struct relWalker<Corr, Slater> {
       return getDetFactor(I / 2, J / 2, A / 2, B / 2, 1, 0, ref);
   }
 
-  std::complex<double> getDetFactor(int i, int a, bool sz, const Slater &ref) const
+  std::complex<double> getDetFactor(int i, int a, bool sz, const relSlater &ref) const
   {
     int tableIndexi, tableIndexa;
     refHelper.getRelIndices(i, tableIndexi, a, tableIndexa, sz); 
@@ -201,7 +202,7 @@ struct relWalker<Corr, Slater> {
     return detFactorNum / detFactorDen;
   }
 
-  std::complex<double> getDetFactor(int i, int j, int a, int b, bool sz1, bool sz2, const Slater &ref) const
+  std::complex<double> getDetFactor(int i, int j, int a, int b, bool sz1, bool sz2, const relSlater &ref) const
   {
     int tableIndexi, tableIndexa, tableIndexj, tableIndexb;
     refHelper.getRelIndices(i, tableIndexi, a, tableIndexa, sz1); 
@@ -223,14 +224,14 @@ struct relWalker<Corr, Slater> {
     return detFactorNum / detFactorDen;
   }
 
-  void update(int i, int a, bool sz, const Slater &ref, const Corr &corr, bool doparity = true)
+  void update(int i, int a, bool sz, const relSlater &ref, const Corr &corr, bool doparity = true)
   {
     double p = 1.0;
     if (doparity) p *= d.parity(a, i, sz);
     d.setocc(i, sz, false);
     d.setocc(a, sz, true);
     if (refHelper.hftype == Generalized) {
-      int norbs = Determinant::norbs;
+      int norbs = relDeterminant::norbs;
       vector<int> cre{ a + sz * norbs }, des{ i + sz * norbs };
       refHelper.excitationUpdateGhf(ref, cre, des, sz, p, d);
     }
@@ -243,10 +244,10 @@ struct relWalker<Corr, Slater> {
     corrHelper.updateHelper(corr, d, i, a, sz);
   }
 
-  void update(int i, int j, int a, int b, bool sz, const Slater &ref, const Corr& corr, bool doparity = true)
+  void update(int i, int j, int a, int b, bool sz, const relSlater &ref, const Corr& corr, bool doparity = true)
   {
     double p = 1.0;
-    Determinant dcopy = d;
+    relDeterminant dcopy = d;
     if (doparity) p *= d.parity(a, i, sz);
     d.setocc(i, sz, false);
     d.setocc(a, sz, true);
@@ -254,7 +255,7 @@ struct relWalker<Corr, Slater> {
     d.setocc(j, sz, false);
     d.setocc(b, sz, true);
     if (refHelper.hftype == Generalized) {
-      int norbs = Determinant::norbs;
+      int norbs = relDeterminant::norbs;
       vector<int> cre{ a + sz * norbs, b + sz * norbs }, des{ i + sz * norbs, j + sz * norbs };
       refHelper.excitationUpdateGhf(ref, cre, des, sz, p, d);
     }
@@ -265,9 +266,9 @@ struct relWalker<Corr, Slater> {
     corrHelper.updateHelper(corr, d, i, j, a, b, sz);
   }
 
-  void updateWalker(const Slater &ref, const Corr& corr, int ex1, int ex2, bool doparity = true)
+  void updateWalker(const relSlater &ref, const Corr& corr, int ex1, int ex2, bool doparity = true)
   {
-    int norbs = Determinant::norbs;
+    int norbs = relDeterminant::norbs;
     int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
     int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
     if (I % 2 == J % 2 && ex2 != 0) {
@@ -295,7 +296,7 @@ struct relWalker<Corr, Slater> {
     }
   }
 
-  void exciteWalker(const Slater &ref, const Corr& corr, int excite1, int excite2, int norbs)
+  void exciteWalker(const relSlater &ref, const Corr& corr, int excite1, int excite2, int norbs)
   {
     int I1 = excite1 / (2 * norbs), A1 = excite1 % (2 * norbs);
 
@@ -313,17 +314,17 @@ struct relWalker<Corr, Slater> {
     }
   }
 
-  void OverlapWithOrbGradient(const Slater &ref, Eigen::VectorXd &grad, std::complex<double> detovlp) const
+  void OverlapWithOrbGradient(const relSlater &ref, Eigen::VectorXd &grad, std::complex<double> detovlp) const
   {
-    int norbs = Determinant::norbs;
-    Determinant walkerDet = d;
+    int norbs = relDeterminant::norbs;
+    relDeterminant walkerDet = d;
 
     //K and L are relative row and col indices
     int KA = 0, KB = 0;
     for (int k = 0; k < norbs; k++) { //walker indices on the row
       if (walkerDet.getoccA(k)) {
         for (int det = 0; det < ref.getDeterminants().size(); det++) {
-          Determinant refDet = ref.getDeterminants()[det];
+          relDeterminant refDet = ref.getDeterminants()[det];
           int L = 0;
           for (int l = 0; l < norbs; l++) {
             if (refDet.getoccA(l)) {
@@ -337,7 +338,7 @@ struct relWalker<Corr, Slater> {
       }
       if (walkerDet.getoccB(k)) {
         for (int det = 0; det < ref.getDeterminants().size(); det++) {
-          Determinant refDet = ref.getDeterminants()[det];
+          relDeterminant refDet = ref.getDeterminants()[det];
           int L = 0;
           for (int l = 0; l < norbs; l++) {
             if (refDet.getoccB(l)) {
@@ -358,11 +359,11 @@ struct relWalker<Corr, Slater> {
     }
   }
 
-  void OverlapWithOrbGradientGhf(const Slater &ref, Eigen::VectorXd &grad, std::complex<double> detovlp) const
+  void OverlapWithOrbGradientGhf(const relSlater &ref, Eigen::VectorXd &grad, std::complex<double> detovlp) const
   {
-    int norbs = Determinant::norbs;
-    Determinant walkerDet = d;
-    Determinant refDet = ref.getDeterminants()[0];
+    int norbs = relDeterminant::norbs;
+    relDeterminant walkerDet = d;
+    relDeterminant refDet = ref.getDeterminants()[0];
 
     //K and L are relative row and col indices
     int K = 0;
@@ -408,7 +409,7 @@ struct relWalker<Corr, Slater> {
     }
   }
 
-  void OverlapWithGradient(const Slater &ref, Eigen::VectorBlock<VectorXd> &grad) const
+  void OverlapWithGradient(const relSlater &ref, Eigen::VectorBlock<VectorXd> &grad) const
   {
     std::complex<double> detovlp = getDetOverlap(ref);
     for (int i = 0; i < ref.ciExpansion.size(); i++)
@@ -430,7 +431,7 @@ struct relWalker<Corr, Slater> {
     }
   }
 
-  friend ostream& operator<<(ostream& os, const relWalker<Corr, Slater>& w) {
+  friend ostream& operator<<(ostream& os, const relWalker<Corr, relSlater>& w) {
     os << w.d << endl << endl;
     os << "alphaTable\n" << w.refHelper.rTable[0][0] << endl << endl;
     os << "betaTable\n" << w.refHelper.rTable[0][1] << endl << endl;
@@ -440,7 +441,7 @@ struct relWalker<Corr, Slater> {
     return os;
   }
 
-  void OverlapWithLocalEnergyGradient(const Corr &corr, const Slater &ref, relWorkingArray &work, Eigen::VectorXd &gradEloc) const
+  void OverlapWithLocalEnergyGradient(const Corr &corr, const relSlater &ref, relWorkingArray &work, Eigen::VectorXd &gradEloc) const
   {
     VectorXd v = VectorXd::Zero(corr.getNumVariables() + ref.getNumVariables());
     corr.getVariables(v);
