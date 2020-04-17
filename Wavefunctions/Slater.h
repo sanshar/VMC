@@ -24,6 +24,7 @@
 #include <boost/serialization/vector.hpp>
 #include <Eigen/Dense>
 #include "Determinants.h" 
+#include "relDeterminants.h" 
 
 class oneInt;
 class twoInt;
@@ -81,7 +82,7 @@ class Slater {
 
 };
 
-#ifdef Relativistic
+#ifdef NOT
 class relSlater : public Slater {
   private:
     friend class boost::serialization::access;
@@ -97,6 +98,23 @@ class relSlater : public Slater {
 
   // add rel slater specific funtions
   public:
+    std::vector<relDeterminant> determinants; //The set of determinants 
+    
+    //read mo coeffs fomr hf.txt
+    void initHforbs();
+
+    //init ref dets either by reading from a file or filling the first nelec orbs
+    //void initDets();
+
+    void updateVariables(const Eigen::VectorBlock<Eigen::VectorXd> &v);
+    
+    relSlater();
+
+    const std::vector<relDeterminant> &getDeterminants() const {
+      cout << "returning dets here" << endl;
+      return determinants;
+    }
+
     string getfileName() const {return "relSlater";};
 };
 #endif

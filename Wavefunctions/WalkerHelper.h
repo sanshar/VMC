@@ -720,6 +720,67 @@ class WalkerHelper<Jastrow>
         /intermediateForEachSpinOrb[i]/intermediateForEachSpinOrb[j]/
         cps(i,a)/cps(j,a)/cps(i,b)/cps(j,b);
   }
+/*
+  WalkerHelper(const Jastrow& cps, const relDeterminant& d) {
+    int norbs = relDeterminant::norbs;
+    intermediateForEachSpinOrb.resize(norbs*2);
+    initHelper(cps, d);
+  }
+
+  void initHelper(const Jastrow& cps, const relDeterminant& d) {
+    int norbs = relDeterminant::norbs;
+
+    vector<int> closed;
+    vector<int> open;
+    d.getOpenClosed(open, closed);
+    
+    
+    for (int i=0; i<2*norbs; i++) {
+      intermediateForEachSpinOrb[i] = cps(i,i);
+      for (int j=0; j<closed.size(); j++)
+        if (closed[j] != i)
+          intermediateForEachSpinOrb[i] *= cps(i, closed[j]);
+    }
+  }
+  
+  void updateHelper(const Jastrow& cps, const relDeterminant& d, int i, int a, bool sz) {
+    i = 2 * i + sz; a = 2 * a + sz;
+    int norbs = relDeterminant::norbs;
+    for (int l = 0; l < 2 * norbs; l++) 
+      intermediateForEachSpinOrb[l] *= cps(l, a) / cps(l, i);
+    intermediateForEachSpinOrb[i] *= cps(i, i);
+    intermediateForEachSpinOrb[a] /= cps(a, a);
+    //initHelper(cps, d);
+  }
+  
+  void updateHelper(const Jastrow& cps, const relDeterminant& d, int i, int j, int a, int b, bool sz) {
+    i = 2 * i + sz; a = 2 * a + sz;
+    j = 2 * j + sz; b = 2 * b + sz;
+    int norbs = relDeterminant::norbs;
+    for (int l = 0; l < 2 * norbs; l++) 
+      intermediateForEachSpinOrb[l] *= cps(l, a) * cps(l, b) / cps(l, i) / cps(l, j);
+    intermediateForEachSpinOrb[i] *= cps(i, i);
+    intermediateForEachSpinOrb[a] /= cps(a, a);
+    intermediateForEachSpinOrb[j] *= cps(j, j);
+    intermediateForEachSpinOrb[b] /= cps(b, b);
+    //initHelper(cps, d);
+  }
+
+
+  double OverlapRatio(int i, int a, const Jastrow& cps,
+                      const relDeterminant &dcopy, const relDeterminant &d) const
+  {
+    return intermediateForEachSpinOrb[a]/intermediateForEachSpinOrb[i]/cps(i,a);
+  }
+  
+  double OverlapRatio(int i, int j, int a, int b, const Jastrow& cps,
+                      const relDeterminant &dcopy, const relDeterminant &d) const
+  {
+    return intermediateForEachSpinOrb[a]*intermediateForEachSpinOrb[b]*cps(a,b)*cps(i,j)
+        /intermediateForEachSpinOrb[i]/intermediateForEachSpinOrb[j]/
+        cps(i,a)/cps(j,a)/cps(i,b)/cps(j,b);
+  }
+*/
 };  
 
 template<>

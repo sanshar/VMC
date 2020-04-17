@@ -24,7 +24,7 @@ OPT = -std=c++14 -w -g -O3 -qopenmp -D_REENTRANT -DNDEBUG
 FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${LIBIGL}  -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ -I/projects/sash2458/newApps/LBFGSpp/include/ -I${TACO}/include
 
 ifeq ($(ENABLE_RELATIVISTIC), yes)
-  FLAGS += -I./Wavefunctions/Relativistic
+  FLAGS += -I./Relativistic
   OPT += -DRelativistic
 endif
 
@@ -104,9 +104,6 @@ OBJ_VMC = obj/staticVariables.o \
 
 
 
-# ifeq ($(ENABLE_RELATIVISTIC), yes)
-#   OBJ_VMC += obj/relWalker.o
-# endif
 
 
 
@@ -167,12 +164,34 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/rPseudopotential.o \
 
 
+
+ifeq ($(ENABLE_RELATIVISTIC), yes)
+  OBJ_VMC += obj/relDeterminants.o
+  OBJ_VMC += obj/relSlater.o
+  #OBJ_VMC += obj/relLocalEnergy.o
+  OBJ_VMC += obj/relJastrow.o
+  OBJ_GFMC += obj/relDeterminants.o
+  OBJ_GFMC += obj/relSlater.o
+  OBJ_TRANS += obj/relDeterminants.o
+  OBJ_TRANS += obj/relSlater.o
+endif
+
+
+
 obj/%.o: %.cpp  
 	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
 obj/%.o: Wavefunctions/%.cpp  
 	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
 obj/%.o: Wavefunctions/RealSpace/%.cpp  
 	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
+
+ifeq ($(ENABLE_RELATIVISTIC), yes)
+obj/%.o: Relativistic/%.cpp  
+	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
+endif
+
+
+
 obj/%.o: TransCorrelated/%.cpp  
 	$(CXX) $(FLAGS) $(OPT) -c $< -o $@
 obj/%.o: utils/%.cpp  
@@ -183,6 +202,8 @@ obj/%.o: GFMC/%.cpp
 	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./GFMC $(OPT) -c $< -o $@
 obj/%.o: executables/%.cpp  
 	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./GFMC -I./VMC $(OPT) -c $< -o $@
+
+
 
 
 all: bin/VMC bin/GFMC bin/slaterToGaussian bin/TRANS #bin/sPT  bin/GFMC

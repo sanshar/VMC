@@ -20,6 +20,8 @@
 #include "CPS.h"
 #include "global.h"
 #include "Determinants.h"
+#include "relDeterminants.h"
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -776,3 +778,57 @@ void readDeterminants(std::string input, vector<Determinant> &determinants,
 	}
     }
 }
+
+
+void readDeterminants(std::string input, vector<relDeterminant> &determinants,
+                      vector<double> &ciExpansion)
+{
+  ifstream dump(input.c_str());
+  while (dump.good())
+    {
+      std::string Line;
+      std::getline(dump, Line);
+
+      trim_if(Line, is_any_of(", \t\n"));
+      
+      vector<string> tok;
+      boost::split(tok, Line, is_any_of(", \t\n"), token_compress_on);
+
+      if (tok.size() > 2 )
+	{
+	  ciExpansion.push_back(atof(tok[0].c_str()));
+	  relDeterminant det_new;
+	  determinants.push_back(det_new);
+	  relDeterminant& det = *determinants.rbegin();
+	  for (int i=0; i<relDeterminant::norbs; i++) 
+	    {
+	      if (boost::iequals(tok[1+i], "2")) 
+		{
+		  det.setoccA(i, true);
+		  det.setoccB(i, true);
+		}
+	      else if (boost::iequals(tok[1+i], "a")) 
+		{
+		  det.setoccA(i, true);
+		  det.setoccB(i, false);
+		}
+	      if (boost::iequals(tok[1+i], "b")) 
+		{
+		  det.setoccA(i, false);
+		  det.setoccB(i, true);
+		}
+	      if (boost::iequals(tok[1+i], "0")) 
+		{
+		  det.setoccA(i, false);
+		  det.setoccB(i, false);
+		}
+	    }
+
+	  //***************I AM USING alpha-beta format here, but the wavefunction is coming from Dice that uses alpha0 beta0 alpha1 beta1... format
+	  //So the signs need to be adjusted appropriately
+	  //cout << det<<"   "<<getParityForDiceToAlphaBeta(det)<<endl;
+	  *ciExpansion.rbegin() *= getParityForDiceToAlphaBeta(det);
+	}
+    }
+}
+

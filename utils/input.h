@@ -33,6 +33,7 @@
 
 class Correlator;
 class Determinant;
+class relDeterminant;
 enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod}; //varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
@@ -295,6 +296,10 @@ void readCorrelator(const std::pair<int, std::string>& p,
  */
 void readDeterminants(std::string input, std::vector<Determinant>& determinants,
         std::vector<double>& ciExpansion);
+
+void readDeterminants(std::string input, std::vector<relDeterminant>& determinants,
+        std::vector<double>& ciExpansion);
+
 
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,

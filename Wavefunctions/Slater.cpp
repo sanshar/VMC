@@ -84,7 +84,8 @@ void Slater::initHforbs()
     HforbsA = Hforbs;
     HforbsB = Hforbs;
   }
-  if (schd.ifComplex == false)
+  //if (schd.ifComplex == false && schd.ifRelativistic == false) // EDIT: so that regular Slater can be used
+  if (schd.ifComplex == false) // ORG
   {
     HforbsA.imag().setZero();
     HforbsB.imag().setZero();
@@ -164,7 +165,6 @@ long Slater::getNumVariables() const
   long numVars = 0;
   numVars += determinants.size();
   if (hftype == UnRestricted)
-  //if (hftype == 1)
     numVars += 4 * HforbsA.rows() * HforbsA.rows();
   else
     numVars += 2 * HforbsA.rows() * HforbsA.rows();
@@ -199,7 +199,8 @@ void Slater::updateVariables(const Eigen::VectorBlock<VectorXd> &v)
       }
     }
   }
-  if (schd.ifComplex == false)
+  //if (schd.ifComplex == false && schd.ifRelativistic == false) // EDIT: so that regular Slater can be used
+  if (schd.ifComplex == false) // ORG
   {
     HforbsA.imag().setZero();
     HforbsB.imag().setZero();
@@ -234,3 +235,73 @@ void Slater::printVariables() const
 }
 
 
+
+#ifdef NOT
+
+relSlater::relSlater() 
+{
+  initHforbs();
+  initDets();
+}
+
+void relSlater::initHforbs() 
+{
+  int norbs = Determinant::norbs;
+  int size; //dimension of the mo coeff matrix
+  //initialize hftype and hforbs
+  if (schd.hf == "uhf") {
+    hftype = HartreeFock::UnRestricted;
+    MatrixXcd Hforbs = MatrixXcd::Zero(norbs, 2*norbs);
+    readMat(Hforbs, "hf.txt");
+    if (schd.ifComplex && Hforbs.imag().isZero(0)) Hforbs.imag() = 0.01 * MatrixXd::Random(norbs, 2*norbs);
+    HforbsA = Hforbs.block(0, 0, norbs, norbs);
+    HforbsB = Hforbs.block(0, norbs, norbs, norbs);
+  }
+  else {
+    if (schd.hf == "rhf") {
+      hftype = HartreeFock::Restricted;
+      size = norbs;
+    }
+    else if (schd.hf == "ghf") {
+      hftype = HartreeFock::Generalized;
+      size = 2*norbs;
+    }
+    MatrixXcd Hforbs = MatrixXcd::Zero(size, size);
+    readMat(Hforbs, "hf.txt");
+    HforbsA = Hforbs;
+    HforbsB = Hforbs;
+  }
+}
+
+
+void relSlater::updateVariables(const Eigen::VectorBlock<VectorXd> &v) 
+{  
+  int norbs = Determinant::norbs;  
+  for (int i = 0; i < determinants.size(); i++)
+    ciExpansion[i] = v[i];
+  int numDeterminants = determinants.size();
+  if (hftype == Generalized) {
+    for (int i = 0; i < 2*norbs; i++) {
+      for (int j = 0; j < 2*norbs; j++) {
+          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 4 * i * norbs + 2 * j], v[numDeterminants + 4 * i * norbs + 2 * j + 1]);
+          HforbsB(i, j) = HforbsA(i, j);
+      }
+    } 
+  }
+  else {
+    for (int i = 0; i < norbs; i++) {
+      for (int j = 0; j < norbs; j++) {
+        if (hftype == Restricted) {
+          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * i * norbs + 2 * j + 1]);
+          HforbsB(i, j) = HforbsA(i, j);
+        }
+        else {
+          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * i * norbs + 2 * j + 1]);
+          HforbsB(i, j) = std::complex<double>(v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j + 1]);
+        }
+      }
+    }
+  }
+}
+
+#endif

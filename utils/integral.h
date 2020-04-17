@@ -199,9 +199,44 @@ class twoIntHeatBath {
           }
       }
     } // end constructClass
+
+#ifdef Relativistic
+    void constructClass(std::vector<int>& orbs, twoInt& I2, oneIntSOC& I1SOC, int norbs) {
+      for (int i=0; i<orbs.size(); i++)
+        for (int j=0;j<=i;j++) {
+
+          std::pair<short,short> IJ=make_pair(i,j);
+
+          for (int a=0; a<norbs; a++) {
+            if (fabs(I2(2*i, 2*j, 2*a, 2*a) - I2(2*i, 2*a, 2*a, 2*j)) > epsilon)
+              singleIntegrals[IJ].insert(pair<float, short>(I2(2*i, 2*j, 2*a, 2*a) - I2(2*i, 2*a, 2*a, 2*j), 2*a));
+
+            if (fabs(I2(2*i, 2*j, 2*a+1, 2*a+1) ) > epsilon)
+              singleIntegrals[IJ].insert(pair<float, short>(I2(2*i, 2*j, 2*a+1, 2*a+1), 2*a+1));
+          }
+
+          for (int a=0; a<norbs; a++)
+            for (int b=0; b<norbs; b++) {
+              //opposite spin
+              if (fabs(I2(2*i, 2*a, 2*j, 2*b)) > epsilon)
+                oppositeSpin[IJ].insert(pair<float, std::pair<short,short> >(I2(2*i, 2*a, 2*j, 2*b), make_pair(a,b)));
+              //samespin
+              if (a>=b && fabs(I2(2*i,2*a,2*j,2*b) - I2(2*i,2*b,2*j,2*a)) > epsilon) {
+                sameSpin[IJ].insert(pair<float, std::pair<short,short> >( I2(2*i,2*a,2*j,2*b) - I2(2*i,2*b,2*j,2*a), make_pair(a,b)));
+              }
+          }              
+        } // ij
+        Singles = MatrixXd::Zero(2*norbs, 2*norbs);
+        for (int i=0; i<2*norbs; i++)
+          for (int a=0; a<2*norbs; a++) {
+            Singles(i,a) = std::abs(I1SOC(i,a));
+            for (int j=0; j<2*norbs; j++) {
+              Singles(i,a) += std::abs(I2(i,a,j,j) - I2(i, j, j, a));
+            }
+      }
+    } // end constructClass
+#endif
 };
-
-
 
 class twoIntHeatBathSHM {
   public:
@@ -221,6 +256,7 @@ class twoIntHeatBathSHM {
 
     //for each pair i,j it has sum_{a>b} abs((ai|bj)-(aj|bi)) if they are same spin
     //and sum_{ab} abs(ai|bj) if they are opposite spins
+    //EDIT DO: are spin flip also needed?
     MatrixXd sameSpinPairExcitations;
     MatrixXd oppositeSpinPairExcitations;
 
@@ -234,16 +270,24 @@ class twoIntHeatBathSHM {
 };
 
 
-#ifdef Relativistic
-void readSOCIntegrals(string fileprefix);
-
-void readGTensorIntegrals(vector<oneInt>& I1soc, int norbs, string fileprefix);
-#endif
-
 
 int readNorbs(string fcidump);
 
 
 void readIntegralsAndInitializeDeterminantStaticVariables(string fcidump);
+
+
+
+
+#ifdef Relativistic
+
+void relReadSOCIntegrals(string fileprefix);
+
+void relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables(string fcidump, string fileprefix);
+
+//void readGTensorIntegrals(vector<oneInt>& I1soc, int norbs, string fileprefix);
+
+
+#endif
 
 #endif

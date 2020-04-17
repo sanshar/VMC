@@ -29,8 +29,9 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <string>
 
-class Determinant;
 
+
+class Determinant;
 /*
  * Jastrow is a product of correlators 
  */
@@ -65,8 +66,8 @@ class Jastrow {
    * <d1|Jastrow>/<d2|Jastrow>
    *
    */
-  double OverlapRatio(const Determinant& d1, const Determinant& d2) const ;
   
+  double OverlapRatio(const Determinant& d1, const Determinant& d2) const ;
   /*
    * return ratio of overlaps of Jastrow with d and (i->a,j->b)excited-d (=dcopy)
    */
@@ -95,6 +96,7 @@ class Jastrow {
   void   OverlapWithGradient  (const Determinant& d, 
                                Eigen::VectorXd& grad,
                                const double& ovlp) const;
+
 
   void getVariables(Eigen::VectorXd &v) const ;
   long getNumVariables() const;

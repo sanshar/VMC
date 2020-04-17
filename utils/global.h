@@ -38,6 +38,7 @@ class oneIntSOC;
 extern int commrank, shmrank, localrank;
 extern int commsize, shmsize, localsize;
 
+//#if defined(Complex) || defined(Relativistic)
 #ifdef Complex
 #define MatrixXx MatrixXcd
 #define CItype std::complex<double>

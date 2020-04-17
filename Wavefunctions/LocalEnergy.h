@@ -76,4 +76,6 @@ class LocalEnergySolver
         }
     }
 };
+
+void getHfRelIndices(int i, int &relI, int a, int &relA, bool sz, const std::array<std::vector<int>, 2> &closedOrbs, const std::array<std::vector<int>, 2> &openOrbs);
 #endif

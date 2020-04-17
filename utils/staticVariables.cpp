@@ -1,5 +1,8 @@
 
 #include "Determinants.h"
+#ifdef Relativistic
+#include "relDeterminants.h"
+#endif
 #include "rDeterminants.h"
 #include <boost/interprocess/managed_shared_memory.hpp>
 #include "Eigen/Dense"
@@ -23,6 +26,14 @@ int Determinant::nalpha = 1;
 int Determinant::nbeta = 1;
 int Determinant::EffDetLen = 1;
 char Determinant::Trev = 0;
+
+
+int relDeterminant::norbs = 1;
+int relDeterminant::nalpha = 1;
+int relDeterminant::nbeta = 1;
+int relDeterminant::EffDetLen = 1;
+char relDeterminant::Trev = 0;
+
 
 vector<string> slaterParser::AtomSymbols{"X",\
                               "H" , "He", "Li", "Be", "B" , "C" , "N" , "O" , "F" , "Ne",\

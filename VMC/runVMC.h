@@ -29,6 +29,8 @@
 #include "linearMethod.h"
 //#include "variance.h"
 
+
+
 using CorrSampleFunctor = boost::function<void (std::vector<Eigen::VectorXd>&, std::vector<double>&)>; 
 using functor1 = boost::function<double (VectorXd&, VectorXd&, double&, double&, double&)>;
 using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
@@ -59,6 +61,7 @@ void runVMC(Wave& wave, Walker& walk) {
   //functor0 getStochasticGradientVariance = boost::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
   functor5 getStochasticGradientHessian = boost::bind(&getGradientWrapper<Wave, Walker>::getHessian, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
   functor6 getStochasticGradientHessianDirect = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianDirect, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
+
 
   CorrSampleWrapper<Wave, Walker> wrap(schd.CorrSampleFrac * schd.stochasticIter);
   CorrSampleFunctor runCorrelatedSampling = boost::bind(&CorrSampleWrapper<Wave, Walker>::run, &wrap, _1, _2);
