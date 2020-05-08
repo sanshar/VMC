@@ -36,7 +36,7 @@ class Determinant;
 enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod}; //varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
-enum JBASIS {NC, AB, SS};
+enum JBASIS {NC, sNC, AB, sAB, SS};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
 enum PSEUDOQUAD {tetrahedral, octahedral, icosahedral};
 
@@ -115,6 +115,7 @@ private:
       & Ncoords
       & Ncharge
       & Nbasis
+      & NSbasis
       & direct
       & rStepType
       & ifComplex
@@ -154,7 +155,8 @@ public:
   boost::shared_ptr<Pseudopotential> pseudo;
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
-  vector<int>   Nbasis;
+  vector<int> Nbasis;
+  vector<vector<int>> NSbasis;
 
   bool restart;                          //option to restart calculation
   bool fullRestart;                          //option to restart calculation
@@ -344,6 +346,7 @@ void readDeterminants(std::string input, std::vector<Determinant>& determinants,
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
                   vector<int>  & Nbasis,
+                  vector<vector<int>> & NSbasis,
                   gaussianBasis& gBasis);
 
 #endif

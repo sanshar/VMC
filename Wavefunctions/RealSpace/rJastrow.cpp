@@ -54,14 +54,22 @@ rJastrow::rJastrow () {
 
    //4body Jastrows
    int norbs = schd.basis->getNorbs();
+   int numSorb = 0;
+   for (int i = 0; i < schd.NSbasis.size(); i++) { numSorb += schd.NSbasis[i].size(); }
    EENNlinearIndex = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
    //EENNlinearIndex = EENsameSpinIndex;
-   if (schd.fourBodyJastrowBasis == NC)
+   if (schd.fourBodyJastrowBasis == NC || schd.fourBodyJastrowBasis == sNC) {
      EENNIndex = EENNlinearIndex + 2 * schd.Ncharge.size();
-   else if (schd.fourBodyJastrowBasis == AB)
+   }
+   else if (schd.fourBodyJastrowBasis == AB) {
      EENNIndex = EENNlinearIndex + 2 * norbs;
-   else if (schd.fourBodyJastrowBasis == SS)
+   }
+   else if (schd.fourBodyJastrowBasis == sAB) {
+     EENNIndex = EENNlinearIndex + 2 * numSorb;
+   }
+   else if (schd.fourBodyJastrowBasis == SS) {
      EENNIndex = EENNlinearIndex + 2 * norbs;
+   }
    
    int numParams = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
 
@@ -74,12 +82,18 @@ rJastrow::rJastrow () {
    }
    */
    if (schd.fourBodyJastrow) {
-     if (schd.fourBodyJastrowBasis == NC)
+     if (schd.fourBodyJastrowBasis == NC || schd.fourBodyJastrowBasis == sNC) {
        numParams = EENNIndex + 4 * schd.Ncharge.size() * schd.Ncharge.size();
-     else if(schd.fourBodyJastrowBasis == AB)
+     }
+     else if(schd.fourBodyJastrowBasis == AB) {
        numParams = EENNIndex + 4 * norbs * norbs;
-     else if(schd.fourBodyJastrowBasis == SS)
+     }
+     else if(schd.fourBodyJastrowBasis == sAB) {
+       numParams = EENNIndex + 4 * numSorb * numSorb;
+     }
+     else if(schd.fourBodyJastrowBasis == SS) {
        numParams = EENNIndex + 4 * norbs * norbs;
+     }
    }
    
    /*

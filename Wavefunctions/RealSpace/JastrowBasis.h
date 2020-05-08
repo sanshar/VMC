@@ -145,6 +145,147 @@ using namespace Eigen;
   }
 
 
+//s-orbital Number Counter
+  void sNC_eval(int elec, const vector<Vector3d> &x, VectorXd &values) //note that s orbital do not need to be squared
+  {
+    vector<double>& Ncharge = schd.Ncharge;
+    vector<int>& Nbasis = schd.Nbasis;
+    vector<vector<int>>& NSbasis = schd.NSbasis;
+    vector<Vector3d>& Ncoords = schd.Ncoords;
+
+    int norbs = schd.basis->getNorbs();
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval(x[elec], &aoValues[0]);
+
+    VectorXd num = VectorXd::Zero(Ncharge.size());
+    double denom = 0.0;
+    for (int I = 0; I < NSbasis.size(); I++)
+    {
+        for (int mu = 0; mu < NSbasis[I].size(); mu++)
+        {
+            int orb = NSbasis[I][mu];
+            num[I] += aoValues[orb];
+            denom += aoValues[orb];
+        }
+    }
+    values = num / denom;
+  }
+
+
+  void sNC_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
+  {
+    vector<double>& Ncharge = schd.Ncharge;
+    vector<int>& Nbasis = schd.Nbasis;
+    vector<vector<int>>& NSbasis = schd.NSbasis;
+    vector<Vector3d>& Ncoords = schd.Ncoords;
+
+    int norbs = schd.basis->getNorbs();
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+
+    VectorXd num = VectorXd::Zero(Ncharge.size());
+    VectorXd gradxNum = VectorXd::Zero(Ncharge.size());
+    VectorXd gradyNum = VectorXd::Zero(Ncharge.size());
+    VectorXd gradzNum = VectorXd::Zero(Ncharge.size());
+    double denom = 0.0;
+    Vector3d gradDenom = Vector3d::Zero(3);
+    for (int I = 0; I < NSbasis.size(); I++)
+    {
+        for (int mu = 0; mu < NSbasis[I].size(); mu++)
+        {
+            int orb = NSbasis[I][mu];
+
+            num[I] += aoValues[orb];
+            denom += aoValues[orb];
+            
+            //gradx
+            gradxNum[I] += aoValues[1*norbs + orb];
+            gradDenom[0] += aoValues[1*norbs + orb];
+            //grady
+            gradyNum[I] += aoValues[2*norbs + orb];
+            gradDenom[1] += aoValues[2*norbs + orb];
+            //gradz
+            gradzNum[I] += aoValues[3*norbs + orb];
+            gradDenom[2] += aoValues[3*norbs + orb];
+        }
+    }
+    values = num / denom;
+    grad[0] = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
+    grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
+    grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
+  }
+
+
+  void sNC_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &grad2)
+  {
+    vector<double>& Ncharge = schd.Ncharge;
+    vector<int>& Nbasis = schd.Nbasis;
+    vector<vector<int>>& NSbasis = schd.NSbasis;
+    vector<Vector3d>& Ncoords = schd.Ncoords;
+
+    int norbs = schd.basis->getNorbs();
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+
+    VectorXd num = VectorXd::Zero(Ncharge.size());
+    VectorXd gradxNum = VectorXd::Zero(Ncharge.size());
+    VectorXd gradyNum = VectorXd::Zero(Ncharge.size());
+    VectorXd gradzNum = VectorXd::Zero(Ncharge.size());
+    VectorXd gradxxNum = VectorXd::Zero(Ncharge.size());
+    VectorXd gradyyNum = VectorXd::Zero(Ncharge.size());
+    VectorXd gradzzNum = VectorXd::Zero(Ncharge.size());
+    double denom = 0.0;
+    Vector3d gradDenom = Vector3d::Zero(3);
+    Vector3d grad2Denom = Vector3d::Zero(3);
+    for (int I = 0; I < NSbasis.size(); I++)
+    {
+        for (int mu = 0; mu < NSbasis[I].size(); mu++)
+        {
+            int orb = NSbasis[I][mu];
+
+            num[I] += aoValues[orb];
+            denom += aoValues[orb];
+            
+            //gradx
+            gradxNum[I] += aoValues[1*norbs + orb];
+            gradDenom[0] += aoValues[1*norbs + orb];
+
+            gradxxNum[I] += aoValues[4*norbs + orb];
+            grad2Denom[0] += aoValues[4*norbs + orb];
+
+            //grady
+            gradyNum[I] += aoValues[2*norbs + orb];
+            gradDenom[1] += aoValues[2*norbs + orb];
+
+            gradyyNum[I] += aoValues[7*norbs + orb];
+            grad2Denom[1] += aoValues[7*norbs + orb];
+
+            //gradz
+            gradzNum[I] += aoValues[3*norbs + orb];
+            gradDenom[2] += aoValues[3*norbs + orb];
+
+            gradzzNum[I] += aoValues[9*norbs + orb];
+            grad2Denom[2] += aoValues[9*norbs + orb];
+        }
+    }
+    values = num / denom;
+
+    grad[0] = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
+    grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
+    grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
+
+    grad2[0] = (denom * denom * gradxxNum
+               - denom * (2.0 * gradxNum * gradDenom[0] + num * grad2Denom[0])
+               + 2.0 * num * gradDenom[0] * gradDenom[0]) / (denom * denom * denom);
+    grad2[1] = (denom * denom * gradyyNum
+               - denom * (2.0 * gradyNum * gradDenom[1] + num * grad2Denom[1])
+               + 2.0 * num * gradDenom[1] * gradDenom[1]) / (denom * denom * denom);
+    grad2[2] = (denom * denom * gradzzNum
+               - denom * (2.0 * gradzNum * gradDenom[2] + num * grad2Denom[2])
+               + 2.0 * num * gradDenom[2] * gradDenom[2]) / (denom * denom * denom);
+  }
+
+
 
 //Iliya style, square of orbital value
   void AB_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
@@ -258,8 +399,167 @@ using namespace Eigen;
   }
 
 
+//s-orbital AB style
+  void sAB_eval(int elec, const vector<Vector3d> &x, VectorXd &values) //note that s orbital do not need to be squared
+  {
+    vector<double>& Ncharge = schd.Ncharge;
+    vector<int>& Nbasis = schd.Nbasis;
+    vector<vector<int>>& NSbasis = schd.NSbasis;
+    vector<Vector3d>& Ncoords = schd.Ncoords;
 
-//Sorella style, square of orbital value
+    int norbs = schd.basis->getNorbs();
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval(x[elec], &aoValues[0]);
+
+    int numSorb = 0;
+    for (int i = 0; i < NSbasis.size(); i++) { numSorb += NSbasis[i].size(); }
+
+    VectorXd num = VectorXd::Zero(numSorb);
+    double denom = 0.0;
+    int index = 0;
+    for (int I = 0; I < NSbasis.size(); I++)
+    {
+        for (int mu = 0; mu < NSbasis[I].size(); mu++)
+        {
+            int orb = NSbasis[I][mu];
+
+            num[index] += aoValues[orb];
+            denom += aoValues[orb];
+
+            index++;
+        }
+    }
+    values = num / denom;
+  }
+
+
+  void sAB_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
+  {
+    vector<double>& Ncharge = schd.Ncharge;
+    vector<int>& Nbasis = schd.Nbasis;
+    vector<vector<int>>& NSbasis = schd.NSbasis;
+    vector<Vector3d>& Ncoords = schd.Ncoords;
+
+    int norbs = schd.basis->getNorbs();
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+
+    int numSorb = 0;
+    for (int i = 0; i < NSbasis.size(); i++) { numSorb += NSbasis[i].size(); }
+
+    VectorXd num = VectorXd::Zero(numSorb);
+    VectorXd gradxNum = VectorXd::Zero(numSorb);
+    VectorXd gradyNum = VectorXd::Zero(numSorb);
+    VectorXd gradzNum = VectorXd::Zero(numSorb);
+    double denom = 0.0;
+    Vector3d gradDenom = Vector3d::Zero(3);
+    int index = 0;
+    for (int I = 0; I < NSbasis.size(); I++)
+    {
+        for (int mu = 0; mu < NSbasis[I].size(); mu++)
+        {
+            int orb = NSbasis[I][mu];
+
+            num[index] += aoValues[orb];
+            denom += aoValues[orb];
+            
+            //gradx
+            gradxNum[index] += aoValues[1*norbs + orb];
+            gradDenom[0] += aoValues[1*norbs + orb];
+            //grady
+            gradyNum[index] += aoValues[2*norbs + orb];
+            gradDenom[1] += aoValues[2*norbs + orb];
+            //gradz
+            gradzNum[index] += aoValues[3*norbs + orb];
+            gradDenom[2] += aoValues[3*norbs + orb];
+
+            index++;
+        }
+    }
+    values = num / denom;
+    grad[0] = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
+    grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
+    grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
+  }
+
+
+  void sAB_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &grad2)
+  {
+    vector<double>& Ncharge = schd.Ncharge;
+    vector<int>& Nbasis = schd.Nbasis;
+    vector<vector<int>>& NSbasis = schd.NSbasis;
+    vector<Vector3d>& Ncoords = schd.Ncoords;
+
+    int norbs = schd.basis->getNorbs();
+    vector<double> aoValues(10*norbs, 0.0);
+    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+
+    int numSorb = 0;
+    for (int i = 0; i < NSbasis.size(); i++) { numSorb += NSbasis[i].size(); }
+
+    VectorXd num = VectorXd::Zero(numSorb);
+    VectorXd gradxNum = VectorXd::Zero(numSorb);
+    VectorXd gradyNum = VectorXd::Zero(numSorb);
+    VectorXd gradzNum = VectorXd::Zero(numSorb);
+    VectorXd gradxxNum = VectorXd::Zero(numSorb);
+    VectorXd gradyyNum = VectorXd::Zero(numSorb);
+    VectorXd gradzzNum = VectorXd::Zero(numSorb);
+    double denom = 0.0;
+    Vector3d gradDenom = Vector3d::Zero(3);
+    Vector3d grad2Denom = Vector3d::Zero(3);
+    int index = 0;
+    for (int I = 0; I < NSbasis.size(); I++)
+    {
+        for (int mu = 0; mu < NSbasis[I].size(); mu++)
+        {
+            int orb = NSbasis[I][mu];
+
+            num[index] += aoValues[orb];
+            denom += aoValues[orb];
+            
+            //gradx
+            gradxNum[index] += aoValues[1*norbs + orb];
+            gradDenom[0] += aoValues[1*norbs + orb];
+
+            gradxxNum[index] += aoValues[4*norbs + orb];
+            grad2Denom[0] += aoValues[4*norbs + orb];
+
+            //grady
+            gradyNum[index] += aoValues[2*norbs + orb];
+            gradDenom[1] += aoValues[2*norbs + orb];
+
+            gradyyNum[index] += aoValues[7*norbs + orb];
+            grad2Denom[1] += aoValues[7*norbs + orb];
+
+            //gradz
+            gradzNum[index] += aoValues[3*norbs + orb];
+            gradDenom[2] += aoValues[3*norbs + orb];
+
+            gradzzNum[index] += aoValues[9*norbs + orb];
+            grad2Denom[2] += aoValues[9*norbs + orb];
+
+            index++;
+        }
+    }
+    values = num / denom;
+
+    grad[0] = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
+    grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
+    grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
+
+    grad2[0] = (denom * denom * gradxxNum
+               - denom * (2.0 * gradxNum * gradDenom[0] + num * grad2Denom[0])
+               + 2.0 * num * gradDenom[0] * gradDenom[0]) / (denom * denom * denom);
+    grad2[1] = (denom * denom * gradyyNum
+               - denom * (2.0 * gradyNum * gradDenom[1] + num * grad2Denom[1])
+               + 2.0 * num * gradDenom[1] * gradDenom[1]) / (denom * denom * denom);
+    grad2[2] = (denom * denom * gradzzNum
+               - denom * (2.0 * gradzNum * gradDenom[2] + num * grad2Denom[2])
+               + 2.0 * num * gradDenom[2] * gradDenom[2]) / (denom * denom * denom);
+  }
+
+
+//Sorella style, orbital value
   void SS_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
   {
     int norbs = schd.basis->getNorbs();

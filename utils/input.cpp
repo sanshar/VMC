@@ -69,14 +69,14 @@ void readInput(string inputFile, schedule& schd, bool print) {
         schd.walkerBasis = REALSPACEGTO;
         schd.basis = boost::shared_ptr<Basis>(new gaussianBasis);
         schd.basis->read();
-        readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
+        readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, schd.NSbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
       }
       if (basis == "sto") {
         schd.walkerBasis = REALSPACESTO;
         //read gaussian basis just to read the nuclear charge and coordinates
         gaussianBasis gBasis ;
         gBasis.read();
-        readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, gBasis);
+        readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, schd.NSbasis, gBasis);
         schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
         map<string, Vector3d> atomList;
         for (int i=0; i<schd.Ncoords.size(); i++) {
@@ -148,7 +148,9 @@ void readInput(string inputFile, schedule& schd, bool print) {
       schd.fourBodyJastrow = true;
       string fbjBasis = input.get("wavefunction.fourBodyJastrow", "NC");
       if (fbjBasis == "NC") schd.fourBodyJastrowBasis = NC;
+      else if (fbjBasis == "sNC") schd.fourBodyJastrowBasis = sNC;
       else if (fbjBasis == "AB") schd.fourBodyJastrowBasis = AB;
+      else if (fbjBasis == "sAB") schd.fourBodyJastrowBasis = sAB;
       else if (fbjBasis == "SS") schd.fourBodyJastrowBasis = SS;
     }
     schd.Qmax = input.get("wavefunction.Qmax", 6);
@@ -385,11 +387,13 @@ void readHF(MatrixXcd& HfmatrixA, MatrixXcd& HfmatrixB, std::string hf)
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
                   vector<int> & Nbasis,
+                  vector<vector<int>> & NSbasis,
                   gaussianBasis& gBasis) {
   int N = gBasis.natm;
   Ncoords.resize(N);
   Ncharge.resize(N);
   Nbasis.assign(N, 0);
+  NSbasis.resize(N);
 
   int stride = gBasis.atm.size()/N;
   for (int i=0; i<N; i++) {
@@ -399,13 +403,32 @@ void readGeometry(vector<Vector3d>& Ncoords,
     Ncoords[i][2] = gBasis.env[ gBasis.atm[i*stride+1] +2];
   }
 
+  int orb = 0;
   for (int i = 0; i < gBasis.nbas; i++) {
     int index = gBasis.bas[i * 8];
     int l = gBasis.bas[i * 8 + 1];
     int n = gBasis.bas[i * 8 + 3];
-    Nbasis[index] += n * (2 * l + 1);
-    if (l == 2) Nbasis[index] += 1; //we use a cartesian basis, this results in 6 d orbitals, not 5
+    int numOrbs = n * (2 * l + 1);
+    if (l == 2) numOrbs += 1; //we use a cartesian basis, this results in 6 d orbitals, not 5
+
+    Nbasis[index] += numOrbs;
+
+    if (l == 0) NSbasis[index].push_back(orb); //map to s orbitals for each atom
+
+    orb += numOrbs;
   }
+
+  /*
+  for (int i = 0; i < NSbasis.size(); i++)
+  {
+    for (int j = 0; j < NSbasis[i].size(); j++)
+    {
+      cout << NSbasis[i][j] << endl;
+    }
+    cout << endl;
+  }
+  cout << endl;
+  */
 }
 
 void readPairMat(MatrixXd& pairMat) 
