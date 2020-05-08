@@ -214,6 +214,17 @@ then
     ../clean.sh
 fi
 
+cd $here/nociBenzene/
+../clean.sh
+printf "...running nociBenzene\n"
+$TRANSPATH > trans.out 2>/dev/null
+python2 ../testEnergy.py 'trans' $tol
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
+
+
 cd $here/rBe/
 ../clean.sh
 printf "...running rBe ghf\n"
@@ -290,7 +301,7 @@ fi
 #$MPICOMMAND $FCIQMCPATH > fciqmc.out
 #python2 ../../testEnergy.py 'fciqmc' $tol
 #if [ $clean == 1 ]
-#then    
+#then
 #    ../clean.sh
 #fi
 #
@@ -300,7 +311,7 @@ fi
 #$MPICOMMAND $FCIQMCPATH > fciqmc.out
 #python2 ../../testEnergy.py 'fciqmc' $tol
 #if [ $clean == 1 ]
-#then    
+#then
 #    ../clean.sh
 #fi
 

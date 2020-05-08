@@ -2,21 +2,21 @@ F77 = mpif77
 USE_MPI = yes
 USE_INTEL = yes
 
-SUNDIALS=/projects/ilsa8974/apps/sundials-3.1.0/stage/include
-STAN=/projects/ilsa8974/apps/math
-TBB=/curc/sw/intel/17.4/compilers_and_libraries_2017.4.196/linux/tbb/
-
 EIGEN=/projects/ilsa8974/apps/eigen/
 BOOST=/projects/ilsa8974/apps/boost_1_66_0/
 LIBIGL=/projects/ilsa8974/apps/libigl/include/
-#PYSCF=/projects/sash2458/newApps/pyscf/pyscf/lib/
-PYSCF=/home/anma2640/miniconda2/lib/python2.7/site-packages/pyscf/lib
-LIBCINT=/projects/sash2458/newApps/pyscf/pyscf/lib/deps/lib
-TACO=/projects/sash2458/newApps/taco/install
+PYSCF=/projects/ilsa8974/apps/pyscf/pyscf/lib/
+LIBCINT=/projects/ilsa8974/apps/pyscf/pyscf/lib/deps/lib
+SUNDIALS=/projects/ilsa8974/apps/sundials-3.1.0/stage/include
+STAN=/projects/ilsa8974/apps/math
+TBB=/curc/sw/intel/17.4/compilers_and_libraries_2017.4.196/linux/tbb/
+TACO=/projects/ilsa8974/apps/taco/install
 
 OPT = -std=c++14 -w -g -O3 -qopenmp -D_REENTRANT -DNDEBUG
 #OPT = -std=c++14 -w -g -D_REENTRANT
-FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ -I/projects/sash2458/newApps/LBFGSpp/include/ -I${TACO}/include
+
+#FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ -I/projects/sash2458/newApps/LBFGSpp/include/ -I${TACO}/include
+FLAGS =  -I./VMC -I./utils -I./Wavefunctions -I./Wavefunctions/RealSpace -I./TransCorrelated -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I${SUNDIALS} -I${STAN} -I${TBB}/include -I/opt/local/include/openmpi-mp/ -I${TACO}/include
 
 
 
@@ -25,8 +25,8 @@ COMPILE_TIME=`date`
 GIT_BRANCH=`git branch | grep "^\*" | sed s/^..//`
 VERSION_FLAGS=-DGIT_HASH="\"$(GIT_HASH)\"" -DCOMPILE_TIME="\"$(COMPILE_TIME)\"" -DGIT_BRANCH="\"$(GIT_BRANCH)\""
 
-#LFLAGS = -L${PYSCF} -lcgto -lnp_helper -L${LIBCINT} -lcint -L${TBB}/lib/intel64/gcc4.7/ -ltbb  -L${TACO}/lib -ltaco
-LFLAGS = -L${PYSCF} -lcgto -lnp_helper -l:libcint.so.3.0.13 -L${TBB}/lib/intel64/gcc4.7/ -ltbb -L${TACO}/lib -ltaco
+LFLAGS = -L${PYSCF} -lcgto -lnp_helper -L${LIBCINT} -lcint -L${TBB}/lib/intel64/gcc4.7/ -ltbb  -L${TACO}/lib -ltaco
+#LFLAGS = -L${PYSCF} -lcgto -lnp_helper -l:libcint.so.3.0.13 -L${TBB}/lib/intel64/gcc4.7/ -ltbb -L${TACO}/lib -ltaco
 
 
 ifeq ($(USE_INTEL), yes) 

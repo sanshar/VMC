@@ -45,8 +45,8 @@
 #include "taco.h"
 #include "Noci.h"
 
-#include <LBFGS.h>
-using namespace LBFGSpp;
+//#include <LBFGS.h>
+//using namespace LBFGSpp;
 
 #ifndef SERIAL
 #include "mpi.h"
@@ -347,14 +347,14 @@ class getTranscorrelationWrapper
       if (commrank == 0) cout << "orbitals"<<endl;
 
 
-      LBFGSParam<double> param;
+      //LBFGSParam<double> param;
       //param.m = 10;
-      param.past = 4;
-      param.delta = schd.tol;
+      //param.past = 4;
+      //param.delta = schd.tol;
       //param.ftol = 1.e-2;
-      param.epsilon = schd.tol;
-      param.max_iterations = schd.nMaxMicroIter;
-      LBFGSSolver<double> solverOrb(param);
+      //param.epsilon = schd.tol;
+      //param.max_iterations = schd.nMaxMicroIter;
+      //LBFGSSolver<double> solverOrb(param);
       double fx;
       //int niter = solverOrb.minimize(orbGradSGD, orbVars, fx);
 

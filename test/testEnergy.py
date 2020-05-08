@@ -4,7 +4,7 @@ import sys
 mc = sys.argv[1]
 tol = float(sys.argv[2])
 
-if mc in ['vmc', 'gfmc', 'ci', 'direct', 'nondirect']:
+if mc in ['vmc', 'gfmc', 'ci', 'direct', 'nondirect', 'trans']:
     fh = open(mc+'.ref', 'r')
     for line in fh:
         pass
