@@ -40,7 +40,7 @@ rJastrow::rJastrow () {
   EEsameSpinIndex = 0;
   EEoppositeSpinIndex = Qmax;
   ENIndex = 2*Qmax;
-  EENsameSpinIndex = 2*Qmax + schd.Ncharge.size()*Qmax;
+  EENsameSpinIndex = 2*Qmax + schd.uniqueAtoms.size()*Qmax;
   
   //EENoppositeSpinIndex = EENsameSpinIndex;
   int EENterms = 0;
@@ -50,7 +50,7 @@ rJastrow::rJastrow () {
     if (n == 0 && o == 0) continue; //EN term
     EENterms++;
   }
-  EENoppositeSpinIndex = EENsameSpinIndex + schd.Ncharge.size()*EENterms;
+  EENoppositeSpinIndex = EENsameSpinIndex + schd.uniqueAtoms.size()*EENterms;
 
    //4body Jastrows
    int norbs = schd.basis->getNorbs();
@@ -167,7 +167,12 @@ void rJastrow::printVariables() const
   cout << endl;
 
   cout << "EN" << endl;
+  int atm = 0;
   for (int t=ENIndex; t<EENsameSpinIndex; t++) {
+    if (t % Qmax == 0) {
+      cout << schd.uniqueAtoms[atm] << " | ";
+      atm++;
+    }
     cout << _params[t] << " ";
     if ((t + 1) % Qmax == 0) cout << endl;
   }

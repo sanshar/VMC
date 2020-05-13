@@ -114,6 +114,8 @@ private:
       & realSpaceStep
       & Ncoords
       & Ncharge
+      & uniqueAtoms
+      & uniqueAtomsMap
       & Nbasis
       & NSbasis
       & direct
@@ -155,6 +157,8 @@ public:
   boost::shared_ptr<Pseudopotential> pseudo;
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
+  vector<int> uniqueAtoms;
+  vector<int> uniqueAtomsMap;
   vector<int> Nbasis;
   vector<vector<int>> NSbasis;
 
@@ -345,6 +349,8 @@ void readDeterminants(std::string input, std::vector<Determinant>& determinants,
 
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
+                  vector<int>  & uniqueAtoms,
+                  vector<int>  & uniqueAtomsMap,
                   vector<int>  & Nbasis,
                   vector<vector<int>> & NSbasis,
                   gaussianBasis& gBasis);

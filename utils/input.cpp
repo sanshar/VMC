@@ -69,14 +69,14 @@ void readInput(string inputFile, schedule& schd, bool print) {
         schd.walkerBasis = REALSPACEGTO;
         schd.basis = boost::shared_ptr<Basis>(new gaussianBasis);
         schd.basis->read();
-        readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, schd.NSbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
+        readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
       }
       if (basis == "sto") {
         schd.walkerBasis = REALSPACESTO;
         //read gaussian basis just to read the nuclear charge and coordinates
         gaussianBasis gBasis ;
         gBasis.read();
-        readGeometry(schd.Ncoords, schd.Ncharge, schd.Nbasis, schd.NSbasis, gBasis);
+        readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, gBasis);
         schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
         map<string, Vector3d> atomList;
         for (int i=0; i<schd.Ncoords.size(); i++) {
@@ -386,6 +386,8 @@ void readHF(MatrixXcd& HfmatrixA, MatrixXcd& HfmatrixB, std::string hf)
 
 void readGeometry(vector<Vector3d>& Ncoords,
                   vector<double>  & Ncharge,
+                  vector<int>  & uniqueAtoms,
+                  vector<int>  & uniqueAtomsMap,
                   vector<int> & Nbasis,
                   vector<vector<int>> & NSbasis,
                   gaussianBasis& gBasis) {
@@ -417,7 +419,6 @@ void readGeometry(vector<Vector3d>& Ncoords,
 
     orb += numOrbs;
   }
-
   /*
   for (int i = 0; i < NSbasis.size(); i++)
   {
@@ -429,6 +430,34 @@ void readGeometry(vector<Vector3d>& Ncoords,
   }
   cout << endl;
   */
+
+  //map for unique atoms
+  for (int i = 0; i < Ncharge.size(); i++)
+  {
+    if (std::find(uniqueAtoms.begin(), uniqueAtoms.end(), Ncharge[i]) == uniqueAtoms.end())
+    {
+      uniqueAtoms.push_back(Ncharge[i]);
+    }
+  }
+  for (int i = 0; i < Ncharge.size(); i++)
+  {
+    int index = std::find(uniqueAtoms.begin(), uniqueAtoms.end(), Ncharge[i]) - uniqueAtoms.begin();
+    uniqueAtomsMap.push_back(index);
+  }
+
+  /*
+  for (int i = 0; i < uniqueAtoms.size(); i++)
+  {
+    cout << uniqueAtoms[i] << " | ";
+  }
+  cout << endl;
+  for (int i = 0; i < uniqueAtomsMap.size(); i++)
+  {
+    cout << uniqueAtomsMap[i] << " | ";
+  }
+  cout << endl;
+  */
+
 }
 
 void readPairMat(MatrixXd& pairMat) 

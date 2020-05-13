@@ -190,7 +190,8 @@ double JastrowENValue(int i, int maxQ,
     scaledRij(riN, riNbar, df, d2f);
 
     for (int n = 1; n <= maxQ; n++) 
-      value += pow(riNbar, n) * params[startIndex + (n - 1) + N * maxQ];
+      //value += pow(riNbar, n) * params[startIndex + (n - 1) + N * maxQ];
+      value += pow(riNbar, n) * params[startIndex + (n - 1) + schd.uniqueAtomsMap[N] * maxQ];
   }
   return value;
 }
@@ -218,7 +219,8 @@ double JastrowENValueGrad(int i, int maxQ,
     scaledRij(riN, riNbar, df, d2f);
     
     for (int n = 1; n <= maxQ; n++) {
-      const double& factor = params[startIndex + n - 1 + N * maxQ];
+      //const double& factor = params[startIndex + n - 1 + N * maxQ];
+      const double& factor = params[startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ];
       double val = pow(riNbar, n);
       
       value   += factor * val;
@@ -257,7 +259,7 @@ void JastrowEN(int i, int maxQ,
     for (int n = 1; n <= maxQ; n++) {
       double value = pow(riNbar, n);
       
-      values[startIndex + n - 1 + N * maxQ] += factor*value;
+      values[startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ] += factor*value;
 
       double gradx = (n * value / riNbar) * df * xiN/riN;
       double grady = (n * value / riNbar) * df * yiN/riN;
@@ -266,10 +268,10 @@ void JastrowEN(int i, int maxQ,
       double laplacian = (n * (n-1) * value / riNbar / riNbar) * df * df
           + (n * value / riNbar) * ( d2f + df * 2 / riN);
 
-      gx    (i, startIndex + n - 1 + N * maxQ) += factor*gradx; 
-      gy    (i, startIndex + n - 1 + N * maxQ) += factor*grady;
-      gz    (i, startIndex + n - 1 + N * maxQ) += factor*gradz;      
-      laplace(i, startIndex + n - 1+ N * maxQ) += factor*laplacian;
+      gx    (i, startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ) += factor*gradx; 
+      gy    (i, startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ) += factor*grady;
+      gz    (i, startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ) += factor*gradz;      
+      laplace(i, startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ) += factor*laplacian;
     }
   }
 }
@@ -283,11 +285,11 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
                          int ss) {
   vector<double>& Ncharge = schd.Ncharge;
   double value = 0.0;
-  int index = 0;
+  //int index = 0;
   
-  for (int N=0; N<Ncharge.size(); N++)
-  {
-    if (electronsOfCorrectSpin(i, j, ss)) {
+  if (electronsOfCorrectSpin(i, j, ss)) {
+    for (int N=0; N<Ncharge.size(); N++)
+    {
       
       const Vector3d& di = r[i], &dj = r[j], &dN = schd.Ncoords[N];
     
@@ -325,10 +327,13 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
         ijPowers[m] = pow(rijbar, m);
       }
 
+      int EENterms = 0;
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
+
+        int index = schd.uniqueAtomsMap[N] * schd.uniqueAtoms.size() + EENterms;
 
         double factor = params[startIndex + index];
         double value1 = iNPowers[m] * jNPowers[n] * ijPowers[o];
@@ -348,7 +353,8 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
             + (o * value1 + o * value2) / rijbar * dfij * zij/rij );
 
         
-        index++;
+        //index++;
+        EENterms++;
       }
     }
   }
@@ -367,11 +373,11 @@ double JastrowEENValue(int i, int j, int maxQ,
                        int ss) {
   vector<double>& Ncharge = schd.Ncharge;
   double value = 0.0;
-  int index = 0;
+  //int index = 0;
   
-  for (int N=0; N<Ncharge.size(); N++)
-  {
-    if (electronsOfCorrectSpin(i, j, ss)) {
+  if (electronsOfCorrectSpin(i, j, ss)) {
+    for (int N=0; N<Ncharge.size(); N++)
+    {
       
       const Vector3d& di = r[i], &dj = r[j], &dN = schd.Ncoords[N];
     
@@ -409,15 +415,20 @@ double JastrowEENValue(int i, int j, int maxQ,
         ijPowers[m] = pow(rijbar, m);
       }
 
+      int EENterms = 0;
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
+
+        int index = schd.uniqueAtomsMap[N] * schd.uniqueAtoms.size() + EENterms;
         
         value += (iNPowers[m] * jNPowers[n]
                   + jNPowers[m] * iNPowers[n]) * ijPowers[o]
             * params[startIndex + index];
-        index++;
+        
+        //index++;
+        EENterms++;
 
       }
     }
@@ -437,11 +448,11 @@ void JastrowEEN(int i, int j, int maxQ,
                 int startIndex,
                 int ss) {
   vector<double>& Ncharge = schd.Ncharge;
-  int index = 0;
+  //int index = 0;
   
-  for (int N=0; N<Ncharge.size(); N++)
-  {
-    if (electronsOfCorrectSpin(i, j, ss)) {
+  if (electronsOfCorrectSpin(i, j, ss)) {
+    for (int N=0; N<Ncharge.size(); N++)
+    {
       
       const Vector3d& di = r[i], &dj = r[j], &dN = schd.Ncoords[N];
     
@@ -481,10 +492,13 @@ void JastrowEEN(int i, int j, int maxQ,
 
       double lapIntermediateI = (xiN * xij + yiN * yij + ziN * zij) / riN / rij;
       double lapIntermediateJ = (-xjN * xij - yjN * yij - zjN * zij) / rjN / rij;
+      int EENterms = 0;
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
+
+        int index = schd.uniqueAtomsMap[N] * schd.uniqueAtoms.size() + EENterms;
         
         double value1 = iNPowers[m] * jNPowers[n] * ijPowers[o];
         double value2 = jNPowers[m] * iNPowers[n] * ijPowers[o];
@@ -535,9 +549,9 @@ void JastrowEEN(int i, int j, int maxQ,
             + 2 * ( m  / rjNbar * dfjN * value2 +  n  / rjNbar * dfjN * value1)
                 * (o / rijbar * dfij )
                 * lapIntermediateJ);
-        
-        
-        index++;
+          
+        //index++;
+        EENterms++;
       }
     }
   }
