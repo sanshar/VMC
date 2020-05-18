@@ -423,8 +423,8 @@ using namespace Eigen;
         {
             int orb = NSbasis[I][mu];
 
-            num[index] += aoValues[orb];
-            denom += aoValues[orb];
+            num[index] += aoValues[orb] * aoValues[orb];
+            denom += aoValues[orb] * aoValues[orb];
 
             index++;
         }
@@ -460,18 +460,18 @@ using namespace Eigen;
         {
             int orb = NSbasis[I][mu];
 
-            num[index] += aoValues[orb];
-            denom += aoValues[orb];
+            num[index] += aoValues[orb] * aoValues[orb];
+            denom += aoValues[orb] * aoValues[orb];
             
             //gradx
-            gradxNum[index] += aoValues[1*norbs + orb];
-            gradDenom[0] += aoValues[1*norbs + orb];
+            gradxNum[index] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
+            gradDenom[0] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
             //grady
-            gradyNum[index] += aoValues[2*norbs + orb];
-            gradDenom[1] += aoValues[2*norbs + orb];
+            gradyNum[index] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
+            gradDenom[1] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
             //gradz
-            gradzNum[index] += aoValues[3*norbs + orb];
-            gradDenom[2] += aoValues[3*norbs + orb];
+            gradzNum[index] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
+            gradDenom[2] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
 
             index++;
         }
@@ -514,29 +514,29 @@ using namespace Eigen;
         {
             int orb = NSbasis[I][mu];
 
-            num[index] += aoValues[orb];
-            denom += aoValues[orb];
+            num[index] += aoValues[orb] * aoValues[orb];
+            denom += aoValues[orb] * aoValues[orb];
             
             //gradx
-            gradxNum[index] += aoValues[1*norbs + orb];
-            gradDenom[0] += aoValues[1*norbs + orb];
+            gradxNum[index] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
+            gradDenom[0] += 2.0 * aoValues[orb] * aoValues[1*norbs + orb];
 
-            gradxxNum[index] += aoValues[4*norbs + orb];
-            grad2Denom[0] += aoValues[4*norbs + orb];
+            gradxxNum[index] += 2.0 * aoValues[1*norbs + orb] * aoValues[1*norbs + orb] + 2.0 * aoValues[orb] * aoValues[4*norbs + orb];
+            grad2Denom[0] += 2.0 * aoValues[1*norbs + orb] * aoValues[1*norbs + orb] + 2.0 * aoValues[orb] * aoValues[4*norbs + orb];
 
             //grady
-            gradyNum[index] += aoValues[2*norbs + orb];
-            gradDenom[1] += aoValues[2*norbs + orb];
+            gradyNum[index] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
+            gradDenom[1] += 2.0 * aoValues[orb] * aoValues[2*norbs + orb];
 
-            gradyyNum[index] += aoValues[7*norbs + orb];
-            grad2Denom[1] += aoValues[7*norbs + orb];
+            gradyyNum[index] += 2.0 * aoValues[2*norbs + orb] * aoValues[2*norbs + orb] + 2.0 * aoValues[orb] * aoValues[7*norbs + orb];
+            grad2Denom[1] += 2.0 * aoValues[2*norbs + orb] * aoValues[2*norbs + orb] + 2.0 * aoValues[orb] * aoValues[7*norbs + orb];
 
             //gradz
-            gradzNum[index] += aoValues[3*norbs + orb];
-            gradDenom[2] += aoValues[3*norbs + orb];
+            gradzNum[index] +=  2.0 * aoValues[orb] * aoValues[3*norbs + orb];
+            gradDenom[2] += 2.0 * aoValues[orb] * aoValues[3*norbs + orb];
 
-            gradzzNum[index] += aoValues[9*norbs + orb];
-            grad2Denom[2] += aoValues[9*norbs + orb];
+            gradzzNum[index] += 2.0 * aoValues[3*norbs + orb] * aoValues[3*norbs + orb] + 2.0 * aoValues[orb] * aoValues[9*norbs + orb];
+            grad2Denom[2] += 2.0 * aoValues[3*norbs + orb] * aoValues[3*norbs + orb] + 2.0 * aoValues[orb] * aoValues[9*norbs + orb];
 
             index++;
         }

@@ -124,6 +124,21 @@ class WalkerHelper<Slater>
       }
       else {
         cout << sz << " overlap with determinant not invertible" << endl;
+        Eigen::Map<VectorXi> v1(&closedOrbs[0][0], closedOrbs[0].size());
+        Eigen::Map<VectorXi> v2(&closedOrbs[1][0], closedOrbs[1].size());
+        cout << "walk" << endl;
+        cout << "alpha\n" << v1.transpose() << endl << endl;
+        cout << "beta\n" << v2.transpose() << endl << endl;
+        cout << endl;
+
+        Eigen::Map<VectorXi> v3(&closedOrbsRef[0][0], closedOrbsRef[0].size());
+        Eigen::Map<VectorXi> v4(&closedOrbsRef[1][0], closedOrbsRef[1].size());
+        cout << "Ref" << endl;
+        cout << "alpha\n" << v3.transpose() << endl << endl;
+        cout << "beta\n" << v4.transpose() << endl << endl;
+        cout << endl;
+        cout << "Det Matrix" << endl;
+        cout << theta << endl << endl;
         exit(0);
       }
       rTable[0][sz] = MatrixXcd::Zero(norbs, closedOrbs[sz].size()); 

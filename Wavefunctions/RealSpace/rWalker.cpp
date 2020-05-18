@@ -471,37 +471,49 @@ void rWalker<rJastrow, rSlater>::guessBestDeterminant(rDeterminant& d, const Eig
       }
   }
   */
-  int i = 0;
-  int a = 0, b = 0;
-  for (int I = 0; I < schd.Ncharge.size(); I++)
+  std::ifstream f("initCoord");
+  if (f.is_open())
   {
-    for (int n = 0; n < schd.Ncharge[I];)
+    for (int i = 0; i < nelec; i++)
     {
-      if (a < nalpha) {
-        Vector3d r(random(), random(), random());
-        d.coord[a] = schd.Ncoords[I] + r;
-        //d.coord[a] = schd.Ncoords[I];
-        a++;
-        n++;
-        i++;
-  //cout << d << endl;
-      }
-      if (n >= schd.Ncharge[I]) continue;
-
-      if (b < nbeta) {
-        Vector3d r(random(), random(), random());
-        d.coord[nalpha + b] = schd.Ncoords[I] + r;
-        //d.coord[nalpha + b] = schd.Ncoords[I];
-        b++;
-        n++;
-        i++;
-  //cout << d << endl;
-      }
-
-      if (i >= nelec) break; //need this incase ion
+      int atm;
+      f >> atm;
+      //cout << atm << endl;
+      Vector3d r(random(), random(), random());
+      d.coord[i] = schd.Ncoords[atm] + r;
     }
   }
-  //cout << d << endl;
+  else
+  {
+    int i = 0;
+    int a = 0, b = 0;
+    for (int I = 0; I < schd.Ncharge.size(); I++)
+    {
+      for (int n = 0; n < schd.Ncharge[I];)
+      {
+        if (a < nalpha) {
+          Vector3d r(random(), random(), random());
+          d.coord[a] = schd.Ncoords[I] + r;
+          //d.coord[a] = schd.Ncoords[I];
+          a++;
+          n++;
+          i++;
+        }
+        if (n >= schd.Ncharge[I]) continue;
+
+        if (b < nbeta) {
+          Vector3d r(random(), random(), random());
+          d.coord[nalpha + b] = schd.Ncoords[I] + r;
+          //d.coord[nalpha + b] = schd.Ncoords[I];
+          b++;
+          n++;
+          i++;
+        }
+
+        if (i >= nelec) break; //need this incase ion
+      }
+    }
+  }
 
 /*
 d.coord[0] = schd.Ncoords[0] + Vector3d(1.0, 0.0, 0.0);
