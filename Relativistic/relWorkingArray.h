@@ -26,8 +26,8 @@
 //calculated
 struct relWorkingArray {
 
+  vector<double> cumOvlp;
   vector<std::complex<double>> ovlpRatio;
-  //vector<double> ovlpRatio;
   vector<size_t> excitation1;
   vector<size_t> excitation2;
   vector<std::complex<double>> HijElement;
@@ -36,6 +36,7 @@ struct relWorkingArray {
   relWorkingArray(size_t initialSize = 1000000) {
     nExcitations = 0;
     ovlpRatio.resize(initialSize);
+    cumOvlp.resize(initialSize);
     excitation1.resize(initialSize);
     excitation2.resize(initialSize);
     HijElement.resize(initialSize);
@@ -44,6 +45,7 @@ struct relWorkingArray {
   void incrementSize(size_t size) {
     size_t newSize = ovlpRatio.size()+size;
     ovlpRatio.resize(newSize);
+    cumOvlp.resize(newSize);
     excitation1.resize(newSize);
     excitation2.resize(newSize);
     HijElement.resize(newSize);
@@ -67,6 +69,7 @@ struct relWorkingArray {
 
   void clear() {
     ovlpRatio.clear();
+    cumOvlp.clear();
     excitation1.clear();
     excitation2.clear();
     HijElement.clear();

@@ -238,6 +238,7 @@ struct CorrelatedWavefunction {
 
     ovlp = Overlap(walk);
     ham = walk.d.Energy(I1, I2, coreE); 
+    if (0==1 && commrank==0) cout << "In HamAndOvlp   ham: " << ham << "  ovlp: " << ovlp << endl;
 
     work.setCounterToZero();
     generateAllScreenedSingleExcitation(walk.d, schd.epsilon, schd.screen,
@@ -260,6 +261,7 @@ struct CorrelatedWavefunction {
       ham += tia * ovlpRatio;
       if (schd.debug) cout << ex1 << "  " << ex2 << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << endl;
 
+      if (0==1 && commrank==0 && i==7) cout << "Total excitations: " << work.nExcitations << " ex1, ex2 " << ex1 << "  " << ex2 << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << "   ham   "  << ham  << endl;
       work.ovlpRatio[i] = ovlpRatio;
     }
   }

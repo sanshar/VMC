@@ -52,7 +52,9 @@ class relJastrow {
   
   double Overlap(const relDeterminant& d) const ;
 
-  const double& operator()(int i, int j) const {return SpinCorrelator(std::max(i,j), std::min(i,j));}
+  const double& operator()(int i, int j) const {
+    return SpinCorrelator(std::max(i,j), std::min(i,j));
+  }
   
   /*
    * Takes an occupation number representation of two determinants

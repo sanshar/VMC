@@ -136,7 +136,8 @@ class relAMSGrad
         {
             //cout << "in optimize loop iter: " << iter << endl;
             double E0, stddev = 0.0, rt = 1.0;
-            double acceptedFrac = getGradient(vars, grad, E0, stddev, rt);
+            std::complex<double> E0c = 0.0;
+            double acceptedFrac = getGradient(vars, grad, E0c, stddev, rt);
             
             //if (commrank==0) cout << grad << endl;
             write(vars);
@@ -183,7 +184,7 @@ class relAMSGrad
 
             if (commrank == 0)
             {
-              std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %10i  %6.6f %8.2f %8.2f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % acceptedFrac % (schd.stochasticIter) % (stepNorm) % (angle) % ((getTime() - startofCalc));
+              std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %10i  %6.6f %8.2f %8.2f\n") % iter % E0c % stddev % (grad.norm()) % (rt) % acceptedFrac % (schd.stochasticIter) % (stepNorm) % (angle) % ((getTime() - startofCalc));
             }
             if (maxIter - iter <= avgIter) avgVars += vars;
             iter++;
@@ -194,10 +195,11 @@ class relAMSGrad
           avgVars = avgVars/avgIter;
           write(avgVars);
           double E0, stddev = 0.0, rt = 1.0;
-          getGradient(avgVars, grad, E0, stddev, rt);
+          std::complex<double> E0c = 0.0;
+          getGradient(avgVars, grad, E0c, stddev, rt);
           if (commrank == 0) {
             std::cout << "Average over last " << avgIter << " iterations" << endl;
-            std::cout << format("0 %14.8f (%8.2e) %14.8f %8.1f %10i %8.2f\n")  % E0 % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
+            std::cout << format("0 %14.8f (%8.2e) %14.8f %8.1f %10i %8.2f\n")  % E0c % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
           }
         } 
     }
@@ -226,7 +228,8 @@ class relAMSGrad
         while (iter < maxIter)
         {
             double E0, stddev = 0.0, rt = 1.0;
-            getGradient(vars, grad, E0, stddev, rt);
+            std::complex<double> E0c = 0.0;
+            getGradient(vars, grad, E0c, stddev, rt);
             write(vars);
             VectorXd update = VectorXd::Zero(vars.rows());
 
@@ -266,7 +269,7 @@ class relAMSGrad
 
             if (commrank == 0)
             {
-              std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %10i  %6.6f\n") % iter % E0 % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
+              std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %10i  %6.6f\n") % iter % E0c % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
             }
             iter++;
         }

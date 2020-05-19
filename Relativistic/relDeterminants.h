@@ -33,6 +33,7 @@ class oneIntSOC;
 
 class twoIntHeatBathSHM;
 class relWorkingArray;
+class workingArray;
 
 using namespace std;
 
@@ -101,7 +102,11 @@ class relDeterminant {
   double parityAA(const int& i, const int& j, const int& a, const int& b) const ;
   double parityBB(const int& i, const int& j, const int& a, const int& b) const ;
 
-  
+  double relParity(const int& a, const int& i) const ;
+  double relParity_old(const int& a, const int& i) const ;
+  double relParityProbablyWrong(const int& a, const int& i) const ;
+  double relParityAsInDice(const int& a, const int& i) const ;
+
   std::complex<double> Energy(const oneIntSOC& I1, const twoInt& I2, const double& coreE) const ;
   std::complex<double> Hij_1ExciteScreened(const int& a, const int& i, const twoIntHeatBathSHM& Ishm,
                              const double& TINY, bool doparity = true) const;
@@ -167,16 +172,47 @@ void generateAllScreenedDoubleExcitation(const relDeterminant& det,
                                          relWorkingArray& work,
                                          bool doparity = false);
 
+void generateAllScreenedDoubleExcitation(const relDeterminant& det,
+                                         const double& screen,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         bool doparity = false);
+
+
+
 void generateAllScreenedSingleExcitation(const relDeterminant& det,
                                          const double& screen,
                                          const double& TINY,
                                          relWorkingArray& work,
                                          bool doparity = false);
 
-/*
-void comb(int N, int K, vector<vector<int>> &combinations);
+void generateNoSpinFlipScreenedSingleExcitation(const relDeterminant& det,
+                                                const double& screen,
+                                                const double& TINY,
+                                                relWorkingArray& work,
+                                                bool doparity = false);
 
-void generateAllDeterminants(vector<Determinant>& allDets, int norbs, int nalpha, int nbeta);
+void generateAllScreenedSingleExcitation(const relDeterminant& det,
+                                         const double& screen,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         bool doparity = false);
+
+void generateAllSingleExcitation(const relDeterminant& det,
+                                 relWorkingArray& work,
+                                 bool doparity = false);
+
+
+
+void generateAllDeterminants(vector<relDeterminant>& allDets, int norbs, int nalpha, int nbeta);
+
+
+void relGenerateAllDeterminants(vector<relDeterminant>& allDets, int norbs, int nelec);
+
+
+void relComb(int N, int K, vector<vector<int>> &combinations);
+/*
+
 
 void readrelDeterminants(std::string input, vector<relDeterminant> &determinants,
                       vector<double> &ciExpansion);

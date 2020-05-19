@@ -19,19 +19,19 @@
 #include "mpi.h"
 #endif
 
-template<typename Wfn, typename relWalker>
+template<typename Wfn, typename Walker>
 class relContinuousTime
 {
   public:
   Wfn &w;
-  relWalker &walk;
+  Walker &walk;
   long numVars;
   int norbs, nalpha, nbeta;
   relWorkingArray work;
   workingArray workd;
-  double T;
-  std::complex<double> ovlp, Eloc;
-  double S1, oldEnergy;
+  double T; // EDIT DO: highly experimental complex T
+  std::complex<double> ovlp, Eloc, oldEnergy; // Tc, cumTc;
+  double S1;
   double cumT, cumT2, cumT_everyrk;
   Eigen::VectorXd grad_ratio, grad_Eloc;
   int nsample;
@@ -45,7 +45,7 @@ class relContinuousTime
     return dist(generator);
   }
     
-  relContinuousTime(Wfn &_w, relWalker &_walk, int niter) : w(_w), walk(_walk)
+  relContinuousTime(Wfn &_w, Walker &_walk, int niter) : w(_w), walk(_walk)
   {
     nsample = min(niter, 200000);
     numVars = w.getNumVariables();
@@ -53,53 +53,77 @@ class relContinuousTime
     nalpha = relDeterminant::nalpha;
     nbeta = relDeterminant::nbeta;
     bestDet = walk.getDet();
-    cumT = 0.0, cumT2 = 0.0, cumT_everyrk = 0.0, S1 = 0.0, oldEnergy = 0.0, bestOvlp = 0.0; 
+    cumT = 0.0, cumT2 = 0.0, cumT_everyrk = 0.0, S1 = 0.0, oldEnergy = 0.0 + 0.0i, bestOvlp = 0.0; //,cumTc = 0.0; 
   }
 
   void LocalEnergy()
   {
-    Eloc = 0.0;
-    ovlp = (0.0, 0.0);
+    Eloc = 0.0 + 0.0i;
+    ovlp = 0.0 + 0.0i;
     w.HamAndOvlp(walk, ovlp, Eloc, work);
-    if (schd.debug) {
-      cout << walk << endl;
+    if (1==0) {
+      //cout << walk << endl;
       cout << "ham  " << Eloc << "  ovlp  " << ovlp << endl << endl;
     }
   }
 
-  void MakeMove()
+  void MakeMove()  // EDIT THINK: probably sampling issue
   {
     double cumOvlp = 0.0;
+    //double cumOvlp_real = 0.0;
+    //double cumOvlp_imag = 0.0;
     for (int i = 0; i < work.nExcitations; i++)
     {
       cumOvlp += abs(work.ovlpRatio[i]);
+      //cumOvlp_real += abs(work.ovlpRatio[i].real());
+      //cumOvlp_imag += abs(work.ovlpRatio[i].imag());
+      //cumOvlp = cumOvlp_real + cumOvlp_imag;
+      //cout << "ovlp: " << work.ovlpRatio[i] << " " << cumOvlp << endl;
       work.ovlpRatio[i] = cumOvlp;
-      workd.ovlpRatio[i] = cumOvlp;
+      workd.ovlpRatio[i] = cumOvlp; //EDIT DO: maybe moves not correct
     }
     T = 1.0 / cumOvlp;
+    //std::complex<double> temp(cumOvlp_real, cumOvlp_imag);
+    //Tc = 1.0 / temp;
+    //cout << cumOvlp_real << " " << cumOvlp_imag << " " << temp << " " << Tc << endl;
     double nextDetRand = random() * cumOvlp;
+    //for (int i = 0; i < work.nExcitations; i++) {
+    //  cout << i << " " << workd.ovlpRatio[i] << endl;
+    //}
+    //int begin = workd.ovlpRatio.begin() + work.ovlpRatio.begin();
+    //cout << "begins: " << begin << endl;
     //int nextDet = lower_bound(abs(work.ovlpRatio.begin()), abs(work.ovlpRatio.begin() + work.nExcitations), nextDetRand) - abs(work.ovlpRatio.begin());
-    int nextDet = lower_bound(workd.ovlpRatio.begin(), workd.ovlpRatio.begin() + workd.nExcitations, nextDetRand) - workd.ovlpRatio.begin(); //EDIT: since lower bound only works for double
+    int nextDet = lower_bound(workd.ovlpRatio.begin(), workd.ovlpRatio.begin() + work.nExcitations, nextDetRand) - workd.ovlpRatio.begin(); //EDIT: since lower bound only works for double
     cumT += T;
+    //cumTc += Tc;
     cumT2 += T * T;
+    //cout << "Next Det: " << nextDet << " " << nextDetRand << " " << cumOvlp << " " << work.nExcitations << endl;
+    if (0==1) {
+      ofstream file;
+      file.open("det_T.txt", std::ios_base::app);
+      file << walk.d << ",  " << T << endl;
+      file.close();
+    }
     walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
   }
 
   void MakeMove(int sample)
   {
+    cout << "in MakeMove with sample" << endl;
     double cumOvlp = 0.0;
     for (int i = 0; i < work.nExcitations; i++)
     {
       cumOvlp += abs(work.ovlpRatio[i]);
-      work.ovlpRatio[i] = cumOvlp;
+      work.cumOvlp[i] = cumOvlp;
     }
     T = 1.0 / cumOvlp;
     double nextDetRand = random() * cumOvlp;
-    int nextDet = lower_bound(work.ovlpRatio.begin(), work.ovlpRatio.begin() + work.nExcitations, nextDetRand) - work.ovlpRatio.begin();
+    int nextDet = lower_bound(work.cumOvlp.begin(), work.cumOvlp.begin() + work.nExcitations, nextDetRand) - work.cumOvlp.begin();
     cumT += T;
     cumT2 += T * T;
     if (sample == 0)
         cumT_everyrk += T;
+
     walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
   }
 
@@ -125,18 +149,21 @@ class relContinuousTime
     }
   }
 
-  void UpdateEnergy(double &Energy)
+  void UpdateEnergy(std::complex<double> &Energy)
   {
     oldEnergy = Energy;
-    Energy += T * (Eloc.real() - Energy) / cumT; //EDIT: here only real part of local energy is taken
-    S1 += T * ((Eloc - oldEnergy) * (Eloc - Energy)).real(); //EDIT DO: where to take the real part?
+    Energy += T * (Eloc - Energy) / cumT; //EDIT: here only real part of local energy is taken
+    //Energy += Tc * (Eloc - Energy) / cumTc; //EDIT: here only real part of local energy is taken
+    //cout << walk.d << "oldEne " << oldEnergy << " new Ene " << Energy << " Tc " << Tc << " T " << T  << " Eloc " << Eloc << " ovlp " << ovlp << endl;
+    //cout << "New det " << walk.d << "oldEne " << oldEnergy << " new Ene " << Energy << " T " << T  << " Eloc " << Eloc << " ovlp " << ovlp << endl;
+    S1 += T * ((Eloc.real() - oldEnergy.real()) * (Eloc.real() - Energy.real())); //EDIT DO: where to take the real part?
     if (Stats.X.size() < nsample)
     {
       Stats.push_back(Eloc.real(), T); //EDIT DO: probably make pushback with complex
     }
   }
   
-  void FinishEnergy(double &Energy, double &stddev, double &rk)
+  void FinishEnergy(std::complex<double> &Energy, double &stddev, double &rk)
   {
     try 
     {
@@ -169,7 +196,7 @@ class relContinuousTime
 */
     S1 /= cumT;
 #ifndef SERIAL
-    MPI_Allreduce(MPI_IN_PLACE, &Energy, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &Energy, 1, MPI_C_DOUBLE_COMPLEX, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &cumT, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -181,6 +208,7 @@ class relContinuousTime
     cumT2 /= commsize;
 #endif
     double neff = commsize * (cumT * cumT) / cumT2;
+    //cout << neff << " " << S1 << endl;
     stddev = sqrt(rk * S1 / neff);
   }
 

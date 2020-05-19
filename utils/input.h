@@ -111,8 +111,7 @@ private:
       & direct
       & rStepType
       & ifComplex
-      & ifRelativistic
-      & ifSOC
+      & ifRelativistic & ifSOC & onlyEne
       & uagp
       & CorrSampleFrac
       & dTol
@@ -156,6 +155,8 @@ public:
 //for relativistic calculations --> VMC has to be compiled with flag Relativistic to be used
   bool ifRelativistic;                   //to turn on relativistic calculation 
   bool ifSOC;                            //to incorporate MFSOC
+  bool onlyEne;                          //to get relativistic energy, can be deterministic or stochastic
+
 
 //input file to define the correlator parts of the wavefunction
   int nalpha;

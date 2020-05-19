@@ -1,9 +1,9 @@
-#ifndef DETERMINISTIC_HEADER_H
-#define DETERMINISTIC_HEADER_H
+#ifndef relDETERMINISTIC_HEADER_H
+#define relDETERMINISTIC_HEADER_H
 #include <Eigen/Dense>
 #include <vector>
-#include "Determinants.h"
-#include "workingArray.h"
+#include "relDeterminants.h"
+#include "relWorkingArray.h"
 #include "statistics.h"
 #include "sr.h"
 #include "linearMethod.h"
@@ -20,53 +20,57 @@
 #endif
 
 template<typename Wfn, typename Walker>
-class Deterministic
+class relDeterministic
 {
   public:
   Wfn &w;
   Walker &walk;
   long numVars;
   int norbs, nalpha, nbeta;
-  std::vector<Determinant> allDets;
-  workingArray work;
-  double ovlp, Eloc;
+  std::vector<relDeterminant> allDets;
+  relWorkingArray work;
+  std::complex<double> ovlp, Eloc;
   double Overlap;
   Eigen::VectorXd grad_ratio, grad_Eloc;
 
-  Deterministic(Wfn &_w, Walker &_walk) : w(_w), walk(_walk)
+  relDeterministic(Wfn &_w, Walker &_walk) : w(_w), walk(_walk)
   {
     numVars = w.getNumVariables();
-    norbs = Determinant::norbs;
-    nalpha = Determinant::nalpha;
-    nbeta = Determinant::nbeta;
-    generateAllDeterminants(allDets, norbs, nalpha, nbeta);
+    norbs = relDeterminant::norbs;
+    nalpha = relDeterminant::nalpha;
+    nbeta = relDeterminant::nbeta;
+    relGenerateAllDeterminants(allDets, norbs, nalpha + nbeta);
+    //generateAllDeterminants(allDets, norbs, nalpha, nbeta); //EDIT UNDO
     Overlap = 0.0;
   }
    
-  void LocalEnergy(Determinant &D)
+  void LocalEnergy(relDeterminant &D)
   {
-    ovlp = 0.0, Eloc = 0.0;
+    ovlp = 0.0 + 0.0i, Eloc = 0.0 + 0.0i;
     w.initWalker(walk, D);
     w.HamAndOvlp(walk, ovlp, Eloc, work, false);  
-    if (schd.debug) {
-      cout << walk << endl;
-      cout << "ham  " << Eloc << "  ovlp  " << ovlp << endl << endl;
+    if (0==1) { // && abs(ovlp)>1.0e-06) {
+      //cout << walk << endl;
+      cout << "Det " << D << " Eloc  " << Eloc << "  ovlp  " << ovlp << endl;
     }
   }
   
-  void UpdateEnergy(double &Energy)
+  void UpdateEnergy(std::complex<double> &Energy)
   {
-    cout << "in Update: ham  " << Eloc << "  ovlp  " << ovlp << " Overlap before: " << Overlap << " Energy before: " << Energy << endl;
-    Overlap += ovlp * ovlp;
-    Energy += Eloc * ovlp * ovlp;
+    //cout << "in Update: ham  " << Eloc << "  ovlp  " << ovlp << " Overlap before: " << Overlap << " Energy before: " << Energy << endl;
+    Overlap += std::abs(ovlp) * std::abs(ovlp); // EDIT: abs should be taken if imag
+    //cout << "Overlap " << Overlap << "  ovlp^2 imag " << (ovlp * ovlp).imag() << endl << endl;
+    //cout << "Energy " << Energy << "  Eloc " << Eloc << endl << endl;
+    Energy += (Eloc * std::abs(ovlp) * std::abs(ovlp)); //EDIT: here take real part for real energies
   }
 
-  void FinishEnergy(double &Energy)
+  void FinishEnergy(std::complex<double> &Energy)
   {
 #ifndef SERIAL
     MPI_Allreduce(MPI_IN_PLACE, &(Overlap), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    MPI_Allreduce(MPI_IN_PLACE, &(Energy), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &(Energy), 1, MPI_C_DOUBLE_COMPLEX, MPI_SUM, MPI_COMM_WORLD);
 #endif
+    //cout << "in Finish: energy: " << Energy << " Overlap: " << Overlap << endl;
     Energy /= Overlap;
   }
 

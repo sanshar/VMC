@@ -51,6 +51,7 @@ relJastrow::relJastrow () {
 
 double relJastrow::Overlap(const relDeterminant &d) const
 {
+  //cout << "Overlap Jastrow" << endl;
   vector<int> closed;
   vector<int> open;
   d.getOpenClosed(open, closed);
@@ -58,8 +59,8 @@ double relJastrow::Overlap(const relDeterminant &d) const
   double ovlp = 1.0;
   for (int i=0; i<closed.size(); i++) {
     for (int j=0; j<=i; j++) {
-      int I = max(closed[i], closed[j]), J = min(closed[i], closed[j]);
-
+      int I = max(closed[i], closed[j]), J = min(closed[i], closed[j]); // EDIT: probs not needed
+      //cout << "Jastrow Overlap, I, J: " << I << " " << J << " spincorr: " << SpinCorrelator(I, J) << endl;
       ovlp *= SpinCorrelator(I, J);
     }
   }

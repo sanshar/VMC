@@ -22,7 +22,7 @@
 #include "relDeterminants.h"
 #include "igl/slice.h"
 #include "igl/slice_into.h"
-#include "ShermanMorrisonWoodbury.h"
+#include "relShermanMorrisonWoodbury.h"
 #include "relSlater.h"
 #include "AGP.h"
 #include "Pfaffian.h"
@@ -53,14 +53,17 @@ class WalkerHelper<relSlater>
   {
     hftype = w.hftype;
  
+    //cout << "num dets " << w.getNumOfDets() << " det: " << d << endl;
     //fill the spin strings for the walker and the zeroth reference det
     fillOpenClosedOrbs(d);
+    //cout << "init closed orbs " << closedOrbs[0].size() << endl;
     closedOrbsRef[0].clear();
     closedOrbsRef[1].clear();
     w.getDeterminants()[0].getClosedAlphaBeta(closedOrbsRef[0], closedOrbsRef[1]);
   
     rTable.resize(w.getNumOfDets());
     thetaDet.resize(w.getNumOfDets());
+    
   
     if (hftype == Generalized) {
       initInvDetsTablesGhf(w);
@@ -68,6 +71,7 @@ class WalkerHelper<relSlater>
     else {
       initInvDetsTables(w);
     }
+  //cout << "rTab init: " << rTable[0][0] << endl;
   }
 
   void fillOpenClosedOrbs(const relDeterminant &d)
@@ -81,6 +85,7 @@ class WalkerHelper<relSlater>
 
   void makeTable(const relSlater &w, const MatrixXcd& inv, const Eigen::Map<VectorXi>& colClosed, int detIndex, bool sz)
   {
+    cout << "here  wrong format for ghf " << endl;
     Map<VectorXi> rowOpen(&openOrbs[sz][0], openOrbs[sz].size());
     rTable[detIndex][sz] = MatrixXcd::Zero(openOrbs[sz].size(), closedOrbs[sz].size()); 
     MatrixXcd HfopenTheta;
@@ -115,7 +120,7 @@ class WalkerHelper<relSlater>
       MatrixXcd theta;
       igl::slice(w.getHforbs(sz), rowClosed, colClosed, theta); 
       Eigen::FullPivLU<MatrixXcd> lua(theta);
-      //std::cout << theta;
+      std::cout << theta << endl;;
       if (lua.isInvertible()) {
         thetaInv[sz] = lua.inverse();
         thetaDet[0][sz] = lua.determinant();
@@ -124,6 +129,7 @@ class WalkerHelper<relSlater>
         cout << sz << " HERE overlap with determinant not invertible" << endl;
         exit(0);
       }
+      cout << "here  wrong format for ghf 2" << endl;
       rTable[0][sz] = MatrixXcd::Zero(norbs, closedOrbs[sz].size()); 
       rTable[0][sz] = w.getHforbs(sz).block(0, 0, norbs, closedOrbs[sz].size()) * thetaInv[sz];
       
@@ -144,6 +150,7 @@ class WalkerHelper<relSlater>
 
   void makeTableGhf(const relSlater &w, const Eigen::Map<VectorXi>& colTheta)
   {
+    cout << "here  right format for ghf " << endl;
     rTable[0][0] = MatrixXcd::Zero(openOrbs[0].size() + openOrbs[1].size(), closedOrbs[0].size() + closedOrbs[1].size()); 
     MatrixXcd ghfOpen;
     vector<int> rowVec;
@@ -158,6 +165,8 @@ class WalkerHelper<relSlater>
   {
     int norbs = relDeterminant::norbs;
     vector<int> workingVec0, workingVec1;
+    //cout << "closedOrbs size 0  " << closedOrbs[0].size() << endl;
+    //cout << "closedOrbs size 1  " << closedOrbs[1].size() << endl;
     concatenateGhf(closedOrbs[0], closedOrbs[1], workingVec0);
     Eigen::Map<VectorXi> rowTheta(&workingVec0[0], workingVec0.size());
     concatenateGhf(closedOrbsRef[0], closedOrbsRef[1], workingVec1);
@@ -181,15 +190,19 @@ class WalkerHelper<relSlater>
       exit(0);
     }
     thetaDet[0][1] = 1.;
+    //cout << "here  other format for ghf " << endl;
     rTable[0][0] = MatrixXcd::Zero(2*norbs, closedOrbs[0].size() + closedOrbs[1].size()); 
     rTable[0][0] = w.getHforbs().block(0, 0, 2*norbs, closedOrbs[0].size() + closedOrbs[1].size()) * thetaInv[0];
     rTable[0][1] = rTable[0][0];
+    //cout << "thetaInv ini " << thetaInv[0] << endl;
+    //cout << "thetaDet " << thetaDet[0][0] << endl;
     //makeTableGhf(w, colTheta);
   }
 
   //commenting out calcotherdetstables, uncomment for multidet
   void excitationUpdate(const relSlater &w, vector<int>& cre, vector<int>& des, bool sz, double parity, const relDeterminant& excitedDet)
   {
+    cout << "Problem not GHF excitationUpdate" << endl;
     MatrixXcd invOld = thetaInv[sz];
     std::complex<double> detOld = thetaDet[0][sz];
     MatrixXcd tableOld = rTable[0][sz];
@@ -203,6 +216,11 @@ class WalkerHelper<relSlater>
 
   void excitationUpdateGhf(const relSlater &w, vector<int>& cre, vector<int>& des, bool sz, double parity, const relDeterminant& excitedDet)
   {
+    //cout << "excitationUpdate" << endl;
+    //for (std::vector<int>::const_iterator i = cre.begin(); i != cre.end(); ++i)
+      //cout << *i << ' ';
+    //cout << "end excitationUpdate" << endl;
+    //cout << "excitationUpdateGHF" << endl;
     vector<int> colVec;
     concatenateGhf(closedOrbsRef[0], closedOrbsRef[1], colVec);
     Eigen::Map<VectorXi> colTheta(&colVec[0], colVec.size());
@@ -216,7 +234,34 @@ class WalkerHelper<relSlater>
     thetaDet[0][0] *= parity;
     fillOpenClosedOrbs(excitedDet);
     //makeTableGhf(w, colTheta);
+    //cout << "rTab upds: " << rTable[0][0] << endl;
   }
+
+
+  void relExcitationUpdateGhf(const relSlater &w, vector<int>& cre, vector<int>& des, double parity, const relDeterminant& excitedDet) // EDIT DO: no special rel thing yet
+  {
+    //cout << "relExcitationUpdate" << endl;
+    //for (std::vector<int>::const_iterator i = des.begin(); i != des.end(); ++i)
+      //cout << *i << ' ';
+    //cout << "end relExcitationUpdate" << endl;
+    vector<int> colVec;
+    concatenateGhf(closedOrbsRef[0], closedOrbsRef[1], colVec);
+    Eigen::Map<VectorXi> colTheta(&colVec[0], colVec.size());
+    vector<int> rowIn;
+    concatenateGhf(closedOrbs[0], closedOrbs[1], rowIn);
+    MatrixXcd invOld = thetaInv[0];
+    std::complex<double> detOld = thetaDet[0][0];
+    MatrixXcd tableOld = rTable[0][0];
+    calculateInverseDeterminantWithRowChange(invOld, detOld, tableOld, thetaInv[0], thetaDet[0][0], rTable[0][0], cre, des, colTheta, rowIn, w.getHforbs(), 1);
+    rTable[0][1] = rTable[0][0];
+    thetaDet[0][0] *= parity;
+    fillOpenClosedOrbs(excitedDet);
+    //makeTableGhf(w, colTheta);
+    //cout << "thetaInv relUp " << thetaInv[0] << endl;
+    //cout << "thetaDet relUp " << thetaDet[0][0] << endl;
+    //cout << "rTab updr: " << rTable[0][0] << endl;
+  }
+
 
   void getRelIndices(int i, int &relI, int a, int &relA, bool sz) const 
   {
@@ -227,9 +272,107 @@ class WalkerHelper<relSlater>
     relI = std::search_n(closedOrbs[sz].begin(), closedOrbs[sz].end(), 1, i) - closedOrbs[sz].begin() + factor * closedOrbs[0].size();
     //relA = std::search_n(openOrbs[sz].begin(), openOrbs[sz].end(), 1, a) - openOrbs[sz].begin() + factor * openOrbs[0].size();
     relA = a + factor * relDeterminant::norbs;
+    //cout << "Ind " << i << " " << a << "   " << relI << " " << relA << endl;
   }
 
+  void getRelIndicesGHF(int i, int &relI, int a, int &relA) const // for spin-flips
+  {
+    //if (i%2==0) relI = i/2;
+    //else relI = (i/2) + closedOrbs[1].size();
+    relI = std::search_n(closedOrbs[i%2].begin(), closedOrbs[i%2].end(), 1, (i/2)) - closedOrbs[i%2].begin() + (i%2) * closedOrbs[0].size(); // EDIT DO!!!
+    //cout << "search " <<  std::search_n(closedOrbs[i%2].begin(), closedOrbs[i%2].end(), 1, (i%2)) - closedOrbs[i%2].begin() << endl; // EDIT DO!!!
+    //cout << "add " <<  (i%2) * closedOrbs[0].size() << endl; // EDIT DO!!!
+    //relI = relI-1;
+    if (a%2==0) relA = a/2;
+    else relA = (a/2) + relDeterminant::norbs;
+    //cout << "relInd " << i << " " << a << "   " << relI << " " << relA << endl;
+  }
+
+
 };
+
+
+
+template<>
+class WalkerHelper<relJastrow>
+{
+ public:
+  std::vector<double> intermediateForEachSpinOrb;
+
+  WalkerHelper() {};
+  WalkerHelper(const relJastrow& cps, const relDeterminant& d) {
+    int norbs = relDeterminant::norbs;
+    intermediateForEachSpinOrb.resize(norbs*2);
+    initHelper(cps, d);
+  }
+
+  void initHelper(const relJastrow& cps, const relDeterminant& d) {
+    int norbs = relDeterminant::norbs;
+
+    vector<int> closed;
+    vector<int> open;
+    d.getOpenClosed(open, closed);
+    
+    
+    for (int i=0; i<2*norbs; i++) {
+      intermediateForEachSpinOrb[i] = cps(i,i);
+      for (int j=0; j<closed.size(); j++)
+        if (closed[j] != i)
+          intermediateForEachSpinOrb[i] *= cps(i, closed[j]);
+    }
+  }
+  
+  void updateHelper(const relJastrow& cps, const relDeterminant& d, int i, int a, bool sz) {
+    //cout << "PROBLEM in updateHelper single" << endl;
+    i = 2 * i + sz; a = 2 * a + sz;
+    int norbs = relDeterminant::norbs;
+    for (int l = 0; l < 2 * norbs; l++) 
+      intermediateForEachSpinOrb[l] *= cps(l, a) / cps(l, i);
+    intermediateForEachSpinOrb[i] *= cps(i, i);
+    intermediateForEachSpinOrb[a] /= cps(a, a);
+    //initHelper(cps, d);
+  }
+
+
+  void relUpdateHelper(const relJastrow& cps, const relDeterminant& d, int i, int a) { // EDIT: allows spin flips
+    //cout << "in relUpdateHelper" << endl;
+    int norbs = relDeterminant::norbs;
+    for (int l = 0; l < 2 * norbs; l++) 
+      intermediateForEachSpinOrb[l] *= cps(l, a) / cps(l, i);
+    intermediateForEachSpinOrb[i] *= cps(i, i);
+    intermediateForEachSpinOrb[a] /= cps(a, a);
+  }
+  
+  void updateHelper(const relJastrow& cps, const relDeterminant& d, int i, int j, int a, int b, bool sz) {
+    //cout << "in updateHelper" << endl;
+    i = 2 * i + sz; a = 2 * a + sz;
+    j = 2 * j + sz; b = 2 * b + sz;
+    int norbs = relDeterminant::norbs;
+    for (int l = 0; l < 2 * norbs; l++) 
+      intermediateForEachSpinOrb[l] *= cps(l, a) * cps(l, b) / cps(l, i) / cps(l, j);
+    intermediateForEachSpinOrb[i] *= cps(i, i);
+    intermediateForEachSpinOrb[a] /= cps(a, a);
+    intermediateForEachSpinOrb[j] *= cps(j, j);
+    intermediateForEachSpinOrb[b] /= cps(b, b);
+    //initHelper(cps, d);
+  }
+
+
+  double OverlapRatio(int i, int a, const relJastrow& cps,
+                      const relDeterminant &dcopy, const relDeterminant &d) const
+  {
+    return intermediateForEachSpinOrb[a]/intermediateForEachSpinOrb[i]/cps(i,a);
+  }
+  
+  double OverlapRatio(int i, int j, int a, int b, const relJastrow& cps,
+                      const relDeterminant &dcopy, const relDeterminant &d) const
+  {
+    return intermediateForEachSpinOrb[a]*intermediateForEachSpinOrb[b]*cps(a,b)*cps(i,j)
+        /intermediateForEachSpinOrb[i]/intermediateForEachSpinOrb[j]/
+        cps(i,a)/cps(j,a)/cps(i,b)/cps(j,b);
+  }
+};
+
 
 /*
 template<>
@@ -658,73 +801,6 @@ class WalkerHelper<CPS>
 */
 
 
-template<>
-class WalkerHelper<relJastrow>
-{
- public:
-  std::vector<double> intermediateForEachSpinOrb;
-
-  WalkerHelper() {};
-  WalkerHelper(const relJastrow& cps, const relDeterminant& d) {
-    int norbs = relDeterminant::norbs;
-    intermediateForEachSpinOrb.resize(norbs*2);
-    initHelper(cps, d);
-  }
-
-  void initHelper(const relJastrow& cps, const relDeterminant& d) {
-    int norbs = relDeterminant::norbs;
-
-    vector<int> closed;
-    vector<int> open;
-    d.getOpenClosed(open, closed);
-    
-    
-    for (int i=0; i<2*norbs; i++) {
-      intermediateForEachSpinOrb[i] = cps(i,i);
-      for (int j=0; j<closed.size(); j++)
-        if (closed[j] != i)
-          intermediateForEachSpinOrb[i] *= cps(i, closed[j]);
-    }
-  }
-  
-  void updateHelper(const relJastrow& cps, const relDeterminant& d, int i, int a, bool sz) {
-    i = 2 * i + sz; a = 2 * a + sz;
-    int norbs = relDeterminant::norbs;
-    for (int l = 0; l < 2 * norbs; l++) 
-      intermediateForEachSpinOrb[l] *= cps(l, a) / cps(l, i);
-    intermediateForEachSpinOrb[i] *= cps(i, i);
-    intermediateForEachSpinOrb[a] /= cps(a, a);
-    //initHelper(cps, d);
-  }
-  
-  void updateHelper(const relJastrow& cps, const relDeterminant& d, int i, int j, int a, int b, bool sz) {
-    i = 2 * i + sz; a = 2 * a + sz;
-    j = 2 * j + sz; b = 2 * b + sz;
-    int norbs = relDeterminant::norbs;
-    for (int l = 0; l < 2 * norbs; l++) 
-      intermediateForEachSpinOrb[l] *= cps(l, a) * cps(l, b) / cps(l, i) / cps(l, j);
-    intermediateForEachSpinOrb[i] *= cps(i, i);
-    intermediateForEachSpinOrb[a] /= cps(a, a);
-    intermediateForEachSpinOrb[j] *= cps(j, j);
-    intermediateForEachSpinOrb[b] /= cps(b, b);
-    //initHelper(cps, d);
-  }
-
-
-  double OverlapRatio(int i, int a, const relJastrow& cps,
-                      const relDeterminant &dcopy, const relDeterminant &d) const
-  {
-    return intermediateForEachSpinOrb[a]/intermediateForEachSpinOrb[i]/cps(i,a);
-  }
-  
-  double OverlapRatio(int i, int j, int a, int b, const relJastrow& cps,
-                      const relDeterminant &dcopy, const relDeterminant &d) const
-  {
-    return intermediateForEachSpinOrb[a]*intermediateForEachSpinOrb[b]*cps(a,b)*cps(i,j)
-        /intermediateForEachSpinOrb[i]/intermediateForEachSpinOrb[j]/
-        cps(i,a)/cps(j,a)/cps(i,b)/cps(j,b);
-  }
-};
 
 /*
   

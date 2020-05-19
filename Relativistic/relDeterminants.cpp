@@ -25,6 +25,7 @@
 #include "Determinants.h"
 #include "input.h"
 #include "relWorkingArray.h"
+#include "workingArray.h"
 
 using namespace std;
 using namespace Eigen;
@@ -103,6 +104,7 @@ void relDeterminant::getOpenClosedAlphaBeta( std::vector<int>& openAlpha,
                                           std::vector<int>& closedBeta
                                           ) const {
   for (int i=0; i<norbs; i++) {
+    //cout << "norbs " << norbs << "  i " << i << endl;
     if ( getoccA(i)) closedAlpha.push_back(i);
     else openAlpha.push_back(i);
     if ( getoccB(i)) closedBeta.push_back(i);
@@ -173,8 +175,109 @@ double relDeterminant::parityA(const int& a, const int& i) const {
   parity *= (occ%2==0) ? 1.: -1.;
   if (i < a) parity *= -1.;
     
+  //cout << "parityA: " << i << " " << a << "   " << parity << endl;
   return parity;
 }
+
+
+double relDeterminant::relParityProbablyWrong(const int& a, const int& i) const {
+  double parity = 1.0;
+
+  int occA = getNalphaBefore(i);
+  occA += getNalphaBefore(a);
+
+  int occB = getNbetaBefore(i);
+  occB += getNbetaBefore(a);
+
+  int occ = occA + occB;
+
+  parity *= (occ%2==0) ? 1.: -1.;
+  if (i < a) parity *= -1.;
+    
+  return parity;
+}
+
+double relDeterminant::relParity(const int& a, const int& i) const {
+  double parity = 1.0;
+  int occ = 0;
+  if (i%2==0) {
+    int occA = getNalphaBefore(norbs+1);
+    occA -= getNalphaBefore((i/2)+1);
+    int occB = getNbetaBefore(a/2);
+    occ = occA + occB;
+  }
+  else {
+    int occB = getNbetaBefore(i/2);
+    int occA = getNalphaBefore(norbs+1);
+    occA -= getNalphaBefore((a/2)+1);
+    occ = occA + occB;
+  }
+
+  parity *= (occ%2==0) ? 1.: -1.;
+  //if (i < a) parity *= -1.; // EDIT THINK: unsure about this
+  //if (i < a) cout << "noif" << endl;  
+  //cout << "relParity: " << i << " " << a << "   " << parity << endl;
+  
+  return parity;
+}
+
+double relDeterminant::relParity_old(const int& a, const int& i) const {
+  double parity = 1.0;
+
+  int occA = getNalphaBefore(norbs);
+  occA -= getNalphaBefore(i);
+
+  int occB = getNbetaBefore(a);
+
+  int occ = occA + occB;
+
+  parity *= (occ%2==0) ? 1.: -1.;
+  if (i < a) parity *= -1.; // EDIT THINK: unsure about this
+  //if (i < a) cout << "noif" << endl;  
+  
+  return parity;
+}
+
+
+double relDeterminant::relParityAsInDice(const int& a, const int& i) const { //EDIT CHECK: highly unsure about this! especially since from DICE, which has a different format 
+  long repr[DetLen*2];
+  long one = 1;
+
+  for (int ii=0; ii<DetLen*2; ii++) {
+    repr[ii] = 0;
+    long Integer = ii/64, bit = ii%64;
+    if (getocc(ii)) repr[Integer] |= one << bit;
+  //                        else
+  //                              repr[Integer] &= ~(one<<bit);
+  }
+
+  double parity = 1.0;
+
+  int start = i;
+  int end = a;
+
+
+  long mask = (one<< (start%64))-one;
+  long result = repr[start/64]&mask;
+  int nonZeroBits = -CountNonZeroBits(result);
+
+  for (int ii=start/64; ii<end/64; ii++) {
+    nonZeroBits += CountNonZeroBits(repr[ii]);
+  }
+  mask = (one<< (end%64) )-one;
+
+  result = repr[end/64] & mask;
+  nonZeroBits += CountNonZeroBits(result);
+
+  parity *= (-2.*(nonZeroBits%2)+1);
+  if (getocc(start)) parity *= -1.;
+
+  return parity;
+}
+
+
+
+
 
 double relDeterminant::parity(const int& a, const int& i, const bool& sz) const {
   if (sz == 0) return parityA(a, i);
@@ -367,7 +470,7 @@ ostream& operator<<(ostream& os, const relDeterminant& d) {
       os<<"b"<<" ";
     else if (d.getoccA(i)==true && d.getoccB(i) == true)
       os<<2<<" ";
-    if ( (i+1)%5 == 0)
+    if ( (i+1)%5 == 0 && i+1<d.norbs)
       os <<"  ";
   }
   return os;
@@ -376,7 +479,7 @@ ostream& operator<<(ostream& os, const relDeterminant& d) {
 
 //=============================================================================
 std::complex<double> relDeterminant::Energy(const oneIntSOC& I1, const twoInt&I2, const double& coreE) const {
-  std::complex<double> energy = 0.0;
+  std::complex<double> energy = 0.0 + 0.0i;
   size_t one = 1;
   vector<int> closed;
   for(int i=0; i<DetLen; i++) {
@@ -397,12 +500,12 @@ std::complex<double> relDeterminant::Energy(const oneIntSOC& I1, const twoInt&I2
 
   for (int i=0; i<closed.size(); i++) {
     int I = closed.at(i);
-    energy += I1(I,I); //EDIT; now energy complex
+    energy += I1(I,I);
 
     for (int j=i+1; j<closed.size(); j++) {
       int J = closed.at(j);
       energy += I2.Direct(I/2,J/2);
-      if ( (I%2) == (J%2) ) {
+      if ( (I%2) == (J%2) ) { //EDIT THINK: maybe here another term needs to be added? highly doubt i highly doubt itt
         energy -= I2.Exchange(I/2, J/2);
       }
     }
@@ -465,6 +568,7 @@ std::complex<double> relDeterminant::Hij_1ExciteScreened(const int& a, const int
                                         const twoIntHeatBathSHM& I2hb, const double& TINY,
                                         bool doparity) const {
 
+  //cout << "Hij_1ExciteScreened" << endl;
   std::complex<double> tia = I1SOC(a, i);
   int X = max(i/2, a/2), Y = min(i/2, a/2);
   int pairIndex = X * (X + 1) / 2 + Y;
@@ -477,11 +581,13 @@ std::complex<double> relDeterminant::Hij_1ExciteScreened(const int& a, const int
     if (fabs(integrals[index]) < TINY)
       break;
     int j = orbIndices[2 * index];
-    if (i % 2 == 1 && j % 2 == 1)
+    //cout << "j before: " << j << endl;
+    if (i % 2 == 1 && j % 2 == 1) //EDIT THINK: maybe something for spin flip needed here? doubt it
       j--;
     else if (i % 2 == 1 && j % 2 == 0)
       j++;
     
+    //cout << "j after: " << j << "  occ(j)  " << getocc(j) << endl;
     if (getocc(j) )
       tia += integrals[index];
   }
@@ -585,7 +691,7 @@ CItype Hij(const Determinant& bra, const Determinant& ket, const oneInt& I1,
     b = u & bra.reprB[i]; //the cre bits
     k = u & ket.reprB[i]; //the des bits
 
-    while(b != 0) {
+  while(b != 0) {
       int pos = __builtin_ffsl(b);
       cre[ncrea+ncreb] = 2*(pos-1+i*64)+1;
       ncreb++;
@@ -871,7 +977,7 @@ void getDifferenceInOccupation(const Determinant &bra, const Determinant &ket, i
 }
 
 */
-double getParityForDiceToAlphaBeta(const relDeterminant& det) 
+double getParityForDiceToAlphaBeta(const relDeterminant& det) // EDIT THINK: look at this 
 {
   double parity = 1.0;
   int nalpha = det.Nalpha();
@@ -963,18 +1069,128 @@ void generateAllScreenedSingleExcitation(const relDeterminant& d,
   vector<int> open;
   d.getOpenClosed(open, closed);
 
+  cout << "in generateAllSinge, closed size: " << closed.size() << "  open size: " << open.size() << endl;
+
   for (int i = 0; i < closed.size(); i++) {
     for (int a = 0; a < open.size(); a++) {
-      //if (closed[i] % 2 == open[a] % 2) //EDIT: is this where the spin is conserved?
-      //{
-        int I = closed[i] / 2, A = open[a] / 2;
-
+      if (closed[i] % 2 == open[a] % 2)
+      {
         const std::complex<double> tia = d.Hij_1ExciteScreened(open[a], closed[i], I2hb, TINY, doparity);
-        
+        //cout << "single ex, i: " << closed[i] << " a: " << open[a] << " tia: " << tia << endl; 
         if (abs(tia) > THRESH) {
           work.appendValue(0., closed[i]*2*norbs+open[a], 0, tia);
         }
-      //}
+      }
+      /*
+      else if (1==0 && closed[i]%2 != open[a]%2) { //EDIT: Here spin flip excitations, else if actually not needed
+        double sgn = 1.0;
+        //d.parity(min(open[a],closed[i]), max(open[a],closed[i]),sgn);
+        sgn = d.relParity(min(open[a],closed[i]), max(open[a],closed[i])); // EDIT CHECK
+        const std::complex<double> tia = I1SOC(open[a], closed[i])*sgn; //EDIT THINK: not entirely sure about sign
+        if (abs(tia) > THRESH) {
+          work.appendValue(0., closed[i]*2*norbs+open[a], 0, tia);
+        }
+      }
+      */
+    }
+  }
+
+}
+
+
+
+void generateNoSpinFlipScreenedSingleExcitation(const relDeterminant& d,
+                                                const double& THRESH,
+                                                const double& TINY,
+                                                relWorkingArray& work,
+                                                bool doparity) {
+  int norbs = relDeterminant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+
+  //cout << "in generateAllSinge, closed size: " << closed.size() << "  open size: " << open.size() << endl;
+
+  for (int i = 0; i < closed.size(); i++) {
+    for (int a = 0; a < open.size(); a++) {
+      if (closed[i] % 2 == open[a] % 2)
+      {
+        const std::complex<double> tia = d.Hij_1ExciteScreened(open[a], closed[i], I2hb, TINY, doparity);
+        //cout << "single ex, i: " << closed[i] << " a: " << open[a] << " tia: " << tia << endl; 
+        if (abs(tia) > THRESH) {
+          work.appendValue(0., closed[i]*2*norbs+open[a], 0, tia);
+        }
+      }
+    }
+  }
+
+}
+
+
+void generateAllScreenedSingleExcitation(const relDeterminant& d,
+                                         const double& THRESH,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         bool doparity) {
+  int norbs = relDeterminant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+
+  cout << "in generateAllSinge, closed size: " << closed.size() << "  open size: " << open.size() << endl;
+
+  for (int i = 0; i < closed.size(); i++) {
+    for (int a = 0; a < open.size(); a++) {
+      if (closed[i] % 2 == open[a] % 2)
+      {
+        const std::complex<double> tia = d.Hij_1ExciteScreened(open[a], closed[i], I2hb, TINY, doparity);
+        //cout << "single ex, i: " << closed[i] << " a: " << open[a] << " tia: " << tia << endl; 
+        if (abs(tia) > THRESH) {
+          work.appendValue(0., closed[i]*2*norbs+open[a], 0, abs(tia));
+        }
+      }
+      else if (1 == 0 && closed[i]%2 != open[a]%2) { //EDIT: Here spin flip excitations, else if actually not needed
+        double sgn = 1.0;
+        //d.parity(min(open[a],closed[i]), max(open[a],closed[i]),sgn);
+        sgn = d.relParity(min(open[a],closed[i]), max(open[a],closed[i])); // EDIT CHECK
+        const std::complex<double> tia = I1SOC(open[a], closed[i])*sgn; //EDIT THINK: not entirely sure about sign
+        if (abs(tia) > THRESH) {
+          work.appendValue(0., closed[i]*2*norbs+open[a], 0, abs(tia));
+        }
+      }
+    }
+  }
+
+}
+
+void generateAllSingleExcitation(const relDeterminant& d,
+                                 relWorkingArray& work,
+                                 bool doparity) {
+
+  int norbs = relDeterminant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+  double TINY = 0.0;
+
+  //cout << "in generateAllSinge, closed size: " << closed.size() << "  open size: " << open.size() << endl;
+
+  for (int i = 0; i < closed.size(); i++) {
+    for (int a = 0; a < open.size(); a++) {
+      if (closed[i] % 2 == open[a] % 2)
+      {
+        const std::complex<double> tia = d.Hij_1ExciteScreened(open[a], closed[i], I2hb, TINY, doparity);
+        //cout << "single ex, i: " << closed[i] << " a: " << open[a] << " tia: " << tia << endl; 
+        work.appendValue(0., closed[i]*2*norbs+open[a], 0, tia);
+      }
+      else if (closed[i]%2 != open[a]%2) { //EDIT: Here spin flip excitations, else if actually not needed
+        double sgn = 1.0;
+        //d.parity(min(open[a],closed[i]), max(open[a],closed[i]),sgn);
+        if (doparity) sgn = d.relParity(min(open[a],closed[i]), max(open[a],closed[i])); // EDIT CHECK
+        const std::complex<double> tia = I1SOC(open[a], closed[i])*sgn; //EDIT THINK: not entirely sure about sign
+        work.appendValue(0., closed[i]*2*norbs+open[a], 0, tia);
+        //cout << "in all sing: " << closed[i] << " " << open[a] << " " << tia << endl;
+      }
     }
   }
 
@@ -1008,28 +1224,85 @@ void generateAllScreenedDoubleExcitation(const relDeterminant& d,
         
         // otherwise: generate the determinant corresponding to the current excitation
         int a = 2 * orbIndices[2 * index] + closed[i] % 2,
-            b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;  // EDIT: spin is conserved for both
-
-        int a_flip = 2 * orbIndices[2 * index] + (1 - (closed[i] % 2)),
-            b_flip = 2 * orbIndices[2 * index + 1] + (1 - (closed[j] % 2));  // EDIT: spin is flipped
+            b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;  // EDIT: spin is conserved for both, since spin-flip excitations have a zero transition matrix element
 
         if (!(d.getocc(a) || d.getocc(b))) {
           work.appendValue(0.0, closed[i] * 2 * norbs + a, closed[j] * 2 * norbs + b, integrals[index]);
         }
-        if (!(d.getocc(a) || d.getocc(b_flip))) {
+/*
+        int a_flip = 2 * orbIndices[2 * index] + (1 - (closed[i] % 2)),
+            b_flip = 2 * orbIndices[2 * index + 1] + (1 - (closed[j] % 2));  // EDIT OLD: spin is flipped, not needed
+
+        if (!(d.getocc(a) || d.getocc(b_flip)) && (a>b_flip)) {
           work.appendValue(0.0, closed[i] * 2 * norbs + a, closed[j] * 2 * norbs + b_flip, integrals[index]);
         }
-        if (!(d.getocc(a_flip) || d.getocc(b))) {
+        if (!(d.getocc(a_flip) || d.getocc(b)) && (a_flip>b)) {
           work.appendValue(0.0, closed[i] * 2 * norbs + a_flip, closed[j] * 2 * norbs + b, integrals[index]);
         }
-        if (!(d.getocc(a_flip) || d.getocc(b_flip))) {
+        if (!(d.getocc(a_flip) || d.getocc(b_flip)) && (a_flip>b_flip)) {
+          cout << "i, j: " << i << " " << j << " a_flip, b_flip: " << a_flip << " " << b_flip << endl;
           work.appendValue(0.0, closed[i] * 2 * norbs + a_flip, closed[j] * 2 * norbs + b_flip, integrals[index]);
         }
+*/
       }
     }
   }
-
 }
+
+
+void generateAllScreenedDoubleExcitation(const relDeterminant& d,
+                                         const double& THRESH,
+                                         const double& TINY,
+                                         workingArray& work,
+                                         bool doparity) {
+  int norbs = relDeterminant::norbs;
+  vector<int> closed;
+  vector<int> open;
+  d.getOpenClosed(open, closed);
+
+  int nclosed = closed.size();
+  for (int i=0; i<nclosed; i++) {
+    for (int j = 0; j<i; j++) {
+      
+      const float *integrals; const short* orbIndices;
+      size_t numIntegrals;
+      I2hb.getIntegralArray(closed[i], closed[j], integrals, orbIndices, numIntegrals);
+      size_t numLargeIntegrals = std::lower_bound(integrals, integrals + numIntegrals, THRESH, [](const float &x, float val){ return fabs(x) > val; }) - integrals;
+
+      // for all HCI integrals
+      for (size_t index = 0; index < numLargeIntegrals; index++)
+      {
+        // if we are going below the criterion, break
+        //if (fabs(integrals[index]) < THRESH)
+        //  break;
+        
+        // otherwise: generate the determinant corresponding to the current excitation
+        int a = 2 * orbIndices[2 * index] + closed[i] % 2,
+            b = 2 * orbIndices[2 * index + 1] + closed[j] % 2;  // EDIT: spin is conserved for both, since spin-flip excitations have a zero transition matrix element
+
+        if (!(d.getocc(a) || d.getocc(b))) {
+          work.appendValue(0.0, closed[i] * 2 * norbs + a, closed[j] * 2 * norbs + b, abs(integrals[index]));
+        }
+/*
+        int a_flip = 2 * orbIndices[2 * index] + (1 - (closed[i] % 2)),
+            b_flip = 2 * orbIndices[2 * index + 1] + (1 - (closed[j] % 2));  // EDIT OLD: spin is flipped, not needed
+
+        if (!(d.getocc(a) || d.getocc(b_flip)) && (a>b_flip)) {
+          work.appendValue(0.0, closed[i] * 2 * norbs + a, closed[j] * 2 * norbs + b_flip, integrals[index]);
+        }
+        if (!(d.getocc(a_flip) || d.getocc(b)) && (a_flip>b)) {
+          work.appendValue(0.0, closed[i] * 2 * norbs + a_flip, closed[j] * 2 * norbs + b, integrals[index]);
+        }
+        if (!(d.getocc(a_flip) || d.getocc(b_flip)) && (a_flip>b_flip)) {
+          cout << "i, j: " << i << " " << j << " a_flip, b_flip: " << a_flip << " " << b_flip << endl;
+          work.appendValue(0.0, closed[i] * 2 * norbs + a_flip, closed[j] * 2 * norbs + b_flip, integrals[index]);
+        }
+*/
+      }
+    }
+  }
+}
+
 
 
 /*
@@ -1079,7 +1352,9 @@ void comb(int N, int K, vector<vector<int>> &combinations)
   } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
 }
 
-void generateAllDeterminants(vector<Determinant>& allDets, int norbs, int nalpha, int nbeta) {
+*/
+
+void generateAllDeterminants(vector<relDeterminant>& allDets, int norbs, int nalpha, int nbeta) {
   vector<vector<int>> alphaDets, betaDets;
   comb(norbs, nalpha, alphaDets);
   comb(norbs, nbeta, betaDets);
@@ -1087,7 +1362,7 @@ void generateAllDeterminants(vector<Determinant>& allDets, int norbs, int nalpha
   for (int a = 0; a < alphaDets.size(); a++)
     for (int b = 0; b < betaDets.size(); b++)
     {
-      Determinant d;
+      relDeterminant d;
       for (int i = 0; i < alphaDets[a].size(); i++)
         d.setoccA(alphaDets[a][i], true);
       for (int i = 0; i < betaDets[b].size(); i++)
@@ -1100,6 +1375,43 @@ void generateAllDeterminants(vector<Determinant>& allDets, int norbs, int nalpha
 }
 
 
+void relComb(int N, int K, vector<vector<int>> &combinations) //EDIT: now all possible combinations, not spin restricted
+{
+  std::vector<int> bitmask(K, 1);
+  bitmask.resize(N, 0); // N-K trailing 0's
+
+  // print integers and permute bitmask
+  int index = 0;
+  do
+  {
+    vector<int> comb;
+    for (int i = 0; i < N; ++i) // [0..N-1] integers
+    {
+      if (bitmask[i] == 1)
+        comb.push_back(i);
+    }
+    combinations.push_back(comb);
+  } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
+}
+
+
+void relGenerateAllDeterminants(vector<relDeterminant>& allDets, int norbs, int nelec) {
+  vector<vector<int>> Dets; //EDIT: here more dets are generated for spin flip
+  
+  relComb(norbs*2, nelec, Dets);
+  
+  for (int a = 0; a < Dets.size(); a++){
+    relDeterminant d;
+    for (int i = 0; i < Dets[a].size(); i++){
+      if (Dets[a][i]%2==0) d.setoccA(Dets[a][i]/2, true);
+      else if (Dets[a][i]%2==1) d.setoccB(Dets[a][i]/2, true);
+    }
+    allDets.push_back(d);
+  }
+  Dets.clear();
+}
+
+/*
 void readrelDeterminants(std::string input, vector<relDeterminant> &determinants,
                       vector<double> &ciExpansion)
 {

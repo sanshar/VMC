@@ -17,10 +17,12 @@
   If not, see <http://www.gnu.org/licenses/>.
 */
 #include "integral.h"
+#include "input.h"
 #include "string.h"
 #include "global.h"
 #include <boost/algorithm/string.hpp>
 #include <algorithm>
+#include <complex>
 #include "math.h"
 #include "boost/format.hpp"
 #include <fstream>
@@ -763,7 +765,6 @@ void relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables(string fcidu
       }
     } // while
 
-    //exit(0);
     I2.maxEntry = *std::max_element(&I2.store[0], &I2.store[0]+I2memory,myfn);
     I2.Direct = MatrixXd::Zero(norbs, norbs); I2.Direct *= 0.;
     I2.Exchange = MatrixXd::Zero(norbs, norbs); I2.Exchange *= 0.;
@@ -774,38 +775,21 @@ void relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables(string fcidu
         I2.Exchange(i,j) = I2(2*i,2*j,2*j,2*i);
     }
 
-
 #ifndef SERIAL
-  } //commrank==0
+  }
+  if (commrank==0){
 #endif
+  if (schd.ifSOC == true){
 
- //initialize the heatbath integrals
- std::vector<int> allorbs;
- for (int i = 0; i < norbs; i++)
-   allorbs.push_back(i);
- twoIntHeatBath I2HB(1.e-10);
- 
- // EDIT DO: to prevent compile error, still unsure
-#ifndef SERIAL
- if (commrank == 0)
-   I2HB.constructClass(allorbs, I2, I1SOC, norbs);
-#endif
- I2hb.constructClass(norbs, I2HB);
+    // Read in SOC files
 
-
-#ifndef SERIAL
-  if (commrank == 0) {
-#endif
-    int norbs = I1SOC.norbs / 2; 
     vector<string> tok;
     string msg;
-
     // Read SOC.X
     {
       ifstream dump(str(boost::format("%s.X") % fileprefix));
       int N;
       dump >> N;
-      //cout << "N: " << N << " norbs: " << norbs << endl; 
       if (N != norbs) {
         cout << "number of orbitals in SOC.X should be equal to norbs in the "
                 "input file."
@@ -814,7 +798,6 @@ void relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables(string fcidu
         exit(0);
       }
 
-      // I1soc[1].store.resize(N*(N+1)/2, 0.0);
       while (!dump.eof()) {
         std::getline(dump, msg);
         trim(msg);
@@ -844,7 +827,6 @@ void relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables(string fcidu
         exit(0);
       }
 
-      // I1soc[2].store.resize(N*(N+1)/2, 0.0);
       while (!dump.eof()) {
         std::getline(dump, msg);
         trim(msg);
@@ -874,7 +856,6 @@ void relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables(string fcidu
         exit(0);
       }
 
-      // I1soc[3].store.resize(N*(N+1)/2, 0.0);
       while (!dump.eof()) {
         std::getline(dump, msg);
         trim(msg);
@@ -890,11 +871,11 @@ void relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables(string fcidu
             std::complex<double>(0, -integral); // beta, beta
       }  
     }
+
+  } // ifSOC = true
 #ifndef SERIAL
-    cout << "read in SOC files" << endl;
   } // commrank=0
 #endif
-
 #ifndef SERIAL
   mpi::broadcast(world, I1SOC, 0);
 
@@ -922,20 +903,17 @@ void relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables(string fcidu
   relDeterminant::nalpha = nalpha;
   relDeterminant::nbeta = nbeta;
 
-/*  
   //initialize the heatbath integrals
   std::vector<int> allorbs;
   for (int i = 0; i < norbs; i++)
     allorbs.push_back(i);
   twoIntHeatBath I2HB(1.e-10);
 
-  // EDIT DO: to prevent compile error, still unsure
 #ifndef SERIAL
   if (commrank == 0)
     I2HB.constructClass(allorbs, I2, I1SOC, norbs);
 #endif
   I2hb.constructClass(norbs, I2HB);
-*/
 } // end readIntegrals
 
 #endif

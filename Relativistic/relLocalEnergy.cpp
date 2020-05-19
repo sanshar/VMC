@@ -222,6 +222,7 @@ void getHfRelIndices(int i, int &relI, int a, int &relA, bool sz, const std::arr
 template<typename T>
 T JastrowSlaterLocalEnergy(const relDeterminant &D, const relWorkingArray &work, const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<T, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<T>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R)
 {
+    cout << "in JastrowSlaterLocalEnergy" << endl;
     int norbs = relDeterminant::norbs;
     int nalpha = relDeterminant::nalpha;
     int nbeta = relDeterminant::nbeta;
@@ -241,10 +242,10 @@ T JastrowSlaterLocalEnergy(const relDeterminant &D, const relWorkingArray &work,
 
         Complex<T>  ovlpRatio = 1.0;
 
-        if (j == b && b == 0) //single excitations
+        if (j == b && b == 0) //single excitations // EDIT THINK: so far only spin conserved, do we need a spin flip term ?
         {
             ovlpRatio *= Jmid[a] / Jmid[i] / J(std::max(i,a), std::min(i,a));
-            if (i % 2 == 0) //alphai //EDIT DO: maybe relevant spin flip
+            if (i % 2 == 0) //alpha
                 sz1 = 0; 
             else    //beta
                 sz1 = 1;
@@ -269,7 +270,7 @@ T JastrowSlaterLocalEnergy(const relDeterminant &D, const relWorkingArray &work,
                 sz1 = 0;
                 sz2 = 1;
             }
-            else  //ba to ba // EDIT DO: so far only spin conserved
+            else  //ba to ba // EDIT THINK: so far only spin conserved, do we need a spin flip term
             {
                 sz1 = 1;
                 sz2 = 0;
@@ -288,13 +289,13 @@ T JastrowSlaterLocalEnergy(const relDeterminant &D, const relWorkingArray &work,
         std::complex<T> ovlpRatio_as_std;
         ovlpRatio_as_std.real(ovlpRatio.real());
         ovlpRatio_as_std.imag(ovlpRatio.imag());
-        Eloc += (tia * ovlpRatio_as_std).real(); //EDIT DO: now complex energy
+        Eloc += (tia * ovlpRatio_as_std).real(); //EDIT DO: now real part taken
     }
     return Eloc;
 }    
 template
 double JastrowSlaterLocalEnergy(const relDeterminant &D, const relWorkingArray &work, const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<double, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<double>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<double>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
-//template  // EDIT might be needed
+//template
 //stan::math::var JastrowSlaterLocalEnergy(const Determinant &D, const relWorkingArray &work, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, Eigen::Dynamic> &J, const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> &Jmid, const std::array<Complex<stan::math::var>, 2> &thetaDet, const std::array<Eigen::Matrix<Complex<stan::math::var>, Eigen::Dynamic, Eigen::Dynamic>, 2> &R);
 
 // if also pfaffians, include here

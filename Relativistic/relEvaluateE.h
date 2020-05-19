@@ -28,34 +28,41 @@
 #include "sr.h"
 #include "linearMethod.h"
 #include "global.h"
-#include "Deterministic.h"
+#include "relDeterministic.h"
 #include "relContinuousTime.h"
 #include "Metropolis.h"
 #include <iostream>
 #include <fstream>
+#include "iowrapper.h"
 #include <boost/serialization/serialization.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <algorithm>
 #include "boost/format.hpp"
+#include <boost/algorithm/string.hpp>
+#include <math.h>
 
 #ifndef SERIAL
 #include "mpi.h"
+#include <boost/mpi/environment.hpp>
+#include <boost/mpi/communicator.hpp>
+#include <boost/mpi.hpp>
 #endif
+
 
 using namespace Eigen;
 using namespace std;
 using namespace boost;
 
 class oneInt;
+class oneIntSOC;
 class twoInt;
 class twoIntHeatBathSHM;
 
 
-#ifdef NOT
 
 //############################################################Deterministic Evaluation############################################################################
-
+#ifdef NOT
 void updateTwoRdm(int i, int j, int a, int b, int norbs, double contribution,
                   MatrixXd& twoRdm) {
   
@@ -71,19 +78,29 @@ void updateTwoRdm(int i, int j, int a, int b, int norbs, double contribution,
     twoRdm ( I*norbs+J, B*norbs+A) += -contribution;
   }
 }
+#endif
+
 
 template<typename Wfn, typename Walker>
-void getEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
+void relGetEnergyDeterministic(Wfn &w, Walker& walk, std::complex<double> &Energy)
 {
-  Deterministic<Wfn, Walker> D(w, walk);
-  Energy = 0.0;
+  relDeterministic<Wfn, Walker> D(w, walk);
+  Energy = 0.0 + 0.0i;
+  if (commrank == 0) cout << "alldets num " << D.allDets.size() << " commsize " << commsize << endl; 
   for (int i = commrank; i < D.allDets.size(); i += commsize)
   {
+    //cout << D.allDets[i] << endl;
     D.LocalEnergy(D.allDets[i]);
     D.UpdateEnergy(Energy);
   }
+  //cout << "before " << commrank << " " << Energy << " " << D.Overlap << endl;
   D.FinishEnergy(Energy);
+  //cout << "after " << commrank << " " << Energy << " " << D.Overlap << endl;
 }
+
+
+
+#ifdef NOT
 
 template<typename Wfn, typename Walker>
 void getTransEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
@@ -344,7 +361,7 @@ template<typename Wfn, typename Walker> void getDensityCorrelationsDeterministic
 }
   
 template<typename Wfn, typename Walker>
-void getGradientDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &grad)
+void relGetGradientDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &grad)
 {
   Deterministic<Wfn, Walker> D(w, walk);
   Energy = 0.0;
@@ -468,41 +485,70 @@ void getLanczosCoeffsDeterministic(Wfn &w, Walker &walk, double &alpha, Eigen::V
   lanczosCoeffs = coeffs / overlapTot;
 }
 
+
+
+
+#endif
+
+
 //############################################################Continuous Time Evaluation############################################################################
 template<typename Wfn, typename Walker> 
-void getStochasticEnergyContinuousTime(Wfn &w, Walker &walk, double &Energy, double &stddev, double &rk, int niter)
+void relGetStochasticEnergyContinuousTime(Wfn &w, Walker &walk, std::complex<double> &Energy, double &stddev, double &rk, int niter)
 {
-  ContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
-  Energy = 0.0, stddev = 0.0, rk = 0.0;
+  relContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
+  Energy = 0.0 + 0.0i, stddev = 0.0, rk = 0.0;
   CTMC.LocalEnergy();
   for (int iter = 0; iter < niter; iter++)
   {
     CTMC.MakeMove();
     CTMC.UpdateEnergy(Energy);
-    //CTMC.LocalEnergy();
     CTMC.LocalEnergy();
-    //CTMC.UpdateBestDet();
-    //CTMC.UpdateEnergy(Energy);
   }
   CTMC.FinishEnergy(Energy, stddev, rk);
-  //CTMC.FinishBestDet();
-}
+};
 
-#endif
+template<typename Wfn, typename Walker> 
+void relCompEnergyDeterministicContinuousTime(Wfn &w, Walker &walk, std::complex<double> &Energy, double &stddev, double &rk, int niter)
+{
+  relContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
+  relDeterministic<Wfn, Walker> D(w, walk);
+  Energy = 0.0 + 0.0i, stddev = 0.0, rk = 0.0;
+  CTMC.LocalEnergy();
+  D.LocalEnergy(walk.d);
+  for (int iter = 0; iter < niter; iter++)
+  {
+    CTMC.MakeMove();
+    CTMC.UpdateEnergy(Energy);
+    CTMC.LocalEnergy();
+    //D.LocalEnergy(walk.d);
+    //if (abs(D.Eloc-CTMC.Eloc)>1.0e-10){
+    if (iter==100){
+      cout << "First real diff " << walk.d << endl;
+      schd.ifSOC = true;
+      D.LocalEnergy(walk.d);
+      CTMC.LocalEnergy();
+    }
+  }
+  CTMC.FinishEnergy(Energy, stddev, rk);
+};
+
     
 template<typename Wfn, typename Walker>
-void relGetStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &Energy, double &stddev, VectorXd &grad, double &rk, int niter)
+void relGetStochasticGradientContinuousTime(Wfn &w, Walker &walk, std::complex<double> &Energy, double &stddev, VectorXd &grad, double &rk, int niter)
 {
   //cout << "here we go, iterations: " << niter << endl;
   relContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
-  Energy = 0.0, stddev = 0.0, rk = 0.0;
+  Energy = 0.0 + 0.0i, stddev = 0.0, rk = 0.0;
   grad.setZero();
   VectorXd grad_ratio_bar = VectorXd::Zero(grad.rows());
+  //cout << "before " << walk.d << endl;
   CTMC.LocalEnergy();
   CTMC.LocalGradient();
   for (int iter = 0; iter < niter; iter++)  // EDIT DO: during the loop, the energy should be complex
   {
+    //cout << walk.d << endl;
     CTMC.MakeMove();
+    //cout << walk.d << endl;
     CTMC.UpdateEnergy(Energy);
     CTMC.UpdateGradient(grad, grad_ratio_bar);
     CTMC.LocalEnergy();
@@ -510,7 +556,7 @@ void relGetStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &Energy
     CTMC.UpdateBestDet();
   }
   CTMC.FinishEnergy(Energy, stddev, rk); // EDIT DO: now only the real part should be taken into account
-  CTMC.FinishGradient(grad, grad_ratio_bar, Energy); // EDIT DO: now only the real part should be taken into account
+  CTMC.FinishGradient(grad, grad_ratio_bar, Energy.real()); // EDIT DO: now only the real part should be taken into account
   CTMC.FinishBestDet();
 }
     
@@ -1845,21 +1891,21 @@ class CorrSampleWrapper
 
 #endif
 
-template <typename Wfn, typename relWalker>
+template <typename Wfn, typename Walker>
 class relGetGradientWrapper
 {
  public:
   Wfn &w;
-  relWalker &walk;
+  Walker &walk;
   int stochasticIter;
   bool ctmc;
-  relGetGradientWrapper(Wfn &pw, relWalker &pwalk, int niter, bool pctmc) : w(pw), walk(pwalk)
+  relGetGradientWrapper(Wfn &pw, Walker &pwalk, int niter, bool pctmc) : w(pw), walk(pwalk)
   {
     stochasticIter = niter;
     ctmc = pctmc;
   };
 
-  double getGradient(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
+  double getGradient(VectorXd &vars, VectorXd &grad, std::complex<double> &E0, double &stddev, double &rt, bool deterministic)
   {
     w.updateVariables(vars);
     w.initWalker(walk);
@@ -1878,11 +1924,11 @@ class relGetGradientWrapper
     }
     else
     {
-      cout << "not implemented yet 0" << endl;
+      cout << "not implemented yet 1" << endl;
       exit (0);
       //stddev = 0.0;
       //rt = 1.0;
-      //getGradientDeterministic(w, walk, E0, grad);
+      //relGetGradientDeterministic(w, walk, E0, grad);
     }
     w.writeWave();
     return 1.0;
@@ -2015,5 +2061,61 @@ class relGetGradientWrapper
     w.writeWave();
     return 1.0;
   };
+};
+
+
+
+template <typename Wfn, typename Walker>
+class relGetEnergyWrapper
+{
+  public:
+    Wfn &w;
+    Walker &walk;
+    int stochasticIter = 0;
+    bool deterministic;
+
+    relGetEnergyWrapper(Wfn &pw, Walker &pwalk, bool pdet) : w(pw), walk(pwalk)
+    {
+      deterministic = pdet;
+      if (pdet == false) stochasticIter = schd.stochasticIter;
+    };
+
+    double getEnergy(VectorXd &vars, std::complex<double> &E0, double &stddev, double &rt)
+    {
+      w.updateVariables(vars);
+      w.initWalker(walk);
+      if (deterministic)
+      {
+        relGetEnergyDeterministic(w, walk, E0);
+        stddev=0.0;
+        rt=1.0;
+      }
+      else
+      {
+        //relCompEnergyDeterministicContinuousTime(w, walk, E0, stddev, rt, stochasticIter);
+        relGetStochasticEnergyContinuousTime(w, walk, E0, stddev, rt, stochasticIter);
+      }
+      return 1.0;
+  };
+};
+
+class eneOnly{
+  public:
+    int stochasticIter;
+    bool deterministic;
+
+    eneOnly (bool det) { deterministic = det; };
+
+    template<typename Function>
+    void relGetEnergy (VectorXd& vars, Function& getEne) {
+      double acceptedFrac;
+      std::complex<double> E0 =0.0 + 0.0i;
+      double stddev = 0.0, rt = 1.0;
+      
+      acceptedFrac = getEne (vars, E0, stddev, rt);
+
+      if (commrank==0 && schd.deterministic==false) cout << "Stochastic energy: " << E0 << " (" << stddev << ")" << endl;
+      else if (commrank==0) cout << "Deterministic energy: " << E0 << endl;
+    };
 };
 #endif

@@ -18,6 +18,7 @@
 */
 #ifndef INTEGRAL_HEADER_H
 #define INTEGRAL_HEADER_H
+#include <complex>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -229,6 +230,7 @@ class twoIntHeatBath {
         Singles = MatrixXd::Zero(2*norbs, 2*norbs);
         for (int i=0; i<2*norbs; i++)
           for (int a=0; a<2*norbs; a++) {
+            //cout << I1SOC(i,a) << std::abs(I1SOC(i,a)) << endl;
             Singles(i,a) = std::abs(I1SOC(i,a));
             for (int j=0; j<2*norbs; j++) {
               Singles(i,a) += std::abs(I2(i,a,j,j) - I2(i, j, j, a));

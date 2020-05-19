@@ -77,10 +77,11 @@ void relSlater::initHforbs()
     else if (schd.hf == "ghf") {
       hftype = HartreeFock::Generalized;
       size = 2*norbs;
+      //cout << "size " << size << endl;
     }
     MatrixXcd Hforbs = MatrixXcd::Zero(size, size);
     readMat(Hforbs, "hf.txt");
-    if (schd.ifComplex && Hforbs.imag().isZero(0)) Hforbs.imag() = 0.01 * MatrixXd::Random(size, size);
+    if (Hforbs.imag().isZero(0)) Hforbs.imag() = 0.01 * MatrixXd::Random(size, size); //EDIT: add random complex component if zero
     HforbsA = Hforbs;
     HforbsB = Hforbs;
   }

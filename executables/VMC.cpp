@@ -72,14 +72,6 @@ int main(int argc, char *argv[])
 {
 
 
-#ifndef Relativistic
-  if (schd.ifRelativistic == true) {
-    cout << "For relativistic calculations the vmc code must be compiled with the flag Relativistic. Abort" << endl;
-    exit(0);
-  }
-#endif
-
-
 #ifndef SERIAL
   boost::mpi::environment env(argc, argv);
   boost::mpi::communicator world;
@@ -116,25 +108,30 @@ int main(int argc, char *argv[])
     }
 
     
+#ifndef Relativistic
+  if (schd.ifRelativistic == true) {
+    cout << "For relativistic calculations the vmc code must be compiled with the flag Relativistic. Abort" << endl;
+    exit(0);
+  }
+#endif
 #ifdef Relativistic  
-    else if (schd.ifRelativistic == true && schd.ifSOC == true && schd.wavefunctionType == "relJastrowSlater") {
+/*
+    else if (schd.ifRelativistic == false && schd.deterministic == true && schd.wavefunctionType == "JastrowSlater") {
+      CorrelatedWavefunction<Jastrow, Slater> wave; Walker<Jastrow, Slater> walk;
+      runRelVMC(wave, walk);
+    }
+*/
+
+    else if (schd.ifRelativistic == true && schd.wavefunctionType == "relJastrowSlater") {
       relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables("FCIDUMP", "SOC");
-      if (commrank == 0) {
-        cout << "I1SOC" << endl;
-        cout << I1SOC(0,0) << endl;
-        cout << I1SOC(0,1) << endl;
-        cout << I1SOC(1,0) << endl;
-        cout << I1SOC(1,1) << endl;
-        cout << I1SOC(0,2) << endl;
-        cout << I1SOC(2,0) << endl;
-        //cout << I1SOC(20,20) << endl;
-      }
-      //relReadSOCIntegrals("SOC");
-      relCorrelatedWavefunction<relJastrow, relSlater> wave; relWalker<relJastrow, relSlater> walk;
-      if (commrank == 0) cout << "here" << endl;
+      relCorrelatedWavefunction<relJastrow, relSlater> wave; Walker<relJastrow, relSlater> walk;
       runRelVMC(wave, walk);
       //cout << "Relativistic block ended" << endl;
     }
+
+    else if (schd.ifRelativistic == true && !(schd.wavefunctionType == "relJastrowSlater"))
+      cout << "invalid input settings for relativistic calculation" << endl;
+
 #endif
 
 

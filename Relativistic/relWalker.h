@@ -48,26 +48,26 @@ using namespace Eigen;
  *
  **/
 
-template<typename Corr, typename Reference>
-struct relWalker { };
+//template<typename Corr, typename Reference>
+//struct Walker { };
 
 template<typename Corr>
-struct relWalker<Corr, relSlater> {
+struct Walker<Corr, relSlater> {
 
   relDeterminant d;
   WalkerHelper<Corr> corrHelper;
   WalkerHelper<relSlater> refHelper;
 
-  relWalker() {};
+  Walker() {};
   
-  relWalker(const Corr &corr, const relSlater &ref) 
+  Walker(const Corr &corr, const relSlater &ref) 
   {
     initDet(ref.getHforbsA().real(), ref.getHforbsB().real()); //EDIT DO: does walker need complex initialisation ?
     refHelper = WalkerHelper<relSlater>(ref, d);
     corrHelper = WalkerHelper<Corr>(corr, d);
   }
 
-  relWalker(const Corr &corr, const relSlater &ref, const relDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
+  Walker(const Corr &corr, const relSlater &ref, const relDeterminant &pd) : d(pd), refHelper(ref, pd), corrHelper(corr, pd) {}; 
 
   relDeterminant& getDet() {return d;}
   void readBestDeterminant(relDeterminant& d) const 
@@ -90,6 +90,7 @@ struct relWalker<Corr, relSlater> {
    */
   void guessBestDeterminant(relDeterminant& d, const Eigen::MatrixXd& HforbsA, const Eigen::MatrixXd& HforbsB) const 
   {
+    cout << "PROBLEM nonrelGuess " <<  nelec << endl;
     int norbs = relDeterminant::norbs;
     int nalpha = relDeterminant::nalpha;
     int nbeta = relDeterminant::nbeta;
@@ -135,8 +136,53 @@ struct relWalker<Corr, relSlater> {
     }
   }
 
+
+  void relGuessBestDeterminant(relDeterminant& d, const Eigen::MatrixXd& HforbsA) const //EDIT: no spin restriction for filling initial det
+  {
+    int norbs = relDeterminant::norbs;
+    int nelec = relDeterminant::nalpha + relDeterminant::nbeta;
+    //cout << "relGuess " <<  nelec << endl;
+    d = relDeterminant();
+    if (boost::iequals(schd.determinantFile, "")) {
+      for (int i = 0; i < nelec; i++) {
+        int bestorb = 0;
+        double maxovlp = 0;
+        for (int j = 0; j < norbs*2; j++) {
+          if (abs(HforbsA(j, i)) > maxovlp && !d.getocc(j)) {
+            maxovlp = abs(HforbsA(j, i));
+            bestorb = j;
+          }
+        }
+        //cout << bestorb << endl;
+        d.setocc(bestorb, true);
+      }
+    //cout << d << endl;
+    }
+    else if (boost::iequals(schd.determinantFile, "bestDet")) {
+      std::vector<relDeterminant> dets;
+      std::vector<double> ci;
+      readDeterminants(schd.determinantFile, dets, ci);
+      d = dets[0];
+    }
+  }
+
+
+  void relMakeHighlyExcitedDeterminant(relDeterminant& d) const //EDIT: no spin restriction for filling initial det
+  {
+    int norbs = relDeterminant::norbs;
+    int nelec = relDeterminant::nalpha + relDeterminant::nbeta;
+    cout << "relHighlyExcited " <<  nelec << endl;
+    d = relDeterminant();
+    for (int i = 0; i < nelec; i++) {
+      int bestorb = (norbs*2)-i-1;
+      d.setocc(bestorb, true);
+    }
+    cout << d << endl;
+  }
+
   void initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB) 
   {
+    //cout << "initDet " << schd.hf << endl;
     bool readDeterminant = false;
     char file[5000];
     sprintf(file, "BestDeterminant.txt");
@@ -148,9 +194,17 @@ struct relWalker<Corr, relSlater> {
     }
     if (readDeterminant)
       readBestDeterminant(d);
-    else
-      guessBestDeterminant(d, HforbsA, HforbsB);
+    else  //EDIT: different initialisation than other ghf, allows crazy spin states
+      relGuessBestDeterminant(d, HforbsA);
+      //relMakeHighlyExcitedDeterminant(d);
+    //else
+      //guessBestDeterminant(d, HforbsA, HforbsB);
   }
+
+
+
+
+
 
   std::complex<double> getIndividualDetOverlap(int i) const
   {
@@ -159,16 +213,20 @@ struct relWalker<Corr, relSlater> {
 
   std::complex<double> getDetOverlap(const relSlater &ref) const
   {
-    std::complex<double> ovlp = 0.0;
+    std::complex<double> ovlp = 0.0 + 0.0i;
     for (int i = 0; i < refHelper.thetaDet.size(); i++) {
+      //cout << "ci Exp " << ref.getciExpansion()[i] << " " << refHelper.thetaDet[i][1] << endl;
       ovlp += ref.getciExpansion()[i] * (refHelper.thetaDet[i][0] * refHelper.thetaDet[i][1]);
     }
     return ovlp;
   }
 
-  std::complex<double> getDetFactor(int i, int a, const relSlater &ref) const 
+  std::complex<double> getDetFactor(int i, int a, const relSlater &ref) const // EDIT DO: for spin flip 
   {
-    if (i % 2 == 0)
+    //cout << "in getDetFactor: " << i << "  " << a << endl;
+    if (i % 2 != a % 2)
+      return relGetDetFactor(i, a, ref);
+    else if (i % 2 == 0)
       return getDetFactor(i / 2, a / 2, 0, ref);
     else                                   
       return getDetFactor(i / 2, a / 2, 1, ref);
@@ -186,13 +244,52 @@ struct relWalker<Corr, relSlater> {
       return getDetFactor(I / 2, J / 2, A / 2, B / 2, 1, 0, ref);
   }
 
+
+  std::complex<double> relGetDetFactor(int i, int a, const relSlater &ref) const // EDIT: also for spin flip
+  {
+    //cout << "here GHF  " << i << "  " << a << "  " << endl;
+    int tableIndexi, tableIndexa;
+    refHelper.getRelIndicesGHF(i, tableIndexi, a, tableIndexa); // EDIT: computes the indexes differently for spin flip 
+    if (1==0 && i==3 && a==2) cout << "here  " << i << "  " << tableIndexi << "  " << a << "  " << tableIndexa << endl;
+
+    std::complex<double> detFactorNum = 0.0 + 0.0i;
+    std::complex<double> detFactorDen = 0.0 + 0.0i;
+    if (ref.getDeterminants().size() !=1 )
+       cout << "Problem, more than one det!" << endl;
+    for (int j = 0; j < ref.getDeterminants().size(); j++)
+    {
+      std::complex<double> factor0 = (refHelper.rTable[j][0](tableIndexa, tableIndexi) * refHelper.thetaDet[j][0] * refHelper.thetaDet[j][1]) * ref.getciExpansion()[j] /  getDetOverlap(ref);
+      detFactorNum += ref.getciExpansion()[j] * factor0 * (refHelper.thetaDet[j][0] * refHelper.thetaDet[j][1]);
+      detFactorDen += ref.getciExpansion()[j] * (refHelper.thetaDet[j][0] * refHelper.thetaDet[j][1]);
+      //cout << "rTab in relGetDetFac " << j << " " << refHelper.rTable[j][0] << tableIndexa << " " << tableIndexi << endl;
+      if (1==0 && i==3 && a==2) {
+        cout << "relGetDetFactor " << refHelper.rTable[j][0](tableIndexa, tableIndexi) << endl;//<< getDetOverlap(ref) << refHelper.thetaDet[j][0] << " " << i << " " << a << " " << tableIndexi << " " << tableIndexa << endl;
+        cout << "relGetDetFactor " << &(refHelper.rTable[j][0](tableIndexa, tableIndexi)) << endl;//<< getDetOverlap(ref) << refHelper.thetaDet[j][0] << " " << i << " " << a << " " << tableIndexi << " " << tableIndexa << endl;
+        cout << "relGetDetFactor " << &(refHelper.rTable[j][0]) << endl;//<< getDetOverlap(ref) << refHelper.thetaDet[j][0] << " " << i << " " << a << " " << tableIndexi << " " << tableIndexa << endl;
+        for (int i=0; i<(refHelper.rTable[j][0]).size();++i){        
+          cout << " i=" << i << " value=" << (refHelper.rTable[j][0]).coeff( i ) << std::endl;
+        }
+        cout << "\n";
+        cout << "relGetDetFactor " << (refHelper.rTable[j][0]).rows() << endl;//<< getDetOverlap(ref) << refHelper.thetaDet[j][0] << " " << i << " " << a << " " << tableIndexi << " " << tableIndexa << endl;
+        cout << "relGetDetFactor " << (refHelper.rTable[j][0]).cols() << endl;//<< getDetOverlap(ref) << refHelper.thetaDet[j][0] << " " << i << " " << a << " " << tableIndexi << " " << tableIndexa << endl;
+      }
+      //if (i==3 && a==2) cout << "relGetDetFactor " << std::end(refHelper.rTable[j][0]) << endl;//<< getDetOverlap(ref) << refHelper.thetaDet[j][0] << " " << i << " " << a << " " << tableIndexi << " " << tableIndexa << endl;
+      //if (i==3 && a==2) cout << "relGetDetFactor " << refHelper.rTable[j][0][tableIndexa][tableIndexi] << endl;//<< getDetOverlap(ref) << refHelper.thetaDet[j][0] << " " << i << " " << a << " " << tableIndexi << " " << tableIndexa << endl;
+      //cout << "relGetDetFactor " << getDetOverlap(ref) << refHelper.thetaDet[j][1] << " " << i << " " << a << " " << tableIndexi << " " << tableIndexa << endl;
+    }
+    return detFactorNum / detFactorDen;
+  }
+
+
   std::complex<double> getDetFactor(int i, int a, bool sz, const relSlater &ref) const
   {
+    //cout << "here  " << i << "  " << a << "  " << sz << endl;
     int tableIndexi, tableIndexa;
     refHelper.getRelIndices(i, tableIndexi, a, tableIndexa, sz); 
+    //cout << "here  " << i << "  " << tableIndexi << "  " << a << "  " << tableIndexa << endl;
 
-    std::complex<double> detFactorNum = 0.0;
-    std::complex<double> detFactorDen = 0.0;
+    std::complex<double> detFactorNum = 0.0 + 0.0i;
+    std::complex<double> detFactorDen = 0.0 + 0.0i;
     for (int j = 0; j < ref.getDeterminants().size(); j++)
     {
       std::complex<double> factor = (refHelper.rTable[j][sz](tableIndexa, tableIndexi) * refHelper.thetaDet[j][0] * refHelper.thetaDet[j][1]) * ref.getciExpansion()[j] /  getDetOverlap(ref);
@@ -226,6 +323,7 @@ struct relWalker<Corr, relSlater> {
 
   void update(int i, int a, bool sz, const relSlater &ref, const Corr &corr, bool doparity = true)
   {
+    //cout << "update" << endl;
     double p = 1.0;
     if (doparity) p *= d.parity(a, i, sz);
     d.setocc(i, sz, false);
@@ -244,8 +342,34 @@ struct relWalker<Corr, relSlater> {
     corrHelper.updateHelper(corr, d, i, a, sz);
   }
 
+
+  void relUpdate(int i, int a, const relSlater &ref, const Corr &corr, bool doparity = true) //EDIT: spin-flip updates
+  {
+    //cout << "relUpdate " << i << " " << a << endl;
+    //parSpinFlip *= -1.0;
+    double p = 1.0;
+    if (doparity) p *= d.relParity(a, i);
+    //cout << d << endl;
+    d.setocc(i, false);
+    d.setocc(a, true);
+    //cout << d << endl;
+    if (refHelper.hftype == Generalized) {
+      int norbs = relDeterminant::norbs;
+      vector<int> cre{ (a / 2) + norbs*(a%2)  }, des{ (i / 2) + norbs*(i%2) };
+      refHelper.relExcitationUpdateGhf(ref, cre, des, p, d);
+    }
+    else
+    {
+      cout << "not implemented yet, only ghf" << endl;
+      exit (0);
+    }
+    corrHelper.relUpdateHelper(corr, d, i, a);
+  }
+
+
   void update(int i, int j, int a, int b, bool sz, const relSlater &ref, const Corr& corr, bool doparity = true)
   {
+    //cout << "update" << endl;
     double p = 1.0;
     relDeterminant dcopy = d;
     if (doparity) p *= d.parity(a, i, sz);
@@ -266,11 +390,15 @@ struct relWalker<Corr, relSlater> {
     corrHelper.updateHelper(corr, d, i, j, a, b, sz);
   }
 
-  void updateWalker(const relSlater &ref, const Corr& corr, int ex1, int ex2, bool doparity = true)
+  void updateWalker(const relSlater &ref, const Corr& corr, int ex1, int ex2, bool doparity = true) // EDIT DO: maybe spin flip here
   {
+    //cout << "updateWalker" << endl;
     int norbs = relDeterminant::norbs;
     int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
     int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
+    //cout << "ex1, ex2: " << ex1 << " " << ex2 << " I, J, A, B: " << I << " " << J << " " << A << " " << B << endl;
+    //if (ex2 == 0) cout << "ex1, ex2: " << ex1 << " " << ex2 << " I, J, A, B: " << I << " " << J << " " << A << " " << B << endl;
+    //if (I%2 != A%2) cout << "spin flipped!" << endl;
     if (I % 2 == J % 2 && ex2 != 0) {
       if (I % 2 == 1) {
         update(I / 2, J / 2, A / 2, B / 2, 1, ref, corr, doparity);
@@ -278,6 +406,13 @@ struct relWalker<Corr, relSlater> {
       else {
         update(I / 2, J / 2, A / 2, B / 2, 0, ref, corr, doparity);
       }
+    }
+    else if (I%2 != A%2) {
+      //cout << "spin flipped! " << d << endl;
+      assert (ex2==0);
+      //cout << "now to relUpdate" << endl;
+      relUpdate(I, A, ref, corr, doparity);
+      //cout << "now on det " << d << endl;
     }
     else {
       if (I % 2 == 0)
@@ -298,6 +433,7 @@ struct relWalker<Corr, relSlater> {
 
   void exciteWalker(const relSlater &ref, const Corr& corr, int excite1, int excite2, int norbs)
   {
+    cout << "exciteWalker" << endl;
     int I1 = excite1 / (2 * norbs), A1 = excite1 % (2 * norbs);
 
     if (I1 % 2 == 0)
@@ -365,7 +501,7 @@ struct relWalker<Corr, relSlater> {
     relDeterminant walkerDet = d;
     relDeterminant refDet = ref.getDeterminants()[0];
 
-    //K and L are relative row and col indices
+    //K and exciterelative row and col indices
     int K = 0;
     for (int k = 0; k < norbs; k++) { //walker indices on the row
       if (walkerDet.getoccA(k)) {
@@ -373,6 +509,7 @@ struct relWalker<Corr, relSlater> {
         for (int l = 0; l < norbs; l++) {
           if (refDet.getoccA(l)) {
             grad(4 * k * norbs + 2 * l) += ((refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]) / detovlp).real();
+            //grad(4 * k * norbs + 2 * l + 1) += ((refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]) / detovlp).imag(); // EDIT DO: new formula for imag grad
             grad(4 * k * norbs + 2 * l + 1) += ((- refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]) / detovlp).imag();
             L++;
           }
@@ -380,6 +517,7 @@ struct relWalker<Corr, relSlater> {
         for (int l = 0; l < norbs; l++) {
           if (refDet.getoccB(l)) {
             grad(4 * k * norbs + 2 * norbs + 2 * l) += ((refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]) / detovlp).real();
+            //grad(4 * k * norbs + 2 * norbs + 2 * l + 1) += ((refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]) / detovlp).imag(); // EDIT DO
             grad(4 * k * norbs + 2 * norbs + 2 * l + 1) += ((- refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]) / detovlp).imag();
             L++;
           }
@@ -393,6 +531,7 @@ struct relWalker<Corr, relSlater> {
         for (int l = 0; l < norbs; l++) {
           if (refDet.getoccA(l)) {
             grad(4 * norbs * norbs +  4 * k * norbs + 2 * l) += ((refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)) / detovlp).real();
+            //grad(4 * norbs * norbs +  4 * k * norbs + 2 * l + 1) += ((refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)) / detovlp).imag(); // EDIT DO
             grad(4 * norbs * norbs +  4 * k * norbs + 2 * l + 1) += ((- refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)) / detovlp).imag();
             L++;
           } 
@@ -400,6 +539,7 @@ struct relWalker<Corr, relSlater> {
         for (int l = 0; l < norbs; l++) {
           if (refDet.getoccB(l)) {
             grad(4 * norbs * norbs +  4 * k * norbs + 2 * norbs + 2 * l) += ((refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)) / detovlp).real();
+            //grad(4 * norbs * norbs +  4 * k * norbs + 2 * norbs + 2 * l + 1) += ((refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)) / detovlp).imag(); // EDIT DO
             grad(4 * norbs * norbs +  4 * k * norbs + 2 * norbs + 2 * l + 1) += ((- refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)) / detovlp).imag();
             L++;
           }
@@ -413,7 +553,7 @@ struct relWalker<Corr, relSlater> {
   {
     std::complex<double> detovlp = getDetOverlap(ref);
     for (int i = 0; i < ref.ciExpansion.size(); i++)
-      grad[i] += (getIndividualDetOverlap(i) / detovlp).real(); // EDIT: probably CI coeffs should also be complex
+      grad[i] += (getIndividualDetOverlap(i) / detovlp).real();
     if (ref.determinants.size() <= 1 && schd.optimizeOrbs) {
       //if (hftype == UnRestricted)
       VectorXd gradOrbitals;
@@ -431,7 +571,7 @@ struct relWalker<Corr, relSlater> {
     }
   }
 
-  friend ostream& operator<<(ostream& os, const relWalker<Corr, relSlater>& w) {
+  friend ostream& operator<<(ostream& os, const Walker<Corr, relSlater>& w) {
     os << w.d << endl << endl;
     os << "alphaTable\n" << w.refHelper.rTable[0][0] << endl << endl;
     os << "betaTable\n" << w.refHelper.rTable[0][1] << endl << endl;

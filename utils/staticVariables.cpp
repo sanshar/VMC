@@ -28,12 +28,13 @@ int Determinant::EffDetLen = 1;
 char Determinant::Trev = 0;
 
 
+#ifdef Relativistic
 int relDeterminant::norbs = 1;
 int relDeterminant::nalpha = 1;
 int relDeterminant::nbeta = 1;
 int relDeterminant::EffDetLen = 1;
 char relDeterminant::Trev = 0;
-
+#endif
 
 vector<string> slaterParser::AtomSymbols{"X",\
                               "H" , "He", "Li", "Be", "B" , "C" , "N" , "O" , "F" , "Ne",\

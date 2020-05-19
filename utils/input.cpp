@@ -64,6 +64,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.ifComplex = false;
       schd.ifRelativistic = false;
       schd.ifSOC = false;
+      schd.onlyEne = false;
       schd.uagp = false;
       schd.maxIter = 50;
       schd.maxMacroIter = 1;
@@ -210,8 +211,11 @@ void readInput(string input, schedule& schd, bool print) {
 
       else if (boost::iequals(ArgName, "Relativistic")){
         schd.ifRelativistic = true;
-        if (boost::iequals(tok[1].c_str(), "MFSOC")){
-          schd.ifSOC = true;
+        for(std::vector<string>::iterator it = tok.begin(); it != tok.end(); ++it) {
+          if (boost::iequals(*it, "MFSOC"))
+            schd.ifSOC = true;
+          else if (boost::iequals(*it, "onlyEnergy"))
+            schd.onlyEne = true;
         }
       } 
 

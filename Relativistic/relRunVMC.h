@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include "input.h"
 #include "relEvaluateE.h"
+#include "evaluateE.h"
 #include "amsgrad.h"
 #include "relAMSGrad.h"
 #include "sgd.h"
@@ -31,12 +32,14 @@
 //#include "variance.h"
 
 using functor1r = boost::function<double (VectorXd&, VectorXd&, double&, double&, double&)>;
+using functor1rc = boost::function<double (VectorXd&, VectorXd&, std::complex<double>&, double&, double&)>;
+using functor2r = boost::function<double (VectorXd&, std::complex<double>&, double&, double&)>;
 
 
 
 
-template<typename Wave, typename relWalker>
-void runRelVMC(Wave& wave, relWalker& walk) {
+template<typename Wave, typename Walker>
+void runRelVMC(Wave& wave, Walker& walk) {
 
   if (schd.restart || schd.fullrestart)
     wave.readWave();
@@ -47,25 +50,56 @@ void runRelVMC(Wave& wave, relWalker& walk) {
   {
     cout << "Number of Jastrow vars: " << wave.getCorr().getNumVariables() << endl;
     cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getCorr().getNumVariables() << endl;
+    if (0==0) {
+      cout << "I1SOC" << endl;
+      cout << I1SOC(0,0) << endl;
+      cout << I1SOC(0,1) << endl;
+      cout << I1SOC(1,0) << endl;
+      cout << I1SOC(1,1) << endl;
+      cout << I1SOC(0,2) << endl;
+      cout << I1SOC(2,0) << endl;
+      cout << "I2" << endl;
+      cout << I2(0,0,0,0) << endl;
+      cout << I2(0,1,0,0) << endl;
+      cout << I2(0,1,2,3) << endl;
+      cout << I2(0,1,2,2) << endl;
+      cout << I2(0,2,3,3) << endl;
+    }
   }
 
-  relGetGradientWrapper<Wave, relWalker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
-  functor1r relGetStochasticGradient = boost::bind(&relGetGradientWrapper<Wave, relWalker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
-  
-  if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
-      if (schd.stepsizes.empty()) {
-        relAMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
-        optimizer.optimize(vars, relGetStochasticGradient, schd.restart);
-        cout << "amsgrad optimization done" << endl;
-      }
-      else {
-        //AMSGrad optimizer(schd.stepsizes, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
-        //optimizer.optimize(vars, getStochasticGradient, runCorrelatedSampling, schd.restart); 
-        cout << "Not yet implemented for rel" << endl;
-      }
+/*
+  if (schd.deterministic == true && schd.ifRelativistic == false){
+    if (commrank == 0) cout << "Deterministic calculation" << endl;
+    double Energy = 0.0;
+    getEnergyDeterministic(wave, walk, Energy);
+    cout << "Deterministic energy: " << Energy << endl;
+    exit (0);
+  }
+*/
+  // deterministic calculation
+  if (schd.onlyEne == true){
+    if (commrank == 0) cout << "Relativistic energy calculation" << endl;
+    relGetEnergyWrapper<Wave, Walker> wrapper(wave, walk, schd.deterministic);
+    functor2r relGetEne = boost::bind(&relGetEnergyWrapper<Wave, Walker>::getEnergy, &wrapper, _1, _2, _3, _4);
+    eneOnly eo(schd.deterministic);
+    eo.relGetEnergy(vars, relGetEne);
+  }
+  else if (schd.onlyEne == false && (schd.method == amsgrad || schd.method == amsgrad_sgd)) {
+    if (commrank == 0) cout << "Relativistic vmc calculation" << endl;
+    relGetGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
+    functor1rc relGetGradient = boost::bind(&relGetGradientWrapper<Wave, Walker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
+    if (schd.stepsizes.empty()) {
+      relAMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+      optimizer.optimize(vars, relGetGradient, schd.restart);
+    }
+    else {
+      //AMSGrad optimizer(schd.stepsizes, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
+      //optimizer.optimize(vars, getStochasticGradient, runCorrelatedSampling, schd.restart); 
+      cout << "Not yet implemented for rel" << endl;
+    }
   }
   else {
-    cout << "No valid optimizer option selected for relativistic calculation" << endl;
+    cout << "No valid option selected for relativistic calculation" << endl;
   }
   
 /*
