@@ -98,7 +98,7 @@ class relContinuousTime
     //cumTc += Tc;
     cumT2 += T * T;
     //cout << "Next Det: " << nextDet << " " << nextDetRand << " " << cumOvlp << " " << work.nExcitations << endl;
-    if (0==1) {
+    if (schd.doPrint==true && commrank==0) {
       ofstream file;
       file.open("det_T.txt", std::ios_base::app);
       file << walk.d << ",  " << T << endl;

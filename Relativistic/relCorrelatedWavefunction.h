@@ -322,9 +322,7 @@ struct relCorrelatedWavefunction {
       //cout << "ovlp in ham " << ovlpRatio << " i " << I << " j " << J << " a " << A << " b " << B << endl;
     }
     
-    if (0==1 && commrank==0) { // && ham.real() < -107.0) {
-      //cout << "   ham   "  << ham  << endl;
-      //cout << "Det " << walk.d << " Eloc  " << ham << "  ovlp  " << ovlp << "  n ex  " << work.nExcitations << endl;
+    if (schd.doPrint==true && commrank==0) {
       ofstream file;
       file.open("det_eloc_ovlp.txt", std::ios_base::app);
       file << std::setprecision(20) << walk.d << ",  " << ham << ",  " << ovlp << endl;

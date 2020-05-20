@@ -359,12 +359,13 @@ template<typename Wfn, typename Walker> void getDensityCorrelationsDeterministic
 
   corr = corr / Overlap;
 }
-  
+#endif  
+
 template<typename Wfn, typename Walker>
-void relGetGradientDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &grad)
+void relGetGradientDeterministic(Wfn &w, Walker &walk, std::complex<double> &Energy, VectorXd &grad)
 {
-  Deterministic<Wfn, Walker> D(w, walk);
-  Energy = 0.0;
+  relDeterministic<Wfn, Walker> D(w, walk);
+  Energy = 0.0 + 0.0i;
   grad.setZero();
   VectorXd grad_ratio_bar = VectorXd::Zero(grad.rows());
   for (int i = commrank; i < D.allDets.size(); i += commsize)
@@ -378,6 +379,8 @@ void relGetGradientDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd 
   D.FinishGradient(grad, grad_ratio_bar, Energy);
 }
 
+
+#ifdef NOT
 template<typename Wfn, typename Walker>
 void getGradientMetricDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &grad, VectorXd &H, DirectMetric &S)
 {
@@ -1924,11 +1927,11 @@ class relGetGradientWrapper
     }
     else
     {
-      cout << "not implemented yet 1" << endl;
-      exit (0);
-      //stddev = 0.0;
-      //rt = 1.0;
-      //relGetGradientDeterministic(w, walk, E0, grad);
+      //cout << "not implemented yet 1" << endl;
+      //exit (0);
+      stddev = 0.0;
+      rt = 1.0;
+      relGetGradientDeterministic(w, walk, E0, grad);
     }
     w.writeWave();
     return 1.0;

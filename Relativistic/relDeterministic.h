@@ -82,17 +82,17 @@ class relDeterministic
 
   void UpdateGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar)
   {
-    grad += grad_ratio * Eloc * ovlp * ovlp;
-    grad_ratio_bar += grad_ratio * ovlp * ovlp;
+    grad += grad_ratio * Eloc.real() * std::abs(ovlp) * std::abs(ovlp);
+    grad_ratio_bar += grad_ratio * std::abs(ovlp) * std::abs(ovlp);
   }
 
-  void FinishGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, const double &Energy)
+  void FinishGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, const std::complex<double> &Energy)
   {
 #ifndef SERIAL
     MPI_Allreduce(MPI_IN_PLACE, (grad_ratio_bar.data()), grad_ratio_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, (grad.data()), grad_ratio.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-    grad = (grad - Energy * grad_ratio_bar) / Overlap;
+    grad = (grad - Energy.real() * grad_ratio_bar) / Overlap;
   }
 
   void LocalEnergyGradient()

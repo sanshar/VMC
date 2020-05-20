@@ -65,6 +65,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.ifRelativistic = false;
       schd.ifSOC = false;
       schd.onlyEne = false;
+      schd.doPrint = false;
       schd.uagp = false;
       schd.maxIter = 50;
       schd.maxMacroIter = 1;
@@ -218,6 +219,9 @@ void readInput(string input, schedule& schd, bool print) {
             schd.onlyEne = true;
         }
       } 
+
+      else if (boost::iequals(ArgName, "print"))
+        schd.doPrint = true;
 
       else if (boost::iequals(ArgName, "uagp"))
 	    schd.uagp = true;
