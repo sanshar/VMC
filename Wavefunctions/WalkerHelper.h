@@ -668,6 +668,7 @@ class WalkerHelper<Jastrow>
   }
 
   void initHelper(const Jastrow& cps, const Determinant& d) {
+    cout << "PROBLEM! Wrong walker helper for relativistic!" << endl;
     int norbs = Determinant::norbs;
 
     vector<int> closed;

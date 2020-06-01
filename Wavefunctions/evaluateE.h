@@ -73,6 +73,7 @@ void getEnergyDeterministic(Wfn &w, Walker& walk, double &Energy)
 {
   Deterministic<Wfn, Walker> D(w, walk);
   Energy = 0.0;
+  cout << "Det num " << D.allDets.size() << endl;
   for (int i = commrank; i < D.allDets.size(); i += commsize)
   {
     D.LocalEnergy(D.allDets[i]);

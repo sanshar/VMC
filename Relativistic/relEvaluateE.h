@@ -539,19 +539,15 @@ void relCompEnergyDeterministicContinuousTime(Wfn &w, Walker &walk, std::complex
 template<typename Wfn, typename Walker>
 void relGetStochasticGradientContinuousTime(Wfn &w, Walker &walk, std::complex<double> &Energy, double &stddev, VectorXd &grad, double &rk, int niter)
 {
-  //cout << "here we go, iterations: " << niter << endl;
   relContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
   Energy = 0.0 + 0.0i, stddev = 0.0, rk = 0.0;
   grad.setZero();
   VectorXd grad_ratio_bar = VectorXd::Zero(grad.rows());
-  //cout << "before " << walk.d << endl;
   CTMC.LocalEnergy();
   CTMC.LocalGradient();
   for (int iter = 0; iter < niter; iter++)  // EDIT DO: during the loop, the energy should be complex
   {
-    //cout << walk.d << endl;
     CTMC.MakeMove();
-    //cout << walk.d << endl;
     CTMC.UpdateEnergy(Energy);
     CTMC.UpdateGradient(grad, grad_ratio_bar);
     CTMC.LocalEnergy();
