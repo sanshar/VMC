@@ -380,6 +380,48 @@ void relGetGradientDeterministic(Wfn &w, Walker &walk, std::complex<double> &Ene
 }
 
 
+
+template<typename Wfn, typename Walker>
+double relGetGradientPenaltyDeterministic(Wfn &w, Walker &walk, std::complex<double> &Energy, VectorXd &grad, std::vector<Wfn> &ls)
+{
+  double OP = 0;
+  std::vector<std::complex<double>> ovlpPen;
+  std::vector<VectorXd> gradPen;
+  for (int i=0; i<schd.excitedState; i++){
+     ovlpPen.push_back(0.0);
+     gradPen.push_back(VectorXd::Zero(grad.rows()));
+  }
+  Energy = 0.0 + 0.0i;
+  relDeterministic<Wfn, Walker> D(w, walk);
+  grad.setZero();
+  VectorXd grad_ratio_bar = VectorXd::Zero(grad.rows());
+  for (int i = commrank; i < D.allDets.size(); i += commsize)
+  {
+    // Overlap Penalty
+    D.LocalOverlap(D.allDets[i], ls);
+    // Local Energy
+    D.LocalEnergy(D.allDets[i]);
+    D.LocalGradient();
+    D.UpdateEnergy(Energy);
+    D.UpdateGradient(grad, grad_ratio_bar);
+    D.UpdateOverlap(ovlpPen);
+    D.UpdateGradientPenalty(gradPen, ovlpPen);
+  }
+  D.FinishEnergy(Energy); 
+  D.FinishOverlap(ovlpPen); 
+  D.FinishGradient(grad, grad_ratio_bar, Energy);
+  D.FinishGradientPenalty(gradPen, grad_ratio_bar, ovlpPen);
+  D.CombineGradients(grad, gradPen);
+  if (0==0) {
+    cout << "OvlpPen with the " << schd.excitedState << " lower lying states: ";
+    for (int i=0; i<schd.excitedState; i++){
+      cout << std::abs(ovlpPen[i]) << "   " ;
+    }
+    cout << endl;
+  } 
+  return std::abs(ovlpPen[0]);
+}
+
 #ifdef NOT
 template<typename Wfn, typename Walker>
 void getGradientMetricDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &grad, VectorXd &H, DirectMetric &S)
@@ -1933,6 +1975,40 @@ class relGetGradientWrapper
     return 1.0;
   };
 
+
+  double getGradientPenalty(VectorXd &vars, VectorXd &grad, std::complex<double> &E0, double &stddev, double &rt, bool deterministic)
+  {
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    if (!deterministic)
+    {
+      if (ctmc)
+      {
+        cout << "not implemented yet 0" << endl;
+        exit (0);
+        //relGetStochasticGradientContinuousTime(w, walk, E0, stddev, grad, rt, stochasticIter);
+      }
+      else
+      {
+        //getStochasticGradientMetropolis(w, walk, E0, stddev, grad, rt, stochasticIter);
+        cout << "not implemented yet 0" << endl;
+        exit (0);
+      }
+    }
+    else
+    {
+      //cout << "not implemented yet 1" << endl;
+      //exit (0);
+      stddev = 0.0;
+      rt = 1.0;
+      relGetGradientPenaltyDeterministic(w, walk, E0, grad);
+    }
+    w.writeWave();
+    return 1.0;
+  };
+
+
+
   double getGradientRealSpace(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
   {
     double acceptedFrac;
@@ -2117,4 +2193,59 @@ class eneOnly{
       else if (commrank==0) cout << "Deterministic energy: " << E0 << endl;
     };
 };
+
+
+
+template <typename Wfn, typename Walker>
+class relGetGradientPenaltyWrapper
+{
+ public:
+  Wfn &w;
+  Walker &walk;
+  std::vector<Wfn> &ls;
+  int stochasticIter;
+  bool ctmc;
+  relGetGradientPenaltyWrapper(Wfn &pw, Walker &pwalk, int niter, bool pctmc, std::vector<Wfn> &pls) : w(pw), walk(pwalk), ls(pls)
+  {
+    stochasticIter = niter;
+    ctmc = pctmc;
+  };
+
+  double getGradientPenalty(VectorXd &vars, VectorXd &grad, std::complex<double> &Energy, double &stddev, double &rt, bool deterministic)
+  {
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    double OP = 0;
+    if (!deterministic)
+    {
+      if (ctmc)
+      {
+        cout << "not implemented yet 0" << endl;
+        exit (0);
+        //relGetStochasticGradientContinuousTime(w, walk, E0, stddev, grad, rt, stochasticIter);
+      }
+      else
+      {
+        //getStochasticGradientMetropolis(w, walk, E0, stddev, grad, rt, stochasticIter);
+        cout << "not implemented yet 0" << endl;
+        exit (0);
+      }
+    }
+    else
+    {
+      //cout << "not implemented yet 1" << endl;
+      //exit (0);
+      stddev = 0.0;
+      rt = 1.0;
+      OP = relGetGradientPenaltyDeterministic(w, walk, Energy, grad, ls);
+    }
+    w.writeWave();
+    return OP;
+  };
+
+};
+
+
+
+
 #endif

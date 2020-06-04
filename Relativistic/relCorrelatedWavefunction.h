@@ -238,6 +238,26 @@ struct relCorrelatedWavefunction {
   }
 
 
+  void readWave(int n)
+  {
+    if (commrank == 0)
+    {
+      char file[5000];
+      //sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
+      std::string s = std::to_string(n);
+      sprintf(file, (getfileName()+"_" + s +".bkp").c_str() );
+      std::ifstream infs(file, std::ios::binary);
+      boost::archive::binary_iarchive load(infs);
+      load >> *this;
+      infs.close();
+    }
+#ifndef SERIAL
+    boost::mpi::communicator world;
+    boost::mpi::broadcast(world, *this, 0);
+#endif
+  }
+
+
   //<psi_t| (H-E0) |D>
 
   void HamAndOvlp(const Walker<Corr, Reference> &walk,
@@ -382,7 +402,27 @@ struct relCorrelatedWavefunction {
     ovlpSample = ovlp[2];
   }
   
-};
 
+
+
+  void OvlpPenalty(const Walker<Corr, Reference> &walk, std::complex<double> &ovlp) const
+  {
+    ovlp = Overlap(walk);
+    
+
+    if (0==1 && commrank==0) cout << "In OvplPenalty: " << ovlp << endl;
+ 
+
+    
+    if (schd.doPrint==true && commrank==0) {
+      ofstream file;
+      file.open("det_penalty.txt", std::ios_base::app);
+      file << std::setprecision(20) << walk.d << ",  " << ovlp << endl;
+      file.close();
+    }
+  }
+
+
+};
 
 #endif

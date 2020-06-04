@@ -115,23 +115,14 @@ int main(int argc, char *argv[])
   }
 #endif
 #ifdef Relativistic  
-/*
-    else if (schd.ifRelativistic == false && schd.deterministic == true && schd.wavefunctionType == "JastrowSlater") {
-      CorrelatedWavefunction<Jastrow, Slater> wave; Walker<Jastrow, Slater> walk;
-      runRelVMC(wave, walk);
-    }
-*/
-
     else if (schd.ifRelativistic == true && schd.wavefunctionType == "relJastrowSlater") {
       relReadIntegralsWithSOCAndInitializeDeterminantStaticVariables("FCIDUMP", "SOC");
       relCorrelatedWavefunction<relJastrow, relSlater> wave; Walker<relJastrow, relSlater> walk;
       runRelVMC(wave, walk);
-      //cout << "Relativistic block ended" << endl;
     }
-
-    else if (schd.ifRelativistic == true && !(schd.wavefunctionType == "relJastrowSlater"))
+    else if (schd.ifRelativistic == true && !(schd.wavefunctionType == "relJastrowSlater")) {
       cout << "invalid input settings for relativistic calculation" << endl;
-
+    }
 #endif
 
 

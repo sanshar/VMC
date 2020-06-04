@@ -137,7 +137,117 @@ class relAMSGrad
             //cout << "in optimize loop iter: " << iter << endl;
             double E0, stddev = 0.0, rt = 1.0;
             std::complex<double> E0c = 0.0;
+            double OvlpPen;
+            double acceptedFrac = 0;
+
+            if (schd.excitedState == 0) acceptedFrac = getGradient(vars, grad, E0c, stddev, rt);
+            else if (schd.excitedState > 0) OvlpPen = getGradient(vars, grad, E0c, stddev, rt);
+            
+            //if (commrank==0) cout << grad << endl;
+            write(vars);
+            double oldNorm = stepNorm, dotProduct = 0.;
+            stepNorm = 0.;
+
+            if (commrank == 0)
+            {
+                for (int i = 0; i < vars.rows(); i++)
+                {
+                    mom1[i] = decay_mom1 * grad[i] + (1. - decay_mom1) * mom1[i];
+                    mom2[i] = max(mom2[i], decay_mom2 * grad[i]*grad[i] + (1. - decay_mom2) * mom2[i]);   
+                    if (schd.method == amsgrad)
+                    {
+                      double delta = stepsize * mom1[i] / (pow(mom2[i], 0.5) + 1.e-8);  
+                      vars[i] -= delta;
+                      stepNorm += delta * delta;
+                      dotProduct += delta * deltaVars[i];
+                      deltaVars[i] = delta;
+                    }
+                    else if(schd.method == amsgrad_sgd)
+                    {
+                        if (iter < schd.sgdIter)
+                        {
+                            vars[i] -= stepsize * grad[i];
+                        }
+                        else
+                        {
+                            double delta = stepsize * mom1[i] / (pow(mom2[i], 0.5) + 1.e-8);  
+                            vars[i] -= delta;
+                            stepNorm += delta * delta;
+                            dotProduct += delta * deltaVars[i];
+                            deltaVars[i] = delta;
+                        }
+                    }                        
+                }
+                stepNorm = pow(stepNorm, 0.5);
+                if (oldNorm != 0) angle = acos(dotProduct/stepNorm/oldNorm) * 180 / 3.14159265;
+            }
+
+#ifndef SERIAL
+            MPI_Bcast(&vars[0], vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+
+            if (commrank == 0)
+            {
+              if (schd.excitedState == 0) std::cout << format("%5i %14.8f (%8.2e) %14.8f %8.1f %8.1f %10i  %6.6f %8.2f %8.2f\n") % iter % E0c % stddev % (grad.norm()) % (rt) % acceptedFrac % (schd.stochasticIter) % (stepNorm) % (angle) % ((getTime() - startofCalc));
+              else if (schd.excitedState > 0) std::cout << format("%5i %14.8f (%8.2e) %14.8f %14.8f %8.1f %8.1f %10i  %6.6f %8.2f %8.2f\n") % iter % E0c % stddev % OvlpPen % (grad.norm()) % (rt) % acceptedFrac % (schd.stochasticIter) % (stepNorm) % (angle) % ((getTime() - startofCalc));
+            }
+            if (maxIter - iter <= avgIter) avgVars += vars;
+            iter++;
+        } //end while
+
+
+        if (avgIter != 0) {
+          avgVars = avgVars/avgIter;
+          write(avgVars);
+          double E0, stddev = 0.0, rt = 1.0;
+          std::complex<double> E0c = 0.0;
+          getGradient(avgVars, grad, E0c, stddev, rt);
+          if (commrank == 0) {
+            std::cout << "Average over last " << avgIter << " iterations" << endl;
+            std::cout << format("0 %14.8f (%8.2e) %14.8f %8.1f %10i %8.2f\n")  % E0c % stddev % (grad.norm()) % (rt) % (schd.stochasticIter) % ((getTime() - startofCalc));
+          }
+        } 
+    }
+
+
+   template<typename Function1, typename Function2>
+    void optimizeExcited(VectorXd &vars, Function1& getGradient, Function2& getGradientPenalty, bool restart)
+    {
+        cout << "in optimizeExcited" << endl;
+        
+        if (restart)
+        {
+            if (commrank == 0)
+                read(vars);
+#ifndef SERIAL
+	    boost::mpi::communicator world;
+	    boost::mpi::broadcast(world, *this, 0);
+	    boost::mpi::broadcast(world, vars, 0);
+#endif
+        }
+        
+        
+        else if (mom1.rows() == 0)
+        {
+            mom1 = VectorXd::Zero(vars.rows());
+            mom2 = VectorXd::Zero(vars.rows());
+        }
+
+        VectorXd grad = VectorXd::Zero(vars.rows());
+        VectorXd avgVars = VectorXd::Zero(vars.rows());
+        VectorXd deltaVars = VectorXd::Zero(vars.rows());
+
+        double stepNorm = 0., angle = 0.;
+        
+
+        while (iter < maxIter)
+        {
+            //cout << "in optimize loop iter: " << iter << endl;
+            double E0, stddev = 0.0, rt = 1.0;
+            std::complex<double> E0c = 0.0;
             double acceptedFrac = getGradient(vars, grad, E0c, stddev, rt);
+            double Penalty = getGradientPenalty(vars, grad, E0c, stddev, rt);
+            std::complex<double> overlapGroundState = 0.0;
             
             //if (commrank==0) cout << grad << endl;
             write(vars);
@@ -203,6 +313,10 @@ class relAMSGrad
           }
         } 
     }
+
+
+
+
 
    template<typename Function1, typename Function2>
     void optimize(VectorXd &vars, Function1& getGradient, Function2 &runCorrelatedSampling, bool restart)

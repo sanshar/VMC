@@ -19,6 +19,8 @@
 #include "mpi.h"
 #endif
 
+
+
 template<typename Wfn, typename Walker>
 class relDeterministic
 {
@@ -29,9 +31,12 @@ class relDeterministic
   int norbs, nalpha, nbeta;
   std::vector<relDeterminant> allDets;
   relWorkingArray work;
-  std::complex<double> ovlp, Eloc;
+  std::complex<double> ovlp, ovlpCurr, Eloc;
   double Overlap;
   Eigen::VectorXd grad_ratio, grad_Eloc;
+
+  std::vector<std::complex<double>> ovlpLS;
+
 
   relDeterministic(Wfn &_w, Walker &_walk) : w(_w), walk(_walk)
   {
@@ -42,25 +47,58 @@ class relDeterministic
     relGenerateAllDeterminants(allDets, norbs, nalpha + nbeta);
     //generateAllDeterminants(allDets, norbs, nalpha, nbeta); //EDIT UNDO
     Overlap = 0.0;
+    for (int i=0; i<schd.excitedState; i++) {  
+      ovlpLS.push_back(i);
+    }
   }
    
+  void LocalOverlap(relDeterminant &D, std::vector<Wfn> &ls)
+  {
+    ovlpCurr = 0.0 + 0.0i;
+    w.initWalker(walk, D);
+    w.OvlpPenalty(walk, ovlpCurr);
+    //cout << "Det " << D << "  ovlp  " << ovlp << "  ovlpLS  ";
+    for (int i=0; i<schd.excitedState; i++) {  
+      ovlpLS[i] = 0.0 + 0.0i;
+      ls[i].initWalker(walk, D);
+      ls[i].OvlpPenalty(walk, ovlpLS[i]);  
+      if (0==1) { // && abs(ovlp)>1.0e-06) {
+        cout << ovlpLS[i];
+      }
+    }
+    //cout << endl;
+  }
+
+  void UpdateOverlap(std::vector<std::complex<double>> &ovlpPen)
+  {
+    for (int i=0; i<schd.excitedState; i++) {  
+      ovlpPen[i] += (ovlpLS[i] / ovlpCurr) * std::abs(ovlp) * std::abs(ovlp);
+    }
+  }
+
+  void FinishOverlap(std::vector<std::complex<double>> &ovlpPen)
+  {
+    for (int i=0; i<schd.excitedState; i++) {  
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &(ovlpPen[i]), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      ovlpPen[i] /= Overlap;
+    }
+  }
+
   void LocalEnergy(relDeterminant &D)
   {
     ovlp = 0.0 + 0.0i, Eloc = 0.0 + 0.0i;
     w.initWalker(walk, D);
     w.HamAndOvlp(walk, ovlp, Eloc, work, false);  
     if (0==1) { // && abs(ovlp)>1.0e-06) {
-      //cout << walk << endl;
       cout << "Det " << D << " Eloc  " << Eloc << "  ovlp  " << ovlp << endl;
     }
   }
   
   void UpdateEnergy(std::complex<double> &Energy)
   {
-    //cout << "in Update: ham  " << Eloc << "  ovlp  " << ovlp << " Overlap before: " << Overlap << " Energy before: " << Energy << endl;
     Overlap += std::abs(ovlp) * std::abs(ovlp); // EDIT: abs should be taken if imag
-    //cout << "Overlap " << Overlap << "  ovlp^2 imag " << (ovlp * ovlp).imag() << endl << endl;
-    //cout << "Energy " << Energy << "  Eloc " << Eloc << endl << endl;
     Energy += (Eloc * std::abs(ovlp) * std::abs(ovlp)); //EDIT: here take real part for real energies
   }
 
@@ -86,6 +124,16 @@ class relDeterministic
     grad_ratio_bar += grad_ratio * std::abs(ovlp) * std::abs(ovlp);
   }
 
+  void UpdateGradientPenalty(std::vector<Eigen::VectorXd> &gradPen, const std::vector<std::complex<double>> &ovlpPen)
+  {
+    for (int i=0; i<schd.excitedState; i++) {
+      double sgn = 1.0;
+      if (std::abs(ovlpPen[i])<0) sgn=-1.0;
+      gradPen[i] += sgn* grad_ratio * std::abs(ovlpPen[i]) * std::abs(ovlp) * std::abs(ovlp);
+    }
+  }
+
+
   void FinishGradient(Eigen::VectorXd &grad, Eigen::VectorXd &grad_ratio_bar, const std::complex<double> &Energy)
   {
 #ifndef SERIAL
@@ -95,11 +143,44 @@ class relDeterministic
     grad = (grad - Energy.real() * grad_ratio_bar) / Overlap;
   }
 
+
+
+  void FinishGradientPenalty(std::vector<Eigen::VectorXd> &gradPen, const Eigen::VectorXd &grad_ratio_bar, const std::vector<std::complex<double>> &ovlpPen)
+  {
+    for (int i=0; i<schd.excitedState; i++) {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (gradPen[i].data()), grad_ratio.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      gradPen[i] = (gradPen[i] - 2*std::abs(ovlpPen[i]) * grad_ratio_bar) / Overlap;
+      gradPen[i] *= 3;
+    }
+  }
+
+
+  void CombineGradients(Eigen::VectorXd &grad, std::vector<Eigen::VectorXd> &gradPen)
+  {
+    for (int i=0; i<schd.excitedState; i++) {
+      grad += gradPen[i];
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
   void LocalEnergyGradient()
   {
     w.OverlapWithLocalEnergyGradient(walk, work, grad_Eloc);
   }
-  
+ 
+ 
   void UpdateSR(DirectMetric &S)
   {
     Eigen::VectorXd appended(numVars);

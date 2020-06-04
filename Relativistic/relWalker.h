@@ -48,8 +48,6 @@ using namespace Eigen;
  *
  **/
 
-//template<typename Corr, typename Reference>
-//struct Walker { };
 
 template<typename Corr>
 struct Walker<Corr, relSlater> {

@@ -66,6 +66,7 @@ void readInput(string input, schedule& schd, bool print) {
       schd.ifSOC = false;
       schd.onlyEne = false;
       schd.doPrint = false;
+      schd.excitedState = 0;
       schd.uagp = false;
       schd.maxIter = 50;
       schd.maxMacroIter = 1;
@@ -218,7 +219,10 @@ void readInput(string input, schedule& schd, bool print) {
           else if (boost::iequals(*it, "onlyEnergy"))
             schd.onlyEne = true;
         }
-      } 
+      }
+
+      else if (boost::iequals(ArgName, "excitedState"))
+            schd.excitedState = atoi(tok[1].c_str());
 
       else if (boost::iequals(ArgName, "print"))
         schd.doPrint = true;

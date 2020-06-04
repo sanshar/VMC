@@ -111,7 +111,7 @@ private:
       & direct
       & rStepType
       & ifComplex
-      & ifRelativistic & ifSOC & onlyEne & doPrint
+      & ifRelativistic & ifSOC & onlyEne & doPrint & excitedState
       & uagp
       & CorrSampleFrac
       & dTol
@@ -157,6 +157,7 @@ public:
   bool ifSOC;                            //to incorporate MFSOC
   bool onlyEne;                          //to get relativistic energy, can be deterministic or stochastic
   bool doPrint;                          //to print to file the determinants, their local energy and overlap with the wavefunction
+  int excitedState;                      //to calculate excited state for number > 0
 
 
 //input file to define the correlator parts of the wavefunction
