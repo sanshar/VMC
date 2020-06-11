@@ -152,7 +152,7 @@ class relDeterministic
       MPI_Allreduce(MPI_IN_PLACE, (gradPen[i].data()), grad_ratio.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
       gradPen[i] = (gradPen[i] - 2*std::abs(ovlpPen[i]) * grad_ratio_bar) / Overlap;
-      gradPen[i] *= 3;
+      gradPen[i] *= schd.lambdaPenalty[i];
     }
   }
 

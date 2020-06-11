@@ -178,6 +178,7 @@ struct Walker<Corr, relSlater> {
     cout << d << endl;
   }
 
+
   void initDet(const MatrixXd& HforbsA, const MatrixXd& HforbsB) 
   {
     //cout << "initDet " << schd.hf << endl;

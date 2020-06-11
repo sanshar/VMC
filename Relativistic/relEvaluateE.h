@@ -30,6 +30,7 @@
 #include "global.h"
 #include "relDeterministic.h"
 #include "relContinuousTime.h"
+#include "relContinuousTimeExcitedStates.h"
 #include "Metropolis.h"
 #include <iostream>
 #include <fstream>
@@ -89,13 +90,10 @@ void relGetEnergyDeterministic(Wfn &w, Walker& walk, std::complex<double> &Energ
   if (commrank == 0) cout << "alldets num " << D.allDets.size() << " commsize " << commsize << endl; 
   for (int i = commrank; i < D.allDets.size(); i += commsize)
   {
-    //cout << D.allDets[i] << endl;
     D.LocalEnergy(D.allDets[i]);
     D.UpdateEnergy(Energy);
   }
-  //cout << "before " << commrank << " " << Energy << " " << D.Overlap << endl;
   D.FinishEnergy(Energy);
-  //cout << "after " << commrank << " " << Energy << " " << D.Overlap << endl;
 }
 
 
@@ -577,6 +575,28 @@ void relCompEnergyDeterministicContinuousTime(Wfn &w, Walker &walk, std::complex
   CTMC.FinishEnergy(Energy, stddev, rk);
 };
 
+
+template<typename Wfn, typename Walker>
+void relGetStochasticEnergyContinuousTimeRandIni(Wfn &w, Walker &walk, std::complex<double> &Energy, double &stddev, double &rk, int niter)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+  relDeterministic<Wfn, Walker> D(w, walk);
+  int rand = int(random()*D.allDets.size()); 
+  relDeterminant initial = D.allDets[rand];
+  relContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
+  walk.d = initial;
+  Energy = 0.0 + 0.0i, stddev = 0.0, rk = 0.0;
+  CTMC.LocalEnergy();
+  for (int iter = 0; iter < niter; iter++)
+  {
+    CTMC.MakeMove();
+    CTMC.UpdateEnergy(Energy);
+    CTMC.LocalEnergy();
+  }
+  CTMC.FinishEnergy(Energy, stddev, rk);
+};
+
+
     
 template<typename Wfn, typename Walker>
 void relGetStochasticGradientContinuousTime(Wfn &w, Walker &walk, std::complex<double> &Energy, double &stddev, VectorXd &grad, double &rk, int niter)
@@ -600,6 +620,55 @@ void relGetStochasticGradientContinuousTime(Wfn &w, Walker &walk, std::complex<d
   CTMC.FinishGradient(grad, grad_ratio_bar, Energy.real()); // EDIT DO: now only the real part should be taken into account
   CTMC.FinishBestDet();
 }
+
+
+
+template<typename Wfn, typename Walker>
+double relGetStochasticGradientPenaltyContinuousTime(Wfn &w, Walker &walk, std::complex<double> &Energy, double &stddev, VectorXd &grad, double &rk, int niter, std::vector<Wfn> &ls)
+{
+  double OP = 0;
+  std::vector<std::complex<double>> ovlpPen;
+  std::vector<VectorXd> gradPen;
+  for (int i=0; i<schd.excitedState; i++){
+     ovlpPen.push_back(0.0);
+     gradPen.push_back(VectorXd::Zero(grad.rows()));
+  }
+  relContinuousTimeExcitedStates<Wfn, Walker> CTMC(w, walk, niter);
+  Energy = 0.0 + 0.0i, stddev = 0.0, rk = 0.0;
+  grad.setZero();
+  VectorXd grad_ratio_bar = VectorXd::Zero(grad.rows());
+  CTMC.LocalOverlap(ls);
+  CTMC.LocalEnergy();
+  CTMC.LocalGradient();
+  for (int iter = 0; iter < niter; iter++)  // EDIT DO: during the loop, the energy should be complex
+  {
+    CTMC.MakeMove();
+    CTMC.UpdateEnergy(Energy);
+    CTMC.UpdateGradient(grad, grad_ratio_bar);
+    CTMC.UpdateOverlap(ovlpPen);
+    CTMC.UpdateGradientPenalty(gradPen, ovlpPen);
+    CTMC.LocalOverlap(ls);
+    CTMC.LocalEnergy();
+    CTMC.LocalGradient();
+    CTMC.UpdateBestDet();
+  }
+  CTMC.FinishEnergy(Energy, stddev, rk); // EDIT DO: now only the real part should be taken into account
+  CTMC.FinishGradient(grad, grad_ratio_bar, Energy.real()); // EDIT DO: now only the real part should be taken into account
+  CTMC.FinishOverlap(ovlpPen); 
+  CTMC.FinishGradientPenalty(gradPen, grad_ratio_bar, ovlpPen);
+  CTMC.FinishBestDet();
+  CTMC.CombineGradients(grad, gradPen);
+  if (0==0) {
+    cout << "OvlpPen with the " << schd.excitedState << " lower lying states: ";
+    for (int i=0; i<schd.excitedState; i++){
+      cout << std::abs(ovlpPen[i]) << "   " ;
+    }
+    cout << endl;
+  } 
+  return std::abs(ovlpPen[0]);
+}
+
+
     
 #ifdef NOT
 template<typename Wfn, typename Walker>
@@ -2169,6 +2238,7 @@ class relGetEnergyWrapper
       {
         //relCompEnergyDeterministicContinuousTime(w, walk, E0, stddev, rt, stochasticIter);
         relGetStochasticEnergyContinuousTime(w, walk, E0, stddev, rt, stochasticIter);
+        //relGetStochasticEnergyContinuousTimeRandIni(w, walk, E0, stddev, rt, stochasticIter);
       }
       return 1.0;
   };
@@ -2220,21 +2290,16 @@ class relGetGradientPenaltyWrapper
     {
       if (ctmc)
       {
-        cout << "not implemented yet 0" << endl;
-        exit (0);
-        //relGetStochasticGradientContinuousTime(w, walk, E0, stddev, grad, rt, stochasticIter);
+        relGetStochasticGradientPenaltyContinuousTime(w, walk, Energy, stddev, grad, rt, stochasticIter, ls);
       }
       else
       {
-        //getStochasticGradientMetropolis(w, walk, E0, stddev, grad, rt, stochasticIter);
         cout << "not implemented yet 0" << endl;
         exit (0);
       }
     }
     else
     {
-      //cout << "not implemented yet 1" << endl;
-      //exit (0);
       stddev = 0.0;
       rt = 1.0;
       OP = relGetGradientPenaltyDeterministic(w, walk, Energy, grad, ls);
