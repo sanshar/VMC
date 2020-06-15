@@ -61,6 +61,9 @@ rJastrow::rJastrow () {
    if (schd.fourBodyJastrowBasis == NC || schd.fourBodyJastrowBasis == sNC) {
      EENNIndex = EENNlinearIndex + 2 * schd.Ncharge.size();
    }
+   else if (schd.fourBodyJastrowBasis == SG) {
+     EENNIndex = EENNlinearIndex + 2 * schd.Ncharge.size();
+   }
    else if (schd.fourBodyJastrowBasis == AB) {
      EENNIndex = EENNlinearIndex + 2 * norbs;
    }
@@ -69,6 +72,9 @@ rJastrow::rJastrow () {
    }
    else if (schd.fourBodyJastrowBasis == SS) {
      EENNIndex = EENNlinearIndex + 2 * norbs;
+   }
+   else if (schd.fourBodyJastrowBasis == G) {
+     EENNIndex = EENNlinearIndex + 2 * schd.gridGaussians.size();
    }
    
    int numParams = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
@@ -85,6 +91,9 @@ rJastrow::rJastrow () {
      if (schd.fourBodyJastrowBasis == NC || schd.fourBodyJastrowBasis == sNC) {
        numParams = EENNIndex + 4 * schd.Ncharge.size() * schd.Ncharge.size();
      }
+     else if (schd.fourBodyJastrowBasis == SG) {
+       numParams = EENNIndex + 4 * schd.Ncharge.size() * schd.Ncharge.size();
+     }
      else if(schd.fourBodyJastrowBasis == AB) {
        numParams = EENNIndex + 4 * norbs * norbs;
      }
@@ -93,6 +102,9 @@ rJastrow::rJastrow () {
      }
      else if(schd.fourBodyJastrowBasis == SS) {
        numParams = EENNIndex + 4 * norbs * norbs;
+     }
+     else if (schd.fourBodyJastrowBasis == G) {
+       numParams = EENNIndex + 4 * schd.gridGaussians.size() * schd.gridGaussians.size();
      }
    }
    
@@ -153,38 +165,55 @@ void rJastrow::updateVariables(const Eigen::VectorXd &v)
 
 void rJastrow::printVariables() const
 {
-  cout << endl;
-  cout << "__rJastrow parameters__" << endl;
-
-  cout << "EEsamespin" << endl;
-  for (int t=EEsameSpinIndex; t<EEoppositeSpinIndex; t++)
-    cout << _params[t] << " ";
-  cout << endl;
-
-  cout << "EEoppositespin" << endl;
-  for (int t=EEoppositeSpinIndex; t<ENIndex; t++)
-    cout << _params[t] << " ";
-  cout << endl;
-
-  cout << "EN" << endl;
-  int atm = 0;
-  for (int t=ENIndex; t<EENsameSpinIndex; t++) {
-    if (t % Qmax == 0) {
-      cout << schd.uniqueAtoms[atm] << " | ";
-      atm++;
-    }
-    cout << _params[t] << " ";
-    if ((t + 1) % Qmax == 0) cout << endl;
+  int EENterms = 0;
+  for (int m = 1; m <= QmaxEEN; m++) 
+  for (int n = 0; n <= m; n++)
+  for (int o = 0; o <= (QmaxEEN-m-n); o++) {
+    if (n == 0 && o == 0) continue; //EN term
+    EENterms++;
   }
 
-  cout << "EENsamespin" << endl;
-  for (int t=EENsameSpinIndex; t<EENoppositeSpinIndex; t++)
+  cout << endl;
+  cout << "__rJastrow parameters__" << endl << endl;
+
+  cout << "EEsameSpin" << endl;
+  for (int t=EEsameSpinIndex; t<EEoppositeSpinIndex; t++)
     cout << _params[t] << " ";
+  cout << endl << endl;
+
+  cout << "EEoppositeSpin" << endl;
+  for (int t=EEoppositeSpinIndex; t<ENIndex; t++)
+    cout << _params[t] << " ";
+  cout << endl << endl;
+
+  cout << "EN" << endl;
+  for (int I = 0; I < schd.uniqueAtoms.size(); I++) {
+    cout << schd.uniqueAtoms[I] << " | ";
+    for (int i = 0; i < Qmax; i++) {
+      cout << _params[EENsameSpinIndex + Qmax * I + i] << " ";
+    }
+    cout << endl;
+  }
   cout << endl;
 
-  cout << "EENoppositespin" << endl;
-  for (int t=EENoppositeSpinIndex; t<EENNlinearIndex; t++)
-    cout << _params[t] << " ";
+  cout << "EENsameSpin" << endl;
+  for (int I = 0; I < schd.uniqueAtoms.size(); I++) {
+    cout << schd.uniqueAtoms[I] << " | ";
+    for (int i = 0; i < EENterms; i++) {
+      cout << _params[EENsameSpinIndex + EENterms * I + i] << " ";
+    }
+    cout << endl;
+  }
+  cout << endl;
+
+  cout << "EENoppositeSpin" << endl;
+  for (int I = 0; I < schd.uniqueAtoms.size(); I++) {
+    cout << schd.uniqueAtoms[I] << " | ";
+    for (int i = 0; i < EENterms; i++) {
+      cout << _params[EENoppositeSpinIndex + EENterms * I + i] << " ";
+    }
+    cout << endl;
+  }
   cout << endl;
 
   if (schd.fourBodyJastrow == true) {
@@ -203,6 +232,7 @@ void rJastrow::printVariables() const
       }
       cout << endl;
     }
+    cout << endl;
   }
 
   cout << "rJastrow.txt" << endl;

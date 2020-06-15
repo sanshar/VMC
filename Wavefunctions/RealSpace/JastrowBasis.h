@@ -621,4 +621,276 @@ using namespace Eigen;
       grad2[2][I] = aoValues[9*norbs + I];
     }
   }
+
+
+//Single Gaussian with inputed variance
+
+  void SG_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
+  {
+    const VectorXd &relec = x[elec];
+    int natm = schd.Ncoords.size();
+    double N = 1.0 / (schd.sigma * std::sqrt(2 * M_PI));
+    double var = schd.sigma * schd.sigma;
+
+    VectorXd num = VectorXd::Zero(natm);
+    double denom = 0.0;
+    for (int I = 0; I < natm; I++)
+    {
+      VectorXd r = relec - schd.Ncoords[I];
+      double r2 = r.squaredNorm();
+      double arg = - (1.0 / 2.0) * r2 / var;
+      double val = N * std::exp(arg);
+
+      num[I] += val;
+      denom += val;
+    }
+    
+    values = num / denom; 
+  }
+
+  void SG_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
+  {
+    const VectorXd &relec = x[elec];
+    int natm = schd.Ncoords.size();
+    double N = 1.0 / (schd.sigma * std::sqrt(2 * M_PI));
+    double var = schd.sigma * schd.sigma;
+
+    VectorXd num = VectorXd::Zero(natm);
+    VectorXd gradxNum = VectorXd::Zero(natm);
+    VectorXd gradyNum = VectorXd::Zero(natm);
+    VectorXd gradzNum = VectorXd::Zero(natm);
+    Vector3d gradDenom = Vector3d::Zero(3);
+    double denom = 0.0;
+    for (int I = 0; I < natm; I++)
+    {
+      VectorXd r = relec - schd.Ncoords[I];
+      double r2 = r.squaredNorm();
+      double arg = - (1.0 / 2.0) * r2 / var;
+      double val = N * std::exp(arg);
+
+      num[I] += val;
+      denom += val;
+
+      //gradx
+      gradxNum[I] += - r(0) * val / var;
+      gradDenom[0] += - r(0) * val / var;
+      //grady
+      gradyNum[I] += - r(1) * val / var;
+      gradDenom[1] += - r(1) * val / var;
+      //gradz
+      gradzNum[I] += - r(2) * val / var;
+      gradDenom[2] += - r(2) * val / var;
+    } 
+
+    values = num / denom; 
+    grad[0] = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
+    grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
+    grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
+  }
+
+  void SG_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &grad2)
+  {
+    const VectorXd &relec = x[elec];
+    int natm = schd.Ncoords.size();
+    double N = 1.0 / (schd.sigma * std::sqrt(2 * M_PI));
+    double var = schd.sigma * schd.sigma;
+
+    VectorXd num = VectorXd::Zero(natm);
+    VectorXd gradxNum = VectorXd::Zero(natm);
+    VectorXd gradyNum = VectorXd::Zero(natm);
+    VectorXd gradzNum = VectorXd::Zero(natm);
+    VectorXd gradxxNum = VectorXd::Zero(natm);
+    VectorXd gradyyNum = VectorXd::Zero(natm);
+    VectorXd gradzzNum = VectorXd::Zero(natm);
+    double denom = 0.0;
+    Vector3d gradDenom = Vector3d::Zero(3);
+    Vector3d grad2Denom = Vector3d::Zero(3);
+    for (int I = 0; I < natm; I++)
+    {
+      VectorXd r = relec - schd.Ncoords[I];
+      double r2 = r.squaredNorm();
+      double arg = - (1.0 / 2.0) * r2 / var;
+      double val = N * std::exp(arg);
+
+      num[I] += val;
+      denom += val;
+
+      //gradx
+      gradxNum[I] += - r(0) * val / var;
+      gradDenom[0] += - r(0) * val / var;
+      gradxxNum[I] += - (var - r(0) * r(0)) * val / (var * var);
+      grad2Denom[0] += - (var - r(0) * r(0)) * val / (var * var);
+
+      //grady
+      gradyNum[I] += - r(1) * val / var;
+      gradDenom[1] += - r(1) * val / var;
+      gradyyNum[I] += - (var - r(1) * r(1)) * val / (var * var);
+      grad2Denom[1] += - (var - r(1) * r(1)) * val / (var * var);
+
+      //gradz
+      gradzNum[I] += - r(2) * val / var;
+      gradDenom[2] += - r(2) * val / var;
+      gradzzNum[I] += - (var - r(2) * r(2)) * val / (var * var);
+      grad2Denom[2] += - (var - r(2) * r(2)) * val / (var * var);
+    } 
+
+    values = num / denom; 
+    grad[0] = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
+    grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
+    grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
+
+    grad2[0] = (denom * denom * gradxxNum
+               - denom * (2.0 * gradxNum * gradDenom[0] + num * grad2Denom[0])
+               + 2.0 * num * gradDenom[0] * gradDenom[0]) / (denom * denom * denom);
+    grad2[1] = (denom * denom * gradyyNum
+               - denom * (2.0 * gradyNum * gradDenom[1] + num * grad2Denom[1])
+               + 2.0 * num * gradDenom[1] * gradDenom[1]) / (denom * denom * denom);
+    grad2[2] = (denom * denom * gradzzNum
+               - denom * (2.0 * gradzNum * gradDenom[2] + num * grad2Denom[2])
+               + 2.0 * num * gradDenom[2] * gradDenom[2]) / (denom * denom * denom);
+  }
+
+
+//Grid of Gaussians, read from file
+  //Gaussian function, derivatives with respect to ri
+  double Gaussian(const Vector3d &ri, const Vector3d &rI, double sigma, Vector3d &grad, Vector3d &grad2)
+  {
+    double variance = sigma * sigma;
+    double N = 1.0 / (sigma * std::sqrt(2 * M_PI));
+
+    VectorXd r = ri - rI;
+    double r2 = r.squaredNorm();
+    double arg = - (1.0 / 2.0) * (r2 / variance);
+
+    double val = N * std::exp(arg);
+
+    grad[0] = - r(0) * val / variance;
+    grad2[0] = - (variance - r(0) * r(0)) * val / (variance * variance);
+
+    grad[1] = - r(1) * val / variance;
+    grad2[1] = - (variance - r(1) * r(1)) * val / (variance * variance);
+
+    grad[2] = - r(2) * val / variance;
+    grad2[2] = - (variance - r(2) * r(2)) * val / (variance * variance);
+
+    return val;
+  }
+
+  void G_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
+  {
+    const VectorXd &relec = x[elec];
+    int ngrid = schd.gridGaussians.size();
+
+    VectorXd num = VectorXd::Zero(ngrid);
+    double denom = 0.0;
+    for (int I = 0; I < ngrid; I++)
+    {
+      double sigma = schd.gridGaussians[I].first;
+      Vector3d &rI = schd.gridGaussians[I].second;
+      Vector3d g, g2;
+      double val = Gaussian(relec, rI, sigma, g, g2);
+
+      num[I] += val;
+      denom += val;
+    }
+    
+    values = num / denom; 
+  }
+
+  void G_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
+  {
+    const VectorXd &relec = x[elec];
+    int ngrid = schd.gridGaussians.size();
+
+    VectorXd num = VectorXd::Zero(ngrid);
+    VectorXd gradxNum = VectorXd::Zero(ngrid);
+    VectorXd gradyNum = VectorXd::Zero(ngrid);
+    VectorXd gradzNum = VectorXd::Zero(ngrid);
+    Vector3d gradDenom = Vector3d::Zero(3);
+    double denom = 0.0;
+    for (int I = 0; I < ngrid; I++)
+    {
+      double sigma = schd.gridGaussians[I].first;
+      Vector3d &rI = schd.gridGaussians[I].second;
+      Vector3d g, g2;
+      double val = Gaussian(relec, rI, sigma, g, g2);
+
+      num[I] += val;
+      denom += val;
+
+      //gradx
+      gradxNum[I] += g(0);
+      gradDenom[0] += g(0);
+      //grady
+      gradyNum[I] += g(1);
+      gradDenom[1] += g(1);
+      //gradz
+      gradzNum[I] += g(2);
+      gradDenom[2] += g(2);
+    } 
+
+    values = num / denom; 
+    grad[0] = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
+    grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
+    grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
+  }
+
+  void G_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &grad2)
+  {
+    const VectorXd &relec = x[elec];
+    int ngrid = schd.gridGaussians.size();
+
+    VectorXd num = VectorXd::Zero(ngrid);
+    VectorXd gradxNum = VectorXd::Zero(ngrid);
+    VectorXd gradyNum = VectorXd::Zero(ngrid);
+    VectorXd gradzNum = VectorXd::Zero(ngrid);
+    VectorXd gradxxNum = VectorXd::Zero(ngrid);
+    VectorXd gradyyNum = VectorXd::Zero(ngrid);
+    VectorXd gradzzNum = VectorXd::Zero(ngrid);
+    double denom = 0.0;
+    Vector3d gradDenom = Vector3d::Zero(3);
+    Vector3d grad2Denom = Vector3d::Zero(3);
+    for (int I = 0; I < ngrid; I++)
+    {
+      double sigma = schd.gridGaussians[I].first;
+      Vector3d &rI = schd.gridGaussians[I].second;
+      Vector3d g, g2;
+      double val = Gaussian(relec, rI, sigma, g, g2);
+
+      num[I] += val;
+      denom += val;
+
+      //gradx
+      gradxNum[I] += g(0);
+      gradDenom[0] += g(0);
+      gradxxNum[I] += g2(0);
+      grad2Denom[0] += g2(0);
+      //grady
+      gradyNum[I] += g(1);
+      gradDenom[1] += g(1);
+      gradyyNum[I] += g2(1);
+      grad2Denom[1] += g2(1);
+      //gradz
+      gradzNum[I] += g(2);
+      gradDenom[2] += g(2);
+      gradzzNum[I] += g2(2);
+      grad2Denom[2] += g2(2);
+
+    } 
+
+    values = num / denom; 
+    grad[0] = (gradxNum * denom - num * gradDenom[0]) / (denom * denom);
+    grad[1] = (gradyNum * denom - num * gradDenom[1]) / (denom * denom);
+    grad[2] = (gradzNum * denom - num * gradDenom[2]) / (denom * denom);
+
+    grad2[0] = (denom * denom * gradxxNum
+               - denom * (2.0 * gradxNum * gradDenom[0] + num * grad2Denom[0])
+               + 2.0 * num * gradDenom[0] * gradDenom[0]) / (denom * denom * denom);
+    grad2[1] = (denom * denom * gradyyNum
+               - denom * (2.0 * gradyNum * gradDenom[1] + num * grad2Denom[1])
+               + 2.0 * num * gradDenom[1] * gradDenom[1]) / (denom * denom * denom);
+    grad2[2] = (denom * denom * gradzzNum
+               - denom * (2.0 * gradzNum * gradDenom[2] + num * grad2Denom[2])
+               + 2.0 * num * gradDenom[2] * gradDenom[2]) / (denom * denom * denom);
+  }
 #endif

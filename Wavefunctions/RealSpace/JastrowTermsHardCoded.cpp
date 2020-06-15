@@ -288,6 +288,15 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
   //int index = 0;
   
   if (electronsOfCorrectSpin(i, j, ss)) {
+
+  int EENterms = 0;
+  for (int m = 1; m <= maxQ; m++) 
+  for (int n = 0; n <= m   ; n++) 
+  for (int o = 0; o <= (maxQ-m-n); o++) {
+    if (n == 0 && o == 0) continue; //EN term
+    EENterms++;
+  }
+
     for (int N=0; N<Ncharge.size(); N++)
     {
       
@@ -327,13 +336,13 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
         ijPowers[m] = pow(rijbar, m);
       }
 
-      int EENterms = 0;
+      int EENindex = 0;
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
 
-        int index = schd.uniqueAtomsMap[N] * schd.uniqueAtoms.size() + EENterms;
+        int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
 
         double factor = params[startIndex + index];
         double value1 = iNPowers[m] * jNPowers[n] * ijPowers[o];
@@ -354,7 +363,7 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
 
         
         //index++;
-        EENterms++;
+        EENindex++;
       }
     }
   }
@@ -376,6 +385,15 @@ double JastrowEENValue(int i, int j, int maxQ,
   //int index = 0;
   
   if (electronsOfCorrectSpin(i, j, ss)) {
+
+  int EENterms = 0;
+  for (int m = 1; m <= maxQ; m++) 
+  for (int n = 0; n <= m   ; n++) 
+  for (int o = 0; o <= (maxQ-m-n); o++) {
+    if (n == 0 && o == 0) continue; //EN term
+    EENterms++;
+  }
+
     for (int N=0; N<Ncharge.size(); N++)
     {
       
@@ -415,20 +433,19 @@ double JastrowEENValue(int i, int j, int maxQ,
         ijPowers[m] = pow(rijbar, m);
       }
 
-      int EENterms = 0;
+      int EENindex = 0;
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
 
-        int index = schd.uniqueAtomsMap[N] * schd.uniqueAtoms.size() + EENterms;
+        int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
         
-        value += (iNPowers[m] * jNPowers[n]
-                  + jNPowers[m] * iNPowers[n]) * ijPowers[o]
+        value += (iNPowers[m] * jNPowers[n] + jNPowers[m] * iNPowers[n]) * ijPowers[o]
             * params[startIndex + index];
         
         //index++;
-        EENterms++;
+        EENindex++;
 
       }
     }
@@ -451,6 +468,15 @@ void JastrowEEN(int i, int j, int maxQ,
   //int index = 0;
   
   if (electronsOfCorrectSpin(i, j, ss)) {
+
+    int EENterms = 0;
+    for (int m = 1; m <= maxQ; m++) 
+    for (int n = 0; n <= m; n++)
+    for (int o = 0; o <= (maxQ-m-n); o++) {
+      if (n == 0 && o == 0) continue; //EN term
+      EENterms++;
+    }
+
     for (int N=0; N<Ncharge.size(); N++)
     {
       
@@ -492,13 +518,14 @@ void JastrowEEN(int i, int j, int maxQ,
 
       double lapIntermediateI = (xiN * xij + yiN * yij + ziN * zij) / riN / rij;
       double lapIntermediateJ = (-xjN * xij - yjN * yij - zjN * zij) / rjN / rij;
-      int EENterms = 0;
+
+      int EENindex = 0;
       for (int m = 1; m <= maxQ; m++) 
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
 
-        int index = schd.uniqueAtomsMap[N] * schd.uniqueAtoms.size() + EENterms;
+        int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
         
         double value1 = iNPowers[m] * jNPowers[n] * ijPowers[o];
         double value2 = jNPowers[m] * iNPowers[n] * ijPowers[o];
@@ -551,7 +578,7 @@ void JastrowEEN(int i, int j, int maxQ,
                 * lapIntermediateJ);
           
         //index++;
-        EENterms++;
+        EENindex++;
       }
     }
   }
@@ -571,6 +598,12 @@ void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::a
   }
   else if (schd.fourBodyJastrowBasis == sNC) {
     Nsize = schd.Ncharge.size();
+  }
+  else if (schd.fourBodyJastrowBasis == SG) {
+    Nsize = schd.Ncharge.size();
+  }
+  else if (schd.fourBodyJastrowBasis == G) {
+    Nsize = schd.gridGaussians.size();
   }
   else if (schd.fourBodyJastrowBasis == AB) {
     Nsize = norbs;
@@ -601,6 +634,12 @@ void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::a
     }
     else if (schd.fourBodyJastrowBasis == sNC) {
       sNC_eval_deriv2(i, r, pn, gradpn, grad2pn);
+    }
+    else if (schd.fourBodyJastrowBasis == SG) {
+      SG_eval_deriv2(i, r, pn, gradpn, grad2pn);
+    }
+    else if (schd.fourBodyJastrowBasis == G) {
+      G_eval_deriv2(i, r, pn, gradpn, grad2pn);
     }
     else if (schd.fourBodyJastrowBasis == AB) {
       AB_eval_deriv2(i, r, pn, gradpn, grad2pn);
@@ -753,6 +792,12 @@ double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d>
   else if (schd.fourBodyJastrowBasis == sNC) {
     sNC_eval(elec, r, nprime);
   }
+  else if (schd.fourBodyJastrowBasis == SG) {
+    SG_eval(elec, r, nprime);
+  }
+  else if (schd.fourBodyJastrowBasis == G) {
+    G_eval(elec, r, nprime);
+  }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval(elec, r, nprime);
   }
@@ -852,6 +897,12 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
   }
   else if (schd.fourBodyJastrowBasis == sNC) {
     sNC_eval_deriv(elec, r, np, gradnp);
+  }
+  else if (schd.fourBodyJastrowBasis == SG) {
+    SG_eval_deriv(elec, r, np, gradnp);
+  }
+  else if (schd.fourBodyJastrowBasis == G) {
+    G_eval_deriv(elec, r, np, gradnp);
   }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval_deriv(elec, r, np, gradnp);
@@ -1021,8 +1072,11 @@ double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vec
   if (schd.fourBodyJastrowBasis == NC) {
     NC_eval(elec, r, nprime);
   }
-  else if (schd.fourBodyJastrowBasis == sNC) {
-    sNC_eval(elec, r, nprime);
+  else if (schd.fourBodyJastrowBasis == SG) {
+    SG_eval(elec, r, nprime);
+  }
+  else if (schd.fourBodyJastrowBasis == G) {
+    G_eval(elec, r, nprime);
   }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval(elec, r, nprime);
@@ -1107,6 +1161,12 @@ void JastrowEENNupdate(int elec, const Vector3d &coord, const vector<Vector3d> &
   }
   else if (schd.fourBodyJastrowBasis == sNC) {
     sNC_eval_deriv2(elec, r, np, gradnp, grad2np);
+  }
+  else if (schd.fourBodyJastrowBasis == SG) {
+    SG_eval_deriv2(elec, r, np, gradnp, grad2np);
+  }
+  else if (schd.fourBodyJastrowBasis == G) {
+    G_eval_deriv2(elec, r, np, gradnp, grad2np);
   }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval_deriv2(elec, r, np, gradnp, grad2np);

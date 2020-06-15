@@ -36,7 +36,7 @@ class Determinant;
 enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod}; //varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
-enum JBASIS {NC, sNC, AB, sAB, SS};
+enum JBASIS {NC, sNC, AB, sAB, SS, SG, G};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
 enum PSEUDOQUAD {tetrahedral, octahedral, icosahedral};
 
@@ -111,11 +111,13 @@ private:
       & norbs
       & Qmax
       & QmaxEEN
+      & sigma
       & realSpaceStep
       & Ncoords
       & Ncharge
       & uniqueAtoms
       & uniqueAtomsMap
+      & gridGaussians
       & Nbasis
       & NSbasis
       & direct
@@ -157,6 +159,7 @@ public:
   boost::shared_ptr<Pseudopotential> pseudo;
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
+  vector<pair<double, Vector3d>> gridGaussians;
   vector<int> uniqueAtoms;
   vector<int> uniqueAtomsMap;
   vector<int> Nbasis;
@@ -192,6 +195,7 @@ public:
   std::string determinantFile;
   int Qmax;
   int QmaxEEN;
+  double sigma;
   int numResonants;
   bool singleJastrow;
   bool readTransOrbs;
@@ -354,5 +358,7 @@ void readGeometry(vector<Vector3d>& Ncoords,
                   vector<int>  & Nbasis,
                   vector<vector<int>> & NSbasis,
                   gaussianBasis& gBasis);
+
+void readGridGaussians(vector<pair<double,Vector3d>> &gridGaussians);
 
 #endif

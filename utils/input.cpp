@@ -152,9 +152,15 @@ void readInput(string inputFile, schedule& schd, bool print) {
       else if (fbjBasis == "AB") schd.fourBodyJastrowBasis = AB;
       else if (fbjBasis == "sAB") schd.fourBodyJastrowBasis = sAB;
       else if (fbjBasis == "SS") schd.fourBodyJastrowBasis = SS;
+      else if (fbjBasis == "SG") schd.fourBodyJastrowBasis = SG;
+      else if (fbjBasis == "G")  {
+        schd.fourBodyJastrowBasis = G;
+        readGridGaussians(schd.gridGaussians);
+      }
     }
     schd.Qmax = input.get("wavefunction.Qmax", 6);
     schd.QmaxEEN = input.get("wavefunction.QmaxEEN", 3);
+    schd.sigma = input.get("wavefunction.sigma", 1.0);
 
     //hamiltonian
     string hamString = algorithm::to_lower_copy(input.get("hamiltonian", "abinitio"));
@@ -458,6 +464,24 @@ void readGeometry(vector<Vector3d>& Ncoords,
   cout << endl;
   */
 
+}
+
+void readGridGaussians(vector<pair<double,Vector3d>> &gridGaussians)
+{
+  ifstream f("gaussians.txt");
+  while (f.good())
+  {
+    pair<double, Vector3d> g;
+
+    f >> g.first;
+    f >> g.second(0);
+    f >> g.second(1);
+    f >> g.second(2);
+
+    gridGaussians.push_back(g);
+  }
+  gridGaussians.pop_back();
+  //for (int i = 0; i < gridGaussians.size(); i++) cout << gridGaussians[i].first << " " << gridGaussians[i].second.transpose() << endl;
 }
 
 void readPairMat(MatrixXd& pairMat) 
