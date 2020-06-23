@@ -67,13 +67,19 @@ rJastrow::rJastrow () {
    else if (schd.fourBodyJastrowBasis == AB) {
      EENNIndex = EENNlinearIndex + 2 * norbs;
    }
-   else if (schd.fourBodyJastrowBasis == sAB) {
+   else if (schd.fourBodyJastrowBasis == AB2) {
+     EENNIndex = EENNlinearIndex + 2 * norbs;
+   }
+   else if (schd.fourBodyJastrowBasis == sAB2) {
      EENNIndex = EENNlinearIndex + 2 * numSorb;
    }
    else if (schd.fourBodyJastrowBasis == SS) {
      EENNIndex = EENNlinearIndex + 2 * norbs;
    }
    else if (schd.fourBodyJastrowBasis == G) {
+     EENNIndex = EENNlinearIndex + 2 * schd.gridGaussians.size();
+   }
+   else if (schd.fourBodyJastrowBasis == mG) {
      EENNIndex = EENNlinearIndex + 2 * schd.gridGaussians.size();
    }
    
@@ -83,7 +89,7 @@ rJastrow::rJastrow () {
    if (schd.fourBodyJastrow) {
      if (schd.fourBodyJastrowBasis == NC)
        numParams = EENNIndex + schd.Ncharge.size() * (schd.Ncharge.size() + 1) / 2;
-     else if(schd.fourBodyJastrowBasis == AB)
+     else if(schd.fourBodyJastrowBasis == AB2)
        numParams = EENNIndex + norbs * (norbs + 1) / 2;
    }
    */
@@ -97,13 +103,19 @@ rJastrow::rJastrow () {
      else if(schd.fourBodyJastrowBasis == AB) {
        numParams = EENNIndex + 4 * norbs * norbs;
      }
-     else if(schd.fourBodyJastrowBasis == sAB) {
+     else if(schd.fourBodyJastrowBasis == AB2) {
+       numParams = EENNIndex + 4 * norbs * norbs;
+     }
+     else if(schd.fourBodyJastrowBasis == sAB2) {
        numParams = EENNIndex + 4 * numSorb * numSorb;
      }
      else if(schd.fourBodyJastrowBasis == SS) {
        numParams = EENNIndex + 4 * norbs * norbs;
      }
      else if (schd.fourBodyJastrowBasis == G) {
+       numParams = EENNIndex + 4 * schd.gridGaussians.size() * schd.gridGaussians.size();
+     }
+     else if (schd.fourBodyJastrowBasis == mG) {
        numParams = EENNIndex + 4 * schd.gridGaussians.size() * schd.gridGaussians.size();
      }
    }

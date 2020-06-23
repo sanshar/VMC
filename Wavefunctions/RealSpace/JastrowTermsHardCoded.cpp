@@ -605,10 +605,16 @@ void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::a
   else if (schd.fourBodyJastrowBasis == G) {
     Nsize = schd.gridGaussians.size();
   }
+  else if (schd.fourBodyJastrowBasis == mG) {
+    Nsize = schd.gridGaussians.size();
+  }
   else if (schd.fourBodyJastrowBasis == AB) {
     Nsize = norbs;
   }
-  else if (schd.fourBodyJastrowBasis == sAB) {
+  else if (schd.fourBodyJastrowBasis == AB2) {
+    Nsize = norbs;
+  }
+  else if (schd.fourBodyJastrowBasis == sAB2) {
     int numSorb = 0;
     for (int i = 0; i < schd.NSbasis.size(); i++) { numSorb += schd.NSbasis[i].size(); }
     Nsize = numSorb;
@@ -641,11 +647,17 @@ void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::a
     else if (schd.fourBodyJastrowBasis == G) {
       G_eval_deriv2(i, r, pn, gradpn, grad2pn);
     }
+    else if (schd.fourBodyJastrowBasis == mG) {
+      mG_eval_deriv2(i, r, pn, gradpn, grad2pn);
+    }
     else if (schd.fourBodyJastrowBasis == AB) {
       AB_eval_deriv2(i, r, pn, gradpn, grad2pn);
     }
-    else if (schd.fourBodyJastrowBasis == sAB) {
-      sAB_eval_deriv2(i, r, pn, gradpn, grad2pn);
+    else if (schd.fourBodyJastrowBasis == AB2) {
+      AB2_eval_deriv2(i, r, pn, gradpn, grad2pn);
+    }
+    else if (schd.fourBodyJastrowBasis == sAB2) {
+      sAB2_eval_deriv2(i, r, pn, gradpn, grad2pn);
     }
     else if (schd.fourBodyJastrowBasis == SS) {
       SS_eval_deriv2(i, r, pn, gradpn, grad2pn);
@@ -798,11 +810,17 @@ double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d>
   else if (schd.fourBodyJastrowBasis == G) {
     G_eval(elec, r, nprime);
   }
+  else if (schd.fourBodyJastrowBasis == mG) {
+    mG_eval(elec, r, nprime);
+  }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval(elec, r, nprime);
   }
-  else if (schd.fourBodyJastrowBasis == sAB) {
-    sAB_eval(elec, r, nprime);
+  else if (schd.fourBodyJastrowBasis == AB2) {
+    AB2_eval(elec, r, nprime);
+  }
+  else if (schd.fourBodyJastrowBasis == sAB2) {
+    sAB2_eval(elec, r, nprime);
   }
   else if (schd.fourBodyJastrowBasis == SS) {
     SS_eval(elec, r, nprime);
@@ -904,11 +922,17 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
   else if (schd.fourBodyJastrowBasis == G) {
     G_eval_deriv(elec, r, np, gradnp);
   }
+  else if (schd.fourBodyJastrowBasis == mG) {
+    mG_eval_deriv(elec, r, np, gradnp);
+  }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval_deriv(elec, r, np, gradnp);
   }
-  else if (schd.fourBodyJastrowBasis == sAB) {
-    sAB_eval_deriv(elec, r, np, gradnp);
+  else if (schd.fourBodyJastrowBasis == AB2) {
+    AB2_eval_deriv(elec, r, np, gradnp);
+  }
+  else if (schd.fourBodyJastrowBasis == sAB2) {
+    sAB2_eval_deriv(elec, r, np, gradnp);
   }
   else if (schd.fourBodyJastrowBasis == SS) {
     SS_eval_deriv(elec, r, np, gradnp);
@@ -1078,11 +1102,17 @@ double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vec
   else if (schd.fourBodyJastrowBasis == G) {
     G_eval(elec, r, nprime);
   }
+  else if (schd.fourBodyJastrowBasis == mG) {
+    mG_eval(elec, r, nprime);
+  }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval(elec, r, nprime);
   }
-  else if (schd.fourBodyJastrowBasis == sAB) {
-    sAB_eval(elec, r, nprime);
+  else if (schd.fourBodyJastrowBasis == AB2) {
+    AB2_eval(elec, r, nprime);
+  }
+  else if (schd.fourBodyJastrowBasis == sAB2) {
+    sAB2_eval(elec, r, nprime);
   }
   else if (schd.fourBodyJastrowBasis == SS) {
     SS_eval(elec, r, nprime);
@@ -1168,11 +1198,17 @@ void JastrowEENNupdate(int elec, const Vector3d &coord, const vector<Vector3d> &
   else if (schd.fourBodyJastrowBasis == G) {
     G_eval_deriv2(elec, r, np, gradnp, grad2np);
   }
+  else if (schd.fourBodyJastrowBasis == mG) {
+    mG_eval_deriv2(elec, r, np, gradnp, grad2np);
+  }
   else if (schd.fourBodyJastrowBasis == AB) {
     AB_eval_deriv2(elec, r, np, gradnp, grad2np);
   }
-  else if (schd.fourBodyJastrowBasis == sAB) {
-    sAB_eval_deriv2(elec, r, np, gradnp, grad2np);
+  else if (schd.fourBodyJastrowBasis == AB2) {
+    AB2_eval_deriv2(elec, r, np, gradnp, grad2np);
+  }
+  else if (schd.fourBodyJastrowBasis == sAB2) {
+    sAB2_eval_deriv2(elec, r, np, gradnp, grad2np);
   }
   else if (schd.fourBodyJastrowBasis == SS) {
     SS_eval_deriv2(elec, r, np, gradnp, grad2np);
@@ -1349,186 +1385,6 @@ void JastrowEENNupdateParam(int elec, const VectorXd &N, const MatrixXd &n, cons
     }
 
   }
-
-  /*
-  if (schd.fourBodyJastrowBasis == NC || schd.fourBodyJastrowBasis == AB)
-  {
-  }
-  else if (schd.fourBodyJastrowBasis == SS)
-  {
-  }
-  */
 }
 
 
-double JastrowEENNLinearValue(int i, const vector<Vector3d> &r, const VectorXd &params, int startIndex)
-{
-  VectorXd n;
-  if (schd.fourBodyJastrowBasis == NC) {
-    NC_eval(i, r, n);
-  }
-  else if (schd.fourBodyJastrowBasis == AB) {
-    AB_eval(i, r, n);
-  }
-
-  double value = 0.0;
-  for (int I = 0; I < n.size(); I++)
-  {
-      value += params[startIndex + I] * n[I];
-  }
-  return value;
-}
-
-
-double JastrowEENNLinearValueGrad(int i, const vector<Vector3d> &r, Vector3d &grad, const VectorXd &params, int startIndex)
-{
-  VectorXd n;
-  array<VectorXd, 3> gradn;
-  if (schd.fourBodyJastrowBasis == NC) {
-    NC_eval_deriv(i, r, n, gradn);
-  }
-  else if (schd.fourBodyJastrowBasis == AB) {
-    AB_eval_deriv(i, r, n, gradn);
-  }
-
-  double value = 0.0;
-  grad = Vector3d::Zero(3);
-  for (int I = 0; I < n.size(); I++)
-  {
-      const double &factor = params[startIndex + I];
-      value += factor * n[I];
-      grad(0) += factor * gradn[0][I];
-      grad(1) += factor * gradn[1][I];
-      grad(2) += factor * gradn[2][I];
-  }
-  return value;
-}
-
-
-void JastrowEENNLinear(int i, const vector<Vector3d> &r, VectorXd &values, MatrixXd &gx, MatrixXd &gy, MatrixXd &gz, MatrixXd &laplace, double factor, int startIndex)
-{
-  VectorXd n;
-  array<VectorXd, 3> gradn, grad2n;
-  if (schd.fourBodyJastrowBasis == NC) {
-    NC_eval_deriv2(i, r, n, gradn, grad2n);
-  }
-  else if (schd.fourBodyJastrowBasis == AB) {
-    AB_eval_deriv2(i, r, n, gradn, grad2n);
-  }
-
-  for (int I = 0; I < n.size(); I++)
-  {
-    values[startIndex + I] += factor * n[I];
-    gx(i, startIndex + I) += factor * gradn[0][I];
-    gy(i, startIndex + I) += factor * gradn[1][I];
-    gz(i, startIndex + I) += factor * gradn[2][I];
-    laplace(i, startIndex + I) += factor * (grad2n[0][I] + grad2n[1][I] + grad2n[2][I]);
-  }
-}
-
-double JastrowEENNValue(int i, int j, const vector<Vector3d> &r, const VectorXd &params, int startIndex)
-{
-  double value = 0.0;
-  if (true) {
-
-    VectorXd ni, nj;
-    if (schd.fourBodyJastrowBasis == NC) {
-      NC_eval(i, r, ni);
-      NC_eval(j, r, nj);
-    }
-    else if (schd.fourBodyJastrowBasis == AB) {
-      AB_eval(i, r, ni);
-      AB_eval(j, r, nj);
-    }
-
-    for (int I = 0; I < ni.size(); I++)
-    {
-      for (int J = 0; J < nj.size(); J++)
-      {
-        value += params[startIndex + I * ni.size() + J] * ni[I] * nj[J];
-      }
-    }
-
-  }
-  return value;
-}
-
-double JastrowEENNValueGrad(int i, int j, const vector<Vector3d> &r, Vector3d &grad, const VectorXd &params, int startIndex)
-{
-  double value = 0.0;
-  grad = Vector3d::Zero(3);
-  if (true) {
-    array<VectorXd, 3> gradni, gradnj;
-    VectorXd ni, nj;
-
-    if (schd.fourBodyJastrowBasis == NC) {
-      NC_eval_deriv(i, r, ni, gradni);
-      NC_eval_deriv(j, r, nj, gradnj);
-    }
-    else if (schd.fourBodyJastrowBasis == AB) {
-      AB_eval_deriv(i, r, ni, gradni);
-      AB_eval_deriv(j, r, nj, gradnj);
-    }
-
-    for (int I = 0; I < ni.size(); I++)
-    {
-      for (int J = 0; J < nj.size(); J++)
-      {
-        double factor = params[startIndex + I * ni.size() + J];
-        value += factor * ni[I] * nj[J];
-        if (i == j) {
-          grad(0) += factor * (gradni[0][I] * nj[J] + ni[I] * gradnj[0][J]);
-          grad(1) += factor * (gradni[1][I] * nj[J] + ni[I] * gradnj[1][J]);
-          grad(2) += factor * (gradni[2][I] * nj[J] + ni[I] * gradnj[2][J]);
-        }
-        else {
-          grad(0) += factor * gradni[0][I] * nj[J];
-          grad(1) += factor * gradni[1][I] * nj[J];
-          grad(2) += factor * gradni[2][I] * nj[J];
-        }
-      }
-    }
-  }
-  return value;
-}
-
-void JastrowEENN(int i, int j, const vector<Vector3d> &r, VectorXd &values, MatrixXd &gx, MatrixXd &gy, MatrixXd &gz, MatrixXd &laplace, double factor, int startIndex)
-{
-  if (true) {
-    VectorXd ni, nj;
-    array<VectorXd, 3> gradni, gradnj, grad2ni, grad2nj;
-
-    if (schd.fourBodyJastrowBasis == NC) {
-      NC_eval_deriv2(i, r, ni, gradni, grad2ni);
-      NC_eval_deriv2(j, r, nj, gradnj, grad2nj);
-    }
-    else if (schd.fourBodyJastrowBasis == AB) {
-      AB_eval_deriv2(i, r, ni, gradni, grad2ni);
-      AB_eval_deriv2(j, r, nj, gradnj, grad2nj);
-    }
-
-    for (int I = 0; I < ni.size(); I++)
-    {
-      for (int J = 0; J < nj.size(); J++)
-      {
-        values[startIndex + I * ni.size() + J] += factor * ni[I] * nj[J];
-
-        gx(i, startIndex + I * ni.size() + J) += factor * gradni[0][I] * nj[J];
-        gy(i, startIndex + I * ni.size() + J) += factor * gradni[1][I] * nj[J];
-        gz(i, startIndex + I * ni.size() + J) += factor * gradni[2][I] * nj[J];
-        laplace(i, startIndex + I * ni.size() + J) += factor * (grad2ni[0][I] + grad2ni[1][I] + grad2ni[2][I]) * nj[J];
-
-        gx(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[0][J];
-        gy(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[1][J];
-        gz(j, startIndex + I * ni.size() + J) += factor * ni[I] * gradnj[2][J];
-        laplace(j, startIndex + I * ni.size() + J) += factor * ni[I] * (grad2nj[0][J] + grad2nj[1][J] + grad2nj[2][J]);
-
-        if (i == j)
-        {
-          laplace(i, startIndex + I * ni.size() + J) += factor * 2.0 * (gradni[0][I] * gradnj[0][J] + gradni[1][I] * gradnj[1][J] + gradni[2][I] * gradnj[2][J]);
-        }
-      }
-    }
-  }
-
-}

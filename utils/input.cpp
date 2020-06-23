@@ -150,11 +150,16 @@ void readInput(string inputFile, schedule& schd, bool print) {
       if (fbjBasis == "NC") schd.fourBodyJastrowBasis = NC;
       else if (fbjBasis == "sNC") schd.fourBodyJastrowBasis = sNC;
       else if (fbjBasis == "AB") schd.fourBodyJastrowBasis = AB;
-      else if (fbjBasis == "sAB") schd.fourBodyJastrowBasis = sAB;
+      else if (fbjBasis == "AB2") schd.fourBodyJastrowBasis = AB2;
+      else if (fbjBasis == "sAB2") schd.fourBodyJastrowBasis = sAB2;
       else if (fbjBasis == "SS") schd.fourBodyJastrowBasis = SS;
       else if (fbjBasis == "SG") schd.fourBodyJastrowBasis = SG;
       else if (fbjBasis == "G")  {
         schd.fourBodyJastrowBasis = G;
+        readGridGaussians(schd.gridGaussians);
+      }
+      else if (fbjBasis == "mG")  {
+        schd.fourBodyJastrowBasis = mG;
         readGridGaussians(schd.gridGaussians);
       }
     }
