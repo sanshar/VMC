@@ -1020,7 +1020,7 @@ using namespace Eigen;
       double val = Gaussian(relec, rI, sigma, g, g2);
 
       double ovlp = std::pow(2.0 / (sigma / oldsigma + oldsigma / sigma), 3.0 / 2.0);
-      if ((rI - oldrI).squaredNorm() == 0.0)
+      if ((rI - oldrI).squaredNorm() < 1.e-8)
       {
         num[I] += (val - oldval * ovlp);
         denom += (val - oldval * ovlp);
@@ -1062,7 +1062,7 @@ using namespace Eigen;
       double val = Gaussian(relec, rI, sigma, g, g2);
 
       double ovlp = std::pow(2.0 / (sigma / oldsigma + oldsigma / sigma), 3.0 / 2.0);
-      if ((rI - oldrI).squaredNorm() == 0.0)
+      if ((rI - oldrI).squaredNorm() < 1.e-8)
       {
         num[I] += (val - oldval * ovlp);
         denom += (val - oldval * ovlp);
@@ -1131,7 +1131,7 @@ using namespace Eigen;
       double val = Gaussian(relec, rI, sigma, g, g2);
 
       double ovlp = std::pow(2.0 / (sigma / oldsigma + oldsigma / sigma), 3.0 / 2.0);
-      if ((rI - oldrI).squaredNorm() == 0.0)
+      if ((rI - oldrI).squaredNorm() < 1.e-8)
       {
         num[I] += (val - oldval * ovlp);
         denom += (val - oldval * ovlp);

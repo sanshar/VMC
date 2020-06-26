@@ -202,7 +202,7 @@ void rJastrow::printVariables() const
   for (int I = 0; I < schd.uniqueAtoms.size(); I++) {
     cout << schd.uniqueAtoms[I] << " | ";
     for (int i = 0; i < Qmax; i++) {
-      cout << _params[EENsameSpinIndex + Qmax * I + i] << " ";
+      cout << _params[ENIndex + Qmax * I + i] << " ";
     }
     cout << endl;
   }
