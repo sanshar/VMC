@@ -285,8 +285,6 @@ struct relCorrelatedWavefunction {
 
       ham += (tia * ovlpRatio); // EDIT: now also complex energies
 
-      if (0==1 && schd.ifSOC==true && commrank==0) cout << "Total excitations: " << work.nExcitations << " ex1, ex2 " << ex1 << "  " << ex2 << " I, J " << I << " " << J << " A, B" << A << " " << B << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << "   ham   "  << ham  << endl;
-
       work.ovlpRatio[i] = ovlpRatio;
     }
     

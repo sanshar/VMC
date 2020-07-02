@@ -514,9 +514,7 @@ class relGetEnergyWrapper
       }
       else
       {
-        //relCompEnergyDeterministicContinuousTime(w, walk, E0, stddev, rt, stochasticIter);
         relGetStochasticEnergyContinuousTime(w, walk, E0, stddev, rt, stochasticIter);
-        //relGetStochasticEnergyContinuousTimeRandIni(w, walk, E0, stddev, rt, stochasticIter);
       }
       return 1.0;
   };
