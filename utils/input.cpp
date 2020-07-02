@@ -224,6 +224,15 @@ void readInput(string input, schedule& schd, bool print) {
       else if (boost::iequals(ArgName, "excitedState"))
             schd.excitedState = atoi(tok[1].c_str());
 
+      else if (boost::iequals(ArgName, "lambdaPenalty"))
+          {
+            schd.lambdaPenalty.resize(tok.size() - 1);
+            for (int i = 1; i < tok.size() && tok[i] != "\0"; i++)
+            {
+              schd.lambdaPenalty[i - 1] = std::stod(tok[i]);
+            }
+          }
+
       else if (boost::iequals(ArgName, "print"))
         schd.doPrint = true;
 

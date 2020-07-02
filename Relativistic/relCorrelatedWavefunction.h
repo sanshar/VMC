@@ -68,7 +68,6 @@ struct relCorrelatedWavefunction {
   
   void initWalker(Walker<Corr, Reference> &walk, relDeterminant &d) const 
   {
-    //cout << "init walker here" << endl;
     walk = Walker<Corr, Reference>(corr, ref, d);
   }
   
@@ -114,23 +113,18 @@ struct relCorrelatedWavefunction {
 
   std::complex<double> getOverlapFactor(int i, int a, const Walker<Corr, Reference>& walk, bool doparity) const  
   {
-    //cout << "in getOverlapFactor 1 " << i << " " << a << endl;
     relDeterminant dcopy = walk.d;
     dcopy.setocc(i, false);
     dcopy.setocc(a, true);
       
-    //if (i==3 && a==2) cout << walk.corrHelper.OverlapRatio(i, a, corr, dcopy, walk.d) << " " << walk.getDetFactor(i, a, ref) << endl;
     return walk.corrHelper.OverlapRatio(i, a, corr, dcopy, walk.d)
         * walk.getDetFactor(i, a, ref);
-    //* slater.OverlapRatio(i, a, walk, doparity); 
   }
 
   std::complex<double> getOverlapFactor(int I, int J, int A, int B, const Walker<Corr, Reference>& walk, bool doparity) const  
   {
     //singleexcitation
     if (J == 0 && B == 0) return getOverlapFactor(I, A, walk, doparity);
- 
-    //cout << "in getOverlapFactor 2 " << I << " " << J << " " << A << " " << B << endl;
  
     relDeterminant dcopy = walk.d;
     dcopy.setocc(I, false);
@@ -140,7 +134,6 @@ struct relCorrelatedWavefunction {
 
     return walk.corrHelper.OverlapRatio(I, J, A, B, corr, dcopy, walk.d)
         * walk.getDetFactor(I, J, A, B, ref);
-        //* slater.OverlapRatio(I, J, A, B, walk, doparity);
   }
 
 
@@ -260,47 +253,6 @@ struct relCorrelatedWavefunction {
 
   //<psi_t| (H-E0) |D>
 
-  void HamAndOvlp(const Walker<Corr, Reference> &walk,
-                  std::complex<double> &ovlp, std::complex<double> &ham, 
-                  workingArray& work, bool fillExcitations=true) const
-  {
-    int norbs = relDeterminant::norbs;
-
-    ovlp = Overlap(walk).real(); //mostly checked
-    ham = walk.d.Energy(I1SOC, I2, coreE); 
-
-
-    if (0==0 && commrank==0) cout << "In HamAndOvlp special   ham: " << ham << "  ovlp: " << ovlp << endl;
- 
-
-    work.setCounterToZero();
-    generateAllScreenedSingleExcitation(walk.d, schd.epsilon, schd.screen,
-                                        work, false);  
-    generateAllScreenedDoubleExcitation(walk.d, schd.epsilon, schd.screen,
-                                        work, false);
-    
-    //loop over all the screened excitations
-    //cout << "eloc excitations" << work.nExcitations << endl;
-    for (int i=0; i<work.nExcitations; i++) {
-      int ex1 = work.excitation1[i], ex2 = work.excitation2[i];
-      std::complex<double> tia = work.HijElement[i];
-    
-      int I = ex1 / 2 / norbs, A = ex1 - 2 * norbs * I;
-      int J = ex2 / 2 / norbs, B = ex2 - 2 * norbs * J;
-
-      std::complex<double> ovlpRatio = getOverlapFactor(I, J, A, B, walk, false);
-
-      if (I%2==A%2 && J%2==B%2)
-        ham += (tia.real() * ovlpRatio.real()); // EDIT: now also complex energies
-
-      //if (0==0 && commrank==0 && i==0) cout << "Total excitations: " << work.nExcitations << " ex1, ex2 " << ex1 << "  " << ex2 << " I, J " << I << " " << J << " A, B" << A << " " << B << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << "   ham   "  << ham  << endl;
-
-      work.ovlpRatio[i] = ovlpRatio.real();
-    }
-    
-    if (0==1 && commrank==0) cout << "   ham   "  << ham  << endl;
-  }
-
 
   void HamAndOvlp(const Walker<Corr, Reference> &walk,
                   std::complex<double> &ovlp, std::complex<double> &ham, 
@@ -308,11 +260,9 @@ struct relCorrelatedWavefunction {
   {
     int norbs = relDeterminant::norbs;
 
-    ovlp = Overlap(walk); //mostly checked
+    ovlp = Overlap(walk);
     ham = walk.d.Energy(I1SOC, I2, coreE); 
     
-    //cout << "Det " << walk.d << " Eloc  " << ham << "  ovlp  " << ovlp << "  n ex  " << work.nExcitations << endl;
-    //cout << walk.d << endl;
 
     if (0==1 && commrank==0) cout << "In HamAndOvlp   ham: " << ham << "  ovlp: " << ovlp << endl;
  
@@ -324,7 +274,6 @@ struct relCorrelatedWavefunction {
     generateAllScreenedDoubleExcitation(walk.d, schd.epsilon, schd.screen, work, false);
     
     //loop over all the screened excitations
-    //cout << "eloc excitations" << work.nExcitations << endl;
     for (int i=0; i<work.nExcitations; i++) {
       int ex1 = work.excitation1[i], ex2 = work.excitation2[i];
       std::complex<double> tia = work.HijElement[i];
@@ -339,7 +288,6 @@ struct relCorrelatedWavefunction {
       if (0==1 && schd.ifSOC==true && commrank==0) cout << "Total excitations: " << work.nExcitations << " ex1, ex2 " << ex1 << "  " << ex2 << " I, J " << I << " " << J << " A, B" << A << " " << B << "  tia  " << tia << "  ovlpRatio  " << ovlpRatio << "   ham   "  << ham  << endl;
 
       work.ovlpRatio[i] = ovlpRatio;
-      //cout << "ovlp in ham " << ovlpRatio << " i " << I << " j " << J << " a " << A << " b " << B << endl;
     }
     
     if (schd.doPrint==true && commrank==0) {

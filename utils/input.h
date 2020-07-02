@@ -111,7 +111,7 @@ private:
       & direct
       & rStepType
       & ifComplex
-      & ifRelativistic & ifSOC & onlyEne & doPrint & excitedState
+      & ifRelativistic & ifSOC & onlyEne & doPrint & excitedState & lambdaPenalty
       & uagp
       & CorrSampleFrac
       & dTol
@@ -158,6 +158,7 @@ public:
   bool onlyEne;                          //to get relativistic energy, can be deterministic or stochastic
   bool doPrint;                          //to print to file the determinants, their local energy and overlap with the wavefunction
   int excitedState;                      //to calculate excited state for number > 0
+  std::vector<double> lambdaPenalty;
 
 
 //input file to define the correlator parts of the wavefunction

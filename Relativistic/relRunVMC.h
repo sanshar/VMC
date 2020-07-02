@@ -51,33 +51,8 @@ void runRelVMC(Wave& wave, Walker& walk) {
   {
     cout << "Number of Jastrow vars: " << wave.getCorr().getNumVariables() << endl;
     cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getCorr().getNumVariables() << endl;
-    if (0==1) {
-      cout << "I1SOC" << endl;
-      cout << I1SOC(0,0) << endl;
-      cout << I1SOC(0,1) << endl;
-      cout << I1SOC(1,0) << endl;
-      cout << I1SOC(1,1) << endl;
-      cout << I1SOC(0,2) << endl;
-      cout << I1SOC(2,0) << endl;
-      cout << "I2" << endl;
-      cout << I2(0,0,0,0) << endl;
-      cout << I2(0,1,0,0) << endl;
-      cout << I2(0,1,2,3) << endl;
-      cout << I2(0,1,2,2) << endl;
-      cout << I2(0,2,3,3) << endl;
-    }
   }
-
-/*
-  if (schd.deterministic == true && schd.ifRelativistic == false){
-    if (commrank == 0) cout << "Deterministic calculation" << endl;
-    double Energy = 0.0;
-    getEnergyDeterministic(wave, walk, Energy);
-    cout << "Deterministic energy: " << Energy << endl;
-    exit (0);
-  }
-*/
-  // deterministic calculation
+  // energy only, no optimization
   if (schd.onlyEne == true && schd.excitedState==0){
     if (commrank == 0) cout << "Relativistic energy calculation" << endl;
     relGetEnergyWrapper<Wave, Walker> wrapper(wave, walk, schd.deterministic);
@@ -85,6 +60,7 @@ void runRelVMC(Wave& wave, Walker& walk) {
     eneOnly eo(schd.deterministic);
     eo.relGetEnergy(vars, relGetEne);
   }
+  // regular VMC calculation
   else if (schd.onlyEne == false && schd.excitedState==0 && (schd.method == amsgrad || schd.method == amsgrad_sgd)) {
     if (commrank == 0) cout << "Relativistic vmc calculation" << endl;
     relGetGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
@@ -94,15 +70,12 @@ void runRelVMC(Wave& wave, Walker& walk) {
       optimizer.optimize(vars, relGetGradient, schd.restart);
     }
     else {
-      //AMSGrad optimizer(schd.stepsizes, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
-      //optimizer.optimize(vars, getStochasticGradient, runCorrelatedSampling, schd.restart); 
       cout << "Not yet implemented for rel" << endl;
     }
   }
+  // Determininstic excitedState calculation
   else if (schd.excitedState>0) {
     if (commrank == 0) cout << "Relativistic excited states vmc calculation" << endl;
-    //relCorrelatedWavefunction<relJastrow, relSlater> groundstate;
-    //groundstate.readWave(0);
     std::vector<relCorrelatedWavefunction<relJastrow, relSlater>> ls;
     for (int i=0; i<schd.excitedState; i++) {
       relCorrelatedWavefunction<relJastrow, relSlater> state;
@@ -110,8 +83,6 @@ void runRelVMC(Wave& wave, Walker& walk) {
       ls.push_back(state);
     }
     relGetGradientPenaltyWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc, ls);
-    //relGetGradientPenaltyWrapper<Wave, Walker> wrapperp(wave, walk, groundstate, schd.stochasticIter, schd.ctmc);
-    //functor1rc relGetGradient = boost::bind(&relGetGradientWrapper<Wave, Walker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
     functor1rc relGetGradientPenalty = boost::bind(&relGetGradientPenaltyWrapper<Wave, Walker>::getGradientPenalty, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
     if (schd.stepsizes.empty()) {
       relAMSGrad optimizer(schd.stepsize, schd.decay1, schd.decay2, schd.maxIter, schd.avgIter);
@@ -122,41 +93,6 @@ void runRelVMC(Wave& wave, Walker& walk) {
     cout << "No valid option selected for relativistic calculation" << endl;
   }
   
-/*
-  else if (schd.method == sgd) {
-    SGD optimizer(schd.stepsize, schd.momentum, schd.maxIter);
-    optimizer.optimize(vars, getStochasticGradient, schd.restart);
-  }
-  else if (schd.method == ftrl) {
-    SGD optimizer(schd.alpha, schd.beta, schd.maxIter);
-    optimizer.optimize(vars, getStochasticGradient, schd.restart);
-  }
-  else if (schd.method == sr) {
-    SR optimizer(schd.maxIter);
-    optimizer.optimize(vars, getStochasticGradientMetric, schd.restart);
-  }
-  else if (schd.method == linearmethod)
-  {
-    if (!schd.direct)
-    {
-      LM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay);
-      optimizer.optimize(vars, getStochasticGradientHessian, runCorrelatedSampling, schd.restart); 
-      //optimizer.optimize(vars, getStochasticGradientHessian, schd.restart); 
-    }
-    else
-    {
-      directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay, schd.sgdIter);
-      optimizer.optimize(vars, getStochasticGradientHessianDirect, runCorrelatedSampling, schd.restart);
-    }
-  }
-*/
-/*
-  else if (schd.method == varLM)
-  {
-    directVarLM optimizer(schd.maxIter);
-    optimizer.optimize(vars, getStochasticGradientVariance, schd.restart);
-  } 
-*/
   if (schd.printVars && commrank==0) wave.printVariables();
   
 }
