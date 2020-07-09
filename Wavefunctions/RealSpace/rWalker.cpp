@@ -335,18 +335,37 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
             {
               double C = (2.0 * (double) l + 1.0) / (4.0 * M_PI);
 
-              for (int j = 0; j < nmo; j++)
+              VectorXcd IntMO = VectorXd::Zero(nmo);
+              VectorXd IntAO = VectorXd::Zero(norbs);
+              for (int q = 0; q < Q.size(); q++)
               {
-                complex<double> Int = 0.0;
-                for (int q = 0; q < Q.size(); q++)
+                //calculate new vector, riprime
+                Vector3d riIprime = riI.norm() * Q[q];
+                Vector3d riprime = riIprime + rI;
+
+                //calculate angle
+                double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
+
+                //eval basis
+                schd.basis->eval(riprime, &refHelper.aoValues[0]);
+
+                //multiply legendre polynomial and wavefunction overlap ratio
+                double f = boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d);
+
+                //AO
+                for (int j = 0; j < norbs; j++)
                 {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * Q[q];
-                  Vector3d riprime = riIprime + rI;
+                  double aoval = refHelper.aoValues[j];
       
+                  //integrate
+                  IntAO(j) += f * aoval;
+                }
+       
+                //MO
+                for (int j = 0; j < nmo; j++)
+                {
                   //calculate mo at new coordinate
                   complex<double> moval = 0.0;
-                  schd.basis->eval(riprime, &refHelper.aoValues[0]);
                   for (int ao = 0; ao < norbs; ao++) {
                     if (schd.hf == "ghf") {
                       if (elec < nalpha)
@@ -362,51 +381,34 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
                     } 
                   }
       
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-      
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d) * moval;
+                  //integrate
+                  IntMO(j) += f * moval;
                 }
-                Int /= (double) Q.size();
-                Int *= (C * 4.0 * M_PI);
-                Bnl(elec, j + shift) += v * Int;
               }
 
-              //AOBnl
+              IntAO /= (double) Q.size();
+              IntAO *= (C * 4.0 * M_PI);
               for (int j = 0; j < norbs; j++)
               {
-                double Int = 0.0;
-                for (int q = 0; q < Q.size(); q++)
-                {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * Q[q];
-                  Vector3d riprime = riIprime + rI;
-      
-                  //calculate ao at new coordinate
-                  schd.basis->eval(riprime, &refHelper.aoValues[0]);
-                  double aoval = refHelper.aoValues[j];
-      
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-      
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Int += boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d) * aoval;
-                }
-                Int /= (double) Q.size();
-                Int *= (C * 4.0 * M_PI);
                 if (schd.hf == "ghf") {
                   if (elec < nalpha)
-                    AOBnl(elec, j) += v * Int;
+                    AOBnl(elec, j) += v * IntAO(j);
                   else
-                    AOBnl(elec, j + norbs) += v * Int;
+                    AOBnl(elec, j + norbs) += v * IntAO(j);
                 }
                 else {
-                  AOBnl(elec, j) += v * Int;
+                  AOBnl(elec, j) += v * IntAO(j);
                 }
               }
-      
+
+              IntMO /= (double) Q.size();
+              IntMO *= (C * 4.0 * M_PI);
+              for (int j = 0; j < nmo; j++)
+              {
+                Bnl(elec, j + shift) += v * IntMO(j);
+              }  
             }
+
           }
         }
       }
