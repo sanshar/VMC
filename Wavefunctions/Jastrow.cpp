@@ -156,6 +156,7 @@ void Jastrow::addNoise() {
 
 void Jastrow::printVariables() const
 {
+  cout << endl;
   cout << "Jastrow"<< endl;
   //for (int i=0; i<SpinCorrelator.rows(); i++)
   //  for (int j=0; j<=i; j++)

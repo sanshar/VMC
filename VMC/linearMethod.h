@@ -38,6 +38,10 @@ using namespace Eigen;
 using namespace boost;
 using namespace std;
 
+//sorts the eigenvalues in D and their respective eigenvectors in V in increasing order
+void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V);
+void SortEig(Eigen::VectorXcd &D, Eigen::MatrixXcd &V);
+
 /*
 This is a functor for the linear method optimizer
 */
@@ -649,6 +653,225 @@ class directLM
      }//while
    }//optimize
 };   
+
+
+Eigen::VectorXd RandomVector(int n);
+
+//DOI. 10.1137/090771806
+int RandomizedRangeFinder(const Eigen::MatrixXd &AO, Eigen::MatrixXd &Q, double epsilon, int r);
+
+
+/*
+This is a functor for the random linear method optimizer
+Note that it performs amsgrad for an sgdIter number of iterations
+*/
+class randomLM
+{
+  private:
+    friend class boost::serialization::access;
+    template <class Archive>
+    void serialize(Archive &ar, const unsigned int version)
+    {
+        ar & iter & mom1 & mom2;
+    }
+
+  public:
+    int iter;
+    int maxIter;
+    int numLMiter;
+    std::vector<double> LMStep;
+    int AMSGradIter;
+    double AMSGradStep, AMSGradDecay1, AMSGradDecay2;
+    VectorXd mom1;
+    VectorXd mom2;
+
+    randomLM(int _maxIter, std::vector<double> _LMStep, int _AMSGradIter = 100, double _AMSGradStep = 0.001, double _AMSGradDecay1 = 0.1, double _AMSGradDecay2 = 0.001) : maxIter(_maxIter), LMStep(_LMStep), AMSGradIter(_AMSGradIter), AMSGradStep(_AMSGradStep), AMSGradDecay1(_AMSGradDecay1), AMSGradDecay2(_AMSGradDecay2)
+    {
+        iter = 0;
+        numLMiter = 0;
+    }
+
+    void write(VectorXd& vars)
+    {
+        if (commrank == 0)
+        {
+	        char file[50];
+            sprintf(file, "randomLM.bkp");
+            std::ofstream ofs(file, std::ios::binary);
+            boost::archive::binary_oarchive save(ofs);
+            save << *this;
+            save << mom1;
+            save << mom2;
+            save << vars;
+            ofs.close();
+        }
+    }
+
+    void read(VectorXd& vars)
+    {
+        if (commrank == 0)
+        {
+	        char file[50];
+            sprintf(file, "randomLM.bkp");
+            std::ifstream ifs(file, std::ios::binary);
+	        boost::archive::binary_iarchive load(ifs);
+            load >> *this;
+            load >> mom1;
+            load >> mom2;
+            load >> vars;
+            ifs.close();
+        }
+    }
+
+   template<typename Function1, typename Function2, typename Function3>
+   void optimize(VectorXd &vars, Function1 &getMetric, Function2 &getHessian, Function3 &runCorrelatedSampling, bool restart)
+   {
+     int numVars = vars.rows();
+     if (restart || schd.fullRestart)
+     {
+       if (commrank == 0) read(vars);
+#ifndef SERIAL
+	    boost::mpi::communicator world;
+	    boost::mpi::broadcast(world, *this, 0);
+	    boost::mpi::broadcast(world, vars, 0);
+#endif
+     }
+     else if (mom1.rows() == 0) //if amsgrad options are empty
+     {
+       mom1.setZero(numVars);
+       mom2.setZero(numVars);
+     }
+
+      //random matrix subspace
+     Eigen::MatrixXd O(numVars + 1, schd.nVec);
+     if (commrank == 0)
+       for (int i = 0; i < O.cols(); i++) { O.col(i) = RandomVector(numVars + 1); }
+#ifndef SERIAL
+     MPI_Bcast(O.data(), O.rows() * O.cols(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+
+     while (iter < maxIter)
+     {
+       //initial run
+       double E0 = 0.0;
+       double stddev = 0.0;
+       double rt = 1.0;
+       VectorXd grad = VectorXd::Zero(numVars);
+       if (iter < AMSGradIter) rt = 0.0;
+       //action of matrices on random test subspace
+       Eigen::MatrixXd SO;
+       //sampling
+       double acceptedFrac = getMetric(vars, grad, O, SO, E0, stddev, rt);
+       write(vars);
+       double VMC_time = (getTime() - startofCalc);
+
+       //print
+       if (commrank == 0)
+         std::cout << format("%5i.a %14.8f (%8.2e) %14.8f %8.1f %8.1f %8.2f \n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (VMC_time);
+
+       Eigen::MatrixXd Q;
+       //update parameters
+       if (iter < AMSGradIter) //performs amsgrad
+       {
+         for (int i = 0; i < vars.rows(); i++)
+         {
+           mom1(i) = AMSGradDecay1 * grad(i) + (1.0 - AMSGradDecay1) * mom1(i);
+           mom2(i) = std::max(mom2(i), AMSGradDecay2 * grad(i) * grad(i) + (1.0 - AMSGradDecay2) * mom2(i));
+           double delta = AMSGradStep * mom1(i) / (pow(mom2(i), 0.5) + 1.e-8);
+           vars(i) -= delta;
+         }
+       }
+       else //performs LM by finding random subspace
+       {
+         numLMiter++;
+         double RRF_time, VMC1_time;
+         int nspace;
+         if (commrank == 0)
+         {
+           RandomizedRangeFinder(SO, Q, schd.error, schd.r);
+           nspace = Q.cols();
+         }
+#ifndef SERIAL
+     MPI_Bcast(&nspace, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+         if (commrank != 0) Q.resize(numVars + 1, nspace);
+     MPI_Bcast(Q.data(), Q.rows() * Q.cols(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+         RRF_time = getTime() - startofCalc;
+
+         //action of matrices on subspace
+         Eigen::MatrixXd HQ, SQ;
+         acceptedFrac = getHessian(vars, grad, Q, SQ, HQ, E0, stddev, rt);
+
+         //solve eigenproblem
+         Eigen::MatrixXd Hp = Q.transpose() * HQ;
+         Eigen::MatrixXd Sp = Q.transpose() * SQ;
+         //cout << Hp << endl << endl;
+         //cout << Sp << endl << endl;
+         Eigen::GeneralizedEigenSolver<MatrixXd> es(Hp, Sp);
+         VectorXcd Lambda = es.eigenvalues();
+         MatrixXcd U = Q * es.eigenvectors();
+         SortEig(Lambda, U);
+         std::complex<double> val = Lambda(0);
+         Eigen::VectorXcd u = U.col(0);
+         if (schd.printOpt && commrank == 0)
+         {
+           cout << "Lowest eigenpair of H, S" << endl << endl;
+           cout << val << endl << endl;
+           cout << u.transpose() << endl << endl;
+           cout << "first 10 eigenvalues" << endl;
+           for (int i = 0; i < 10; i++) { cout << Lambda(i) << " "; }
+           cout << endl << endl;
+         }
+
+         //normalize parameter update
+         VectorXd x = u.real();
+         VectorXd Sx = SQ * Q.transpose() * x;
+         double ksi = 0.5;
+         double xSx = x.dot(Sx);
+         VectorXd N = -((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
+         double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
+         VectorXd update = x.tail(numVars) / (x(0) * norm);
+#ifndef SERIAL
+     MPI_Bcast(update.data(), update.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+         VMC1_time = getTime() - startofCalc;
+
+         //correlated sampling
+         std::vector<Eigen::VectorXd> V(LMStep.size(), vars);
+         std::vector<double> E(LMStep.size(), 0.0);
+         for (int i = 0; i < V.size(); i++) { V[i] += LMStep[i] * update; }
+         runCorrelatedSampling(V, E);
+         //find lowest energy
+         int index = 0;
+         for (int i = 0; i < E.size(); i++) { if (E[i] < E[index]) index = i; }
+         
+         //print
+         if (schd.printOpt && commrank == 0)
+         {
+           cout << "Correlated Sampling: " << endl;
+           for (int i = 0; i < E.size(); i++) { cout << LMStep[i] << " " << E[i] << " | "; }
+           cout << endl;
+         }
+
+         //accept update only if "good" move
+         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
+         {
+           vars = V[index];
+         }
+
+         //print
+         if (commrank == 0)
+           std::cout << format("%5i.b %14.8f (%8.2e) %14.8f %8.1f %8.1f %8i %8.2f %8.2f %8.2f \n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (Q.cols()) % (RRF_time) % (VMC1_time) % ((getTime() - startofCalc));
+       }
+#ifndef SERIAL
+       MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+       //update iteration
+       iter++;
+     }//while
+   }//optimize
+};   
+
 
 /*
 Below is unfinished code that performs LM with the variance as the observabe of interest

@@ -16,6 +16,95 @@
 #include <boost/mpi.hpp>
 #endif
 
+//static std::mt19937 rg(1);
+
+//sorts the eigenvalues in D and their respective eigenvectors in V in increasing order
+void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
+{
+  Eigen::VectorXd Dcopy(D);
+  Eigen::MatrixXd Vcopy(V);
+  std::vector<double> a(Dcopy.data(), Dcopy.data() + Dcopy.size());
+  // initialize original index locations
+  std::vector<int> idx(a.size());
+  std::iota(idx.begin(), idx.end(), 0);
+  // sort indexes based on comparing values in a
+  std::sort(idx.begin(), idx.end(), [&a](int i1, int i2) -> bool {return a[i1] < a[i2];});
+  for (int i = 0; i < idx.size(); i++)
+  {
+    D(i) = Dcopy(idx[i]);
+    V.col(i) = Vcopy.col(idx[i]);
+  }   
+}
+
+//sorts the eigenvalues in D and their respective eigenvectors in V in increasing order
+void SortEig(Eigen::VectorXcd &D, Eigen::MatrixXcd &V)
+{
+  Eigen::VectorXcd Dcopy(D);
+  Eigen::MatrixXcd Vcopy(V);
+  std::vector<std::complex<double>> a(Dcopy.data(), Dcopy.data() + Dcopy.size());
+  // initialize original index locations
+  std::vector<int> idx(a.size());
+  std::iota(idx.begin(), idx.end(), 0);
+  // sort indexes based on comparing values in a
+  //std::sort(idx.begin(), idx.end(), [&a](int i1, int i2) -> bool { return std::abs(a[i1]) < std::abs(a[i2]); });
+  std::sort(idx.begin(), idx.end(), [&a](int i1, int i2) -> bool { return a[i1].real() < a[i2].real(); });
+  for (int i = 0; i < idx.size(); i++)
+  {
+    D(i) = Dcopy(idx[i]);
+    V.col(i) = Vcopy.col(idx[i]);
+  }
+}
+
+static std::mt19937 rg(1);
+//std::mt19937 rg(1);
+Eigen::VectorXd RandomVector(int n)
+{
+    Eigen::VectorXd o(n);
+    std::normal_distribution<double> dist(0.0, 1.0);
+    for (int i = 0; i < o.size(); i++) { o(i) = dist(rg); }
+    return o;
+}
+
+//DOI. 10.1137/090771806
+int RandomizedRangeFinder(const Eigen::MatrixXd &AO, Eigen::MatrixXd &Q, double epsilon, int r)
+{
+    int dim = AO.rows();
+
+    Eigen::MatrixXd Y = AO.block(0, 0, dim, r);
+    Eigen::VectorXd y(r);
+    for (int i = 0; i < r; i++) { y(i) = Y.col(i).norm(); }
+
+    double tol = epsilon / (10 * std::sqrt(2 / M_PI));
+    int j = 0;
+    Q = MatrixXd::Zero(dim, 0);
+    while (y.maxCoeff() > tol)
+    {
+        j++;
+
+        Y.col(j - 1) = Y.col(j - 1) - Q * (Q.transpose() * Y.col(j - 1));
+        Eigen::VectorXd q = Y.col(j - 1) / (Y.col(j - 1).norm() + 1.0e-8);
+
+        Q.conservativeResize(dim, j);
+        Q.col(j - 1) = q;
+
+        Y.conservativeResize(dim, j + r);
+        Y.col(j + r - 1) = AO.col(j + r - 1) - Q * (Q.transpose() * AO.col(j + r - 1));
+
+        for (int i = j + 1; i <= j + r - 1; i++)
+        {
+            Y.col(i - 1) = Y.col(i - 1) - q * (q.transpose() * Y.col(i - 1));
+        }
+
+        for (int i = j + 1; i <= j + r; i++)
+        {
+            y(i - j - 1) = Y.col(i - 1).norm();
+        }
+
+        //cout << j << " | " << y.transpose() << endl;
+        if (j >= AO.cols() - r) break;
+    }
+    return j;
+}
 //Conjugate gradient function performs the conjugate gradient algorithm using the DirectLM matrix object 
 void ConjGrad(const DirectLM &A, const Eigen::VectorXd &Su, const Eigen::VectorXd &u, double theta, const Eigen::VectorXd &b, int n, double tol, Eigen::VectorXd &x)
 {
@@ -285,23 +374,6 @@ void CanonicalTransform(const Eigen::MatrixXd &Smatrix, Eigen::MatrixXd &X)
   X.conservativeResize(Smatrix.rows(), index);
 } 
 
-//sorts the eigenvalues in D and their respective eigenvectors in V in increasing order
-void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
-{
-  Eigen::VectorXd Dcopy(D);
-  Eigen::MatrixXd Vcopy(V);
-  std::vector<double> a(Dcopy.data(), Dcopy.data() + Dcopy.size());
-  // initialize original index locations
-  std::vector<int> idx(a.size());
-  std::iota(idx.begin(), idx.end(), 0);
-  // sort indexes based on comparing values in a
-  std::sort(idx.begin(), idx.end(), [&a](int i1, int i2) -> bool {return a[i1] < a[i2];});
-  for (int i = 0; i < idx.size(); i++)
-  {
-    D(i) = Dcopy(idx[i]);
-    V.col(i) = Vcopy.col(idx[i]);
-  }   
-}
 
 //optimized generalized jacobi davidson implementation with DirectLM matrix object
 void GeneralizedJacobiDavidson(DirectLM &H, double target, const Eigen::VectorXd &targetv, double &lambda, Eigen::VectorXd &v, int cgIter, double cgTol, double dTol)

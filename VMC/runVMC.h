@@ -27,17 +27,11 @@
 #include "ftrl.h"
 #include "sr.h"
 #include "linearMethod.h"
+#include <functional>
 //#include "variance.h"
 
-using CorrSampleFunctor = boost::function<void (std::vector<Eigen::VectorXd>&, std::vector<double>&)>; 
-using functor1 = boost::function<double (VectorXd&, VectorXd&, double&, double&, double&)>;
-using functor2 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
-//using functor0 = boost::function<void (VectorXd&, VectorXd&, DirectVarLM &, double&, double&, double&, double&)>;
-using functor3 = boost::function<double (VectorXd&, VectorXd&, double&, double&, double&)>;
-//using functor4 = boost::function<void (VectorXd&, VectorXd&, VectorXd&, DirectMetric&, double&, double&, double&)>;
-using functor5 = boost::function<double (VectorXd&, VectorXd&, MatrixXd&, MatrixXd&, double&, double&, double&)>;
-using functor6 = boost::function<double (VectorXd&, VectorXd&, DirectLM&, double&, double&, double&)>;
 
+namespace ph = std::placeholders;
 
 template<typename Wave, typename Walker>
 void runVMC(Wave& wave, Walker& walk) {
@@ -53,14 +47,16 @@ void runVMC(Wave& wave, Walker& walk) {
   }
   
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
-  functor1 getStochasticGradient = boost::bind(&getGradientWrapper<Wave, Walker>::getGradient, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
-  functor2 getStochasticGradientMetric = boost::bind(&getGradientWrapper<Wave, Walker>::getMetric, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
-  //functor0 getStochasticGradientVariance = boost::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
-  functor5 getStochasticGradientHessian = boost::bind(&getGradientWrapper<Wave, Walker>::getHessian, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
-  functor6 getStochasticGradientHessianDirect = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianDirect, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
+  auto getStochasticGradient = std::bind(&getGradientWrapper<Wave, Walker>::getGradient, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, schd.deterministic);
+  auto getStochasticGradientMetric = std::bind(&getGradientWrapper<Wave, Walker>::getMetric, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  auto getStochasticGradientMetricRandom = std::bind(&getGradientWrapper<Wave, Walker>::getMetricRandom, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  //auto getStochasticGradientVariance = std::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  auto getStochasticGradientHessian = std::bind(&getGradientWrapper<Wave, Walker>::getHessian, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  auto getStochasticGradientHessianDirect = std::bind(&getGradientWrapper<Wave, Walker>::getHessianDirect, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, schd.deterministic);
+  auto getStochasticGradientHessianRandom = std::bind(&getGradientWrapper<Wave, Walker>::getHessianRandom, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, ph::_8, schd.deterministic);
 
   CorrSampleWrapper<Wave, Walker> wrap(schd.CorrSampleFrac * schd.stochasticIter);
-  CorrSampleFunctor runCorrelatedSampling = boost::bind(&CorrSampleWrapper<Wave, Walker>::run, &wrap, _1, _2);
+  auto runCorrelatedSampling = std::bind(&CorrSampleWrapper<Wave, Walker>::run, &wrap, ph::_1, ph::_2);
 
   if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
       if (schd.stepsizes.empty()) {
@@ -86,16 +82,21 @@ void runVMC(Wave& wave, Walker& walk) {
   }
   else if (schd.method == linearmethod)
   {
-    if (!schd.direct)
+    if (!schd.direct && !schd.random)
     {
       LM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay);
       optimizer.optimize(vars, getStochasticGradientHessian, runCorrelatedSampling, schd.restart); 
       //optimizer.optimize(vars, getStochasticGradientHessian, schd.restart); 
     }
-    else
+    else if (schd.direct && !schd.random)
     {
       directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay, schd.sgdIter);
       optimizer.optimize(vars, getStochasticGradientHessianDirect, runCorrelatedSampling, schd.restart);
+    }
+    else if (schd.random)
+    {
+      randomLM optimizer(schd.maxIter, schd.stepsizes, schd.sgdIter);
+      optimizer.optimize(vars, getStochasticGradientMetricRandom, getStochasticGradientHessianRandom, runCorrelatedSampling, schd.restart);
     }
   }
 /*
@@ -125,14 +126,14 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
     cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getNumJastrowVariables() << endl;
   }
 
-  functor3 getStochasticGradientRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, _1, _2, _3, _4, _5, schd.deterministic);
-  functor2 getStochasticGradientMetricRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
-  functor5 getStochasticGradientHessianRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, _7, schd.deterministic);
-  functor6 getStochasticGradientHessianDirectRealSpace = boost::bind(&getGradientWrapper<Wave, Walker>::getHessianDirectRealSpace, &wrapper, _1, _2, _3, _4, _5, _6, schd.deterministic);
+  auto getStochasticGradientRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, schd.deterministic);
+  auto getStochasticGradientMetricRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  auto getStochasticGradientHessianRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getHessianRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  auto getStochasticGradientHessianDirectRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getHessianDirectRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, schd.deterministic);
 
   //CorrSampleWrapper<Wave, Walker> wrap(0.15 * schd.stochasticIter);
   CorrSampleWrapper<Wave, Walker> wrap(schd.CorrSampleFrac * schd.stochasticIter);
-  CorrSampleFunctor runCorrelatedSamplingRealSpace = boost::bind(&CorrSampleWrapper<Wave, Walker>::runRealSpace, &wrap, _1, _2);
+  auto runCorrelatedSamplingRealSpace = std::bind(&CorrSampleWrapper<Wave, Walker>::runRealSpace, &wrap, ph::_1, ph::_2);
 
   if (schd.walkerBasis == REALSPACESTO || schd.walkerBasis == REALSPACEGTO) {
     if (schd.method == amsgrad || schd.method == amsgrad_sgd) {
@@ -151,6 +152,8 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
       if (schd.direct) {
         directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay, schd.sgdIter);
         optimizer.optimize(vars, getStochasticGradientHessianDirectRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
+      }
+      else if (schd.random) {
       }
       else {  
         LM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay);

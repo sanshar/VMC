@@ -263,6 +263,10 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.dTol = input.get("optimizer.dTol", 1.e-3);
     schd.cgTol = input.get("optimizer.cgTol", 1.e-3);
     schd.tol = input.get("tol", 0.); 
+    schd.random = input.get("optimizer.random", false);
+    schd.nVec = input.get("optimizer.nVec", 500);
+    schd.r = input.get("optimizer.r", 10);
+    schd.error = input.get("optimizer.error", 0.01);
 
     //lm for ci
     schd.diagMethod = input.get("optimizer.diagMethod", "power");

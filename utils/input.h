@@ -150,7 +150,11 @@ private:
       & minPop
       & initialPop
       & targetPop
-      & numHidden;
+      & numHidden
+      & random
+      & error
+      & nVec
+      & r;
   }
 public:
 //General options
@@ -247,6 +251,10 @@ public:
   double cgTol;
   int cgIter;
   bool ctmc;
+  bool random;
+  int nVec;
+  int r;
+  double error;
 
   /*
   bool davidsonPrecondition;

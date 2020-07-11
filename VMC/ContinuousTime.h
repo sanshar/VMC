@@ -34,7 +34,7 @@ class ContinuousTime
   workingArray work;
   double T, Eloc, ovlp;
   double S1, oldEnergy;
-  double cumT, cumT2, cumT_everyrk;
+  double cumT, cumT2, cumT_everyrk, cumT2_everyrk;
   Eigen::VectorXd grad_ratio, grad_Eloc;
   int nsample;
   Statistics Stats; //this is only used to calculate autocorrelation length
@@ -55,7 +55,7 @@ class ContinuousTime
     nalpha = Determinant::nalpha;
     nbeta = Determinant::nbeta;
     bestDet = walk.getDet();
-    cumT = 0.0, cumT2 = 0.0, cumT_everyrk = 0.0, S1 = 0.0, oldEnergy = 0.0, bestOvlp = 0.0; 
+    cumT = 0.0, cumT2 = 0.0, cumT_everyrk = 0.0, cumT2_everyrk = 0.0, S1 = 0.0, oldEnergy = 0.0, bestOvlp = 0.0; 
   }
 
   void LocalEnergy()
@@ -100,7 +100,10 @@ class ContinuousTime
     cumT += T;
     cumT2 += T * T;
     if (sample == 0)
+    {
         cumT_everyrk += T;
+        cumT2_everyrk += T * T;
+    }
     walk.updateWalker(w.getRef(), w.getCorr(), work.excitation1[nextDet], work.excitation2[nextDet]);
   }
 
@@ -134,6 +137,20 @@ class ContinuousTime
     if (Stats.X.size() < nsample)
     {
       Stats.push_back(Eloc, T);
+    }
+  }
+
+  void UpdateEnergy(double &Energy, int sample)
+  {
+    if (sample == 0)
+    {
+      oldEnergy = Energy;
+      Energy += T * (Eloc - Energy) / cumT_everyrk;
+      S1 += T * (Eloc - oldEnergy) * (Eloc - Energy);
+      if (Stats.X.size() < nsample)
+      {
+        Stats.push_back(Eloc, T);
+      }
     }
   }
   
@@ -184,6 +201,55 @@ class ContinuousTime
     double neff = commsize * (cumT * cumT) / cumT2;
     stddev = sqrt(rk * S1 / neff);
   }
+
+  void FinishEnergy(double &Energy, double &stddev, double &rk, int sample)
+  {
+    try 
+    {
+      Stats.Block();
+      rk = Stats.BlockCorrTime();
+    }
+    catch (const runtime_error &error)
+    {
+      Stats.CorrFunc();
+      rk = Stats.IntCorrTime();
+    }
+/*
+    if (commrank == 0)
+    {
+      Stats.WriteBlock();
+      cout << "Block rk:\t" << rk << endl;
+    }
+    Stats.CorrFunc();
+    rk = Stats.IntCorrTime();
+    if (commrank == 0)
+    {
+      Stats.WriteCorrFunc();
+      cout << "CorrFunc rk:\t" << rk << endl;
+    }
+    rk = calcTcorr(Stats.X);
+    if (commrank == 0)
+    {
+      cout << "OldCorrFunc rk:\t" << rk << endl;
+    }
+*/
+    S1 /= cumT_everyrk;
+#ifndef SERIAL
+    MPI_Allreduce(MPI_IN_PLACE, &Energy, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &cumT_everyrk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &cumT2_everyrk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    Energy /= commsize;
+    S1 /= commsize;
+    rk /= commsize;
+    cumT_everyrk /= commsize;
+    cumT2_everyrk /= commsize;
+#endif
+    double neff = commsize * (cumT_everyrk * cumT_everyrk) / cumT2_everyrk;
+    stddev = sqrt(rk * S1 / neff);
+  }
+
 
   void LocalGradient()
   {
@@ -237,6 +303,123 @@ class ContinuousTime
     {
       w.OverlapWithLocalEnergyGradient(walk, work, grad_Eloc);
     }
+  }
+
+  void UpdateRowAndColGradient(Eigen::VectorXd &G, Eigen::VectorXd &g, Eigen::VectorXd &h) 
+  {
+    Eigen::VectorXd Htemp(numVars);
+    Htemp = grad_Eloc + Eloc * grad_ratio;
+    g += T * (grad_ratio - g) / cumT;
+    G += T * (grad_ratio * Eloc - G) / cumT;
+    h += T * (Htemp - h) / cumT;
+  }
+
+  void UpdateRowAndColGradient(Eigen::VectorXd &G, Eigen::VectorXd &g, Eigen::VectorXd &h, int sample) 
+  {
+    if (sample == 0)
+    {
+      Eigen::VectorXd Htemp(numVars);
+      Htemp = grad_Eloc + Eloc * grad_ratio;
+      g += T * (grad_ratio - g) / cumT_everyrk;
+      G += T * (grad_ratio * Eloc - G) / cumT_everyrk;
+      h += T * (Htemp - h) / cumT_everyrk;
+    }
+  }
+
+  void FinishRowAndColGradient(Eigen::VectorXd &Gr, Eigen::VectorXd &Gc, Eigen::VectorXd &G, Eigen::VectorXd &g, Eigen::VectorXd &h, double Energy)
+  {
+#ifndef SERIAL
+    MPI_Allreduce(MPI_IN_PLACE, (G.data()), G.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, (g.data()), g.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, (h.data()), h.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    G /= commsize;
+    g /= commsize;
+    h /= commsize;
+#endif
+    Gc = (G - Energy * g);
+    Gr = (h - Energy * g);
+  }
+
+  void UpdateSO(const Eigen::MatrixXd &O, Eigen::MatrixXd &SO)
+  {
+    Eigen::VectorXd Gappended(numVars + 1);
+    Gappended << 0.0, grad_ratio;
+    SO.noalias() += T * (Gappended * Gappended.transpose() * O - SO) / cumT;
+  }
+
+  void UpdateHO(const Eigen::MatrixXd &O, Eigen::MatrixXd &HO)
+  {
+    Eigen::VectorXd Gappended(numVars + 1);
+    Gappended << 0.0, grad_ratio;
+    Eigen::VectorXd Htemp(numVars);
+    Htemp = grad_Eloc + Eloc * grad_ratio;
+    Eigen::VectorXd Happended(numVars + 1);
+    Happended << 0.0, Htemp;
+    HO.noalias() += T * (Gappended * Happended.transpose() * O - HO) / cumT;
+  }
+
+  void UpdateSO(const Eigen::MatrixXd &O, Eigen::MatrixXd &SO, int sample)
+  {
+    if (sample == 0)
+    {
+      Eigen::VectorXd Gappended(numVars + 1);
+      Gappended << 0.0, grad_ratio;
+      SO.noalias() += T * (Gappended * Gappended.transpose() * O - SO) / cumT_everyrk;
+    }
+  }
+
+  void UpdateHO(const Eigen::MatrixXd &O, Eigen::MatrixXd &HO, int sample)
+  {
+    if (sample == 0)
+    {
+      Eigen::VectorXd Gappended(numVars + 1);
+      Gappended << 0.0, grad_ratio;
+      Eigen::VectorXd Htemp(numVars);
+      Htemp = grad_Eloc + Eloc * grad_ratio;
+      Eigen::VectorXd Happended(numVars + 1);
+      Happended << 0.0, Htemp;
+      HO.noalias() += T * (Gappended * Happended.transpose() * O - HO) / cumT_everyrk;
+    }
+  }
+
+  void FinishSO(const Eigen::MatrixXd &O, Eigen::MatrixXd &SO, const Eigen::VectorXd &grad_ratio_bar)
+  {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (SO.data()), SO.rows() * SO.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      SO /= commsize;
+      Eigen::VectorXd e0 = Eigen::VectorXd::Unit(numVars + 1, 0);  
+      Eigen::VectorXd Gappended_bar(numVars + 1);
+      Gappended_bar << 0.0, grad_ratio_bar;
+      SO.noalias() = e0 * e0.transpose() * O 
+                   + SO 
+                   - Gappended_bar * Gappended_bar.transpose() * O;
+  }
+
+  void FinishHO(const Eigen::MatrixXd &O, Eigen::MatrixXd &HO, const Eigen::VectorXd &g, const Eigen::VectorXd &h, const Eigen::VectorXd &G, const Eigen::VectorXd &Gr, const Eigen::VectorXd &Gc, double Energy)
+  {
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, (HO.data()), HO.rows() * HO.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+      HO /= commsize;
+      Eigen::VectorXd e0 = Eigen::VectorXd::Unit(numVars + 1, 0);  
+      Eigen::VectorXd Gappended_bar(numVars + 1);
+      Eigen::VectorXd Happended_bar(numVars + 1);
+      Eigen::VectorXd Gr_appended(numVars + 1);
+      Eigen::VectorXd Gc_appended(numVars + 1);
+      Eigen::VectorXd G_appended(numVars + 1);
+      Gappended_bar << 0.0, g;
+      Happended_bar << 0.0, h;
+      Gr_appended << 0.0, Gr;
+      Gc_appended << 0.0, Gc;
+      G_appended << 0.0, G;
+      HO.noalias() = Energy * e0 * e0.transpose() * O 
+                   + e0 * Gr_appended.transpose() * O
+                   + Gc_appended * e0.transpose() * O
+                   + HO
+                   - G_appended * Gappended_bar.transpose() * O
+                   - Gappended_bar * Happended_bar.transpose() * O
+                   + Energy * Gappended_bar * Gappended_bar.transpose() * O;
   }
 
   void UpdateSR(DirectMetric &S)
@@ -352,8 +535,8 @@ class ContinuousTime
     Gappended << 1.0, grad_ratio;
     Htemp = grad_Eloc + Eloc * grad_ratio;
     Happended << Eloc, Htemp;
-    Smatrix.noalias() += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT_everyrk;
-    Hmatrix.noalias() += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT_everyrk;
+    Smatrix.noalias() += T * (Gappended * Gappended.adjoint() - Smatrix) / cumT;
+    Hmatrix.noalias() += T * (Gappended * Happended.adjoint() - Hmatrix) / cumT;
   }
 
   void UpdateLM(Eigen::MatrixXd &Hmatrix, Eigen::MatrixXd &Smatrix, int sample)

@@ -1688,6 +1688,65 @@ void getStochasticGradientHessianContinuousTime(Wfn &w, Walker& walk, double &En
 }
 
 template<typename Wfn, typename Walker>
+void getStochasticGradientMetricRandomContinuousTime(Wfn &w, Walker& walk, double &Energy, double &stddev, VectorXd &grad, MatrixXd &O, MatrixXd &SO, double &rk, int niter)
+{
+  ContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
+  int numVars = grad.rows();
+  Energy = 0.0;
+  grad.setZero();
+  Eigen::VectorXd grad_ratio_bar = VectorXd::Zero(numVars);
+  SO = Eigen::MatrixXd::Zero(numVars + 1, schd.nVec);
+  for (int iter = 0; iter < niter; iter++)
+  {
+    CTMC.LocalEnergy();
+    CTMC.LocalGradient();
+    CTMC.MakeMove();
+    CTMC.UpdateEnergy(Energy);
+    CTMC.UpdateGradient(grad, grad_ratio_bar);
+    CTMC.UpdateSO(O, SO);
+    CTMC.UpdateBestDet();
+  }
+  CTMC.FinishEnergy(Energy, stddev, rk);
+  CTMC.FinishGradient(grad, grad_ratio_bar, Energy);
+  CTMC.FinishSO(O, SO, grad_ratio_bar);
+  CTMC.FinishBestDet();
+}
+
+template<typename Wfn, typename Walker>
+void getStochasticGradientHessianRandomContinuousTime(Wfn &w, Walker& walk, double &Energy, double &stddev, VectorXd &grad, MatrixXd &Q, MatrixXd &HQ, MatrixXd &SQ, double &rk, int niter)
+{
+  ContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
+  int numVars = grad.rows();
+  Energy = 0;
+  HQ = MatrixXd::Zero(numVars + 1, Q.cols());
+  SQ = MatrixXd::Zero(numVars + 1, Q.cols());
+  Eigen::VectorXd G = VectorXd::Zero(numVars);
+  Eigen::VectorXd h = VectorXd::Zero(numVars);
+  Eigen::VectorXd g = VectorXd::Zero(numVars);
+  for (int iter = 0; iter < niter; iter++)
+  {
+    int sample = iter % (int) std::round(rk);
+    CTMC.LocalEnergy();
+    CTMC.LocalGradient(sample);
+    CTMC.LocalEnergyGradient(sample);
+    CTMC.MakeMove(sample);
+    CTMC.UpdateEnergy(Energy, sample);
+    CTMC.UpdateRowAndColGradient(G, g, h, sample);
+    CTMC.UpdateSO(Q, SQ, sample);
+    CTMC.UpdateHO(Q, HQ, sample);
+    //CTMC.UpdateBestDet();
+  }
+  Eigen::VectorXd Gr(numVars);
+  Eigen::VectorXd Gc(numVars);
+  CTMC.FinishEnergy(Energy, stddev, rk, 0);
+  CTMC.FinishRowAndColGradient(Gr, Gc, G, g, h, Energy);
+  grad = Gc;
+  CTMC.FinishSO(Q, SQ, g);
+  CTMC.FinishHO(Q, HQ, g, h, G, Gr, Gc, Energy);
+  //CTMC.FinishBestDet();
+}
+
+template<typename Wfn, typename Walker>
 void getStochasticGradientHessianDirectContinuousTime(Wfn &w, Walker& walk, double &Energy, double &stddev, VectorXd &grad, DirectLM &h, double &rk, int niter)
 {
   ContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
@@ -2023,5 +2082,56 @@ class getGradientWrapper
     w.writeWave();
     return 1.0;
   };
+
+  double getMetricRandom(VectorXd &vars, VectorXd &grad, MatrixXd &O, MatrixXd &SO, double &E0, double &stddev, double &rt, bool deterministic)
+  {
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    if (!deterministic)
+    {
+      if (rt == 0.0)
+      {
+        getStochasticGradientContinuousTime(w, walk, E0, stddev, grad, rt, stochasticIter);
+      }
+      else
+      {
+        getStochasticGradientMetricRandomContinuousTime(w, walk, E0, stddev, grad, O, SO, rt, stochasticIter);
+      }
+    }
+    else
+    {
+      stddev = 0.0;
+      rt = 1.0;
+    }
+    w.writeWave();
+    return 1.0;
+  };
+
+  double getHessianRandom(VectorXd &vars, VectorXd &grad, MatrixXd &Q, MatrixXd &SQ, MatrixXd &HQ, double &E0, double &stddev, double &rt, bool deterministic)
+  {
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    /*
+    if (!deterministic)
+    {
+      if (rt == 0.0)
+      {
+        getStochasticGradientContinuousTime(w, walk, E0, stddev, grad, rt, stochasticIter);
+      }
+      else
+      {
+        getStochasticGradientHessianRandomContinuousTime(w, walk, E0, stddev, grad, Q, HQ, SQ, rt, stochasticIter);
+      }
+    }
+    else
+    {
+      rt = 1.0;
+    }
+    */
+    getStochasticGradientHessianRandomContinuousTime(w, walk, E0, stddev, grad, Q, HQ, SQ, rt, stochasticIter);
+    w.writeWave();
+    return 1.0;
+  };
+
 };
 #endif
