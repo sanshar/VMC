@@ -805,6 +805,7 @@ class randomLM
          //solve eigenproblem
          Eigen::MatrixXd Hp = Q.transpose() * HQ;
          Eigen::MatrixXd Sp = Q.transpose() * SQ;
+         //cout << endl;
          //cout << Hp << endl << endl;
          //cout << Sp << endl << endl;
          Eigen::GeneralizedEigenSolver<MatrixXd> es(Hp, Sp);

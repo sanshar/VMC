@@ -128,8 +128,10 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
 
   auto getStochasticGradientRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, schd.deterministic);
   auto getStochasticGradientMetricRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  auto getStochasticGradientMetricRandomRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getMetricRandomRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
   auto getStochasticGradientHessianRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getHessianRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
   auto getStochasticGradientHessianDirectRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getHessianDirectRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, schd.deterministic);
+  auto getStochasticGradientHessianRandomRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getHessianRandomRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, ph::_8, schd.deterministic);
 
   //CorrSampleWrapper<Wave, Walker> wrap(0.15 * schd.stochasticIter);
   CorrSampleWrapper<Wave, Walker> wrap(schd.CorrSampleFrac * schd.stochasticIter);
@@ -149,11 +151,13 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
       optimizer.optimize(vars, getStochasticGradientMetricRealSpace, schd.restart);
     }
     else if (schd.method == linearmethod) {
-      if (schd.direct) {
+      if (schd.direct && !schd.random) {
         directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay, schd.sgdIter);
         optimizer.optimize(vars, getStochasticGradientHessianDirectRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
       }
       else if (schd.random) {
+        randomLM optimizer(schd.maxIter, schd.stepsizes, schd.sgdIter);
+        optimizer.optimize(vars, getStochasticGradientMetricRandomRealSpace, getStochasticGradientHessianRandomRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
       }
       else {  
         LM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay);

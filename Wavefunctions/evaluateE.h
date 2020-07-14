@@ -1713,6 +1713,140 @@ void getStochasticGradientMetricRandomContinuousTime(Wfn &w, Walker& walk, doubl
 }
 
 template<typename Wfn, typename Walker>
+double getGradientMetricRandomMetropolisRealSpace(Wfn &wave, Walker &walk, double &Energy, double &stddev, Eigen::VectorXd &grad, MatrixXd& O, MatrixXd& SO, double &rk, int niter)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+
+  double ovlp =  1.0;//wave.Overlap(walk);;
+
+  rDeterminant bestDet = walk.getDet();
+  double bestovlp = ovlp; //cout << bestovlp <<endl;
+
+  Statistics Stats;
+  Vector3d step;
+  int elecToMove = 0, nelec = walk.d.nelec;
+
+  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = nelec;
+  
+  double acceptedFrac = 0;
+  double S1 = 0.;
+  int nstore = 1000000 / commsize;
+  int corrIter = min(nstore, niter/sampleSteps);
+
+  int numVars = grad.rows();
+  Energy = 0.0;
+  grad.setZero();
+  Eigen::VectorXd gradRatio_bar = VectorXd::Zero(numVars);
+  SO = Eigen::MatrixXd::Zero(numVars + 1, schd.nVec);
+
+  double ovlpRatio = -1.0, proposalProb;
+  while (iter < niter) {
+    elecToMove = iter%nelec;
+
+    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    step += walk.d.coord[elecToMove];
+
+    iter ++;
+    if (iter%sampleSteps == 0 && iter > 0.01*niter) {
+      double ham;
+      Eigen::VectorXd gradRatio = VectorXd::Zero(numVars);
+      ham = wave.rHam(walk); 
+      wave.OverlapWithGradient(walk, ovlp, gradRatio);
+
+      VectorXd G(numVars + 1);
+      G << 0.0, gradRatio;
+      MatrixXd tempGTO = G.transpose()*O;
+      SO.noalias() += (G*tempGTO-SO)/(effIter+1);
+      //SO.noalias() += (G*G.transpose()*O-SO)/(effIter+1);
+
+      for (int i = 0; i < grad.rows(); i++)
+      {
+        gradRatio_bar[i] += (gradRatio[i]-gradRatio_bar[i])/(effIter+1);
+        grad[i] += (ham * gradRatio[i]-grad[i])/(effIter + 1);
+        gradRatio[i] = 0.0;
+      }
+
+      double avgPotold = avgPot;
+      avgPot += (ham - avgPot)/(effIter+1);
+      S1 += (ham - avgPotold) * (ham - avgPot);
+      if (effIter < corrIter)
+        Stats.push_back(ham);
+
+      effIter++;
+    }
+ 
+    //if move is simple or gaussian
+    if (ovlpRatio < -0.5) 
+      ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2);
+    
+    if (ovlpRatio*proposalProb > random()) {
+      acceptedFrac++;
+      walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
+
+      ovlp = ovlp*sqrt(ovlpRatio);
+
+      if (abs(ovlp) > abs(bestovlp)) {
+        bestovlp = ovlp;
+        bestDet = walk.getDet();
+      }
+    }
+
+  }
+
+  try
+  {
+    Stats.Block();
+    rk = Stats.BlockCorrTime();
+  }
+  catch (const runtime_error &error)
+  {
+    Stats.CorrFunc();
+    rk = Stats.IntCorrTime();
+  }
+
+  S1 /= effIter;
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &(gradRatio_bar[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, (SO.data()), SO.rows() * SO.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  rk /= commsize;
+  avgPot /= commsize;
+  S1 /= commsize;
+  gradRatio_bar /= commsize;
+  grad /= commsize;
+  SO /= commsize;
+  double n_eff = commsize * effIter;
+
+  stddev = sqrt((S1 * rk / n_eff));
+  Energy = avgPot;
+  grad = grad - Energy * gradRatio_bar;
+
+  Eigen::VectorXd e0 = Eigen::VectorXd::Unit(numVars + 1, 0);  
+  Eigen::VectorXd Gappended_bar(numVars + 1);
+  Gappended_bar << 0.0, gradRatio_bar;
+  SO.noalias() = e0 * e0.transpose() * O 
+               + SO 
+               - Gappended_bar * Gappended_bar.transpose() * O;
+  
+
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestCoordinates.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << bestDet;
+  }
+
+  return acceptedFrac/niter;
+}
+
+template<typename Wfn, typename Walker>
 void getStochasticGradientHessianRandomContinuousTime(Wfn &w, Walker& walk, double &Energy, double &stddev, VectorXd &grad, MatrixXd &Q, MatrixXd &HQ, MatrixXd &SQ, double &rk, int niter)
 {
   ContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
@@ -1744,6 +1878,166 @@ void getStochasticGradientHessianRandomContinuousTime(Wfn &w, Walker& walk, doub
   CTMC.FinishSO(Q, SQ, g);
   CTMC.FinishHO(Q, HQ, g, h, G, Gr, Gc, Energy);
   //CTMC.FinishBestDet();
+}
+
+
+template<typename Wfn, typename Walker>
+double getGradientHessianRandomMetropolisRealSpace(Wfn &wave, Walker &walk, double &Energy, double &stddev, Eigen::VectorXd &grad, MatrixXd& Q, MatrixXd &HQ, MatrixXd& SQ, double &rk, int niter)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+
+  double ovlp =  1.0;//wave.Overlap(walk);;
+
+  rDeterminant bestDet = walk.getDet();
+  double bestovlp = ovlp; //cout << bestovlp <<endl;
+
+  Statistics Stats;
+  Vector3d step;
+  int elecToMove = 0, nelec = walk.d.nelec;
+
+  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = nelec;
+  
+  double acceptedFrac = 0;
+  double S1 = 0.;
+  int nstore = 1000000 / commsize;
+  int corrIter = min(nstore, niter/sampleSteps);
+
+  int numVars = grad.rows();
+  Energy = 0.0;
+  grad.setZero();
+  Energy = 0;
+  HQ = MatrixXd::Zero(numVars + 1, Q.cols());
+  SQ = MatrixXd::Zero(numVars + 1, Q.cols());
+  Eigen::VectorXd G = VectorXd::Zero(numVars);
+  Eigen::VectorXd h = VectorXd::Zero(numVars);
+  Eigen::VectorXd g = VectorXd::Zero(numVars);
+
+  double ovlpRatio = -1.0, proposalProb;
+  for (int iter = 0; iter < niter; iter++) {
+    elecToMove = iter%nelec;
+    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    step += walk.d.coord[elecToMove];
+    if (iter%sampleSteps == 0 && iter > 0.01*niter) {
+      int sample = iter % (int) std::round(sampleSteps * rk);
+      if (sample == 0)
+      {
+        effIter++;
+        Eigen::VectorXd gradRatio = VectorXd::Zero(numVars);
+        Eigen::VectorXd hamRatio = VectorXd::Zero(numVars);
+        double ham = wave.HamOverlap(walk, gradRatio, hamRatio);
+
+        g += (gradRatio - g) / effIter;
+        G += (gradRatio * ham - G) / effIter;
+        h += (hamRatio - h) / effIter;
+
+        VectorXd G(numVars + 1), H(numVars + 1);
+        G << 0.0, gradRatio;
+        H << 0.0, hamRatio;
+        MatrixXd tempGTQ = G.transpose() * Q;
+        MatrixXd tempHTQ = H.transpose() * Q;
+        //SQ.noalias() += (G * G.transpose() * Q - SQ) / effIter;
+        //HQ.noalias() += (G * H.transpose() * Q - HQ) / effIter;
+        SQ.noalias() += (G * tempGTQ - SQ) / effIter;
+        HQ.noalias() += (G * tempHTQ - HQ) / effIter;
+
+        double avgPotold = avgPot;
+        avgPot += (ham - avgPot) / effIter;
+        S1 += (ham - avgPotold) * (ham - avgPot);
+        if (effIter < corrIter)
+          Stats.push_back(ham);
+      }
+    }
+ 
+    //if move is simple or gaussian
+    if (ovlpRatio < -0.5) 
+      ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2);
+    
+    if (ovlpRatio*proposalProb > random()) {
+      acceptedFrac++;
+      walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
+
+      ovlp = ovlp*sqrt(ovlpRatio);
+      if (abs(ovlp) > abs(bestovlp)) {
+        bestovlp = ovlp;
+        bestDet = walk.getDet();
+      }
+    }
+
+  }
+
+  try
+  {
+    Stats.Block();
+    rk = Stats.BlockCorrTime();
+  }
+  catch (const runtime_error &error)
+  {
+    Stats.CorrFunc();
+    rk = Stats.IntCorrTime();
+  }
+
+  S1 /= effIter;
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, (G.data()), G.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, (g.data()), g.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, (h.data()), h.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, (SQ.data()), SQ.rows() * SQ.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, (HQ.data()), HQ.rows() * HQ.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  rk /= commsize;
+  avgPot /= commsize;
+  S1 /= commsize;
+  G /= commsize;
+  g /= commsize;
+  h /= commsize;
+  SQ /= commsize;
+  HQ /= commsize;
+  double n_eff = commsize * effIter;
+
+  Energy = avgPot;
+  VectorXd Gr, Gc;
+  Gc = (G - Energy * g);
+  Gr = (h - Energy * g);
+  grad = Gc;
+  stddev = sqrt((S1 * rk / n_eff));
+
+  Eigen::VectorXd e0 = Eigen::VectorXd::Unit(numVars + 1, 0);  
+  Eigen::VectorXd Gappended_bar(numVars + 1);
+  Gappended_bar << 0.0, g;
+  SQ.noalias() = e0 * e0.transpose() * Q 
+               + SQ 
+               - Gappended_bar * Gappended_bar.transpose() * Q;
+  
+  Eigen::VectorXd Happended_bar(numVars + 1);
+  Eigen::VectorXd Gr_appended(numVars + 1);
+  Eigen::VectorXd Gc_appended(numVars + 1);
+  Eigen::VectorXd G_appended(numVars + 1);
+  Happended_bar << 0.0, h;
+  Gr_appended << 0.0, Gr;
+  Gc_appended << 0.0, Gc;
+  G_appended << 0.0, G;
+  HQ.noalias() = Energy * e0 * e0.transpose() * Q 
+               + e0 * Gr_appended.transpose() * Q
+               + Gc_appended * e0.transpose() * Q
+               + HQ
+               - G_appended * Gappended_bar.transpose() * Q
+               - Gappended_bar * Happended_bar.transpose() * Q
+               + Energy * Gappended_bar * Gappended_bar.transpose() * Q;
+
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestCoordinates.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << bestDet;
+  }
+
+  return acceptedFrac/niter;
 }
 
 template<typename Wfn, typename Walker>
@@ -2107,6 +2401,26 @@ class getGradientWrapper
     return 1.0;
   };
 
+  double getMetricRandomRealSpace(VectorXd &vars, VectorXd &grad, MatrixXd &O, MatrixXd &SO, double &E0, double &stddev, double &rt, bool deterministic)
+  {
+    double acceptedFrac;
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    if (!deterministic)
+    {
+      if (rt == 0.0)
+      {
+        acceptedFrac = getGradientMetropolisRealSpace(w, walk, E0, stddev, grad, rt, stochasticIter, 0.5e-3);
+      }
+      else
+      {
+        acceptedFrac = getGradientMetricRandomMetropolisRealSpace(w, walk, E0, stddev, grad, O, SO, rt, stochasticIter);
+      }
+    }
+    w.writeWave();
+    return acceptedFrac;
+  };
+
   double getHessianRandom(VectorXd &vars, VectorXd &grad, MatrixXd &Q, MatrixXd &SQ, MatrixXd &HQ, double &E0, double &stddev, double &rt, bool deterministic)
   {
     w.updateVariables(vars);
@@ -2131,6 +2445,17 @@ class getGradientWrapper
     getStochasticGradientHessianRandomContinuousTime(w, walk, E0, stddev, grad, Q, HQ, SQ, rt, stochasticIter);
     w.writeWave();
     return 1.0;
+  };
+
+  double getHessianRandomRealSpace(VectorXd &vars, VectorXd &grad, MatrixXd &Q, MatrixXd &SQ, MatrixXd &HQ, double &E0, double &stddev, double &rt, bool deterministic)
+  {
+    double acceptedFrac;
+    w.updateVariables(vars);
+    w.initWalker(walk);
+    if (!deterministic)
+      acceptedFrac = getGradientHessianRandomMetropolisRealSpace(w, walk, E0, stddev, grad, Q, HQ, SQ, rt, stochasticIter);
+    w.writeWave();
+    return acceptedFrac;
   };
 
 };

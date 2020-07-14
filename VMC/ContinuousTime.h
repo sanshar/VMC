@@ -344,7 +344,8 @@ class ContinuousTime
   {
     Eigen::VectorXd Gappended(numVars + 1);
     Gappended << 0.0, grad_ratio;
-    SO.noalias() += T * (Gappended * Gappended.transpose() * O - SO) / cumT;
+    MatrixXd tempGTO = Gappended.transpose() * O;
+    SO.noalias() += T * (Gappended * tempGTO - SO) / cumT;
   }
 
   void UpdateHO(const Eigen::MatrixXd &O, Eigen::MatrixXd &HO)
@@ -355,7 +356,8 @@ class ContinuousTime
     Htemp = grad_Eloc + Eloc * grad_ratio;
     Eigen::VectorXd Happended(numVars + 1);
     Happended << 0.0, Htemp;
-    HO.noalias() += T * (Gappended * Happended.transpose() * O - HO) / cumT;
+    MatrixXd tempHTQ = Happended.transpose() * O;
+    HO.noalias() += T * (Gappended * tempHTO - HO) / cumT;
   }
 
   void UpdateSO(const Eigen::MatrixXd &O, Eigen::MatrixXd &SO, int sample)
@@ -364,7 +366,8 @@ class ContinuousTime
     {
       Eigen::VectorXd Gappended(numVars + 1);
       Gappended << 0.0, grad_ratio;
-      SO.noalias() += T * (Gappended * Gappended.transpose() * O - SO) / cumT_everyrk;
+      MatrixXd tempGTO = Gappended.transpose() * O;
+      SO.noalias() += T * (Gappended * tempGTO - SO) / cumT;
     }
   }
 
@@ -378,7 +381,8 @@ class ContinuousTime
       Htemp = grad_Eloc + Eloc * grad_ratio;
       Eigen::VectorXd Happended(numVars + 1);
       Happended << 0.0, Htemp;
-      HO.noalias() += T * (Gappended * Happended.transpose() * O - HO) / cumT_everyrk;
+      MatrixXd tempHTO = Happended.transpose() * O;
+      HO.noalias() += T * (Gappended * tempHTO - HO) / cumT;
     }
   }
 
