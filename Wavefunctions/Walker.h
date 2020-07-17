@@ -366,120 +366,90 @@ struct Walker<Corr, Slater> {
 
   void OverlapWithOrbGradient(const Slater &ref, Eigen::VectorXd &grad, double detovlp) const
   {
+    grad.setZero();
+
     int norbs = Determinant::norbs;
+    int nalpha = Determinant::nalpha;  
+    int nbeta = Determinant::nbeta;
+    int nelec = nalpha + nbeta;
+    int numDets = ref.determinants.size();
     Determinant walkerDet = d;
 
-    //K and L are relative row and col indices
-    int KA = 0, KB = 0;
-    for (int k = 0; k < norbs; k++) { //walker indices on the row
-      if (walkerDet.getoccA(k)) {
-        for (int det = 0; det < ref.getDeterminants().size(); det++) {
-          Determinant refDet = ref.getDeterminants()[det];
-          int L = 0;
-          for (int l = 0; l < norbs; l++) {
-            if (refDet.getoccA(l)) {
-              grad(2 * k * norbs + 2 * l) += ref.getciExpansion()[det] * (refHelper.thetaInv[0](L, KA) * refHelper.thetaDet[det][0] * refHelper.thetaDet[det][1]).real() /detovlp;
-              grad(2 * k * norbs + 2 * l + 1) += ref.getciExpansion()[det] * (- refHelper.thetaInv[0](L, KA) * refHelper.thetaDet[det][0] * refHelper.thetaDet[det][1]).imag() /detovlp;
-              L++;
-            }
-          }
+    //Assuming a single determinant
+    for (int moa = 0; moa < nalpha; moa++) {
+      int rorb = 0;
+      for (int orb = 0; orb < norbs; orb++) {
+        if (walkerDet.getoccA(orb)) {
+          grad(numDets + 2*orb * nalpha + 2*moa) += (refHelper.thetaInv[0](moa, rorb) * refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1]).real() /detovlp;
+          grad(numDets + 2*orb * nalpha + 2*moa + 1) += (- refHelper.thetaInv[0](moa, rorb) * refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1]).imag() /detovlp;
+          rorb++;
         }
-        KA++;
-      }
-      if (walkerDet.getoccB(k)) {
-        for (int det = 0; det < ref.getDeterminants().size(); det++) {
-          Determinant refDet = ref.getDeterminants()[det];
-          int L = 0;
-          for (int l = 0; l < norbs; l++) {
-            if (refDet.getoccB(l)) {
-              if (refHelper.hftype == UnRestricted) {
-                grad(2 * norbs * norbs + 2 * k * norbs + 2 * l) += ref.getciExpansion()[det] * (refHelper.thetaInv[1](L, KB) * refHelper.thetaDet[det][0] * refHelper.thetaDet[det][1]).real() / detovlp;
-                grad(2 * norbs * norbs + 2 * k * norbs + 2 * l + 1) += ref.getciExpansion()[det] * (- refHelper.thetaInv[1](L, KB) * refHelper.thetaDet[det][0] * refHelper.thetaDet[det][1]).imag() / detovlp;
-              }
-              else {
-                grad(2 * k * norbs + 2 * l) += ref.getciExpansion()[det] * (refHelper.thetaInv[1](L, KB) * refHelper.thetaDet[det][0] * refHelper.thetaDet[det][1]).real() / detovlp;
-                grad(2 * k * norbs + 2 * l + 1) += ref.getciExpansion()[det] * (- refHelper.thetaInv[1](L, KB) * refHelper.thetaDet[det][0] * refHelper.thetaDet[det][1]).imag() / detovlp;
-              }
-              L++;
-            }
-          }
-        }
-        KB++;
       }
     }
+
+    for (int mob = 0; mob < nbeta; mob++) {
+      int rorb = 0;
+      for (int orb = 0; orb < norbs; orb++) {
+        if (walkerDet.getoccB(orb)) {
+          if (ref.hftype == Restricted) {
+            grad(numDets + 2*orb * nbeta + 2*mob) += (refHelper.thetaInv[1](mob, rorb) * refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1]).real() / detovlp;
+            grad(numDets + 2*orb * nbeta + 2*mob + 1) += (- refHelper.thetaInv[1](mob, rorb) * refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1]).imag() / detovlp;
+          }
+          else {
+            grad(numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob) += (refHelper.thetaInv[1](mob, rorb) * refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1]).real() / detovlp;
+            grad(numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob + 1) += (- refHelper.thetaInv[1](mob, rorb) * refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1]).imag() / detovlp;
+          }
+          rorb++;
+        }
+      }
+    }
+
   }
 
   void OverlapWithOrbGradientGhf(const Slater &ref, Eigen::VectorXd &grad, double detovlp) const
   {
     int norbs = Determinant::norbs;
+    int nalpha = Determinant::nalpha;  
+    int nbeta = Determinant::nbeta;
+    int nelec = nalpha + nbeta;
     Determinant walkerDet = d;
-    Determinant refDet = ref.getDeterminants()[0];
+    int numDets = ref.determinants.size();
 
-    //K and L are relative row and col indices
-    int K = 0;
-    for (int k = 0; k < norbs; k++) { //walker indices on the row
-      if (walkerDet.getoccA(k)) {
-        int L = 0;
-        for (int l = 0; l < norbs; l++) {
-          if (refDet.getoccA(l)) {
-            grad(4 * k * norbs + 2 * l) += (refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]).real() / detovlp;
-            grad(4 * k * norbs + 2 * l + 1) += (- refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]).imag() / detovlp;
-            L++;
-          }
+    for (int mo = 0; mo < nelec; mo++) {
+      int rorbA = 0;
+      for (int orb = 0; orb < norbs; orb++) {
+        if (walkerDet.getoccA(orb)) {
+          grad(numDets + 2*orb * nelec + 2*mo) += (refHelper.thetaInv[0](mo, rorbA) * refHelper.thetaDet[0][0]).real() / detovlp;
+          grad(numDets + 2*orb * nelec + 2*mo + 1) += (- refHelper.thetaInv[0](mo, rorbA) * refHelper.thetaDet[0][0]).imag() / detovlp;
+          rorbA++;
         }
-        for (int l = 0; l < norbs; l++) {
-          if (refDet.getoccB(l)) {
-            grad(4 * k * norbs + 2 * norbs + 2 * l) += (refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]).real() / detovlp;
-            grad(4 * k * norbs + 2 * norbs + 2 * l + 1) += (- refHelper.thetaInv[0](L, K) * refHelper.thetaDet[0][0]).imag() / detovlp;
-            L++;
-          }
-        }
-        K++;
       }
-    }
-    for (int k = 0; k < norbs; k++) { //walker indices on the row
-      if (walkerDet.getoccB(k)) {
-        int L = 0;
-        for (int l = 0; l < norbs; l++) {
-          if (refDet.getoccA(l)) {
-            grad(4 * norbs * norbs +  4 * k * norbs + 2 * l) += (refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)).real() / detovlp;
-            grad(4 * norbs * norbs +  4 * k * norbs + 2 * l + 1) += (- refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)).imag() / detovlp;
-            L++;
-          } 
+
+      int rorbB = 0;
+      for (int orb = 0; orb < norbs; orb++) {
+        if (walkerDet.getoccB(orb)) {
+          grad(numDets + 2*(orb + norbs) * nelec + 2*mo) += (refHelper.thetaInv[0](mo, rorbB + nalpha) * refHelper.thetaDet[0][0]).real() / detovlp;
+          grad(numDets + 2*(orb + norbs) * nelec + 2*mo + 1) += (- refHelper.thetaInv[0](mo, rorbB + nalpha) * refHelper.thetaDet[0][0]).imag() / detovlp;
+          rorbB++;
         }
-        for (int l = 0; l < norbs; l++) {
-          if (refDet.getoccB(l)) {
-            grad(4 * norbs * norbs +  4 * k * norbs + 2 * norbs + 2 * l) += (refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)).real() / detovlp;
-            grad(4 * norbs * norbs +  4 * k * norbs + 2 * norbs + 2 * l + 1) += (- refHelper.thetaDet[0][0] * refHelper.thetaInv[0](L, K)).imag() / detovlp;
-            L++;
-          }
-        }
-        K++;
       }
+
     }
   }
 
   void OverlapWithGradient(const Slater &ref, Eigen::VectorBlock<VectorXd> &grad) const
   {
     double detovlp = getDetOverlap(ref);
-    for (int i = 0; i < ref.ciExpansion.size(); i++)
-      grad[i] += getIndividualDetOverlap(i) / detovlp;
-    //grad[0] = 0.;
-    if (ref.determinants.size() <= 1 && schd.optimizeOrbs) {
-      //if (hftype == UnRestricted)
-      VectorXd gradOrbitals;
-      if (ref.hftype == UnRestricted) {
-        gradOrbitals = VectorXd::Zero(4 * ref.HforbsA.rows() * ref.HforbsA.rows());
+    VectorXd gradOrbitals = VectorXd::Zero(ref.getNumVariables());
+    if (schd.optimizeOrbs) {
+      if (schd.hf == "ghf")
+        OverlapWithOrbGradientGhf(ref, gradOrbitals, detovlp);
+      else 
         OverlapWithOrbGradient(ref, gradOrbitals, detovlp);
-      }
-      else {
-        gradOrbitals = VectorXd::Zero(2 * ref.HforbsA.rows() * ref.HforbsA.rows());
-        if (ref.hftype == Restricted) OverlapWithOrbGradient(ref, gradOrbitals, detovlp);
-        else OverlapWithOrbGradientGhf(ref, gradOrbitals, detovlp);
-      }
-      for (int i = 0; i < gradOrbitals.size(); i++)
-        grad[ref.ciExpansion.size() + i] += gradOrbitals[i];
     }
+
+    for (int i = 0; i < gradOrbitals.size(); i++)
+      grad(i) = gradOrbitals(i);
   }
 
   friend ostream& operator<<(ostream& os, const Walker<Corr, Slater>& w) {

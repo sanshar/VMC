@@ -61,77 +61,74 @@ void BuildOrbitalVars(const Eigen::Matrix<T, Eigen::Dynamic, 1> &vars, const Det
     int norbs = Determinant::norbs;
     int nalpha = Determinant::nalpha;
     int nbeta = Determinant::nbeta;
+    int nelec = nalpha + nbeta;
 
     //pull orbitals from vars
     std::array<Eigen::Matrix<Complex<T>, Eigen::Dynamic, Eigen::Dynamic>, 2> HF;
     if (schd.hf == "rhf")
     {
-        int size = norbs;
-        HF[0].resize(size, size);
-        HF[1].resize(size, size);
-        for (int i = 0; i < size; i++)
+        HF[0].resize(norbs, nalpha);
+        HF[1].resize(norbs, nbeta);
+        for (int i = 0; i < norbs; i++)
         {
-            for (int j = 0; j < size; j++)
+            for (int j = 0; j < nalpha; j++)
             {
-                HF[0](i, j).real(vars[numVars + 2 * i * norbs + 2 * j]);
-                HF[0](i, j).imag(vars[numVars + 2 * i * norbs + 2 * j + 1]);
-                HF[1](i, j).real(vars[numVars + 2 * i * norbs + 2 * j]);
-                HF[1](i, j).imag(vars[numVars + 2 * i * norbs + 2 * j + 1]);
+                HF[0](i, j).real(vars[numVars + 2 * i * nalpha + 2 * j]);
+                HF[0](i, j).imag(vars[numVars + 2 * i * nalpha + 2 * j + 1]);
+            }
+            for (int j = 0; j < nbeta; j++)
+            {
+                HF[1](i, j).real(vars[numVars + 2 * i * nalpha + 2 * j]);
+                HF[1](i, j).imag(vars[numVars + 2 * i * nalpha + 2 * j + 1]);
             }
         }
-        numVars += 2 * norbs * norbs;
+        numVars += 2 * norbs * nalpha;
     }
     else if (schd.hf == "uhf")
     {
-        int size = norbs;
-        HF[0].resize(size, size);
-        HF[1].resize(size, size);
-        for (int i = 0; i < size; i++)
+        HF[0].resize(norbs, nalpha);
+        HF[1].resize(norbs, nbeta);
+        for (int i = 0; i < norbs; i++)
         {
-            for (int j = 0; j < size; j++)
+            for (int j = 0; j < nalpha; j++)
             {
-                HF[0](i, j).real(vars[numVars + 2 * i * norbs + 2 * j]);
-                HF[0](i, j).imag(vars[numVars + 2 * i * norbs + 2 * j + 1]);
-                HF[1](i, j).real(vars[numVars + 2 * norbs * norbs + 2 * i * norbs + 2 * j]);
-                HF[1](i, j).imag(vars[numVars + 2 * norbs * norbs + 2 * i * norbs + 2 * j + 1]);
+                HF[0](i, j).real(vars[numVars + 2 * i * nalpha + 2 * j]);
+                HF[0](i, j).imag(vars[numVars + 2 * i * nalpha + 2 * j + 1]);
+            }
+            for (int j = 0; j < nbeta; j++)
+            {
+                HF[1](i, j).real(vars[numVars + 2 * norbs * nalpha + 2 * i * nbeta + 2 * j]);
+                HF[1](i, j).imag(vars[numVars + 2 * norbs * nalpha + 2 * i * nbeta + 2 * j + 1]);
             }
         }
-        numVars += 2 * 2 * norbs * norbs;
+        numVars += 2 * norbs * nalpha + 2 * norbs * nbeta;
     }
     else if (schd.hf == "ghf")
     {
-        int size = 2 * norbs;
-        HF[0].resize(size, size);
-        HF[1].resize(size, size);
-        for (int i = 0; i < size; i++)
+        HF[0].resize(2 * norbs, nelec);
+        HF[1].resize(2 * norbs, nelec);
+        for (int i = 0; i < 2 * norbs; i++)
         {
-            for (int j = 0; j < size; j++)
+            for (int j = 0; j < nelec; j++)
             {
-                HF[0](i, j).real(vars[numVars + 4 * i * norbs + 2 * j]);
-                HF[0](i, j).imag(vars[numVars + 4 * i * norbs + 2 * j + 1]);
-                HF[1](i, j).real(vars[numVars + 4 * i * norbs + 2 * j]);
-                HF[1](i, j).imag(vars[numVars + 4 * i * norbs + 2 * j + 1]);
+                HF[0](i, j).real(vars[numVars + 2 * i * nelec + 2 * j]);
+                HF[0](i, j).imag(vars[numVars + 2 * i * nelec + 2 * j + 1]);
+                HF[1](i, j).real(vars[numVars + 2 * i * nelec + 2 * j]);
+                HF[1](i, j).imag(vars[numVars + 2 * i * nelec + 2 * j + 1]);
             }
         }
-        numVars += 2 * 4 * norbs * norbs;
+        numVars += 2 * 2 * norbs * nelec;
     }
     
     //hartree fock reference
     std::array<std::vector<int>, 2> closedOrbsRef;
     if (schd.hf == "rhf" || schd.hf == "uhf")
     {
-        for (int i = 0; i < nalpha; i++)
-        {
-            closedOrbsRef[0].push_back(i);
-        }
-        for (int i = 0; i < nbeta; i++)
-        {
-            closedOrbsRef[1].push_back(i);
-        }
+        for (int i = 0; i < nalpha; i++) { closedOrbsRef[0].push_back(i); }
+        for (int i = 0; i < nbeta; i++) { closedOrbsRef[1].push_back(i); }
     }
     else if (schd.hf == "ghf")
     {
-        int nelec = nalpha + nbeta;
         for (int i = 0; i < nelec; i++)
         {
             closedOrbsRef[0].push_back(i);

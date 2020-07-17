@@ -134,30 +134,38 @@ void Slater::initDets()
 
 void Slater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
 { 
+  v.setZero();
   int norbs = Determinant::norbs;  
+  int nalpha = Determinant::nalpha;  
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
+
+  //this assumes a single determinant reference
   for (int i = 0; i < determinants.size(); i++)
     v[i] = ciExpansion[i];
   int numDeterminants = determinants.size();
+
   if (hftype == Generalized) {
     for (int i = 0; i < 2*norbs; i++) {
-      for (int j = 0; j < 2*norbs; j++) { 
-          v[numDeterminants + 4 * i * norbs + 2 * j] = HforbsA(i, j).real();
-          v[numDeterminants + 4 * i * norbs + 2 * j + 1] = HforbsA(i, j).imag();
+      for (int j = 0; j < nelec; j++) { 
+        v[numDeterminants + 2*i * nelec + 2*j] = HforbsA(i, j).real();
+        if (schd.ifComplex) v[numDeterminants + 2*i * nelec + 2*j + 1] = HforbsA(i, j).imag();
       }
     }
   }
   else {
     for (int i = 0; i < norbs; i++) {
-      for (int j = 0; j < norbs; j++) {
-        if (hftype == Restricted) {
-          v[numDeterminants + 2 * i * norbs + 2 * j] = HforbsA(i, j).real();
-          v[numDeterminants + 2 * i * norbs + 2 * j + 1] = HforbsA(i, j).imag();
-        }
-        else {
-          v[numDeterminants + 2 * i * norbs + 2 * j] = HforbsA(i, j).real();
-          v[numDeterminants + 2 * i * norbs + 2 * j + 1] = HforbsA(i, j).imag();
-          v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j] = HforbsB(i, j).real();
-          v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j + 1] = HforbsB(i, j).imag();
+      for (int j = 0; j < nalpha; j++) {
+        v[numDeterminants + 2*i * nalpha + 2*j] = HforbsA(i, j).real();
+        if (schd.ifComplex) v[numDeterminants + 2*i * nalpha + 2*j + 1] = HforbsA(i, j).imag();
+      }
+    }
+
+    if (hftype == UnRestricted) {
+      for (int i = 0; i < norbs; i++) {
+        for (int j = 0; j < nbeta; j++) {
+          v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j] = HforbsB(i, j).real();
+          if (schd.ifComplex) v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j + 1] = HforbsB(i, j).imag();
         }
       }
     }
@@ -166,48 +174,61 @@ void Slater::getVariables(Eigen::VectorBlock<VectorXd> &v) const
 
 long Slater::getNumVariables() const
 {
+  int nalpha = Determinant::nalpha;  
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
+
   long numVars = 0;
   numVars += determinants.size();
-  if (hftype == UnRestricted)
-  //if (hftype == 1)
-    numVars += 4 * HforbsA.rows() * HforbsA.rows();
+  if (hftype == Restricted)
+    numVars += 2 * nalpha * HforbsA.rows();
   else
-    numVars += 2 * HforbsA.rows() * HforbsA.rows();
+    numVars += 2 * nelec * HforbsA.rows();
   return numVars;
 }
 
 void Slater::updateVariables(const Eigen::VectorBlock<VectorXd> &v) 
 {  
+  int nalpha = Determinant::nalpha;  
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
   int norbs = Determinant::norbs;  
+
+  //this assumes a single determinant reference
   for (int i = 0; i < determinants.size(); i++)
     ciExpansion[i] = v[i];
   int numDeterminants = determinants.size();
+
   if (hftype == Generalized) {
     for (int i = 0; i < 2*norbs; i++) {
-      for (int j = 0; j < 2*norbs; j++) {
-          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 4 * i * norbs + 2 * j], v[numDeterminants + 4 * i * norbs + 2 * j + 1]);
-          HforbsB(i, j) = HforbsA(i, j);
+      for (int j = 0; j < nelec; j++) {
+        HforbsA(i, j) = 0.0;
+        HforbsA(i, j).real(v[numDeterminants + 2*i * nelec + 2*j]);
+        if (schd.ifComplex) HforbsA(i, j).imag(v[numDeterminants + 2*i * nelec + 2*j + 1]);
+        HforbsB(i, j) = HforbsA(i, j);
       }
     } 
   }
   else {
     for (int i = 0; i < norbs; i++) {
-      for (int j = 0; j < norbs; j++) {
+      for (int j = 0; j < nalpha; j++) {
+        HforbsA(i, j) = 0.0;
+        HforbsA(i, j).real(v[numDeterminants + 2*i * nalpha + 2*j]);
+        if (schd.ifComplex) HforbsA(i, j).imag(v[numDeterminants + 2*i * nalpha + 2*j + 1]);
         if (hftype == Restricted) {
-          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * i * norbs + 2 * j + 1]);
           HforbsB(i, j) = HforbsA(i, j);
-        }
-        else {
-          HforbsA(i, j) = std::complex<double>(v[numDeterminants + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * i * norbs + 2 * j + 1]);
-          HforbsB(i, j) = std::complex<double>(v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j], v[numDeterminants + 2 * norbs * norbs + 2 * i * norbs + 2 * j + 1]);
         }
       }
     }
-  }
-  if (schd.ifComplex == false)
-  {
-    HforbsA.imag().setZero();
-    HforbsB.imag().setZero();
+    if (hftype == UnRestricted) {
+      for (int i = 0; i < norbs; i++) {
+        for (int j = 0; j < nbeta; j++) {
+          HforbsB(i, j) = 0.0;
+          HforbsB(i, j).real(v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j]);
+          if (schd.ifComplex) HforbsB(i, j).imag(v[numDeterminants + 2 * nalpha * norbs + 2*i * nbeta + 2*j + 1]);
+        }
+      }
+    }
   }
 }
 
