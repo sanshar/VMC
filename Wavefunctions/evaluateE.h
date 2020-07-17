@@ -2252,7 +2252,7 @@ class getGradientWrapper
   double getGradientRealSpace(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
   {
     double acceptedFrac;
-    w.updateVariables(vars);
+    w.updateOptVariables(vars);
     //w.printVariables();
     //exit(0);
     w.initWalker(walk);
@@ -2265,7 +2265,7 @@ class getGradientWrapper
 
   void getMetricRealSpace(VectorXd &vars, VectorXd &grad, VectorXd& H, DirectMetric& S, double &E0, double &stddev, double &rt, bool deterministic)
   {
-    w.updateVariables(vars);
+    w.updateOptVariables(vars);
     w.initWalker(walk);
     if (!deterministic)
       getGradientMetricMetropolisRealSpace(w, walk, E0, stddev, grad, H, S, rt, stochasticIter, 0.5e-3);
@@ -2278,7 +2278,7 @@ class getGradientWrapper
                            double &rt, bool deterministic)
   {
     double acceptedFrac;
-    w.updateVariables(vars);
+    w.updateOptVariables(vars);
     w.initWalker(walk);
     if (!deterministic)
       acceptedFrac = getGradientHessianMetropolisRealSpace(w, walk, E0, stddev, grad, H, S, rt, stochasticIter);
@@ -2290,7 +2290,7 @@ class getGradientWrapper
   double getHessianDirectRealSpace(VectorXd &vars, VectorXd &grad, DirectLM &H, double &E0, double &stddev, double &rt, bool deterministic)
   {
     double acceptedFrac;
-    w.updateVariables(vars);
+    w.updateOptVariables(vars);
     w.initWalker(walk);
     rt = 1.0;
     if (!deterministic)
@@ -2404,7 +2404,7 @@ class getGradientWrapper
   double getMetricRandomRealSpace(VectorXd &vars, VectorXd &grad, MatrixXd &O, MatrixXd &SO, double &E0, double &stddev, double &rt, bool deterministic)
   {
     double acceptedFrac;
-    w.updateVariables(vars);
+    w.updateOptVariables(vars);
     w.initWalker(walk);
     if (!deterministic)
     {
@@ -2450,7 +2450,7 @@ class getGradientWrapper
   double getHessianRandomRealSpace(VectorXd &vars, VectorXd &grad, MatrixXd &Q, MatrixXd &SQ, MatrixXd &HQ, double &E0, double &stddev, double &rt, bool deterministic)
   {
     double acceptedFrac;
-    w.updateVariables(vars);
+    w.updateOptVariables(vars);
     w.initWalker(walk);
     if (!deterministic)
       acceptedFrac = getGradientHessianRandomMetropolisRealSpace(w, walk, E0, stddev, grad, Q, HQ, SQ, rt, stochasticIter);

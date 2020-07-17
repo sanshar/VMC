@@ -117,13 +117,14 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
   if (schd.restart || schd.fullRestart)
     wave.readWave();
 
-  VectorXd vars; wave.getVariables(vars);
+  VectorXd vars; wave.getOptVariables(vars);
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
   
   if (commrank == 0)
   {
     cout << "Number of Jastrow vars: " << wave.getNumJastrowVariables() << endl;
-    cout << "Number of Reference vars: " << wave.getNumVariables() - wave.getNumJastrowVariables() << endl;
+    cout << "Number of Reference vars: " << wave.getNumRefVariables() << endl;
+    cout << "Number of Optimized vars: " << wave.getNumOptVariables() << endl;
   }
 
   auto getStochasticGradientRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, schd.deterministic);

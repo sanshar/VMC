@@ -10,8 +10,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
                                                               Eigen::VectorXd& gradRatio,
                                                               Eigen::VectorXd& hamRatio) const
 {
-  gradRatio.setZero(getNumVariables());
-  hamRatio.setZero(getNumVariables());
+  gradRatio.setZero(getNumOptVariables());
+  hamRatio.setZero(getNumOptVariables());
   int norbs = schd.basis->getNorbs();
   int nalpha = rDeterminant::nalpha;
   int nbeta = rDeterminant::nbeta;
@@ -115,11 +115,14 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   //cout << endl << endl;
  
   int numVars = 0;
+  VectorXd CPSgradRatio = VectorXd::Zero(0);
+  VectorXd CPShamRatio = VectorXd::Zero(0);
   //*********calculate gradRatio and hamRatio for jastrows
-  VectorXd CPSgradRatio = VectorXd::Zero(getNumJastrowVariables());
-  VectorXd CPShamRatio = VectorXd::Zero(getNumJastrowVariables());
   if (schd.optimizeCps)
   {
+      CPSgradRatio = VectorXd::Zero(getNumJastrowVariables());
+      CPShamRatio = VectorXd::Zero(getNumJastrowVariables());
+
       numVars += corr._params.size();
       //VectorXcd Bij = VectorXcd::Zero(nelec);
       for (int j = 0; j < corr._params.size(); j++)
@@ -217,12 +220,17 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   }
    
   //*********calculate the hamoverlap for orbitals
-  VectorXd RefgradRatio = VectorXd::Zero(getNumVariables() - getNumJastrowVariables());
-  VectorXd RefhamRatio = VectorXd::Zero(getNumVariables() - getNumJastrowVariables());
-  VectorXcd RefGradcOvlp = VectorXcd::Zero(getNumVariables() - getNumJastrowVariables());
-  VectorXcd RefGradcEloc = VectorXcd::Zero(getNumVariables() - getNumJastrowVariables());
+  VectorXd RefgradRatio = VectorXd::Zero(0);
+  VectorXd RefhamRatio = VectorXd::Zero(0);
+  VectorXcd RefGradcOvlp = VectorXcd::Zero(0);
+  VectorXcd RefGradcEloc = VectorXcd::Zero(0);
 
   if (schd.optimizeOrbs) {
+    RefgradRatio = VectorXd::Zero(getNumRefVariables());
+    RefhamRatio = VectorXd::Zero(getNumRefVariables());
+    RefGradcOvlp = VectorXcd::Zero(getNumRefVariables());
+    RefGradcEloc = VectorXcd::Zero(getNumRefVariables());
+
     int size = norbs;
     if (schd.hf == "ghf") { size *= 2; }
     
@@ -448,8 +456,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
         } 
       }
     }
+    RefhamRatio = ((cEloc * RefGradcOvlp + RefGradcEloc) * thetaDet).real() / thetaDet.real();
   } //opt orbs
-  RefhamRatio = ((cEloc * RefGradcOvlp + RefGradcEloc) * thetaDet).real() / thetaDet.real();
   hamRatio << CPShamRatio, RefhamRatio;
   gradRatio << CPSgradRatio, RefgradRatio;
   return Eloc;

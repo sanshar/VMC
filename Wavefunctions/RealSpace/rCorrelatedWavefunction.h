@@ -90,37 +90,72 @@ struct rCorrelatedWavefunction {
   void updateVariables(Eigen::VectorXd &v) 
   {
     corr.updateVariables(v);
-    Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
+    Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
     ref.updateVariables(vtail);
 
     if (schd.walkerBasis == REALSPACESTO)
       enforceCusp();
   }
 
+  void updateOptVariables(Eigen::VectorXd &v) 
+  {
+    if (schd.optimizeCps) {
+      corr.updateVariables(v);
+    }
+    if (schd.optimizeOrbs) {
+      Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
+      ref.updateVariables(vtail);
+    }
+
+    if (schd.walkerBasis == REALSPACESTO)
+      enforceCusp();
+  }
+
+
   void getVariables(Eigen::VectorXd &v) const
   {
     v.setZero(getNumVariables());
-    //if (v.rows() != getNumVariables())
-    //  v = VectorXd::Zero(getNumVariables());
 
     corr.getVariables(v);
-    Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
+    Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
     ref.getVariables(vtail);
   }
 
+  void getOptVariables(Eigen::VectorXd &v) const
+  {
+    v.setZero(getNumOptVariables());
+    if (schd.optimizeCps) {
+      corr.getVariables(v);
+    }
+    if (schd.optimizeOrbs) {
+      Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
+      ref.getVariables(vtail);
+    }
+  }
 
   long getNumJastrowVariables() const
   {
     return corr.getNumVariables();
   }
-  //factor = <psi|w> * prefactor;
+
+  long getNumRefVariables() const
+  {
+    return ref.getNumVariables();
+  }
 
   long getNumVariables() const
   {
-    int norbs = Determinant::norbs;
     long numVars = 0;
     numVars += getNumJastrowVariables();
-    numVars += ref.getNumVariables();
+    numVars += getNumRefVariables();
+    return numVars;
+  }
+
+  long getNumOptVariables() const
+  {
+    long numVars = 0;
+    if (schd.optimizeCps) numVars += getNumJastrowVariables();
+    if (schd.optimizeOrbs) numVars += getNumRefVariables();
     return numVars;
   }
 
