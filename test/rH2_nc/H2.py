@@ -6,7 +6,7 @@ import scipy.special
 
 
 mol = gto.M(
-atom = '''H 0 0 0; H 0 0 1.4''',
+atom = '''H 0 0 0; H 0 0 10.0''',
 unit = "Bohr",
 cart = True,
 basis = 'sto6g',

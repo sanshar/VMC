@@ -2292,9 +2292,14 @@ class getGradientWrapper
     double acceptedFrac;
     w.updateOptVariables(vars);
     w.initWalker(walk);
-    rt = 1.0;
+    //rt = 1.0;
     if (!deterministic)
-      acceptedFrac = getGradientHessianDirectMetropolisRealSpace(w, walk, E0, stddev, grad, H, rt, stochasticIter);
+    {
+      if (rt == 0.0)
+        acceptedFrac = getGradientMetropolisRealSpace(w, walk, E0, stddev, grad, rt, stochasticIter, 0.5e-3);
+      else
+        acceptedFrac = getGradientHessianDirectMetropolisRealSpace(w, walk, E0, stddev, grad, H, rt, stochasticIter);
+    }
     w.writeWave();
     return acceptedFrac;
   };

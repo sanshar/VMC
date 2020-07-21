@@ -3,9 +3,9 @@
   {
     "name": "jastrowslater",
     "hfType": "rhf",
-    "fourBodyJastrow": "NC",
-    "Qmax": 1,
-    "Qmaxeen": 0
+    "fourBodyJastrow": "AB2",
+    "Qmax": 3,
+    "Qmaxeen": 3
   },
   "realspace":
   {
@@ -25,11 +25,12 @@
     "direct": true,
     "stepsizes": [0.1, 0.01, 0.05, 0.5, 1.0],
     "hdiagshift": 0.1,
+    "sdiagshift": 0.0,
     "decay": 0.1,
     "dTol": 1.0e-3,
     "cgTol": 1.0e-3,
     "sgdIter": 0,
-    "maxIter": 3
+    "maxIter": 4
   },
   "print":
   {
