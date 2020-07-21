@@ -86,6 +86,7 @@ private:
       & optimizeRBM
       & printVars
       & printGrad
+      & printOpt
       & Hamiltonian
       & ctmc
       & nwalk

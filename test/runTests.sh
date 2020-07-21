@@ -140,19 +140,48 @@ then
     ../clean.sh
 fi
 
-cd $here/h10lm/
+#cd $here/h10lm/
+#../clean.sh
+#printf "...running h10 lm nondirect\n"
+#$MPICOMMAND $NONDIRECTPATH > nondirect.out
+#python2 ../testEnergy.py 'nondirect' $tol
+#../clean.sh
+#printf "...running h10 lm direct\n"
+#$MPICOMMAND $DIRECTPATH > direct.out
+#python2 ../testEnergy.py 'direct' $tol
+#if [ $clean == 1 ]
+#then
+#    ../clean.sh
+#fi
+
+cd $here/h4sr/
 ../clean.sh
-printf "...running h10 lm nondirect\n"
+printf "...running h4 sr nondirect\n"
 $MPICOMMAND $NONDIRECTPATH > nondirect.out
 python2 ../testEnergy.py 'nondirect' $tol
 ../clean.sh
-printf "...running h10 lm direct\n"
+printf "...running h4 sr direct\n"
 $MPICOMMAND $DIRECTPATH > direct.out
 python2 ../testEnergy.py 'direct' $tol
 if [ $clean == 1 ]
 then
     ../clean.sh
 fi
+
+cd $here/h4lm/
+../clean.sh
+printf "...running h4 lm nondirect\n"
+$MPICOMMAND $NONDIRECTPATH > nondirect.out
+python2 ../testEnergy.py 'nondirect' $tol
+../clean.sh
+printf "...running h4 lm direct\n"
+$MPICOMMAND $DIRECTPATH > direct.out
+python2 ../testEnergy.py 'direct' $tol
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
+
 
 cd $here/h4_pfaffian_complex/
 ../clean.sh

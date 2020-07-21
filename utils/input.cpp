@@ -277,6 +277,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.printLevel = input.get("print.level", 0);
     schd.printVars = input.get("print.vars", false);
     schd.printGrad = input.get("print.grad", false);
+    schd.printOpt = input.get("print.opt", false);
     schd.debug = input.get("print.debug", false);
     
     //deprecated

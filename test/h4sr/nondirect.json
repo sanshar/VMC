@@ -1,0 +1,21 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowslater",
+    "hfType": "ghf",
+    "complex": true
+  },
+  "sampling":
+  {
+    "stochasticIter": 1000,
+    "seed": 1
+  },
+  "optimizer":
+  {
+    "method": "sr",
+    "direct": false,
+    "stepsize": 0.1,
+    "sdiagshift": 0.01,
+    "maxIter": 5
+  }
+}

@@ -464,23 +464,52 @@ struct Walker<Corr, Slater> {
 
   void OverlapWithLocalEnergyGradient(const Corr &corr, const Slater &ref, workingArray &work, Eigen::VectorXd &gradEloc) const
   {
+    /*
     VectorXd v = VectorXd::Zero(corr.getNumVariables() + ref.getNumVariables());
     corr.getVariables(v);
     Eigen::VectorBlock<VectorXd> vtail = v.tail(v.rows() - corr.getNumVariables());
     ref.getVariables(vtail);
     LocalEnergySolver Solver(d, work);
     double Eloctest = 0.0;
+    //VectorXd gradElocTest;
+    //stan::math::gradient(Solver, v, Eloctest, gradElocTest);
     stan::math::gradient(Solver, v, Eloctest, gradEloc);
+    */
+
+    VectorXd corrVars = VectorXd::Zero(corr.getNumVariables());
+    VectorXd refVars = VectorXd::Zero(ref.getNumVariables());
+    corr.getVariables(corrVars);
+    Eigen::VectorBlock<VectorXd> temp = refVars.head(refVars.size());
+    ref.getVariables(temp);
+
+    double Eloctest1 = 0.0, Eloctest2 = 0.0;
+    VectorXd gradJ = VectorXd::Zero(corr.getNumVariables());
+    VectorXd gradR = VectorXd::Zero(ref.getNumVariables());
+    if (schd.optimizeCps)
+    {
+      LocalEnergySolverJastrow SolverJastrow(d, work, refHelper.thetaDet[0], refHelper.rTable[0]);
+      stan::math::gradient(SolverJastrow, corrVars, Eloctest1, gradJ);
+    }
+    if (schd.optimizeOrbs)
+    {
+      LocalEnergySolverOrbital SolverOrbital(d, work, corrVars);
+      stan::math::gradient(SolverOrbital, refVars, Eloctest2, gradR);
+    }
+    gradEloc = VectorXd::Zero(corr.getNumVariables() + ref.getNumVariables());
+    gradEloc << gradJ, gradR;
+
     //make sure no nan values persist
     for (int i = 0; i < gradEloc.rows(); i++)
     {
       if (std::isnan(gradEloc(i)))
         gradEloc(i) = 0.0;
     }
+
+    /*
+    //the below will calculate LocalEnergyGradient by finite difference
     if (schd.debug)
     {
-      //cout << Eloc << "\t|\t" << Eloctest << endl;
-      cout << Eloctest << endl;
+      cout << Eloctest << "\t" << Eloctest1 << "\t" << Eloctest2 << endl;
 
       //below is very expensive and used only for debugging
       Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(v.size());
@@ -493,10 +522,13 @@ struct Walker<Corr, Slater> {
       }
       for (int i = 0; i < v.size(); ++i)
       {
-        cout << finiteGradEloc(i) << "\t" << gradEloc(i) << endl;
+        cout << finiteGradEloc(i) << "\t" << gradElocTest(i) << "\t" << gradEloc(i) << endl;
       }
     }
+    */
+
   }
+
 };
 
 //template<typename Corr>

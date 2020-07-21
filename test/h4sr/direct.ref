@@ -17,9 +17,9 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               2015.812
+CPU MHz:               2990.718
 Computation started at:
-Mon Jul 20 11:37:20 MDT 2020
+Mon Jul 20 11:44:10 MDT 2020
 git commit: cf1e8f3e3c45192cdc22e341f855ca175492c853, branch: merged, compiled at: Mon Jul 20 11:21:14 MDT 2020
 
 nproc used: 4 (NB: stochasticIter below is per proc)
@@ -38,16 +38,17 @@ Input file  :
         "seed": "1"
     },
     "optimizer": {
-        "method": "lm",
-        "direct": "false",
-        "hDiagShift": "0.01",
-        "sDiagShift": "1.0e-10",
-        "decay": "0.5",
-        "corrSampleFrac": "0.15",
-        "maxIter": "3"
+        "method": "sr",
+        "direct": "true",
+        "stepsize": "0.1",
+        "sDiagShift": "0.01",
+        "cgIter": "15",
+        "maxIter": "5"
     }
 }
 
-    0    -5.22100179 (9.03e-03)     0.13441897      1.8      1.0       1000     3.39     4.11     4.27
-    1    -5.34884046 (3.44e-03)     0.10173453      1.9      1.0       1000     5.96     6.71     6.86
-    2    -5.35461509 (3.03e-03)     0.10005919      1.6      1.0       1000     8.67     9.48     9.72
+    0    -2.10259851 (5.01e-03)     0.12922707      1.1     0.09     0.09
+    1    -2.15248364 (1.95e-03)     0.02953182      1.0     0.16     0.16
+    2    -2.15927638 (1.52e-03)     0.02105558      1.0     0.23     0.23
+    3    -2.15760377 (1.34e-03)     0.01479668      1.0     0.29     0.29
+    4    -2.15858317 (1.29e-03)     0.01192007      1.0     0.35     0.35
