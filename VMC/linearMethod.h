@@ -122,6 +122,16 @@ class LM
        write(vars);
        double VMC_time = (getTime() - startofCalc);
 
+       //orthogonalize tangent space to 0th order wavefunction
+       MatrixXd Uo = MatrixXd::Zero(numVars+1, numVars+1);       
+       Uo(0,0) = 1.0;
+       for (int i=0; i<numVars; i++) {
+         Uo(0, i+1) = -Smatrix(0, i+1);
+         Uo(i+1, i+1) = 1.0;
+       } 
+       Smatrix = Uo.transpose()*(Smatrix * Uo);
+       Hessian = Uo.transpose()*(Hessian * Uo);
+
        /*
        //write matrices to disk
        ofstream Hout("H.txt");
@@ -147,16 +157,6 @@ class LM
          Hessian(i,i) += shift;
          Smatrix(i,i) += sdiagshift;
        }
-
-       //orthogonalize tangent space to 0th order wavefunction
-       MatrixXd Uo = MatrixXd::Zero(numVars+1, numVars+1);       
-       Uo(0,0) = 1.0;
-       for (int i=0; i<numVars; i++) {
-         Uo(0, i+1) = -Smatrix(0, i+1);
-         Uo(i+1, i+1) = 1.0;
-       } 
-       Smatrix = Uo.transpose()*(Smatrix * Uo);
-       Hessian = Uo.transpose()*(Hessian * Uo);
 
        //canonical orthogonalization
        SelfAdjointEigenSolver<MatrixXd> oes(Smatrix);
@@ -206,18 +206,12 @@ class LM
        //correlated sampling
        std::vector<Eigen::VectorXd> V(stepsizes.size(), vars);
        std::vector<double> E(stepsizes.size(), 0.0);
-       for (int i = 0; i < V.size(); i++)
-       {
-         V[i] += stepsizes[i] * update;
-       }
+       for (int i = 0; i < V.size(); i++) { V[i] += stepsizes[i] * update; }
        runCorrelatedSampling(V, E);
        index = 0;
-       for (int i = 0; i < E.size(); i++)
-       {
-         if (E[i] < E[index])
-           index = i;              
-       }
+       for (int i = 0; i < E.size(); i++) { if (E[i] < E[index]) index = i; }
        //vars = V[index];
+
        //print
        if (schd.printOpt && commrank == 0)
        {
@@ -230,7 +224,7 @@ class LM
        }
 
        //accept update only if "good" move
-       if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
+       //if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
        {
          //if (commrank == 0) cout << "update accepted" << endl;
          vars = V[index];
@@ -608,19 +602,12 @@ class directLM
          //correlated sampling
          std::vector<Eigen::VectorXd> V(LMStep.size(), vars);
          std::vector<double> E(LMStep.size(), 0.0);
-         for (int i = 0; i < V.size(); i++)
-         {
-           V[i] += LMStep[i] * update;
-         }
+         for (int i = 0; i < V.size(); i++) { V[i] += LMStep[i] * update; }
          runCorrelatedSampling(V, E);
          if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
          //find lowest energy
          int index = 0;
-         for (int i = 0; i < E.size(); i++)
-         {
-           if (E[i] < E[index])
-             index = i;              
-         }
+         for (int i = 0; i < E.size(); i++) { if (E[i] < E[index]) index = i; }
          //vars = V[index];
          
          //print
@@ -635,7 +622,7 @@ class directLM
          }
 
          //accept update only if "good" move
-         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
+         //if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
          {
            //if (commrank == 0) cout << "update accepted" << endl;
            vars = V[index];
@@ -855,7 +842,7 @@ class randomLM
          }
 
          //accept update only if "good" move
-         if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
+         //if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
          {
            vars = V[index];
          }
