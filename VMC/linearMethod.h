@@ -216,6 +216,7 @@ class LM
        if (schd.printOpt && commrank == 0)
        {
          cout << "Correlated Sampling: " << endl;
+         cout << "accepted step: " << stepsizes[index] << endl;
          for (int i = 0; i < E.size(); i++)
          {
            cout << stepsizes[i] << " " << E[i] << "|";
@@ -614,6 +615,7 @@ class directLM
          if (schd.printOpt && commrank == 0)
          {
            cout << "Correlated Sampling: " << endl;
+           cout << "accepted step: " << LMStep[index] << endl;
            for (int i = 0; i < E.size(); i++)
            {
              cout << LMStep[i] << " " << E[i] << " | ";
@@ -783,6 +785,8 @@ class randomLM
          if (commrank != 0) Q.resize(numVars + 1, nspace);
      MPI_Bcast(Q.data(), Q.rows() * Q.cols(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
+         //resize O
+         O.conservativeResize(Q.rows(), Q.cols() + 2 * schd.r);
          RRF_time = getTime() - startofCalc;
 
          //action of matrices on subspace
@@ -837,6 +841,7 @@ class randomLM
          if (schd.printOpt && commrank == 0)
          {
            cout << "Correlated Sampling: " << endl;
+           cout << "accepted step: " << LMStep[index] << endl;
            for (int i = 0; i < E.size(); i++) { cout << LMStep[i] << " " << E[i] << " | "; }
            cout << endl;
          }

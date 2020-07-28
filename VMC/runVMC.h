@@ -90,12 +90,12 @@ void runVMC(Wave& wave, Walker& walk) {
     }
     else if (schd.direct && !schd.random)
     {
-      directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay, schd.sgdIter);
+      directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay, schd.sgdIter, schd.stepsize, schd.decay1, schd.decay2);
       optimizer.optimize(vars, getStochasticGradientHessianDirect, runCorrelatedSampling, schd.restart);
     }
     else if (schd.random)
     {
-      randomLM optimizer(schd.maxIter, schd.stepsizes, schd.sgdIter);
+      randomLM optimizer(schd.maxIter, schd.stepsizes, schd.sgdIter, schd.stepsize, schd.decay1, schd.decay2);
       optimizer.optimize(vars, getStochasticGradientMetricRandom, getStochasticGradientHessianRandom, runCorrelatedSampling, schd.restart);
     }
   }
@@ -153,11 +153,11 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
     }
     else if (schd.method == linearmethod) {
       if (schd.direct && !schd.random) {
-        directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay, schd.sgdIter);
+        directLM optimizer(schd.maxIter, schd.stepsizes, schd.hDiagShift, schd.sDiagShift, schd.decay, schd.sgdIter, schd.stepsize, schd.decay1, schd.decay2);
         optimizer.optimize(vars, getStochasticGradientHessianDirectRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
       }
       else if (schd.random) {
-        randomLM optimizer(schd.maxIter, schd.stepsizes, schd.sgdIter);
+        randomLM optimizer(schd.maxIter, schd.stepsizes, schd.sgdIter, schd.stepsize, schd.decay1, schd.decay2);
         optimizer.optimize(vars, getStochasticGradientMetricRandomRealSpace, getStochasticGradientHessianRandomRealSpace, runCorrelatedSamplingRealSpace, schd.restart);
       }
       else {  

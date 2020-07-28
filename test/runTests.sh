@@ -126,19 +126,19 @@ then
     ../clean.sh
 fi
 
-cd $here/h10sr/
-../clean.sh
-printf "...running h10 sr nondirect\n"
-$MPICOMMAND $NONDIRECTPATH > nondirect.out
-python2 ../testEnergy.py 'nondirect' $tol
-../clean.sh
-printf "...running h10 sr direct\n"
-$MPICOMMAND $DIRECTPATH > direct.out
-python2 ../testEnergy.py 'direct' $tol
-if [ $clean == 1 ]
-then
-    ../clean.sh
-fi
+#cd $here/h10sr/
+#../clean.sh
+#printf "...running h10 sr nondirect\n"
+#$MPICOMMAND $NONDIRECTPATH > nondirect.out
+#python2 ../testEnergy.py 'nondirect' $tol
+#../clean.sh
+#printf "...running h10 sr direct\n"
+#$MPICOMMAND $DIRECTPATH > direct.out
+#python2 ../testEnergy.py 'direct' $tol
+#if [ $clean == 1 ]
+#then
+#    ../clean.sh
+#fi
 
 #cd $here/h10lm/
 #../clean.sh

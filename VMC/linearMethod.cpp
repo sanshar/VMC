@@ -16,7 +16,6 @@
 #include <boost/mpi.hpp>
 #endif
 
-//static std::mt19937 rg(1);
 
 //sorts the eigenvalues in D and their respective eigenvectors in V in increasing order
 void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V)
@@ -55,13 +54,11 @@ void SortEig(Eigen::VectorXcd &D, Eigen::MatrixXcd &V)
   }
 }
 
-static std::mt19937 rg(1);
-//std::mt19937 rg(1);
 Eigen::VectorXd RandomVector(int n)
 {
     Eigen::VectorXd o(n);
     std::normal_distribution<double> dist(0.0, 1.0);
-    for (int i = 0; i < o.size(); i++) { o(i) = dist(rg); }
+    for (int i = 0; i < o.size(); i++) { o(i) = dist(generator); }
     return o;
 }
 
