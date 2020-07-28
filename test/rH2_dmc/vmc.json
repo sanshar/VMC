@@ -1,0 +1,36 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowslater",
+    "hfType": "rhf",
+    "complex": false,
+    "QmaxEEN": 3,
+    "Qmax": 3
+  },
+  "realspace":
+  {
+    "basis": "sto",
+    "nalpha": 1,
+    "nbeta": 1,
+    "norbs": 12
+  },
+  "sampling":
+  {
+    "stochasticIter": 100000,
+    "seed": 1
+  },
+  "optimizer":
+  {
+    "optimizeOrbs": false,
+    "optimizeCps": true,
+    "method": "amsgrad",
+    "stepsize": 0.001,
+    "decay1": 0.1,
+    "decay2": 0.001,
+    "maxIter": 8
+  },
+  "print":
+  {
+    "vars": false
+  }
+}

@@ -8,6 +8,7 @@ VMCPATH="../../bin/VMC vmc.json"
 CIPATH="../../bin/VMC ci.json"
 LANCZOSPATH="../../bin/VMC lanczos.dat"
 GFMCPATH="../../bin/GFMC gfmc.json"
+DMCPATH="../../bin/DMC dmc.json"
 FCIQMCPATH="../../../bin/FCIQMC fciqmc.json"
 DIRECTPATH="../../bin/VMC direct.json"
 NONDIRECTPATH="../../bin/VMC nondirect.json"
@@ -309,6 +310,19 @@ cd $here/rH2_nc/
 printf "...running rH2 with number counting jastrows and direct lm opt\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python2 ../testEnergy.py 'vmc' $tol
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
+
+cd $here/rH2_dmc/
+../clean.sh
+printf "...running rH2 \n"
+$MPICOMMAND $VMCPATH > vmc.out
+python2 ../testEnergy.py 'vmc' $tol
+printf "...running rH2 dmc\n"
+$MPICOMMAND $DMCPATH > dmc.out
+python2 ../testEnergy.py 'dmc' $tol
 if [ $clean == 1 ]
 then
     ../clean.sh

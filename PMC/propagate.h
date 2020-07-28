@@ -41,9 +41,9 @@ using namespace boost;
 using namespace std;
 
 
+//generate list of walkers and weights via orbital space VMC
 template<typename Walker, typename Wfn>
-  void generateWalkers(list<pair<Walker, double> >& Walkers, Wfn& w,
-		       workingArray& work) {
+void generateWalkers(list<pair<Walker, double> >& Walkers, Wfn& w, workingArray& work) {
 
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
                           std::ref(generator));
@@ -87,7 +87,44 @@ template<typename Walker, typename Wfn>
 };
 
 
-/*Take the walker and propagate it for time tau using continous time algorithm
+//generate list of walkers and weights via real space VMC
+template<typename Wfn, typename Walker>
+void generaterWalkers(std::list<std::pair<Walker, double>> &Walkers, Wfn &w)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+
+  Walker walk = Walkers.begin()->first;
+  int nelec = walk.d.nelec;
+
+  auto it = Walkers.begin();
+  int nIter = (30 * Walkers.size() + 1) * nelec;
+  for (int iter = 0; iter < nIter; iter++)
+  {
+    int elecToMove = iter % nelec;
+    double ovlpProb, proposalProb;
+    Vector3d step;
+    walk.getStep(step, elecToMove, schd.realSpaceStep, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
+    step += walk.d.coord[elecToMove];
+
+    if (iter % (30 * nelec) == 0)
+    {
+      it->first = walk;
+      it->second = std::pow(w.Overlap(walk), 2);
+      //it->second = 1.0;
+      it++;
+      if (it == Walkers.end()) break; 
+    }
+
+    //if move is simple or gaussian
+    if (ovlpProb < -0.5) ovlpProb = std::pow(w.getOverlapFactor(elecToMove, step, walk), 2); 
+
+    //accept or reject move
+    if (ovlpProb * proposalProb > random()) walk.updateWalker(elecToMove, step, w.getRef(), w.getCorr());
+  }
+}
+
+
+/*Take the walker and propagate it for time tau using orbital space continous time algorithm
  */
 template<typename Wfn, typename Walker>
   void applyPropogatorContinousTime(Wfn &w, Walker& walk, double& wt, 
@@ -143,11 +180,52 @@ template<typename Wfn, typename Walker>
 };
 
 
+/*Take the walker and propagate it for time tau using real space metropolis algorithm
+ */
+template<typename Wfn, typename Walker>
+double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, double Eshift, double &Eloc)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+
+  double oldEloc = w.rHam(walk);
+
+  //propogate every electron once via metropolis-hastings with dmc propogator
+  double acceptedProb = 0.0;
+  int nelec = walk.d.nelec;
+  for (int i = 0; i < nelec; i++)
+  {
+    double ovlpProb = 0.0, proposalProb = 0.0;
+    Vector3d step;
+    walk.doDMCMove(step, i, tau, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
+    step += walk.d.coord[i];
+
+    //accept move?
+    double ovlpRatio = w.getOverlapFactor(i, step, walk);
+    if (ovlpProb * proposalProb > random() && ovlpRatio > 0.0) //accept move based on metropolis criterion and if node is not crossed
+    {
+      acceptedProb++;
+      walk.updateWalker(i, step, w.getRef(), w.getCorr());
+    }
+  }
+  acceptedProb /= double(nelec);
+
+  Eloc = w.rHam(walk);
+
+  double Eavg = (Eloc + oldEloc) / 2.0;
+  wt *= std::exp(- tau * (Eavg - Eshift));
+  return acceptedProb;
+}
+
+
+/*
+collects together walkers of low weight and splits walkers of large weight to enforce numerical stability
+
+function is used in real space and orbital space code
+*/
 template<typename Walker>
 void reconfigure(std::list<pair<Walker, double> >& walkers) {
 
-  auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
-			  std::ref(generator));
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
 
   vector< typename std::list<pair<Walker, double> >::iterator > smallWts; smallWts.reserve(10);
   double totalSmallWts = 0.0;
@@ -171,7 +249,7 @@ void reconfigure(std::list<pair<Walker, double> >& walkers) {
       int numReplicate = int(wt);
       it->second = it->second/(1.0*numReplicate);
       for (int i=0; i<numReplicate-1; i++) 
-	walkers.push_front(*it); //add at front
+	    walkers.push_front(*it); //add at front
       it++;
     }
     else
@@ -183,20 +261,18 @@ void reconfigure(std::list<pair<Walker, double> >& walkers) {
 
       //remove all wts except the selected one
       for (int i=0; i<smallWts.size(); i++) {
-	double bkpwt = smallWts[i]->second;
-	if (select > 0 && select < smallWts[i]->second)
-	  smallWts[i]->second = totalSmallWts;
-	else 
-	  walkers.erase(smallWts[i]);
-	select -= bkpwt;
+	    double bkpwt = smallWts[i]->second;
+	    if (select > 0 && select < smallWts[i]->second)
+	      smallWts[i]->second = totalSmallWts;
+	    else 
+	      walkers.erase(smallWts[i]);
+	      select -= bkpwt;
       }
       totalSmallWts = 0.0;
       smallWts.resize(0);
     }
 
   }
-
-
 
   //now redistribute the walkers so that all procs havve roughly the same number
   vector<int> nwalkersPerProc(commsize);
@@ -211,8 +287,7 @@ void reconfigure(std::list<pair<Walker, double> >& walkers) {
   std::iota(procByNWalkers.begin(), procByNWalkers.end(), 0);
   std::sort(procByNWalkers.begin(), procByNWalkers.end(), [&nwalkersPerProc](size_t i1, size_t i2) {return nwalkersPerProc[i1] < nwalkersPerProc[i2];});
 
-  return;
-    
+  return;  
 };
 
 
@@ -342,6 +417,106 @@ template<typename Wfn, typename Walker>
     iter++;
   }
 };
+
+//performs the diffusion monte carlo algorithm
+template<typename Wfn, typename Walker>
+void doDMC(Wfn &w, Walker &walk, double Eshift)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+
+  //list of schd.nwalk walkers and weights
+  //we replciate the input walker nwalk times
+  std::list<std::pair<Walker, double>> Walkers;
+  for (int i = 0; i < schd.nwalk; i++) Walkers.push_back(std::pair<Walker, double>(walk, 1.0));
+
+  //sample the wavefunction w to generate walkers
+  generaterWalkers(Walkers, w);
+
+  //total weight equals to schd.nwalk;
+  double oldwt = 0.0;
+  for (auto it = Walkers.begin(); it != Walkers.end(); it++) { oldwt += it->second; }
+  for (auto it = Walkers.begin(); it != Walkers.end(); it++) { it->second *= schd.nwalk / oldwt; }
+  oldwt = schd.nwalk * commsize;
+
+  //run calculation for niter iterations
+  int niter = schd.maxIter;
+
+  //time step
+  double tau = schd.tau;
+
+  //after every nGeneration iterations, calculate/print the energy
+  int nGeneration = schd.nGeneration;
+
+  //energy average
+  double Eavg = 0.0, Eexp = 0.0;
+  double Enum = 0.0, Eden = 0.0;
+
+  double olditerPop = oldwt;
+  for (int iter = 0; iter < niter; iter++)
+  {
+    //propogate walkers time tau and calculate energy
+    double iterPop = 0.0;
+    for (auto it = Walkers.begin(); it != Walkers.end(); it++)
+    {
+      Walker &walk = it->first;
+      double &wt = it->second;
+
+      double Eloc = 0.0;
+      applyPropogatorMetropolis(w, walk, wt, tau, Eshift, Eloc);
+
+      iterPop += wt;
+      Enum += wt * Eloc;
+      Eden += wt;
+    }
+
+    //accumulate the total weight across processors
+#ifndef SERIAL
+    MPI_Allreduce(MPI_IN_PLACE, &iterPop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+    //all procs have the same Eshift
+    Eshift -= (0.1 / tau) * std::log(iterPop / olditerPop);
+    olditerPop = iterPop;
+
+    if (iter % nGeneration == 0 && iter != 0)
+    {
+      //accumulate the total energy across processors
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &Enum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &Eden, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+      //calculate average energy acorss all procs
+      double Ecurrentavg = Enum/Eden;
+
+      //this is the exponentially moving average
+      if (iter == nGeneration) { Eexp = Ecurrentavg; }
+      else { Eexp = 0.9 * Eexp + 0.1 * Ecurrentavg; }
+
+
+      //this is the average energy, but only start
+      //taking averages after 4 generations because 
+      //we assume that it takes atleast 4 generations to reach equilibration
+      if (iter/nGeneration == 4) { Eavg = Ecurrentavg; }
+      else if (iter/nGeneration > 4)
+      {
+	    int oldIter = iter/nGeneration;
+	    Eavg = ((oldIter - 4) * Eavg + Ecurrentavg) / (oldIter - 3);
+      }
+      else { Eavg = Eexp; }
+
+      if (commrank == 0) {
+	    cout << format("%8i %14.8f  %14.8f  %14.8f  %10i  %8.2f   %14.8f   %8.2f\n") % iter % Ecurrentavg % Eexp % Eavg % Walkers.size() % (iterPop/commsize) % Eshift % (getTime()-startofCalc);
+      }
+
+      //restart Enum and Eden
+      Enum = 0.0; Eden = 0.0;
+    }
+
+    //reconfigure
+    reconfigure(Walkers);
+  }
+}
 
 
 #endif

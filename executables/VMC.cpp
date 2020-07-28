@@ -63,7 +63,6 @@
 #include "MRCI.h"
 #include "EOM.h"
 #include "runVMC.h"
-
 #include "rCorrelatedWavefunction.h"
 
 using namespace Eigen;

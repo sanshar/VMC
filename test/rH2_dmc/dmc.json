@@ -1,0 +1,26 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowslater",
+    "hfType": "rhf",
+    "complex": false,
+    "QmaxEEN": 3,
+    "Qmax": 3
+  },
+  "realspace":
+  {
+    "basis": "sto",
+    "nalpha": 1,
+    "nbeta": 1,
+    "norbs": 12
+  },
+  "sampling":
+  {
+    "stochasticIter": 100000,
+    "seed": 1,
+    "nwalk": 1000,
+    "tau": 0.1,
+    "ngeneration": 25,
+    "maxIter": 51
+  }
+}

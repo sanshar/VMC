@@ -1,0 +1,72 @@
+User:
+ilsa8974
+Hostname:
+bnode0303.rc.int.colorado.edu
+CPU info:
+Architecture:          x86_64
+CPU op-mode(s):        32-bit, 64-bit
+Byte Order:            Little Endian
+CPU(s):                28
+On-line CPU(s) list:   0-27
+Thread(s) per core:    1
+Core(s) per socket:    14
+Socket(s):             2
+NUMA node(s):          2
+Vendor ID:             GenuineIntel
+CPU family:            6
+Model:                 79
+Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
+Stepping:              1
+CPU MHz:               2907.656
+Computation started at:
+Tue Jul 28 16:10:34 MDT 2020
+git commit: 2d767184ca1cdba3e083c970175071e9b09af510, branch: merged, compiled at: Tue Jul 28 13:17:09 MDT 2020
+
+nproc used: 4 (NB: stochasticIter below is per proc)
+
+**************************************************************
+Input file  :
+**************************************************************
+{
+    "wavefunction": {
+        "name": "jastrowslater",
+        "hfType": "rhf",
+        "complex": "false",
+        "QmaxEEN": "3",
+        "Qmax": "3"
+    },
+    "realspace": {
+        "basis": "sto",
+        "nalpha": "1",
+        "nbeta": "1",
+        "norbs": "12"
+    },
+    "sampling": {
+        "stochasticIter": "100000",
+        "seed": "1"
+    },
+    "optimizer": {
+        "optimizeOrbs": "false",
+        "optimizeCps": "true",
+        "method": "amsgrad",
+        "stepsize": "0.001",
+        "decay1": "0.1",
+        "decay2": "0.001",
+        "maxIter": "8"
+    },
+    "print": {
+        "vars": "false"
+    }
+}
+
+Number of Jastrow vars: 21
+Number of Reference vars: 25
+Number of Optimized vars: 21
+    0    -0.78804674 (7.63e-03)     0.17628677    187.6      0.9     100000  0.010488     0.00     2.20
+    1    -0.82454162 (9.14e-03)     0.15480590    293.2      0.9     100000  0.013951     0.56     4.18
+    2    -0.79347766 (1.10e-02)     0.16720120    412.6      0.9     100000  0.016278     0.29     6.17
+    3    -0.81572833 (8.90e-03)     0.15551982    285.8      0.9     100000  0.017908     0.36     8.14
+    4    -0.82904370 (7.47e-03)     0.14465438    222.0      0.9     100000  0.019028     0.51    10.16
+    5    -0.81835876 (9.15e-03)     0.14868684    329.3      0.9     100000  0.019871     0.15    12.12
+    6    -0.81798394 (8.29e-03)     0.14601422    269.5      0.9     100000  0.020463     0.11    14.10
+    7    -0.81897747 (7.97e-03)     0.14210006    256.2      0.9     100000  0.020865     0.19    16.09

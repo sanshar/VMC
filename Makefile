@@ -155,6 +155,25 @@ OBJ_GFMC = obj/staticVariables.o \
 	obj/Correlator.o \
 	obj/rPseudopotential.o \
 
+OBJ_DMC = obj/staticVariables.o \
+	obj/DMC.o \
+	obj/input.o \
+	obj/integral.o\
+	obj/SHCIshm.o \
+	obj/Determinants.o \
+	obj/rSlater.o \
+	obj/rBFSlater.o \
+	obj/rJastrow.o \
+	obj/JastrowTermsHardCoded.o \
+	obj/rCorrelatedWavefunction.o \
+	obj/rWalker.o \
+	obj/rWalkerHelper.o \
+	obj/gaussianBasis.o\
+	obj/slaterBasis.o\
+	obj/ShermanMorrisonWoodbury.o\
+	obj/statistics.o \
+	obj/Correlator.o \
+	obj/rPseudopotential.o \
 
 OBJ_FCIQMC = obj/staticVariables.o \
 	obj/input.o \
@@ -181,15 +200,20 @@ obj/%.o: VMC/%.cpp
 obj/%.o: FCIQMC/%.cpp  
 	$(CXX) $(FLAGS) -I./FCIQMC $(OPT) -c $< -o $@
 obj/%.o: GFMC/%.cpp  
-	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./GFMC $(OPT) -c $< -o $@
+	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./PMC $(OPT) -c $< -o $@
+obj/%.o: DMC/%.cpp  
+	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./PMC $(OPT) -c $< -o $@
 obj/%.o: executables/%.cpp  
-	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./GFMC -I./VMC -I./FCIQMC $(OPT) -c $< -o $@
+	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./PMC -I./VMC -I./FCIQMC $(OPT) -c $< -o $@
 
 
-all: bin/VMC bin/GFMC bin/slaterToGaussian bin/TRANS 
+all: bin/VMC bin/GFMC bin/DMC bin/slaterToGaussian bin/TRANS 
 
 bin/GFMC	: $(OBJ_GFMC) 
 	$(CXX)   $(FLAGS) $(VERSION_FLAGS) $(OPT) -o  bin/GFMC $(OBJ_GFMC) $(LFLAGS) 
+
+bin/DMC	: $(OBJ_DMC) 
+	$(CXX)   $(FLAGS) $(VERSION_FLAGS) $(OPT) -o  bin/DMC $(OBJ_DMC) $(LFLAGS) 
 
 bin/VMC	: $(OBJ_VMC) 
 	$(CXX)   $(FLAGS) $(VERSION_FLAGS) $(OPT) -o  bin/VMC $(OBJ_VMC) $(LFLAGS)

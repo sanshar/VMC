@@ -985,6 +985,85 @@ void getLanczosCoeffsContinuousTime(Wfn &w, Walker &walk, double &alpha, Eigen::
 
 
 template<typename Wfn, typename Walker>
+double getEnergyMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, double &rk, int niter, double targetError)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+  double ovlp = pow(wave.Overlap(walk), 2);
+  double ham;
+
+  rDeterminant bestDet = walk.getDet();
+  double bestovlp = ovlp;
+
+ 
+  Vector3d step;
+  int elecToMove = 0, nelec = walk.d.nelec;
+
+  Statistics Stats;
+  
+  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = nelec;
+  double acceptedFrac = 0;
+  double M1 = 0., S1 = 0.;
+  int nstore = 1000000 / commsize;
+  int corrIter = min(nstore, niter/sampleSteps);
+  //std::vector<double> corrError(corrIter * commsize, 0);
+
+  double ovlpRatio = -1.0, proposalProb;
+  while (iter < niter) {
+    elecToMove = iter%nelec;
+    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    step += walk.d.coord[elecToMove];
+    iter ++;
+    if (iter%sampleSteps == 0 && iter > 0.01*niter) {
+      ham = wave.rHam(walk);
+      if (schd.debug) cout << "eloc  " << ham << endl;
+
+      double avgPotold = avgPot;
+      avgPot += (ham - avgPot)/(effIter+1);
+      S1 += (ham - avgPotold) * (ham - avgPot);
+      if (effIter < corrIter)
+        Stats.push_back(ham);
+      effIter++;
+    }
+    if (schd.debug) cout << "walker\n" << walk << endl;
+    //if move is simple or gaussian
+    if (ovlpRatio < -0.5)
+      ovlpRatio = pow(wave.getOverlapFactor(elecToMove, step, walk), 2); 
+    if (ovlpRatio*proposalProb > random()) {
+      acceptedFrac++;
+      walk.updateWalker(elecToMove, step, wave.getRef(), wave.getCorr());
+      ovlp = ovlp*std::sqrt(ovlpRatio);
+      if (abs(ovlp) > abs(bestovlp)) {
+        bestovlp = ovlp;
+        bestDet = walk.getDet();
+      }
+    }
+  }
+#ifndef SERIAL
+  //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  Stats.Block();
+  rk = Stats.BlockCorrTime();
+
+  double n_eff = commsize * effIter;
+  S1 /= effIter;
+  stddev = sqrt((S1 * rk / n_eff));
+  avgPot /= commsize;
+  E0 = avgPot;
+
+  if (commrank == 0)
+  {
+    char file[5000];
+    sprintf(file, "BestCoordinates.txt");
+    std::ofstream ofs(file, std::ios::binary);
+    boost::archive::binary_oarchive save(ofs);
+    save << bestDet;
+  }  
+  return acceptedFrac/niter;
+}
+
+template<typename Wfn, typename Walker>
 double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, double &rk, int niter, double targetError)
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1),
