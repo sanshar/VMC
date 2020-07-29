@@ -104,6 +104,13 @@ int main(int argc, char *argv[])
     double acceptedFrac = getEnergyMetropolisRealSpace(wave, walk, E0, error, rk, schd.stochasticIter, 5.0e-3);
     if (commrank == 0) cout << "Energy of VMC wavefunction: " << E0 << " ("<< error << ")" << endl;
 
+    /*
+    Eigen::VectorXd grad(wave.getNumOptVariables());
+    acceptedFrac = getGradientMetropolisRealSpace(wave, walk, E0, error, grad, rk, schd.stochasticIter, 5.0e-3);
+    if (commrank == 0) cout << "Energy of VMC wavefunction: " << E0 << " ("<< error << ")" << endl;
+    */
+
+
     //do DMC
     doDMC(wave, walk, E0);
   } 

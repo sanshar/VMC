@@ -993,7 +993,6 @@ double getEnergyMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
 
   rDeterminant bestDet = walk.getDet();
   double bestovlp = ovlp;
-
  
   Vector3d step;
   int elecToMove = 0, nelec = walk.d.nelec;
@@ -1038,18 +1037,28 @@ double getEnergyMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
       }
     }
   }
-#ifndef SERIAL
-  //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
 
-  Stats.Block();
-  rk = Stats.BlockCorrTime();
-
-  double n_eff = commsize * effIter;
+  try 
+  {
+    Stats.Block();
+    rk = Stats.BlockCorrTime();
+  }
+  catch (const runtime_error &error)
+  {
+    Stats.CorrFunc();
+    rk = Stats.IntCorrTime();
+  }
   S1 /= effIter;
-  stddev = sqrt((S1 * rk / n_eff));
+#ifndef SERIAL
+  MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   avgPot /= commsize;
+  S1 /= commsize;
+  rk /= commsize;
+#endif
+  double n_eff = commsize * effIter;
+  stddev = std::sqrt(S1 * rk / n_eff);
   E0 = avgPot;
 
   if (commrank == 0)
@@ -1062,6 +1071,7 @@ double getEnergyMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
   }  
   return acceptedFrac/niter;
 }
+
 
 template<typename Wfn, typename Walker>
 double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, double &rk, int niter, double targetError)
@@ -1265,27 +1275,35 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
       }
     }
   }
+
+  try 
+  {
+    Stats.Block();
+    rk = Stats.BlockCorrTime();
+  }
+  catch (const runtime_error &error)
+  {
+    Stats.CorrFunc();
+    rk = Stats.IntCorrTime();
+  }
+  S1 /= effIter;
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(diagonalGrad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  Stats.Block();
-  rk = Stats.BlockCorrTime();
-
-  double n_eff = commsize * effIter;
-  S1 /= effIter;
-  stddev = sqrt((S1 * rk /n_eff));
+  MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  diagonalGrad /= commsize;
+  grad /= commsize;
   avgPot /= commsize;
+  S1 /= commsize;
+  rk /= commsize;
+#endif
+  double n_eff = commsize * effIter;
+  stddev = std::sqrt(S1 * rk / n_eff);
   E0 = avgPot;
 
-  //cout << diagonalGrad<<endl<<endl;
-  //cout << grad<<endl;
-  //exit(0);
-  diagonalGrad /= (commsize);
-  grad /= (commsize);
   grad = grad - E0 * diagonalGrad;
 
   if (commrank == 0)
@@ -1377,24 +1395,36 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
       }
     }
   }
+
+  try 
+  {
+    Stats.Block();
+    rk = Stats.BlockCorrTime();
+  }
+  catch (const runtime_error &error)
+  {
+    Stats.CorrFunc();
+    rk = Stats.IntCorrTime();
+  }
+  S1 /= effIter;
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(diagonalGrad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   if (!schd.direct) { MPI_Allreduce(MPI_IN_PLACE, S.Smatrix.data(), S.Smatrix.rows() * S.Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); }
   MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-  Stats.Block();
-  rk = Stats.BlockCorrTime();
-
-  double n_eff = commsize * effIter;
-  S1 /= effIter;
-  stddev = sqrt((S1 * rk /n_eff));
+  MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  diagonalGrad /= commsize;
+  grad /= commsize;
   avgPot /= commsize;
+  S1 /= commsize;
+  rk /= commsize;
+#endif
+  double n_eff = commsize * effIter;
+  stddev = std::sqrt(S1 * rk / n_eff);
   E0 = avgPot;
 
-  diagonalGrad /= (commsize);
-  grad /= (commsize);
   grad = grad - E0 * diagonalGrad;
   H << 1.0, (diagonalGrad - schd.stepsize * grad);
 
@@ -1532,6 +1562,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
       }
     }
   }
+
   try
   {
     Stats.Block();
@@ -1542,29 +1573,29 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
     Stats.CorrFunc();
     rk = Stats.IntCorrTime();
   }
+  S1 /= effIter;
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(gradRatio_bar[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(Hessian(0,0)), Hessian.rows()*Hessian.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(Smatrix(0,0)), Smatrix.rows()*Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  rk /= commsize;
-  double n_eff = commsize * effIter;
-  S1 /= effIter;
-  stddev = sqrt((S1 * rk /n_eff));
+  gradRatio_bar /= commsize;
+  grad /= commsize;
   avgPot /= commsize;
+  rk /= commsize;
+  S1 /= commsize;
+  Hessian /= commsize;
+  Smatrix /= commsize;
+#endif
+  double n_eff = commsize * effIter;
+  stddev = sqrt(S1 * rk / n_eff);
   E0 = avgPot;
 
-  gradRatio_bar /= (commsize);
-  grad /= (commsize);
   grad = grad - E0 * gradRatio_bar;
-  Hessian = Hessian/(commsize);
-  Smatrix = Smatrix/(commsize);
-
 
   if (commrank == 0)
   {
@@ -1698,6 +1729,7 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
       }
     }
   }
+
   try
   {
     Stats.Block();
@@ -1708,23 +1740,24 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
     Stats.CorrFunc();
     rk = Stats.IntCorrTime();
   }
+  S1 /= eIter;
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(gradRatio_bar[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   //MPI_Allreduce(MPI_IN_PLACE, &(corrError[0]), corrError.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &avgPot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  rk /= commsize;
-  double n_eff = commsize * eIter;
-  S1 /= eIter;
-  stddev = sqrt(S1 * rk / n_eff);
-  avgPot /= commsize;
-  E0 = avgPot;
-
+  MPI_Allreduce(MPI_IN_PLACE, &S1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   gradRatio_bar /= commsize;
   grad /= commsize;
+  avgPot /= commsize;
+  rk /= commsize;
+  S1 /= commsize;
+#endif
+  double n_eff = commsize * eIter;
+  stddev = std::sqrt(S1 * rk / n_eff);
+  E0 = avgPot;
+
   grad = grad - E0 * gradRatio_bar;
 
   if (commrank == 0)
@@ -1882,7 +1915,6 @@ double getGradientMetricRandomMetropolisRealSpace(Wfn &wave, Walker &walk, doubl
     Stats.CorrFunc();
     rk = Stats.IntCorrTime();
   }
-
   S1 /= effIter;
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(gradRatio_bar[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -1892,7 +1924,6 @@ double getGradientMetricRandomMetropolisRealSpace(Wfn &wave, Walker &walk, doubl
   MPI_Allreduce(MPI_IN_PLACE, &rk, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, (SO.data()), SO.rows() * SO.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-
   rk /= commsize;
   avgPot /= commsize;
   S1 /= commsize;
@@ -1901,7 +1932,7 @@ double getGradientMetricRandomMetropolisRealSpace(Wfn &wave, Walker &walk, doubl
   SO /= commsize;
   double n_eff = commsize * effIter;
 
-  stddev = sqrt((S1 * rk / n_eff));
+  stddev = std::sqrt(S1 * rk / n_eff);
   Energy = avgPot;
   grad = grad - Energy * gradRatio_bar;
 
