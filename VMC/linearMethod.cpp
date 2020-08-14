@@ -237,6 +237,23 @@ int FindBound(const VectorXd &v, double target)
     }
 }
 
+int FindBound(const VectorXcd &v, double target)
+{
+    if (v.size() == 1 || v(0).real() > target)
+    {
+      return 0;
+    }
+    for (int i = 0; i < v.rows() - 1; i++)
+    {
+      if (v(i).real() <= target && target <= v(i + 1).real())
+      {
+        //if (std::norm(v(i) - target) > std::norm(v(i + 1) - target)) return i + 1;
+        //else return i;
+        return i;
+      }
+    }
+}
+
 //appends the vector z to the subspace matrices HV, SV, V. Uses the DirectLM matrix object
 void AppendVectorToSubspace(const DirectLM &H, const Eigen::VectorXd &z, Eigen::MatrixXd &V, Eigen::MatrixXd &HV, Eigen::MatrixXd &SV)
 {

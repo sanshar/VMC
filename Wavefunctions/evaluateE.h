@@ -1807,7 +1807,7 @@ void getStochasticGradientMetricRandomContinuousTime(Wfn &w, Walker& walk, doubl
   Energy = 0.0;
   grad.setZero();
   Eigen::VectorXd grad_ratio_bar = VectorXd::Zero(numVars);
-  SO = Eigen::MatrixXd::Zero(numVars + 1, schd.nVec);
+  SO = Eigen::MatrixXd::Zero(numVars + 1, O.cols());
   for (int iter = 0; iter < niter; iter++)
   {
     CTMC.LocalEnergy();
@@ -1849,7 +1849,7 @@ double getGradientMetricRandomMetropolisRealSpace(Wfn &wave, Walker &walk, doubl
   Energy = 0.0;
   grad.setZero();
   Eigen::VectorXd gradRatio_bar = VectorXd::Zero(numVars);
-  SO = Eigen::MatrixXd::Zero(numVars + 1, schd.nVec);
+  SO = Eigen::MatrixXd::Zero(numVars + 1, O.cols());
 
   double ovlpRatio = -1.0, proposalProb;
   while (iter < niter) {
@@ -2225,7 +2225,7 @@ void CorrelatedSamplingRealSpace(int niter, std::vector<Eigen::VectorXd> &V, std
   {
     Wfn wave;
     Walker walk;
-    wave.updateVariables(V[i]);
+    wave.updateOptVariables(V[i]);
     wave.initWalker(walk);
     Wave.push_back(wave);
     Walk.push_back(walk);

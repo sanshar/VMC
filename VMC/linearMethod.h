@@ -41,6 +41,9 @@ using namespace std;
 //sorts the eigenvalues in D and their respective eigenvectors in V in increasing order
 void SortEig(Eigen::VectorXd &D, Eigen::MatrixXd &V);
 void SortEig(Eigen::VectorXcd &D, Eigen::MatrixXcd &V);
+//returns the index of the closest value to target in the vector V
+int FindBound(const VectorXd &v, double target);
+int FindBound(const VectorXcd &v, double target);
 
 /*
 This is a functor for the linear method optimizer
@@ -102,9 +105,9 @@ class LM
      {
        if (commrank == 0) read(vars);
 #ifndef SERIAL
-	    boost::mpi::communicator world;
-	    boost::mpi::broadcast(world, *this, 0);
-	    boost::mpi::broadcast(world, vars, 0);
+	   boost::mpi::communicator world;
+	   boost::mpi::broadcast(world, *this, 0);
+	   boost::mpi::broadcast(world, vars, 0);
 #endif
      }
 
@@ -226,8 +229,9 @@ class LM
 
        //accept update only if "good" move
        //if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
+       if (E[index] <= E0 * 0.75 && E[index] >= E0 * 1.25)
        {
-         //if (commrank == 0) cout << "update accepted" << endl;
+         if (schd.printOpt && commrank == 0) cout << "update accepted" << endl << endl;
          vars = V[index];
        }
 #ifndef SERIAL
@@ -532,22 +536,30 @@ class directLM
      int numVars = vars.rows();
      if (restart || schd.fullRestart)
      {
-       if (commrank == 0) read(vars);
+       if (commrank == 0)
+       {
+         read(vars);
+         if (schd.fullRestart)
+         {
+           mom1 = VectorXd::Zero(vars.rows());
+           mom2 = VectorXd::Zero(vars.rows());
+         }
+       }
 #ifndef SERIAL
 	    boost::mpi::communicator world;
 	    boost::mpi::broadcast(world, *this, 0);
 	    boost::mpi::broadcast(world, vars, 0);
 #endif
      }
-     else if (mom1.rows() == 0) //if amsgrad options are zero
+     else if (mom1.rows() == 0) //object is empty
      {
-       mom1.setZero(numVars);
-       mom2.setZero(numVars);
+       mom1 = VectorXd::Zero(vars.rows());
+       mom2 = VectorXd::Zero(vars.rows());
      }
 
      while (iter < maxIter)
      {
-       if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
+       //if (commrank == 0 && schd.printOpt) std::cout << "Iteration start" << endl;
 
        //init
        if (iter < AMSGradIter) rt = 0.0;
@@ -562,8 +574,8 @@ class directLM
        //sampling
        double acceptedFrac = getHessian(vars, grad, h, E0, stddev, rt);
        write(vars);
-       if (commrank == 0 && schd.printOpt) std::cout << "VMC run complete" << endl;
-       if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
+       //if (commrank == 0 && schd.printOpt) std::cout << "VMC run complete" << endl;
+       //if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
        double VMC_time = (getTime() - startofCalc);
        double LM_time = VMC_time;
 
@@ -597,7 +609,7 @@ class directLM
          double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
          VectorXd update = x.tail(numVars) / (x(0) * norm);
          //VectorXd update = x.tail(numVars) / x(0);
-         if (commrank == 0 && schd.printOpt) std::cout << "LM complete" << endl;
+         //if (commrank == 0 && schd.printOpt) std::cout << "LM complete" << endl;
          LM_time = (getTime() - startofCalc);
 
          //correlated sampling
@@ -605,7 +617,7 @@ class directLM
          std::vector<double> E(LMStep.size(), 0.0);
          for (int i = 0; i < V.size(); i++) { V[i] += LMStep[i] * update; }
          runCorrelatedSampling(V, E);
-         if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
+         //if (commrank == 0 && schd.printOpt) std::cout << "CorrSample complete" << endl;
          //find lowest energy
          int index = 0;
          for (int i = 0; i < E.size(); i++) { if (E[i] < E[index]) index = i; }
@@ -625,8 +637,9 @@ class directLM
 
          //accept update only if "good" move
          //if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
+         if (E[index] <= E0 * 0.75 && E[index] >= E0 * 1.25)
          {
-           //if (commrank == 0) cout << "update accepted" << endl;
+           if (schd.printOpt && commrank == 0) cout << "update accepted" << endl << endl;
            vars = V[index];
          }
        }//if
@@ -718,17 +731,25 @@ class randomLM
      int numVars = vars.rows();
      if (restart || schd.fullRestart)
      {
-       if (commrank == 0) read(vars);
+       if (commrank == 0)
+       {
+         read(vars);
+         if (schd.fullRestart)
+         {
+           mom1 = VectorXd::Zero(vars.rows());
+           mom2 = VectorXd::Zero(vars.rows());
+         }
+       }
 #ifndef SERIAL
-	    boost::mpi::communicator world;
-	    boost::mpi::broadcast(world, *this, 0);
-	    boost::mpi::broadcast(world, vars, 0);
+	 boost::mpi::communicator world;
+	 boost::mpi::broadcast(world, *this, 0);
+	 boost::mpi::broadcast(world, vars, 0);
 #endif
      }
-     else if (mom1.rows() == 0) //if amsgrad options are empty
+     else if (mom1.rows() == 0) //object is empty
      {
-       mom1.setZero(numVars);
-       mom2.setZero(numVars);
+       mom1 = VectorXd::Zero(vars.rows());
+       mom2 = VectorXd::Zero(vars.rows());
      }
 
       //random matrix subspace
@@ -746,7 +767,6 @@ class randomLM
        double stddev = 0.0;
        double rt = 1.0;
        VectorXd grad = VectorXd::Zero(numVars);
-       if (iter < AMSGradIter) rt = 0.0;
        //action of matrices on random test subspace
        Eigen::MatrixXd SO;
        //sampling
@@ -758,7 +778,6 @@ class randomLM
        if (commrank == 0)
          std::cout << format("%5i.a %14.8f (%8.2e) %14.8f %8.1f %8.1f %8.2f \n") % iter % E0 % stddev % (grad.norm()) % (rt) % (acceptedFrac) % (VMC_time);
 
-       Eigen::MatrixXd Q;
        //update parameters
        if (iter < AMSGradIter) //performs amsgrad
        {
@@ -775,6 +794,7 @@ class randomLM
          numLMiter++;
          double RRF_time, VMC1_time;
          int nspace;
+         Eigen::MatrixXd Q;
          if (commrank == 0)
          {
            RandomizedRangeFinder(SO, Q, schd.error, schd.r);
@@ -786,7 +806,7 @@ class randomLM
      MPI_Bcast(Q.data(), Q.rows() * Q.cols(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
          //resize O
-         O.conservativeResize(Q.rows(), Q.cols() + 2 * schd.r);
+         O.conservativeResize(Q.rows(), Q.cols() + schd.r);
          RRF_time = getTime() - startofCalc;
 
          //action of matrices on subspace
@@ -803,26 +823,34 @@ class randomLM
          VectorXcd Lambda = es.eigenvalues();
          MatrixXcd U = Q * es.eigenvectors();
          SortEig(Lambda, U);
-         std::complex<double> val = Lambda(0);
-         Eigen::VectorXcd u = U.col(0);
+         int idx = FindBound(Lambda, E0);
+         std::complex<double> val = Lambda(idx);
+         Eigen::VectorXcd u = U.col(idx);
          if (schd.printOpt && commrank == 0)
          {
-           cout << "Lowest eigenpair of H, S" << endl << endl;
-           cout << val << endl << endl;
-           cout << u.transpose() << endl << endl;
-           cout << "first 10 eigenvalues" << endl;
-           for (int i = 0; i < 10; i++) { cout << Lambda(i) << " "; }
-           cout << endl << endl;
+           //cout << "Lowest eigenpair of H, S" << endl << endl;
+           cout << endl << "Selected eigenvalue" << endl;
+           cout << idx << "\t" << val << endl;
+           //cout << u.transpose() << endl << endl;
+           
+           //cout << "first 10 eigenvalues" << endl;
+           //for (int i = 0; i < 10; i++) { cout << Lambda(i) << " "; }
+           //cout << endl << endl;
+
+           cout << "Closest eigenvalues to E0" << endl;
+           for (int i = idx - 2; i < idx + 5; i++) { cout << Lambda(i) << " "; }
+           cout << endl;
          }
 
          //normalize parameter update
          VectorXd x = u.real();
-         VectorXd Sx = SQ * Q.transpose() * x;
+         VectorXd Sx = SQ * (Q.transpose() * x);
          double ksi = 0.5;
          double xSx = x.dot(Sx);
          VectorXd N = -((1.0 - ksi) * Sx) / ((1.0 - ksi) + (ksi * std::sqrt(xSx)));
          double norm = 1.0 - N.tail(numVars).dot(x.tail(numVars));
          VectorXd update = x.tail(numVars) / (x(0) * norm);
+         //VectorXd update = x.tail(numVars) / x(0);
 #ifndef SERIAL
      MPI_Bcast(update.data(), update.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
@@ -841,16 +869,19 @@ class randomLM
          if (schd.printOpt && commrank == 0)
          {
            cout << "Correlated Sampling: " << endl;
-           cout << "accepted step: " << LMStep[index] << endl;
+           cout << "step: " << LMStep[index] << endl;
            for (int i = 0; i < E.size(); i++) { cout << LMStep[i] << " " << E[i] << " | "; }
            cout << endl;
          }
 
          //accept update only if "good" move
          //if (((E[index] <= (E0 + stddev)) && (E[index] >= (E0 - 1.0))) || iter < 1)
+         if (E[index] <= E0 * 0.75 && E[index] >= E0 * 1.25)
          {
+           if (schd.printOpt && commrank == 0) cout << "update accepted" << endl;
            vars = V[index];
          }
+         if (commrank == 0) cout << endl;
 
          //print
          if (commrank == 0)

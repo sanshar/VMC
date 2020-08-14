@@ -103,7 +103,8 @@ void generaterWalkers(std::list<std::pair<Walker, double>> &Walkers, Wfn &w)
     int elecToMove = iter % nelec;
     double ovlpProb, proposalProb;
     Vector3d step;
-    walk.getStep(step, elecToMove, schd.realSpaceStep, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
+    //walk.getStep(step, elecToMove, schd.realSpaceStep, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
+    walk.doDMCMove(step, elecToMove, schd.realSpaceStep, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
     step += walk.d.coord[elecToMove];
 
     if (iter % (30 * nelec) == 0)
@@ -456,23 +457,28 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
   {
     //propogate walkers time tau and calculate energy
     double iterPop = 0.0;
+    double acceptedMoves = 0.0;
     for (auto it = Walkers.begin(); it != Walkers.end(); it++)
     {
       Walker &walk = it->first;
       double &wt = it->second;
 
       double Eloc = 0.0;
-      applyPropogatorMetropolis(w, walk, wt, tau, Eshift, Eloc);
+      acceptedMoves += applyPropogatorMetropolis(w, walk, wt, tau, Eshift, Eloc);
 
       iterPop += wt;
       Enum += wt * Eloc;
       Eden += wt;
     }
 
+    double totalMoves = double(Walkers.size());
     //accumulate the total weight across processors
 #ifndef SERIAL
     MPI_Allreduce(MPI_IN_PLACE, &iterPop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &acceptedMoves, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &totalMoves, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
+    double acceptedFrac = acceptedMoves / totalMoves;
 
     //all procs have the same Eshift
     Eshift -= (0.1 / tau) * std::log(iterPop / olditerPop);
@@ -506,7 +512,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       else { Eavg = Eexp; }
 
       if (commrank == 0) {
-	    cout << format("%8i %14.8f  %14.8f  %14.8f  %10i  %8.2f   %14.8f   %8.2f\n") % iter % Ecurrentavg % Eexp % Eavg % Walkers.size() % (iterPop/commsize) % Eshift % (getTime()-startofCalc);
+	    cout << format("%8i  %14.8f  %14.8f  %14.8f  %8.3f  %10i  %8.2f  %14.8f  %8.2f\n") % iter % Ecurrentavg % Eexp % Eavg % acceptedFrac % Walkers.size() % (iterPop/commsize) % Eshift % (getTime()-startofCalc);
       }
 
       //restart Enum and Eden

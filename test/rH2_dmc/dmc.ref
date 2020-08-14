@@ -17,10 +17,10 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               2908.781
+CPU MHz:               2899.968
 Computation started at:
-Tue Jul 28 16:10:51 MDT 2020
-git commit: 2d767184ca1cdba3e083c970175071e9b09af510, branch: merged, compiled at: Tue Jul 28 13:17:09 MDT 2020
+Fri Aug 14 10:37:18 MDT 2020
+git commit: 12eebfceef2f8ec8939ac0b96ad07043446893ff, branch: merged, compiled at: Fri Aug 14 09:48:43 MDT 2020
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -51,6 +51,6 @@ Input file  :
     }
 }
 
-Energy of VMC wavefunction: -0.8364437235 (0.01381449234)
-      25    -1.00336247     -1.00336247     -1.00336247         888   1167.48      -0.99129521       4.18
-      50    -0.99799917     -1.00282614     -1.00282614         892   1174.22      -0.99705128       5.02
+Energy of VMC wavefunction: -0.8364437235 (0.009998369753)
+      25     -1.00114488     -1.00114488     -1.00114488     0.981         922   1164.72     -0.98892098      3.45
+      50     -0.99677908     -1.00070830     -1.00070830     0.980         958   1172.71     -0.99575735      4.25
