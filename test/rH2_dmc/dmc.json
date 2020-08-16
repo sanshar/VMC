@@ -19,8 +19,8 @@
     "stochasticIter": 100000,
     "seed": 1,
     "nwalk": 1000,
-    "tau": 0.1,
+    "tau": 0.01,
     "ngeneration": 25,
-    "maxIter": 51
+    "maxIter": 26
   }
 }

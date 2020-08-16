@@ -97,30 +97,29 @@ void generaterWalkers(std::list<std::pair<Walker, double>> &Walkers, Wfn &w)
   int nelec = walk.d.nelec;
 
   auto it = Walkers.begin();
-  int nIter = (30 * Walkers.size() + 1) * nelec;
+  int nIter = 30 * Walkers.size() + 1;
   for (int iter = 0; iter < nIter; iter++)
   {
-    int elecToMove = iter % nelec;
-    double ovlpProb, proposalProb;
-    Vector3d step;
-    //walk.getStep(step, elecToMove, schd.realSpaceStep, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
-    walk.doDMCMove(step, elecToMove, schd.realSpaceStep, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
-    step += walk.d.coord[elecToMove];
+    for (int elec = 0; elec < nelec; elec++)
+    {
+        double ovlpProb, proposalProb;
+        Vector3d step;
+        walk.getStep(step, elec, schd.realSpaceStep, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
+        step += walk.d.coord[elec];
+        //if move is simple or gaussian
+        if (ovlpProb < -0.5) ovlpProb = std::pow(w.getOverlapFactor(elec, step, walk), 2); 
 
-    if (iter % (30 * nelec) == 0)
+        //accept or reject move
+        if (ovlpProb * proposalProb > random()) walk.updateWalker(elec, step, w.getRef(), w.getCorr());
+    }
+
+    if (iter % 30 == 0)
     {
       it->first = walk;
-      it->second = std::pow(w.Overlap(walk), 2);
-      //it->second = 1.0;
+      it->second = 1.0;
       it++;
       if (it == Walkers.end()) break; 
     }
-
-    //if move is simple or gaussian
-    if (ovlpProb < -0.5) ovlpProb = std::pow(w.getOverlapFactor(elecToMove, step, walk), 2); 
-
-    //accept or reject move
-    if (ovlpProb * proposalProb > random()) walk.updateWalker(elecToMove, step, w.getRef(), w.getCorr());
   }
 }
 
@@ -434,10 +433,23 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
   generaterWalkers(Walkers, w);
 
   //total weight equals to schd.nwalk;
-  double oldwt = 0.0;
-  for (auto it = Walkers.begin(); it != Walkers.end(); it++) { oldwt += it->second; }
-  for (auto it = Walkers.begin(); it != Walkers.end(); it++) { it->second *= schd.nwalk / oldwt; }
-  oldwt = schd.nwalk * commsize;
+  double oldwt = schd.nwalk * commsize;
+
+  //energy of inital population
+  double nE0 = 0.0;
+  double dE0 = 0.0;  
+  for (auto it = Walkers.begin(); it != Walkers.end(); it++)
+  {
+      double Eloc = w.rHam(it->first);
+      double wt = it->second;
+      nE0 += Eloc * wt;
+      dE0 += wt;
+  }
+#ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &nE0, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &dE0, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+  if (commrank == 0) { cout << "Energy of initial population: " << nE0 / dE0 << endl; }
 
   //run calculation for niter iterations
   int niter = schd.maxIter;

@@ -2240,10 +2240,10 @@ void CorrelatedSamplingRealSpace(int niter, std::vector<Eigen::VectorXd> &V, std
     int elecToMove = iter % nelec;
     double ovlpRatio, proposalProb;
     Walk[0].getStep(step, elecToMove, schd.realSpaceStep, Wave[0].getRef(), Wave[0].getCorr(), ovlpRatio, proposalProb);
+    step += Walk[0].d.coord[elecToMove];
     //if move is simple or gaussian
     if (ovlpRatio < -0.5) 
       ovlpRatio = pow(Wave[0].getOverlapFactor(elecToMove, step, Walk[0]), 2); 
-    step += Walk[0].d.coord[elecToMove];
     if ((iter + 1) % nelec == 0 && (iter + 1) > 0.01 * niter)
     {
       effIter++;
