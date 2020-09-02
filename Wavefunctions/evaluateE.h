@@ -1456,7 +1456,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   Vector3d step;
   int elecToMove = 0, nelec = walk.d.nelec;
 
-  double avgPot = 0; int iter = 0, effIter = 0, sampleSteps = nelec;
+  double avgPot = 0; int iter = 0, eIter = 0, effIter = 0, sampleSteps = nelec;
   
   double acceptedFrac = 0;
   double M1 = 0., S1 = 0.;
@@ -1476,75 +1476,81 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   while (iter < niter) {
     elecToMove = iter%nelec;
 
-    walk.getStep(step, elecToMove, schd.realSpaceStep,
-                 wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
-
+    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
 
     iter ++;
-    if (iter%sampleSteps == 0 && iter > 0.01*niter) {
-      ham = wave.HamOverlap(walk, gradRatio, hamRatio);
-      VectorXd G(numVars + 1), H(numVars + 1);
-      G << 1.0, gradRatio;
-      H << ham, hamRatio;
-
-      /*
-      //below is for debugging hamRatio, it calculates local energy gradient via finite difference
-      if (commrank == 0) {
-          cout << endl;
-          cout << "iteration: " << iter << endl;
-          cout << walk.d << endl;
-        VectorXd v;
-        wave.getVariables(v);
-        Walker _walk;
-        Wfn _wave;
-        Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(v.size());
-        for (int i = 0; i < v.size(); ++i)
-        {
-          double dt = 0.00001;
-          Eigen::VectorXd vdt = v;
-          vdt(i) += dt;
-          _wave.updateVariables(vdt);
-          _wave.initWalker(_walk, walk.d);
-          double Eloc = _wave.rHam(_walk);
-          finiteGradEloc(i) = (Eloc - ham) / dt;
-        }
-        VectorXd localdiagonalGrad(numVars);
-        wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
-        VectorXd G1(numVars + 1), H1(numVars + 1);
-        G1 << 1.0, localdiagonalGrad;
-        H1 << ham, (finiteGradEloc + ham * gradRatio);
-
-        //cout << "eloc: " << ham << endl;
-        //VectorXd gradEloc = hamRatio - ham * gradRatio;
-        int numJastrowVars = wave.getNumJastrowVariables();
-        for (int m = numJastrowVars; m < numVars; m++)
-        {
-          cout << G(m) << "  " << G1(m) << "  |  ";
-          cout << H(m) << "  " << H1(m) << endl;
-        }
-      }
-      */
-
-      Hessian.noalias() += (G * H.transpose()-Hessian)/(effIter+1);
-      Smatrix.noalias() += (G * G.transpose()-Smatrix)/(effIter+1);
-
-      for (int i = 0; i < grad.rows(); i++)
+    if (iter % sampleSteps == 0 && iter > 0.01*niter)
+    {
+      eIter++;
+      if (iter % (int) std::round(sampleSteps * rk) != 0)
       {
-        gradRatio_bar[i] += (gradRatio[i] - gradRatio_bar[i])/(effIter+1);
-        grad[i] += (ham * gradRatio[i] - grad[i])/(effIter + 1);
-        gradRatio[i] = 0.0;
-        hamRatio[i] = 0.0;
+        ham = wave.rHam(walk);
       }
+      else
+      {
+        effIter++;
+        ham = wave.HamOverlap(walk, gradRatio, hamRatio);
+        VectorXd G(numVars + 1), H(numVars + 1);
+        G << 1.0, gradRatio;
+        H << ham, hamRatio;
+
+        /*
+        //below is for debugging hamRatio, it calculates local energy gradient via finite difference
+        if (commrank == 0) {
+            cout << endl;
+            cout << "iteration: " << iter << endl;
+            cout << walk.d << endl;
+          VectorXd v;
+          wave.getVariables(v);
+          Walker _walk;
+          Wfn _wave;
+          Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(v.size());
+          for (int i = 0; i < v.size(); ++i)
+          {
+            double dt = 0.00001;
+            Eigen::VectorXd vdt = v;
+            vdt(i) += dt;
+            _wave.updateVariables(vdt);
+            _wave.initWalker(_walk, walk.d);
+            double Eloc = _wave.rHam(_walk);
+            finiteGradEloc(i) = (Eloc - ham) / dt;
+          }
+          VectorXd localdiagonalGrad(numVars);
+          wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
+          VectorXd G1(numVars + 1), H1(numVars + 1);
+          G1 << 1.0, localdiagonalGrad;
+          H1 << ham, (finiteGradEloc + ham * gradRatio);
+
+          //cout << "eloc: " << ham << endl;
+          //VectorXd gradEloc = hamRatio - ham * gradRatio;
+          int numJastrowVars = wave.getNumJastrowVariables();
+          for (int m = numJastrowVars; m < numVars; m++)
+          {
+            cout << G(m) << "  " << G1(m) << "  |  ";
+            cout << H(m) << "  " << H1(m) << endl;
+          }
+        }
+        */
+
+        Hessian.noalias() += (G * H.transpose()-Hessian) / effIter;
+        Smatrix.noalias() += (G * G.transpose()-Smatrix) / effIter;
+
+        for (int i = 0; i < grad.rows(); i++)
+        {
+          gradRatio_bar[i] += (gradRatio[i] - gradRatio_bar[i]) / effIter;
+          grad[i] += (ham * gradRatio[i] - grad[i]) / effIter;
+          gradRatio[i] = 0.0;
+          hamRatio[i] = 0.0;
+        }
+      }
+
       double avgPotold = avgPot;
-      avgPot += (ham - avgPot)/(effIter+1);
+      avgPot += (ham - avgPot) / eIter;
       S1 += (ham - avgPotold) * (ham - avgPot);
-      if (effIter < corrIter)
+      if (eIter < corrIter)
         Stats.push_back(ham);
-
-      effIter++;
     }
-
  
     //if move is simple or gaussian
     if (ovlpRatio < -0.5) 
@@ -1573,7 +1579,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
     Stats.CorrFunc();
     rk = Stats.IntCorrTime();
   }
-  S1 /= effIter;
+  S1 /= eIter;
 #ifndef SERIAL
   MPI_Allreduce(MPI_IN_PLACE, &(gradRatio_bar[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce(MPI_IN_PLACE, &(grad[0]), grad.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -1591,7 +1597,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   Hessian /= commsize;
   Smatrix /= commsize;
 #endif
-  double n_eff = commsize * effIter;
+  double n_eff = commsize * eIter;
   stddev = sqrt(S1 * rk / n_eff);
   E0 = avgPot;
 
@@ -2390,6 +2396,7 @@ class getGradientWrapper
     double acceptedFrac;
     w.updateOptVariables(vars);
     w.initWalker(walk);
+    if (!schd.sampleEveryRt) rt = 1.0;
     if (!deterministic)
       acceptedFrac = getGradientHessianMetropolisRealSpace(w, walk, E0, stddev, grad, H, S, rt, stochasticIter);
     
@@ -2402,7 +2409,7 @@ class getGradientWrapper
     double acceptedFrac;
     w.updateOptVariables(vars);
     w.initWalker(walk);
-    //rt = 1.0;
+    if (!schd.sampleEveryRt) rt = 1.0;
     if (!deterministic)
     {
       if (rt == 0.0)
@@ -2455,6 +2462,7 @@ class getGradientWrapper
   {
     w.updateVariables(vars);
     w.initWalker(walk);
+    if (!schd.sampleEveryRt) rt = 1.0;
     if (!deterministic)
     {
       getStochasticGradientHessianContinuousTime(w, walk, E0, stddev, grad, Hmatrix, Smatrix, rt, stochasticIter);
@@ -2473,6 +2481,7 @@ class getGradientWrapper
   {
     w.updateVariables(vars);
     w.initWalker(walk);
+    if (!schd.sampleEveryRt) rt = 1.0;
     if (!deterministic)
     {
       if (rt == 0.0)
@@ -2540,6 +2549,7 @@ class getGradientWrapper
   {
     w.updateVariables(vars);
     w.initWalker(walk);
+    if (!schd.sampleEveryRt) rt = 1.0;
     /*
     if (!deterministic)
     {
@@ -2567,6 +2577,7 @@ class getGradientWrapper
     double acceptedFrac;
     w.updateOptVariables(vars);
     w.initWalker(walk);
+    if (!schd.sampleEveryRt) rt = 1.0;
     if (!deterministic)
       acceptedFrac = getGradientHessianRandomMetropolisRealSpace(w, walk, E0, stddev, grad, Q, HQ, SQ, rt, stochasticIter);
     w.writeWave();

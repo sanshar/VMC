@@ -134,6 +134,7 @@ private:
       & nGrid
       & nMaxMacroIter
       & nMaxMicroIter
+      & sampleEveryRt
       & pQuad
       & nNociSlater
       & ciCeption
@@ -179,6 +180,7 @@ public:
   bool ifComplex;                        //breaks and restores complex conjugation symmetry 
   bool uagp;                             //brakes S^2 symmetry in uagp
   bool ciCeption;                        //true, when using ci on top of selectedCI
+  bool sampleEveryRt;                    //when true, lm matrices are sampled every Rt(autocorrelation time)
 
   int nGrid;      //the grid used for projectors in transcorrelated calcs
   int nMaxMacroIter;
