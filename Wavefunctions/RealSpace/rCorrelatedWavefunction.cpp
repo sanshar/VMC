@@ -27,6 +27,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   std::complex<double> cEloc;
 
   double potentialij = 0.0, potentiali = 0.0, potentiali_ppl = 0.0, potentiali_ppnl = 0.0, potentialN = 0.0;
+  std::complex<double> cpotentiali_ppnl;
 
   //get potential
   for (int i=0; i<nelec; i++)
@@ -82,6 +83,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
         else { factor = walk.Bnl.row(i).tail(walk.d.nbeta) * thetaInv[1].col(i - walk.d.nalpha); }
       }
       potentiali_ppnl += (thetaDet * factor).real() / thetaDet.real();
+      cpotentiali_ppnl += factor;
     } 
   }
 
@@ -109,7 +111,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
     }
   }
   Eloc = -0.5 * kinetic + potentialij + potentiali + potentiali_ppl + potentiali_ppnl + potentialN; 
-  cEloc = -0.5 * ckinetic + potentialij + potentiali + potentiali_ppl + potentiali_ppnl + potentialN; 
+  cEloc = -0.5 * ckinetic + potentialij + potentiali + potentiali_ppl + cpotentiali_ppnl + potentialN; 
   //cout << "T\t\tVij\t\tViI\t\tVl\t\tVnl\t\tVIJ" << endl;
   //cout << -0.5 * kinetic << " " << potentialij << " " << potentiali << " " << potentiali_ppl << " " << potentiali_ppnl << " " << potentialN; 
   //cout << endl << endl;
