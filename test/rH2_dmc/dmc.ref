@@ -1,7 +1,7 @@
 User:
 ilsa8974
 Hostname:
-shas0137
+shas0136
 CPU info:
 Architecture:          x86_64
 CPU op-mode(s):        32-bit, 64-bit
@@ -17,10 +17,10 @@ CPU family:            6
 Model:                 63
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v3 @ 2.50GHz
 Stepping:              2
-CPU MHz:               2494.312
+CPU MHz:               2494.381
 Computation started at:
-Sun Aug 16 16:27:23 MDT 2020
-git commit: aa8c44587f3679df26f86c2b4cff3df285ce7613, branch: merged, compiled at: Sun Aug 16 15:09:04 MDT 2020
+Wed Sep  2 13:10:15 MDT 2020
+git commit: 0bff5e84cecc060c1b0978078bf5edbe3194ffaf, branch: merged, compiled at: Wed Sep 2 12:55:43 MDT 2020
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -53,4 +53,4 @@ Input file  :
 
 Energy of VMC wavefunction: -0.8364437235 (0.009998369753)
 Energy of initial population: -0.8385262515
-      25     -0.84507108     -0.84507108     -0.84507108     0.994        1000   1001.01     -0.84656842      4.12
+      25     -0.84508758     -0.84508758     -0.84508758     0.999        1000   1001.01     -0.84658713      4.33

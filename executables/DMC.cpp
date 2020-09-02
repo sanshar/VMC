@@ -52,6 +52,60 @@ using namespace Eigen;
 using namespace boost;
 using namespace std;
 
+//functions to test cusp conditions
+template<typename Wfn, typename Walker>
+double testElectronCusp(Wfn &wave, Walker &walk)
+{
+  Vector3d r0;
+  r0 << 0.5, 0, 0;
+  walk.updateWalker(0, r0, wave.getRef(), wave.getCorr());
+  cout << "initial coordinates" << endl;
+  cout << walk.d << endl;
+  for (double theta = -M_PI / 4; theta <= M_PI / 4; theta += 0.005)
+  {
+    Vector3d r1;
+    r1 << std::cos(theta), std::sin(theta), 0;
+    r1 *= r0.norm();
+    walk.updateWalker(1, r1, wave.getRef(), wave.getCorr());
+    double ovlp = wave.Overlap(walk);
+    double Eloc = wave.rHam(walk);
+    std::cout << std::fixed;
+    std::cout << std::setprecision(6);
+    cout << theta << " " << ovlp << " " << Eloc << endl;
+  }
+  return 0;
+}
+
+
+template<typename Wfn, typename Walker>
+double testNuclearCusp(Wfn &wave, Walker &walk)
+{
+  Vector3d r0;
+  r0 << 0, 0, 1.0;
+  walk.updateWalker(0, r0, wave.getRef(), wave.getCorr());
+  const Vector3d& N0 = schd.Ncoords[0];
+  //const Vector3d& N1 = schd.Ncoords[1];
+  cout << "Atom 1: " << N0.transpose();
+  //cout << "Atom 2: " << N1.transpose() << endl;
+  cout << walk.RiN << endl;
+  cout << "initial coordinates" << endl;
+  cout << walk.d << endl;
+  for (double z = 0.2; z >= -0.2; z -= 0.005)
+  {
+    Vector3d r1;
+    r1 << 0, 0, z;
+    //r1 << std::cos(theta), std::sin(theta), 0;
+    //r1 *= r0.norm();
+    walk.updateWalker(1, r1, wave.getRef(), wave.getCorr());
+    double ovlp = wave.Overlap(walk);
+    double Eloc = wave.rHam(walk);
+    std::cout << std::fixed;
+    std::cout << std::setprecision(6);
+    cout << z << " " << ovlp << " " << Eloc << endl;
+  }
+  return 0;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -99,34 +153,27 @@ int main(int argc, char *argv[])
     rCorrelatedWavefunction<rJastrow, rSlater> wave; rWalker<rJastrow, rSlater> walk;
     wave.readWave(); wave.initWalker(walk);
 
+    /*
+    if (commrank == 0)
+    {
+        cout << "EEcusp" << endl;
+        testElectronCusp(wave, walk);
+        cout << endl;
+        cout << "ENcusp" << endl;
+        testNuclearCusp(wave, walk);
+        cout << endl;
+    }
+    */
+
     //calculate the energy as a initial guess for shift
     double E0, error, rk;
     double acceptedFrac = getEnergyMetropolisRealSpace(wave, walk, E0, error, rk, schd.stochasticIter, 5.0e-3);
     if (commrank == 0) cout << "Energy of VMC wavefunction: " << E0 << " ("<< error << ")" << endl;
-
-    /*
-    Eigen::VectorXd grad(wave.getNumOptVariables());
-    acceptedFrac = getGradientMetropolisRealSpace(wave, walk, E0, error, grad, rk, schd.stochasticIter, 5.0e-3);
-    if (commrank == 0) cout << "Energy of VMC wavefunction: " << E0 << " ("<< error << ")" << endl;
-    */
 
 
     //do DMC
     doDMC(wave, walk, E0);
   } 
-  else if (schd.wavefunctionType == "backflow") {
-    //initialize wavefunction
-    rCorrelatedWavefunction<rJastrow, rBFSlater> wave; rWalker<rJastrow, rBFSlater> walk;
-    wave.readWave(); wave.initWalker(walk);
-
-    //calculate the energy as a initial guess for shift
-    double E0, error, rk;
-    double acceptedFrac = getEnergyMetropolisRealSpace(wave, walk, E0, error, rk, schd.stochasticIter, 5.0e-3);
-    if (commrank == 0) cout << "Energy of VMC wavefunction: " << E0 << " ("<< error << ")" << endl;
-
-    //do DMC
-    doDMC(wave, walk, E0);
-  }
 
   boost::interprocess::shared_memory_object::remove(shciint2.c_str());
   boost::interprocess::shared_memory_object::remove(shciint2shm.c_str());

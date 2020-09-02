@@ -978,11 +978,34 @@ double SphericalSteps::volume(double& a, double& eta, double& Ri, double& dR, do
     return abs(G(eta, a, Ri*dR*eta, Ri*eta/dR))*phitheta;
 }
 
-//JCP, 109, 2630
 void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double stepsize,
                                            const rSlater& ref, const rJastrow& corr, double& ovlpRatio,
                                            double& proposalProb) {
+  double tau = stepsize;
+  Vector3d &r = d.coord[elecI];
+  Vector3d v; //gradient at initial point
+  getGradient(elecI, v);
 
+  Vector3d xsi;
+  xsi(0) = nR(generator);
+  xsi(1) = nR(generator);
+  xsi(2) = nR(generator);
+
+  Vector3d rp = r + tau * v + std::sqrt(tau) * xsi;
+
+  double forwardProb = std::exp( - xsi.squaredNorm() / 2.0) / std::pow(2.0 * M_PI * tau, 3 / 2);
+
+  Vector3d vp;
+  ovlpRatio = getGradientAfterSingleElectronMove(elecI, rp, vp, ref);
+  ovlpRatio *= ovlpRatio;
+
+  double reverseProb = std::exp( - (r - rp - tau * vp).squaredNorm() / (2.0 * tau)) / std::pow(2.0 * M_PI * tau, 3 / 2);
+  
+  proposalProb = reverseProb / forwardProb;  
+  coord = rp - r;
+
+/*
+//JCP, 109, 2630
   Vector3d gradi; //gradient at initial point
   //obtain the gradient
   getGradient(elecI, gradi);
@@ -1022,7 +1045,7 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
       /pow(2*M_PI*deltanew*deltanew, 1.5);
   
   proposalProb =  reverseProb/forwardProb;
-  
+*/ 
 }
 
 //
