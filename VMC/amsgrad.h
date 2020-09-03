@@ -114,8 +114,8 @@ class AMSGrad
         {
           if (commrank == 0)
           {
-            read(vars);
-            if (schd.fullRestart)
+            if (schd.restart) { read(vars); }
+            else if (schd.fullRestart)
             {
               mom1 = VectorXd::Zero(vars.rows());
               mom2 = VectorXd::Zero(vars.rows());
@@ -222,8 +222,8 @@ class AMSGrad
         {
           if (commrank == 0)
           {
-            read(vars);
-            if (schd.fullRestart)
+            if (schd.restart) { read(vars); }
+            else if (schd.fullRestart)
             {
               mom1 = VectorXd::Zero(vars.rows());
               mom2 = VectorXd::Zero(vars.rows());
