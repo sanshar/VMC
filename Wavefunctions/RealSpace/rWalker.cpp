@@ -624,7 +624,7 @@ void rWalker<rJastrow, rSlater>::getStep(Vector3d& coord, int elecI,
     return getGaussianStep(coord, elecI, stepsize, ovlpRatio, proposalProb);
 
   else if (schd.rStepType == DMC)
-    return doDMCMove(coord, elecI, stepsize, ref, corr, ovlpRatio, proposalProb);
+    return getDMCStep(coord, elecI, stepsize, ref, corr, ovlpRatio, proposalProb);
   
   else if (schd.rStepType == SPHERICAL)
     return getSphericalStep(coord, elecI, stepsize, ref, ovlpRatio, proposalProb);
@@ -978,12 +978,12 @@ double SphericalSteps::volume(double& a, double& eta, double& Ri, double& dR, do
     return abs(G(eta, a, Ri*dR*eta, Ri*eta/dR))*phitheta;
 }
 
-void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double stepsize,
-                                           const rSlater& ref, const rJastrow& corr, double& ovlpRatio,
-                                           double& proposalProb) {
+//this is used in the dmc algorithm
+void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double& ovlpRatio, double& proposalProb) {
   double tau = stepsize;
+
   Vector3d &r = d.coord[elecI];
-  Vector3d v; //gradient at initial point
+  Vector3d v;
   getGradient(elecI, v);
 
   Vector3d xsi;
@@ -997,15 +997,18 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
 
   Vector3d vp;
   ovlpRatio = getGradientAfterSingleElectronMove(elecI, rp, vp, ref);
-  ovlpRatio *= ovlpRatio;
 
   double reverseProb = std::exp( - (r - rp - tau * vp).squaredNorm() / (2.0 * tau)) / std::pow(2.0 * M_PI * tau, 3 / 2);
   
   proposalProb = reverseProb / forwardProb;  
   coord = rp - r;
+}
 
-/*
 //JCP, 109, 2630
+//used in vmc algorithm
+void rWalker<rJastrow, rSlater>::getDMCStep(Vector3d& coord, int elecI, double stepsize,
+                                           const rSlater& ref, const rJastrow& corr, double& ovlpRatio,
+                                           double& proposalProb) {
   Vector3d gradi; //gradient at initial point
   //obtain the gradient
   getGradient(elecI, gradi);
@@ -1045,7 +1048,6 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
       /pow(2*M_PI*deltanew*deltanew, 1.5);
   
   proposalProb =  reverseProb/forwardProb;
-*/ 
 }
 
 //

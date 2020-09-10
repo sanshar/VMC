@@ -95,11 +95,13 @@ struct rWalker<rJastrow, rSlater> {
 
   void getSphericalStep(Vector3d& coord, int elecToMove, double stepsize, const rSlater& ref,
                         double& ovlpRatio, double& proposalProb);
-  void doDMCMove(Vector3d& coord, int elecI, double stepsize,
+  void getDMCStep(Vector3d& coord, int elecI, double stepsize,
                  const rSlater& ref, const rJastrow& corr, double& ovlpRatio,
                  double& proposalProb) ;
   void getGaussianStep(Vector3d& coord, int elecToMove, double stepsize,
                        double& ovlpRatio, double& proposalProb);
+
+  void doDMCMove(Vector3d& coord, int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double& ovlpRatio, double& proposalProb);
 
   void getGradient(int elecI, Vector3d& grad) ;
   double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad,

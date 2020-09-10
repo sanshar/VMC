@@ -195,14 +195,15 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   int nelec = walk.d.nelec;
   for (int i = 0; i < nelec; i++)
   {
-    double ovlpProb = 0.0, proposalProb = 0.0;
+    double ovlpRatio = 0.0, proposalProb = 0.0;
     Vector3d step;
-    walk.doDMCMove(step, i, tau, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
+    walk.doDMCMove(step, i, tau, w.getRef(), w.getCorr(), ovlpRatio, proposalProb);
     Vector3d newCoord = step + walk.d.coord[i];
 
     //accept move?
+    double ovlpProb = ovlpRatio * ovlpRatio;
     double p = std::min(1.0, ovlpProb * proposalProb);
-    double ovlpRatio = w.getOverlapFactor(i, newCoord, walk);
+    //double ovlpRatio = w.getOverlapFactor(i, newCoord, walk);
     if (p > random() && ovlpRatio > 0.0) //accept move based on metropolis criterion and if node is not crossed
     {
       acceptedProb++;
@@ -222,7 +223,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   wt *= std::exp(- tau_eff * (Eavg - Eshift));
 
   //print if walker has weirdly large weight
-  if (wt > 3)
+  if (wt > 2.4)
   {
       cout << "Large weight: " << wt << endl;
       cout << "Local energy:" << Eloc << endl;
@@ -454,6 +455,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
 
   //total weight equals to schd.nwalk;
   double oldwt = schd.nwalk * commsize;
+  double targetwt = schd.nwalk * commsize;
 
   //energy of inital population
   double nE0 = 0.0;
