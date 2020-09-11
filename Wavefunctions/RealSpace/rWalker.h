@@ -103,12 +103,12 @@ struct rWalker<rJastrow, rSlater> {
 
   void doDMCMove(Vector3d& coord, int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double& ovlpRatio, double& proposalProb);
 
-  void getGradient(int elecI, Vector3d& grad) ;
-  double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad,
-                                            const rSlater& ref) ;
-  double getGradientAfterSingleElectronMovetemp(int elecI, Vector3d& move, Vector3d& grad,
-                                            const rSlater& ref) ;
-  
+  void getGradient(int elecI, Vector3d& grad);
+  void getScaledGradient(int elecI, double tau, Vector3d& vbar);
+
+  double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad, const rSlater& ref);
+  double getScaledGradientAfterSingleElectronMove(int elecI, double tau, Vector3d& move, Vector3d& grad, const rSlater& ref);
+
   friend ostream& operator<<(ostream& os, const rWalker<rJastrow, rSlater>& w) {
     os << w.d << endl << endl;
     os << "dets\n" << w.refHelper.thetaDet[0][0] << "  " << w.refHelper.thetaDet[0][1] << endl << endl;

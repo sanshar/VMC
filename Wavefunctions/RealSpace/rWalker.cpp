@@ -978,13 +978,66 @@ double SphericalSteps::volume(double& a, double& eta, double& Ri, double& dR, do
     return abs(G(eta, a, Ri*dR*eta, Ri*eta/dR))*phitheta;
 }
 
+//use cyrus' scaled velocity
+//J. Chem. Phys., Vol. 99, No.4, 15 August 1993
+void rWalker<rJastrow, rSlater>::getScaledGradient(int elecI, double tau, Vector3d& vbar) {
+  Vector3d &ri = d.coord[elecI];
+
+  Vector3d v;
+  getGradient(elecI, v);
+  Vector3d vhat = v.normalized();
+
+  double null;
+  int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
+  Vector3d rI = schd.Ncoords[closestNucleus];
+  double Z = schd.Ncharge[closestNucleus];
+
+  Vector3d z = ri - rI;
+  Vector3d zhat = z.normalized();
+
+  double zZ2 = Z * Z * z.squaredNorm();
+  double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+
+  double av2t = a * v.squaredNorm() * tau;
+  double factor = (-1.0 + std::sqrt(1.0 + 2.0 * av2t)) / av2t;
+
+  vbar = factor * v;
+}
+
+double rWalker<rJastrow, rSlater>::getScaledGradientAfterSingleElectronMove(int elecI, double tau, Vector3d& newCoord, Vector3d& vbar, const rSlater& ref)
+{
+  Vector3d &ri = newCoord;
+
+  Vector3d v;
+  double ovlpRatio = getGradientAfterSingleElectronMove(elecI, ri, v, ref);
+  Vector3d vhat = v.normalized();
+
+  double null;
+  int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
+  Vector3d rI = schd.Ncoords[closestNucleus];
+  double Z = schd.Ncharge[closestNucleus];
+
+  Vector3d z = ri - rI;
+  Vector3d zhat = z.normalized();
+
+  double zZ2 = Z * Z * z.squaredNorm();
+  double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+
+  double av2t = a * v.squaredNorm() * tau;
+  double factor = (-1.0 + std::sqrt(1.0 + 2.0 * av2t)) / av2t;
+
+  vbar = factor * v;
+  return ovlpRatio;
+}
+
 //this is used in the dmc algorithm
 void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double& ovlpRatio, double& proposalProb) {
   double tau = stepsize;
 
   Vector3d &r = d.coord[elecI];
   Vector3d v;
-  getGradient(elecI, v);
+  //getGradient(elecI, v);
+  getScaledGradient(elecI, tau, v);
 
   Vector3d xsi;
   xsi(0) = nR(generator);
@@ -996,7 +1049,8 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
   double forwardProb = std::exp( - xsi.squaredNorm() / 2.0) / std::pow(2.0 * M_PI * tau, 3 / 2);
 
   Vector3d vp;
-  ovlpRatio = getGradientAfterSingleElectronMove(elecI, rp, vp, ref);
+  //ovlpRatio = getGradientAfterSingleElectronMove(elecI, rp, vp, ref);
+  ovlpRatio = getScaledGradientAfterSingleElectronMove(elecI, tau, rp, vp, ref);
 
   double reverseProb = std::exp( - (r - rp - tau * vp).squaredNorm() / (2.0 * tau)) / std::pow(2.0 * M_PI * tau, 3 / 2);
   
