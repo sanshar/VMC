@@ -191,7 +191,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
 
   //propogate every electron once via metropolis-hastings with dmc propogator
   double acceptedProb = 0.0;
-  double dr2 = 0.0, pdr2 = 0.0;
+  double dr2_accepted = 0.0, dr2_proposed = 0.0;
   int nelec = walk.d.nelec;
   for (int i = 0; i < nelec; i++)
   {
@@ -203,30 +203,33 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
     //accept move?
     double ovlpProb = ovlpRatio * ovlpRatio;
     double p = std::min(1.0, ovlpProb * proposalProb);
-    //double ovlpRatio = w.getOverlapFactor(i, newCoord, walk);
     if (p > random() && ovlpRatio > 0.0) //accept move based on metropolis criterion and if node is not crossed
     {
       acceptedProb++;
+      dr2_accepted += step.squaredNorm();
       walk.updateWalker(i, newCoord, w.getRef(), w.getCorr());
     }
 
     //average squared norm of steps
-    dr2 += step.squaredNorm();
-    pdr2 += p * step.squaredNorm();
+    dr2_proposed += step.squaredNorm();
   }
+  dr2_accepted /= acceptedProb;
+  dr2_proposed /= double(nelec);
   acceptedProb /= double(nelec);
 
-  Eloc = w.rHam(walk);
+  double T, Vij, ViI, Vpp, VIJ;
+  Eloc = w.rHam(walk, T, Vij, ViI, Vpp, VIJ);
 
   double Eavg = (Eloc + oldEloc) / 2.0;
-  double tau_eff = tau * pdr2 / dr2; //effective time step due to metropolis algorithm
+  double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
   wt *= std::exp(- tau_eff * (Eavg - Eshift));
 
   //print if walker has weirdly large weight
   if (wt > 2.4)
   {
       cout << "Large weight: " << wt << endl;
-      cout << "Local energy:" << Eloc << endl;
+      cout << "Local energy: " << Eloc << endl;
+      cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vpp: " << Vpp << " VIJ: " << VIJ << endl;
       cout << "coords" << endl;
       cout << walk.d << endl;
       cout << "RiI" << endl;

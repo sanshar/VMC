@@ -112,6 +112,8 @@ private:
       & norbs
       & Qmax
       & QmaxEEN
+      & noCusp
+      & addCusp
       & sigma
       & realSpaceStep
       & Ncoords
@@ -202,6 +204,8 @@ public:
   std::string determinantFile;
   int Qmax;
   int QmaxEEN;
+  bool noCusp;
+  bool addCusp;
   double sigma;
   int numResonants;
   bool singleJastrow;

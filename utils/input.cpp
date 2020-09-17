@@ -165,6 +165,8 @@ void readInput(string inputFile, schedule& schd, bool print) {
     }
     schd.Qmax = input.get("wavefunction.Qmax", 6);
     schd.QmaxEEN = input.get("wavefunction.QmaxEEN", 3);
+    schd.noCusp = input.get("wavefunction.noCusp", false);
+    schd.addCusp = input.get("wavefunction.addCusp", false);
     schd.sigma = input.get("wavefunction.sigma", 1.0);
 
     //hamiltonian

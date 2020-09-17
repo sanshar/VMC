@@ -27,7 +27,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   std::complex<double> cEloc;
 
   double potentialij = 0.0, potentiali = 0.0, potentiali_ppl = 0.0, potentiali_ppnl = 0.0, potentialN = 0.0;
-  std::complex<double> cpotentiali_ppnl;
+  std::complex<double> cpotentiali_ppnl = 0.0;
 
   //get potential
   for (int i=0; i<nelec; i++)
@@ -216,8 +216,10 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
       CPShamRatio[corr.EEsameSpinIndex] = 0.0;
       CPShamRatio[corr.EEoppositeSpinIndex] = 0.0;
+      if (schd.noCusp || schd.addCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { CPShamRatio[corr.ENIndex + I * corr.Qmax] = 0.0; }
       CPSgradRatio[corr.EEsameSpinIndex] = 0.0;
       CPSgradRatio[corr.EEoppositeSpinIndex] = 0.0;
+      if (schd.noCusp || schd.addCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { CPSgradRatio[corr.ENIndex + I * corr.Qmax] = 0.0; }
       CPShamRatio += Eloc * CPSgradRatio;
   }
    
@@ -634,6 +636,118 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
     }
   }
   //cout << -0.5*(kinetic) << " " << potentialij << " " << potentiali << " " << potentiali_pp << " " << potentialN << endl;
+  return -0.5*(kinetic) + potentialij + potentiali + potentiali_pp + potentialN; 
+}
+
+double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlater>& walk, double& T, double& Vij, double& ViI, double& Vpp, double& VIJ) const {
+  int norbs = Determinant::norbs;
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = nalpha+nbeta;
+  int numDets = ref.determinants.size();
+
+  double potentialij = 0.0, potentiali = 0.0, potentiali_pp = 0.0, potentialN = 0.0;
+
+  //get potential
+  for (int i=0; i<walk.d.nelec; i++)
+    for (int j=i+1; j<walk.d.nelec; j++) {
+      potentialij += 1./walk.Rij(i,j);
+    }
+
+  for (int i=0; i<walk.d.nelec; i++) {
+    for (int j=0; j<schd.Ncoords.size(); j++) {
+      potentiali -= schd.Ncharge[j]/walk.RiN(i,j);
+    }
+  }
+
+  for (int i=0; i<schd.Ncoords.size(); i++) {
+    for (int j=i+1; j<schd.Ncoords.size(); j++) {
+      potentialN += schd.Ncharge[i] * schd.Ncharge[j]/walk.RNM(i,j);
+    }
+  }
+
+  //pseudopotential
+  const Pseudopotential &pp = *schd.pseudo;
+  if (pp.size() != 0) //if pseudopotential object is not empty
+  {
+    //local potential
+    for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
+    {
+      const ppHelper &ppatm = it->second;
+      for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
+      {
+        int I = ppatm.indices()[a];
+        auto it1 = ppatm.begin();
+        int l = it1->first;
+        if (l == -1) {
+          const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
+          for (int i = 0; i < nelec; i++) //loop over electrons
+          {
+             //calculate potential
+             double v = 0.0;
+             for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
+             potentiali_pp += v;    
+          }
+        }
+      }
+    }
+
+    //nonlocal potential
+    std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
+    for (int i=0; i<nelec; i++) {
+      std::complex<double> factor = 0.0;
+      if (schd.hf == "ghf") { factor = walk.Bnl.row(i) * walk.refHelper.thetaInv[0].col(i); }
+      else
+      {
+        if (i < walk.d.nalpha) { factor = walk.Bnl.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
+        else { factor = walk.Bnl.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
+      }
+      potentiali_pp += (DetFactor * factor).real() / DetFactor.real();
+    } 
+  }
+
+  /*
+  cout << "##############################################" << endl;
+  cout << "Update" << endl;
+  cout << walk.Bnl << endl << endl;
+  cout << walk.AOBnl << endl << endl;
+
+  cout << "init" << endl;
+  double test;
+  walk.initBnl(corr, ref, test);
+  cout << walk.Bnl << endl << endl;
+  cout << walk.AOBnl << endl << endl;
+  */
+  
+  double kinetic = 0.0;  
+  {
+    MatrixXcd Bij = walk.refHelper.Laplacian; //i = nelec , j = norbs
+
+    for (int i=0; i<walk.d.nalpha+walk.d.nbeta; i++) {
+      Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,0) * walk.refHelper.Gradient[0].row(i);
+      Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,1) * walk.refHelper.Gradient[1].row(i);
+      Bij.row(i) += 2.*walk.corrHelper.GradRatio(i,2) * walk.refHelper.Gradient[2].row(i);
+    }
+
+    std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
+    for (int i=0; i<nelec; i++) {
+      std::complex<double> factor = 0.0;
+      if (schd.hf == "ghf") { factor = Bij.row(i) * walk.refHelper.thetaInv[0].col(i); }
+      else
+      {
+        if (i < walk.d.nalpha) { factor = Bij.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
+        else { factor = Bij.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
+      }
+      kinetic += (DetFactor * factor).real() / DetFactor.real();
+      kinetic += walk.corrHelper.LaplaceRatio[i];
+    }
+  }
+  //cout << -0.5*(kinetic) << " " << potentialij << " " << potentiali << " " << potentiali_pp << " " << potentialN << endl;
+  T = -0.5 * kinetic;
+  Vij = potentialij;
+  ViI = potentiali;
+  Vpp = potentiali_pp;
+  VIJ = potentialN;
   return -0.5*(kinetic) + potentialij + potentiali + potentiali_pp + potentialN; 
 }
 
