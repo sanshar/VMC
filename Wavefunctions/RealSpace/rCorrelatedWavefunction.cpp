@@ -779,6 +779,7 @@ double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFS
   const Pseudopotential &pp = *schd.pseudo;
   if (pp.size() != 0) //if pseudopotential object is not empty
   {
+    auto random = std::bind(std::normal_distribution<double>(0.0, 1.0), std::ref(generator));
     for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
     {
       const ppHelper &ppatm = it->second;
@@ -796,6 +797,11 @@ double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFS
             Vector3d rI = schd.Ncoords[I];
             Vector3d ri = walk.d.coord[i];
             Vector3d riI = ri - rI;
+
+            //random rotation
+            Vector3d riIhat = riI.normalized();
+            double angle = random() * 2.0 * M_PI;
+            AngleAxis<double> rot(angle, riIhat);
             
             //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
             if (l != -1 && riI.norm() > 2.0) { continue; } 
@@ -821,7 +827,7 @@ double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFS
               for (int v = 0; v < s1.size(); v++)
               {
                   //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * s1[v];
+                  Vector3d riIprime = riI.norm() * (rot * s1[v]);
                   //calculate angle
                   double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
                   //multiply legendre polynomial and wavefunction overlap ratio

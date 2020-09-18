@@ -186,13 +186,18 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
               Vector3d rI = schd.Ncoords[I];
               Vector3d ri = d.coord[i];
               Vector3d riI = ri - rI;
+
+              //random rotation
+              Vector3d riIhat = riI.normalized();
+              double angle = uR() * 2.0 * M_PI;
+              AngleAxis<double> rot(angle, riIhat);
               
               //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
               if (l != -1 && riI.norm() > 2.0) { continue; } 
       
               //calculate potential
               double v = 0.0;
-              for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
+              for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
               
               if (l == -1) local_potential += v; //accumulate if local potential
               else if (l != -1) //integrate if nonlocal potential
@@ -206,7 +211,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                   for (int q = 0; q < Q.size(); q++)
                   {
                       //calculate new vector, riprime
-                      Vector3d riIprime = riI.norm() * Q[q];
+                      Vector3d riIprime = riI.norm() * (rot * Q[q]);
                       Vector3d riprime = riIprime + rI;
       
                       //calculate mo at new coordinate
@@ -245,7 +250,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                   for (int q = 0; q < Q.size(); q++)
                   {
                       //calculate new vector, riprime
-                      Vector3d riIprime = riI.norm() * Q[q];
+                      Vector3d riIprime = riI.norm() * (rot * Q[q]);
                       Vector3d riprime = riIprime + rI;
       
                       //calculate mo at new coordinate
@@ -322,13 +327,18 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
             Vector3d rI = schd.Ncoords[I];
             Vector3d ri = d.coord[elec];
             Vector3d riI = ri - rI;
+
+            //random rotation
+            Vector3d riIhat = riI.normalized();
+            double angle = uR() * 2.0 * M_PI;
+            AngleAxis<double> rot(angle, riIhat);
             
             //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
             if (l != -1 && riI.norm() > 2.0) { continue; } 
       
             //calculate potential
             double v = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
+            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
             
             if (l == -1) local_potential += v; //accumulate if local potential
             else if (l != -1) //integrate if nonlocal potential
@@ -340,7 +350,7 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
               for (int q = 0; q < Q.size(); q++)
               {
                 //calculate new vector, riprime
-                Vector3d riIprime = riI.norm() * Q[q];
+                Vector3d riIprime = riI.norm() * (rot * Q[q]);
                 Vector3d riprime = riIprime + rI;
 
                 //calculate angle
