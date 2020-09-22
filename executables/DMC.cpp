@@ -61,6 +61,7 @@ double testElectronCusp(Wfn &wave, Walker &walk)
   walk.updateWalker(0, r0, wave.getRef(), wave.getCorr());
   cout << "initial coordinates" << endl;
   cout << walk.d << endl;
+  cout << "O " << "Y " << "E " << "T " << "Vij " << "ViI " << "Vpp " << "VIJ " << endl;
   for (double theta = -M_PI / 4; theta <= M_PI / 4; theta += 0.005)
   {
     Vector3d r1;
@@ -68,10 +69,14 @@ double testElectronCusp(Wfn &wave, Walker &walk)
     r1 *= r0.norm();
     walk.updateWalker(1, r1, wave.getRef(), wave.getCorr());
     double ovlp = wave.Overlap(walk);
-    double Eloc = wave.rHam(walk);
+    //double Eloc = wave.rHam(walk);
+    double T, Vij, ViI, Vpp, VIJ;
+    double Eloc = wave.rHam(walk, T, Vij, ViI, Vpp, VIJ);
+
     std::cout << std::fixed;
     std::cout << std::setprecision(6);
-    cout << theta << " " << ovlp << " " << Eloc << endl;
+    //cout << theta << " " << ovlp << " " << Eloc << endl;
+    cout << theta << " " << ovlp << " " << Eloc << " " << T << " " << Vij << " " << ViI << " " << Vpp << " " << VIJ << endl;
   }
   return 0;
 }
@@ -90,6 +95,7 @@ double testNuclearCusp(Wfn &wave, Walker &walk)
   cout << walk.RiN << endl;
   cout << "initial coordinates" << endl;
   cout << walk.d << endl;
+  cout << "z " << "Y " << "E " << "T " << "Vij " << "ViI " << "Vpp " << "VIJ " << endl;
   for (double z = 0.2; z >= -0.2; z -= 0.005)
   {
     Vector3d r1;
@@ -98,10 +104,14 @@ double testNuclearCusp(Wfn &wave, Walker &walk)
     //r1 *= r0.norm();
     walk.updateWalker(1, r1, wave.getRef(), wave.getCorr());
     double ovlp = wave.Overlap(walk);
-    double Eloc = wave.rHam(walk);
+    //double Eloc = wave.rHam(walk);
+    double T, Vij, ViI, Vpp, VIJ;
+    double Eloc = wave.rHam(walk, T, Vij, ViI, Vpp, VIJ);
+    
     std::cout << std::fixed;
     std::cout << std::setprecision(6);
-    cout << z << " " << ovlp << " " << Eloc << endl;
+    //cout << z << " " << ovlp << " " << Eloc << endl;
+    cout << z << " " << ovlp << " " << Eloc << " " << T << " " << Vij << " " << ViI << " " << Vpp << " " << VIJ << endl;
   }
   return 0;
 }
@@ -153,8 +163,7 @@ int main(int argc, char *argv[])
     rCorrelatedWavefunction<rJastrow, rSlater> wave; rWalker<rJastrow, rSlater> walk;
     wave.readWave(); wave.initWalker(walk);
 
-    /*
-    if (commrank == 0)
+    if (schd.testCusp && commrank == 0)
     {
         cout << "EEcusp" << endl;
         testElectronCusp(wave, walk);
@@ -163,7 +172,6 @@ int main(int argc, char *argv[])
         testNuclearCusp(wave, walk);
         cout << endl;
     }
-    */
 
     //calculate the energy as a initial guess for shift
     double E0, error, rk;

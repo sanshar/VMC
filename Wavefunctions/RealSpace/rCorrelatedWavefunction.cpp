@@ -216,10 +216,10 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
       CPShamRatio[corr.EEsameSpinIndex] = 0.0;
       CPShamRatio[corr.EEoppositeSpinIndex] = 0.0;
-      if (schd.noCusp || schd.addCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { CPShamRatio[corr.ENIndex + I * corr.Qmax] = 0.0; }
+      if (schd.noENCusp || schd.addENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { CPShamRatio[corr.ENIndex + I * corr.Qmax] = 0.0; }
       CPSgradRatio[corr.EEsameSpinIndex] = 0.0;
       CPSgradRatio[corr.EEoppositeSpinIndex] = 0.0;
-      if (schd.noCusp || schd.addCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { CPSgradRatio[corr.ENIndex + I * corr.Qmax] = 0.0; }
+      if (schd.noENCusp || schd.addENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { CPSgradRatio[corr.ENIndex + I * corr.Qmax] = 0.0; }
       CPShamRatio += Eloc * CPSgradRatio;
   }
    
@@ -470,7 +470,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
 template<>
 void rCorrelatedWavefunction<rJastrow, rSlater>::enforceCusp() {
-  return;
+  //return;
   int natom = schd.Ncharge.size();
   int norbs = schd.basis->getNorbs();
   MatrixXd Pmatrix = MatrixXd::Zero(norbs, natom);

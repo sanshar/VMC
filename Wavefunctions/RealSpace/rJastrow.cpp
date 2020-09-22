@@ -48,6 +48,7 @@ rJastrow::rJastrow () {
   for (int n = 0; n <= m   ; n++) 
   for (int o = 0; o <= (QmaxEEN-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
+    if (o == 1 && schd.enforceEECusp) continue;
     EENterms++;
   }
   EENoppositeSpinIndex = EENsameSpinIndex + schd.uniqueAtoms.size()*EENterms;
@@ -137,14 +138,15 @@ rJastrow::rJastrow () {
   //_params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
   _params.resize(numParams, 1.e-4);
   //_params.resize(numParams, 0.0);
+
   _params[EEsameSpinIndex] = 0.25;
   _params[EEoppositeSpinIndex] = 0.5;
+  if (schd.noENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { _params[ENIndex + I * Qmax] = 0.0; }
+  if (schd.addENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { _params[ENIndex + I * Qmax] = - schd.uniqueAtoms[I]; }
+
   if (schd.optimizeCps == false) { _params.assign(_params.size(), 0.0); }
   //if (commrank == 0) cout << "Num Jastrow terms "<<_params.size()<<endl;
   
-  if (schd.noCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { _params[ENIndex + I * Qmax] = 0.0; }
-  if (schd.addCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { _params[ENIndex + I * Qmax] = - schd.uniqueAtoms[I]; }
-
   //if rJastrow.txt file exists
   ifstream ifile("rJastrow.txt");
   if (ifile) {
@@ -185,6 +187,7 @@ void rJastrow::printVariables() const
   for (int n = 0; n <= m; n++)
   for (int o = 0; o <= (QmaxEEN-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
+    if (o == 1 && schd.enforceEECusp) continue;
     EENterms++;
   }
 

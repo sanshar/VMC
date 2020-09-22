@@ -112,8 +112,12 @@ private:
       & norbs
       & Qmax
       & QmaxEEN
-      & noCusp
-      & addCusp
+      & noENCusp
+      & addENCusp
+      & enforceENCusp
+      & enforceEECusp
+      & testCusp
+      & doTMove
       & sigma
       & realSpaceStep
       & Ncoords
@@ -138,6 +142,7 @@ private:
       & nMaxMicroIter
       & sampleEveryRt
       & pQuad
+      & pCutOff
       & nNociSlater
       & ciCeption
       & actWidth
@@ -190,6 +195,7 @@ public:
   
   RSTEPTYPE rStepType;
   PSEUDOQUAD pQuad;
+  double pCutOff;
   bool fourBodyJastrow;
   JBASIS fourBodyJastrowBasis;
   
@@ -204,8 +210,12 @@ public:
   std::string determinantFile;
   int Qmax;
   int QmaxEEN;
-  bool noCusp;
-  bool addCusp;
+  bool noENCusp; //sets 0th order EN jastrow parameter to 0
+  bool addENCusp; //sets 0th order EN jastrow parameter to -Z
+  bool enforceENCusp; //enforces EN cusp condition for slater orbitals, when true noENCusp must be true (otherwise interferes with cusp)
+  bool enforceEECusp; //enforces that three-body jastrows do not interfere with EE cusp condition
+  bool testCusp; //tests cusp conditions before a dmc calculation
+  bool doTMove;
   double sigma;
   int numResonants;
   bool singleJastrow;

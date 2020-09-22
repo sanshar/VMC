@@ -99,6 +99,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
       if (pQuad == "tetrahedral") schd.pQuad = tetrahedral;
       else if (pQuad == "octahedral") schd.pQuad = octahedral;
       else if (pQuad == "icosahedral") schd.pQuad = icosahedral;
+      schd.pCutOff = input.get("realspace.pseudoCutOff", 3.0);
     }
     else schd.walkerBasis = ORBITALS;
 
@@ -165,8 +166,11 @@ void readInput(string inputFile, schedule& schd, bool print) {
     }
     schd.Qmax = input.get("wavefunction.Qmax", 6);
     schd.QmaxEEN = input.get("wavefunction.QmaxEEN", 3);
-    schd.noCusp = input.get("wavefunction.noCusp", false);
-    schd.addCusp = input.get("wavefunction.addCusp", false);
+    schd.noENCusp = input.get("wavefunction.noENCusp", false); //sets 0th order EN jastrow parameter to 0
+    schd.addENCusp = input.get("wavefunction.addENCusp", false);  //sets 0th order EN jastrow parameter to -Z
+    schd.enforceENCusp = input.get("wavefunction.enforceENCusp", false); //enforces EN cusp condition for slater orbitals, when true noENCusp must be true (otherwise interferes with cusp)
+    schd.enforceEECusp = input.get("wavefunction.enforceEECusp", false); //enforces that three-body jastrows do not interfere with EE cusp condition
+    schd.testCusp = input.get("wavefunction.testCusp", false); //tests cusp conditions before dmc calculation
     schd.sigma = input.get("wavefunction.sigma", 1.0);
 
     //hamiltonian
@@ -184,6 +188,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.integralSampleSize = input.get("sampling.integralSampleSize", 10);
     schd.seed = input.get("sampling.seed", getTime());
     schd.sampleEveryRt = input.get("sampling.sampleEveryRt", true);
+    schd.doTMove = input.get("sampling.doTMove", false);
     
     //gfmc 
     schd.maxIter = input.get("sampling.maxIter", 50); //note: parameter repeated in optimizer for vmc

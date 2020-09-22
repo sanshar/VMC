@@ -186,18 +186,13 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
               Vector3d rI = schd.Ncoords[I];
               Vector3d ri = d.coord[i];
               Vector3d riI = ri - rI;
-
-              //random rotation
-              Vector3d riIhat = riI.normalized();
-              double angle = uR() * 2.0 * M_PI;
-              AngleAxis<double> rot(angle, riIhat);
               
               //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-              if (l != -1 && riI.norm() > schd.pCutOff) { continue; } 
+              if (l != -1 && riI.norm() > 2.0) { continue; } 
       
               //calculate potential
               double v = 0.0;
-              for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
+              for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
               
               if (l == -1) local_potential += v; //accumulate if local potential
               else if (l != -1) //integrate if nonlocal potential
@@ -211,7 +206,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                   for (int q = 0; q < Q.size(); q++)
                   {
                       //calculate new vector, riprime
-                      Vector3d riIprime = riI.norm() * (rot * Q[q]);
+                      Vector3d riIprime = riI.norm() * Q[q];
                       Vector3d riprime = riIprime + rI;
       
                       //calculate mo at new coordinate
@@ -250,7 +245,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
                   for (int q = 0; q < Q.size(); q++)
                   {
                       //calculate new vector, riprime
-                      Vector3d riIprime = riI.norm() * (rot * Q[q]);
+                      Vector3d riIprime = riI.norm() * Q[q];
                       Vector3d riprime = riIprime + rI;
       
                       //calculate mo at new coordinate
@@ -327,18 +322,13 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
             Vector3d rI = schd.Ncoords[I];
             Vector3d ri = d.coord[elec];
             Vector3d riI = ri - rI;
-
-            //random rotation
-            Vector3d riIhat = riI.normalized();
-            double angle = uR() * 2.0 * M_PI;
-            AngleAxis<double> rot(angle, riIhat);
             
             //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l != -1 && riI.norm() > schd.pCutOff) { continue; } 
+            if (l != -1 && riI.norm() > 2.0) { continue; } 
       
             //calculate potential
             double v = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
+            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
             
             if (l == -1) local_potential += v; //accumulate if local potential
             else if (l != -1) //integrate if nonlocal potential
@@ -350,7 +340,7 @@ void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const
               for (int q = 0; q < Q.size(); q++)
               {
                 //calculate new vector, riprime
-                Vector3d riIprime = riI.norm() * (rot * Q[q]);
+                Vector3d riIprime = riI.norm() * Q[q];
                 Vector3d riprime = riIprime + rI;
 
                 //calculate angle
@@ -1071,10 +1061,14 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
 //size-consistent T moves
 //J. Chem. Phys. 132, 154113 (2010)
 void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlater& ref, const rJastrow& corr) {
+cout << "do I get here?" << endl;
   double tau = stepsize;
   Vector3d ri = d.coord[elecI];
+cout << elecI << endl;
+cout << ri.transpose() << endl;
+cout << ri.norm() << endl;
 
-  //T are the heat bath probabilities, steps are the corresponding moves
+  //T here are the heat bath probabilities, steps are the corresponding moves
   std::vector<double> T;
   std::vector<Vector3d> steps;
 
@@ -1095,14 +1089,10 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
 
           Vector3d rI = schd.Ncoords[I];
           Vector3d riI = ri - rI;
-
-          //random rotation
-          Vector3d riIhat = riI.normalized();
-          double angle = uR() * 2.0 * M_PI;
-          AngleAxis<double> rot(angle, riIhat);
+cout << riI.transpose() << endl;
 
           //if atom - elec distance larger than 2.0 au, or local potential, don't calculate probability
-          if (l == -1 || riI.norm() > schd.pCutOff) { continue; }
+          if (l == -1 || riI.norm() > 2.0) { continue; }
 
           //calculate potential
           double val = 0.0;
@@ -1111,8 +1101,9 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
           double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
           for (int q = 0; q < Q.size(); q++) //loop over quadrature points
           {
+cout << Q[q].transpose() << endl;
             //calculate new vector, riprime
-            Vector3d riIprime = riI.norm() * (rot * Q[q]);
+            Vector3d riIprime = riI.norm() * Q[q];
             //calculate angle
             double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
             //new coordinate
@@ -1136,20 +1127,25 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
       }
     }
 
-    //if no moves return
-    if (T.empty()) { return; }
+    cout << d << endl;
+    for (int i = 0; i < T.size(); i++)
+    {
+        cout << T[i] << " | " << steps[i].transpose() << endl;
+    }
 
     //make heat bath move
+    auto random = std::bind(std::normal_distribution<double>(0.0, 1.0), std::ref(generator));
     double cumT = 0.0;
     for (int i = 0; i < T.size(); i++)
     {
         cumT += T[i];
         T[i] = cumT;
     }
-    double move = uR() * cumT;
+    double move = random() * cumT;
     int index = std::lower_bound(T.begin(), T.end(), move) - T.begin();
     updateWalker(elecI, steps[index], ref, corr);
   }
+exit(0);
 }
 
 //JCP, 109, 2630

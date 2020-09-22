@@ -294,6 +294,7 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
   for (int n = 0; n <= m   ; n++) 
   for (int o = 0; o <= (maxQ-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
+    if (o == 1 && schd.enforceEECusp) continue;
     EENterms++;
   }
 
@@ -341,6 +342,7 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
+        if (o == 1 && schd.enforceEECusp) continue;
 
         int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
 
@@ -391,6 +393,7 @@ double JastrowEENValue(int i, int j, int maxQ,
   for (int n = 0; n <= m   ; n++) 
   for (int o = 0; o <= (maxQ-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
+    if (o == 1 && schd.enforceEECusp) continue;
     EENterms++;
   }
 
@@ -438,6 +441,7 @@ double JastrowEENValue(int i, int j, int maxQ,
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
+        if (o == 1 && schd.enforceEECusp) continue;
 
         int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
         
@@ -474,6 +478,7 @@ void JastrowEEN(int i, int j, int maxQ,
     for (int n = 0; n <= m; n++)
     for (int o = 0; o <= (maxQ-m-n); o++) {
       if (n == 0 && o == 0) continue; //EN term
+      if (o == 1 && schd.enforceEECusp) continue;
       EENterms++;
     }
 
@@ -524,6 +529,7 @@ void JastrowEEN(int i, int j, int maxQ,
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
+        if (o == 1 && schd.enforceEECusp) continue;
 
         int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
         

@@ -122,6 +122,7 @@ class LM
 
        //sampling
        double acceptedFrac = getHessian(vars, grad, Hessian, Smatrix, E0, stddev, rt);
+       if (commrank == 0 && schd.printGrad) {cout << "totalGrad" << endl; cout << grad << endl;}
        write(vars);
        double VMC_time = (getTime() - startofCalc);
 
@@ -573,6 +574,7 @@ class directLM
 
        //sampling
        double acceptedFrac = getHessian(vars, grad, h, E0, stddev, rt);
+       if (commrank == 0 && schd.printGrad) {cout << "totalGrad" << endl; cout << grad << endl;}
        write(vars);
        //if (commrank == 0 && schd.printOpt) std::cout << "VMC run complete" << endl;
        //if (commrank == 0 && schd.printOpt) std::cout << "LM shift: " << shift << endl;
@@ -812,6 +814,7 @@ class randomLM
          //action of matrices on subspace
          Eigen::MatrixXd HQ, SQ;
          acceptedFrac = getHessian(vars, grad, Q, SQ, HQ, E0, stddev, rt);
+         if (commrank == 0 && schd.printGrad) {cout << "totalGrad" << endl; cout << grad << endl;}
 
          //solve eigenproblem
          Eigen::MatrixXd Hp = Q.transpose() * HQ;

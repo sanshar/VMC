@@ -1188,7 +1188,7 @@ void rWalkerHelper<rJastrow>::OverlapWithGradient(const rJastrow& cps,
     grad[EEsameSpinIndex] = 0;
     grad[EEoppositeSpinIndex] = 0;
 
-    if (schd.noCusp || schd.addCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { grad[ENIndex + I * Qmax] = 0.0; }
+    if (schd.noENCusp || schd.addENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { grad[ENIndex + I * Qmax] = 0.0; }
   }
 
 }

@@ -93,7 +93,7 @@ struct rCorrelatedWavefunction {
     Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
     ref.updateVariables(vtail);
 
-    if (schd.walkerBasis == REALSPACESTO)
+    if (schd.walkerBasis == REALSPACESTO && schd.enforceENCusp)
       enforceCusp();
   }
 
@@ -107,7 +107,7 @@ struct rCorrelatedWavefunction {
       ref.updateVariables(vtail);
     }
 
-    if (schd.walkerBasis == REALSPACESTO)
+    if (schd.walkerBasis == REALSPACESTO && schd.enforceENCusp)
       enforceCusp();
   }
 

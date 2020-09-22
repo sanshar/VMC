@@ -224,8 +224,17 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
   wt *= std::exp(- tau_eff * (Eavg - Eshift));
 
+  //size consistent t-moves
+  if (schd.doTMove)
+  {
+    for (int i = 0; i < nelec; i++)
+    {
+      walk.doTMove(i, tau, w.getRef(), w.getCorr());
+    }
+  }
+
   //print if walker has weirdly large weight
-  if (wt > 2.4)
+  if (wt > 2.5)
   {
       cout << "Large weight: " << wt << endl;
       cout << "Local energy: " << Eloc << endl;
