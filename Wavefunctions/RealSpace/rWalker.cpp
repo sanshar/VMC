@@ -145,6 +145,25 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
       Q.push_back(Vector3d(lambda, -roh, 0.0));
       Q.push_back(Vector3d(-lambda, -roh, 0.0)); 
     }
+
+    const Pseudopotential &pp = *schd.pseudo;
+    int norbs = Determinant::norbs;
+    int nalpha = rDeterminant::nalpha;
+    int nbeta = rDeterminant::nbeta;
+    int nelec = nalpha+nbeta;
+
+    int nmo = nelec; //ghf num molecular orbitals
+    int nao = schd.hf == "ghf" ? 2*norbs : norbs; //num atomic orbitals
+    
+    Bnl = MatrixXd::Zero(nelec, nelec);
+    AOBnl = MatrixXd::Zero(nelec, nao);
+    local_potential = 0.0;
+    refHelper.aoValues.resize(norbs);  
+    for (int i = 0; i < nelec; i++)
+    {
+      updateBnl(i, corr, ref);
+    }
+    /*
     const Pseudopotential &pp = *schd.pseudo;
     int norbs = Determinant::norbs;
     int nalpha = rDeterminant::nalpha;
@@ -283,6 +302,7 @@ void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &re
         }
       }
     }
+    */
 }
 
 void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const rSlater &ref)
