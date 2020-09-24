@@ -61,14 +61,28 @@ All the lines in the `Makefile` that normally need to be edited are shown below:
  USE_MPI = yes
  USE_INTEL = yes
  
- EIGEN=/projects/ilsa8974/apps/eigen/
- BOOST=/projects/ilsa8974/apps/boost_1_66_0/
- LIBIGL=/projects/ilsa8974/apps/libigl/include/
- PYSCF=/projects/ilsa8974/apps/pyscf/pyscf/lib/
- LIBCINT=/projects/ilsa8974/apps/pyscf/pyscf/lib/deps/lib
- SUNDIALS=/projects/ilsa8974/apps/sundials-3.1.0/stage/include
- STAN=/projects/ilsa8974/apps/math
- TBB=/curc/sw/intel/17.4/compilers_and_libraries_2017.4.196/linux/tbb/
- TACO=/projects/ilsa8974/apps/taco/install
+ EIGEN=/path_to/eigen/
+ BOOST=/path_to/boost_1_66_0/
+ LIBIGL=/path_to/libigl/include/
+ PYSCF=/path_to/pyscf/pyscf/lib/
+ LIBCINT=/path_to/pyscf/pyscf/lib/deps/lib
+ SUNDIALS=/path_to/sundials-3.1.0/stage/include
+ STAN=/path_to/math
+ TBB=/path_to/tbb/
+ TACO=/path_to/taco/install
 
 ```
+
+-------
+
+Upon successful compilation, one can test the code using the `runTests.sh` script in `/VMC/tests/`
+Note tests require mpi and 4 processors. In the installed directory run,
+
+```
+  cd tests/
+  ./runTests.sh
+```
+
+Please reach out with any issues regarding compilation and testing.
+Testing
+
