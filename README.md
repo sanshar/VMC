@@ -1,4 +1,4 @@
-# DICE-QMC
+# VMC (DICE-QMC)
 
 This repository contains various state-of-the-art quantum Monte Carlo algorithms implemented and developed in Sandeep Sharma's research group at the University of Colorado at Boulder. Unlike many *ab-initio* methods that scale exponentially with system size, Monte Carlo methods have created a wide breath of highly accurate methods that scale polynomially with system size, albeit with a large prefactor. These methods include [variational Monte Carlo (VMC)](https://en.wikipedia.org/wiki/Variational_Monte_Carlo), [diffusion Monte Carlo (DMC)](https://en.wikipedia.org/wiki/Diffusion_Monte_Carlo), Green's function Monte Carlo (GFMC), Full Configuration Interaction quantum Monte Carlo (FCIQMC), and [Auxilery field quantum Monte Carlo (AFQMC)](https://en.wikipedia.org/wiki/Auxiliary-field_Monte_Carlo), just to name a few. Many of these methods are implemented or in the process of being implemented as a part of this software package.
 
