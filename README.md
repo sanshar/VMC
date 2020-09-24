@@ -73,6 +73,7 @@ All the lines in the `Makefile` that normally need to be edited are shown below:
 
 ```
 
+Testing
 -------
 
 Upon successful compilation, one can test the code using the `runTests.sh` script in `/VMC/tests/`
@@ -84,5 +85,3 @@ Note tests require mpi and 4 processors. In the installed directory run,
 ```
 
 Please reach out with any issues regarding compilation and testing.
-Testing
-
