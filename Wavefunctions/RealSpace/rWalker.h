@@ -63,7 +63,7 @@ struct rWalker<rJastrow, rSlater> {
 
   void initHelpers(const rJastrow &corr, const rSlater &ref);
 
-  void initBnl(const rJastrow &corr, const rSlater &ref, double &local_potential);
+  void initBnl(const rJastrow &corr, const rSlater &ref);
 
   void updateBnl(int nelec, const rJastrow &corr, const rSlater &ref);
   

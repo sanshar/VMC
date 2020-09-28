@@ -167,51 +167,46 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
               const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
               for (int i = 0; i < walk.d.nelec; i++) //loop over electrons
               {
-                double C = 1.0;
                 Vector3d rI = schd.Ncoords[I];
                 Vector3d ri = walk.d.coord[i];
                 Vector3d riI = ri - rI;
                 
                 //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-                if (l != -1 && riI.norm() > 2.0) { continue; } 
+                if (l == -1 || riI.norm() > schd.pCutOff) { continue; } 
 
                 //calculate potential
-                double val = 0.0;
-                for (int m = 0; m < pec.size(); m = m + 3) { val += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
-                
-                //integrate if nonlocal potential
-                if (l != -1) //angular momentum projector
-                {
-                  VectorXd G = VectorXd::Zero(CPShamRatio.size());
-                  C = std::sqrt((2.0 * (double) l + 1.0) / (4.0 * M_PI));
+                double v = 0.0;
+                for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
 
-                  for (int q = 0; q < walk.Q.size(); q++)
-                  {
-                      //calculate new vector, riprime
-                      Vector3d riIprime = riI.norm() * walk.Q[q];
-                      //calculate angle
-                      double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-                      //multiply legendre polynomial and wavefunction overlap ratio
-                      Vector3d riprime = riIprime + rI;
-                      VectorXd g;
-                      double ratio = walk.corrHelper.OverlapRatioAndParamGradient(i, riprime, corr, walk.d, g);
-                      G += boost::math::legendre_p<double>(l, costheta) * walk.refHelper.getDetFactor(i, riprime, walk.d, ref) * ratio * g;
-                      /*
-                      cout << "----------------" << endl;
-                      cout << "My func vs code func" << endl;
-                      cout << ratio << " " << walk.corrHelper.OverlapRatio(i, riprime, corr, walk.d) << endl;
-                      cout << "grad" << endl;
-                      cout << g.transpose() << endl;
-                      */
-                  }
-                  G /= (double) walk.Q.size();
-                  G *= (C * 4.0 * M_PI);
-                  CPShamRatio += val * C * G;
+                //random rotation
+                Vector3d riIhat = riI.normalized();
+                //double angle = walk.uR() * 2.0 * M_PI;
+                double angle = 0.0;
+                AngleAxis<double> rot(angle, riIhat);
+
+                VectorXd G = VectorXd::Zero(CPShamRatio.size());
+                double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
+                for (int q = 0; q < walk.Q.size(); q++)
+                {
+                  //calculate new vector, riprime
+                  Vector3d riIprime = riI.norm() * (rot * walk.Q[q]);
+                  Vector3d riprime = riIprime + rI;
+
+                  //calculate angle
+                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
+
+                  //multiply legendre polynomial and jastrow overlap ratio
+                  VectorXd g;
+                  double ratio = walk.refHelper.getDetFactor(i, riprime, walk.d, ref) * walk.corrHelper.OverlapRatioAndParamGradient(i, riprime, corr, walk.d, g);
+                  G += C * boost::math::legendre_p<double>(l, costheta) * ratio * g * 4.0 * M_PI / double(walk.Q.size());
                 }
+
+                //update CPShamRatio
+                CPShamRatio += v * G;
               }
             }
           }
-        }
+        }    
       }
 
       CPShamRatio[corr.EEsameSpinIndex] = 0.0;
@@ -249,6 +244,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
         else
           AoRi(elec, norbs+orb) = aoValues[orb];
     } 
+
+    //MatrixXd AoRi = walk.refHelper.AO;
     MatrixXd AOLaplacian = walk.refHelper.AOLaplacian;
     MatrixXd AOGradx = walk.refHelper.AOGradient[0];
     MatrixXd AOGrady = walk.refHelper.AOGradient[1];
