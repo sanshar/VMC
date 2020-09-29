@@ -65,7 +65,6 @@ rWalker<rJastrow, rSlater>::rWalker(const rJastrow &corr, const rSlater &ref, co
 void rWalker<rJastrow, rSlater>::initHelpers(const rJastrow &corr, const rSlater &ref)  {
   refHelper = rWalkerHelper<rSlater>(ref, d);
   corrHelper = rWalkerHelper<rJastrow>(corr, d, Rij, RiN);
-  initBnl(corr, ref);
 }
 
 void rWalker<rJastrow, rSlater>::initR() {
@@ -101,176 +100,6 @@ void rWalker<rJastrow, rSlater>::initR() {
       RNM(j,i) = rij;
     }
   }
-}
-
-void rWalker<rJastrow, rSlater>::initBnl(const rJastrow &corr, const rSlater &ref)
-{
-    if (schd.pQuad = tetrahedral)
-    {
-      //sample 4 vertices of tetrahedral
-      double a = std::sqrt(1.0 / 3.0);
-      Q.push_back(Vector3d(a, a, a));
-      Q.push_back(Vector3d(a, -a, -a));
-      Q.push_back(Vector3d(-a, a, -a));
-      Q.push_back(Vector3d(-a, -a, a));
-    }
-    else if (schd.pQuad = octahedral)
-    {
-      //sample 6 vertices of octahedral
-      Q.push_back(Vector3d(1.0, 0.0, 0.0));
-      Q.push_back(Vector3d(-1.0, 0.0, 0.0));
-      Q.push_back(Vector3d(0.0, 1.0, 0.0));
-      Q.push_back(Vector3d(0.0, -1.0, 0.0));
-      Q.push_back(Vector3d(0.0, 0.0, 1.0));
-      Q.push_back(Vector3d(0.0, 0.0, -1.0));
-    }
-    else if (schd.pQuad = icosahedral)
-    {
-      //sample 12 vertices of icosahedral
-      double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
-      double roh = std::sqrt((5.0 + std::sqrt(5.0)) / 10.0);
-      Q.push_back(Vector3d(0.0, lambda, roh));
-      Q.push_back(Vector3d(0.0, -lambda, roh));
-      Q.push_back(Vector3d(0.0, lambda, -roh));
-      Q.push_back(Vector3d(0.0, -lambda, -roh));
-      
-      Q.push_back(Vector3d(lambda, 0.0, roh));
-      Q.push_back(Vector3d(-lambda, 0.0, roh));
-      Q.push_back(Vector3d(lambda, 0.0, -roh));
-      Q.push_back(Vector3d(-lambda, 0.0, -roh));
-      
-      Q.push_back(Vector3d(lambda, roh, 0.0));
-      Q.push_back(Vector3d(-lambda, roh, 0.0));
-      Q.push_back(Vector3d(lambda, -roh, 0.0));
-      Q.push_back(Vector3d(-lambda, -roh, 0.0)); 
-    }
-
-    int norbs = Determinant::norbs;
-    int nalpha = rDeterminant::nalpha;
-    int nbeta = rDeterminant::nbeta;
-    int nelec = nalpha+nbeta;
-
-    int nmo = nelec; //ghf num molecular orbitals
-    int nao = schd.hf == "ghf" ? 2*norbs : norbs; //num atomic orbitals
-    
-    Bnl = MatrixXd::Zero(nelec, nelec);
-    AOBnl = MatrixXd::Zero(nelec, nao);
-    refHelper.aoValues.resize(norbs);  
-    for (int i = 0; i < nelec; i++)
-    {
-      updateBnl(i, corr, ref);
-    }
-}
-
-void rWalker<rJastrow, rSlater>::updateBnl(int elec, const rJastrow &corr, const rSlater &ref)
-{
-    const Pseudopotential &pp = *schd.pseudo;
-    int norbs = Determinant::norbs;
-    int nalpha = rDeterminant::nalpha;
-    int nbeta = rDeterminant::nbeta;
-    int nelec = nalpha+nbeta;
-
-    VectorXd AOBnlelec = VectorXd::Zero(norbs);
-    if (pp.size())
-    {
-      for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
-      {
-        const ppHelper &ppatm = it->second;
-        for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
-        {
-          int I = ppatm.indices()[a];
-          for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-          {
-            int l = it1->first; //angular momentum
-            const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-      
-            Vector3d rI = schd.Ncoords[I];
-            Vector3d ri = d.coord[elec];
-            Vector3d riI = ri - rI;
-
-            //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l == -1 || riI.norm() > schd.pCutOff) { continue; } 
-
-            //calculate potential
-            double v = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
-
-            //random rotation
-            Vector3d riIhat = riI.normalized();
-            //double angle = uR() * 2.0 * M_PI;
-            double angle = 0.0;
-            AngleAxis<double> rot(angle, riIhat);
-
-            VectorXd Integral = VectorXd::Zero(norbs);
-            double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
-            for (int q = 0; q < Q.size(); q++)
-            {
-              //calculate new vector, riprime
-              Vector3d riIprime = riI.norm() * (rot * Q[q]);
-              Vector3d riprime = riIprime + rI;
-
-              //eval basis
-              schd.basis->eval(riprime, &refHelper.aoValues[0]);
-
-              //calculate angle
-              double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-
-              //multiply legendre polynomial and jastrow overlap ratio
-              double f = boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elec, riprime, corr, d);
-
-              for (int j = 0; j < norbs; j++)
-              {
-                Integral(j) += C * f * refHelper.aoValues[j] * 4.0 * M_PI / double(Q.size());
-              }
-            }
-
-            //update AOBnl
-            AOBnlelec += v * Integral;
-          }
-        }
-      }
-    }
-
-    //Bnl
-    VectorXcd Bnlelec = VectorXd::Zero(nelec);
-
-    //options for rhf/uhf
-    int sz = elec < nalpha ? 0 : 1;
-    int nmo = elec < nalpha ? nalpha : nbeta;
-    int shift = elec < nalpha ? 0 : nalpha;
-
-    if (schd.hf == "ghf")
-    {
-      for (int mo = 0; mo < nelec; mo++) 
-      {
-        for (int j = 0; j < norbs; j++)
-        {
-          int J = elec < nalpha ? j : j + norbs;
-          Bnlelec(mo) += AOBnlelec(j) * ref.getHforbs(0)(J, mo);
-        }
-      }
-    }
-    else //rhf/ufh
-    {
-      for (int mo = 0; mo < nmo; mo++)
-      {
-        for (int j = 0; j < norbs; j++)
-        {
-          Bnlelec(mo + shift) += AOBnlelec(j) * ref.getHforbs(sz)(j, mo);
-        }
-      }
-    }
-   
-    //update variables
-    Bnl.row(elec) = Bnlelec;
-    if (elec < nalpha)
-    {
-      AOBnl.row(elec).head(norbs) = AOBnlelec;
-    }
-    else
-    {
-      AOBnl.row(elec).tail(norbs) = AOBnlelec;
-    }  
 }
 
 rDeterminant& rWalker<rJastrow, rSlater>::getDet() {return d;}
@@ -441,7 +270,6 @@ void rWalker<rJastrow, rSlater>::updateWalker(int elec, Vector3d& coord, const r
 
   corrHelper.updateWalker(elec, oldCoord, corr, d, Rij, RiN);
   refHelper.updateWalker(elec, oldCoord, d, ref);
-  updateBnl(elec, corr, ref);
 }
 
 void rWalker<rJastrow, rSlater>::OverlapWithGradient(const rSlater &ref,
@@ -958,10 +786,10 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
           for (int m = 0; m < pec.size(); m = m + 3) { val += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
           
           double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
-          for (int q = 0; q < Q.size(); q++) //loop over quadrature points
+          for (int q = 0; q < schd.Q.size(); q++) //loop over quadrature points
           {
             //calculate new vector, riprime
-            Vector3d riIprime = riI.norm() * (rot * Q[q]);
+            Vector3d riIprime = riI.norm() * (rot * schd.Q[q]);
             //calculate angle
             double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
             //new coordinate
@@ -969,7 +797,7 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
             //wavefunction overlap ratio
             double ovlpRatio = corrHelper.OverlapRatio(elecI, riprime, corr, d) * refHelper.getDetFactor(elecI, riprime, d, ref);
             //matrix element
-            double vxpx = val * C * 4.0 * M_PI * boost::math::legendre_p<double>(l, costheta) * ovlpRatio / double(Q.size());
+            double vxpx = val * C * 4.0 * M_PI * boost::math::legendre_p<double>(l, costheta) * ovlpRatio / double(schd.Q.size());
 
             //store matrix element and step if vxpx is negative
             if (vxpx < 0.0)

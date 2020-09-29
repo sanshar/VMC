@@ -143,6 +143,7 @@ private:
       & sampleEveryRt
       & pQuad
       & pCutOff
+      & Q
       & nNociSlater
       & ciCeption
       & actWidth
@@ -193,8 +194,11 @@ public:
   int nMaxMacroIter;
   int nMaxMicroIter;
   
+  //realspace step type
   RSTEPTYPE rStepType;
-  PSEUDOQUAD pQuad;
+  //pseudopotential options
+  PSEUDOQUAD pQuad; //sampled vertices of regular polhydral
+  std::vector<Vector3d> Q;  //qudrature points
   double pCutOff;
   bool fourBodyJastrow;
   JBASIS fourBodyJastrowBasis;

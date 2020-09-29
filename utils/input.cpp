@@ -100,6 +100,45 @@ void readInput(string inputFile, schedule& schd, bool print) {
       else if (pQuad == "octahedral") schd.pQuad = octahedral;
       else if (pQuad == "icosahedral") schd.pQuad = icosahedral;
       schd.pCutOff = input.get("realspace.pseudoCutOff", 3.0);
+      if (schd.pQuad = tetrahedral)
+      {
+        //sample 4 vertices of tetrahedral
+        double a = std::sqrt(1.0 / 3.0);
+        schd.Q.push_back(Vector3d(a, a, a));
+        schd.Q.push_back(Vector3d(a, -a, -a));
+        schd.Q.push_back(Vector3d(-a, a, -a));
+        schd.Q.push_back(Vector3d(-a, -a, a));
+      }
+      else if (schd.pQuad = octahedral)
+      {
+        //sample 6 vertices of octahedral
+        schd.Q.push_back(Vector3d(1.0, 0.0, 0.0));
+        schd.Q.push_back(Vector3d(-1.0, 0.0, 0.0));
+        schd.Q.push_back(Vector3d(0.0, 1.0, 0.0));
+        schd.Q.push_back(Vector3d(0.0, -1.0, 0.0));
+        schd.Q.push_back(Vector3d(0.0, 0.0, 1.0));
+        schd.Q.push_back(Vector3d(0.0, 0.0, -1.0));
+      }
+      else if (schd.pQuad = icosahedral)
+      {
+        //sample 12 vertices of icosahedral
+        double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
+        double roh = std::sqrt((5.0 + std::sqrt(5.0)) / 10.0);
+        schd.Q.push_back(Vector3d(0.0, lambda, roh));
+        schd.Q.push_back(Vector3d(0.0, -lambda, roh));
+        schd.Q.push_back(Vector3d(0.0, lambda, -roh));
+        schd.Q.push_back(Vector3d(0.0, -lambda, -roh));
+
+        schd.Q.push_back(Vector3d(lambda, 0.0, roh));
+        schd.Q.push_back(Vector3d(-lambda, 0.0, roh));
+        schd.Q.push_back(Vector3d(lambda, 0.0, -roh));
+        schd.Q.push_back(Vector3d(-lambda, 0.0, -roh));
+
+        schd.Q.push_back(Vector3d(lambda, roh, 0.0));
+        schd.Q.push_back(Vector3d(-lambda, roh, 0.0));
+        schd.Q.push_back(Vector3d(lambda, -roh, 0.0));
+        schd.Q.push_back(Vector3d(-lambda, -roh, 0.0)); 
+      }
     }
     else schd.walkerBasis = ORBITALS;
 
