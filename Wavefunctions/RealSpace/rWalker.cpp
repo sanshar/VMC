@@ -774,8 +774,8 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
 
           //random rotation
           Vector3d riIhat = riI.normalized();
-          //double angle = uR() * 2.0 * M_PI;
-          double angle = 0.0;
+          double angle = uR() * 2.0 * M_PI;
+          //double angle = 0.0; //this is easier when debugging
           AngleAxis<double> rot(angle, riIhat);
 
           //if atom - elec distance larger than 2.0 au, or local potential, don't calculate probability
@@ -800,7 +800,7 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
             double vxpx = val * C * 4.0 * M_PI * boost::math::legendre_p<double>(l, costheta) * ovlpRatio / double(schd.Q.size());
 
             //store matrix element and step if vxpx is negative
-            if (vxpx < 0.0)
+            if (vxpx <= 0.0)
             {
               double txpx = 0.0;
               if ((riprime - ri).norm() < 1.e-8) { txpx = 1.0; }

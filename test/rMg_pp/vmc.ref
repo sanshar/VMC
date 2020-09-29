@@ -1,26 +1,26 @@
 User:
 ilsa8974
 Hostname:
-shas0136
+bnode0302.rc.int.colorado.edu
 CPU info:
 Architecture:          x86_64
 CPU op-mode(s):        32-bit, 64-bit
 Byte Order:            Little Endian
-CPU(s):                24
-On-line CPU(s) list:   0-23
+CPU(s):                28
+On-line CPU(s) list:   0-27
 Thread(s) per core:    1
-Core(s) per socket:    12
+Core(s) per socket:    14
 Socket(s):             2
 NUMA node(s):          2
 Vendor ID:             GenuineIntel
 CPU family:            6
-Model:                 63
-Model name:            Intel(R) Xeon(R) CPU E5-2680 v3 @ 2.50GHz
-Stepping:              2
-CPU MHz:               2494.173
+Model:                 79
+Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
+Stepping:              1
+CPU MHz:               2970.656
 Computation started at:
-Fri Sep 18 17:24:04 MDT 2020
-git commit: 37fa3ccf1b8476fb5cfd8105c706ff8bf7a82236, branch: merged, compiled at: Fri Sep 18 17:12:17 MDT 2020
+Tue Sep 29 09:37:10 MDT 2020
+git commit: 98e71b58b6961be66be0e35caa4fd8003bd2a7d5, branch: merged, compiled at: Tue Sep 29 09:23:58 MDT 2020
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -33,6 +33,7 @@ Input file  :
     },
     "realspace": {
         "basis": "gto",
+        "pseudoCutOff": "2.0",
         "nalpha": "1",
         "nbeta": "1",
         "norbs": "14"
@@ -53,4 +54,4 @@ Input file  :
 Number of Jastrow vars: 0
 Number of Reference vars: 29
 Number of Optimized vars: 29
-    0    -0.78643806 (8.42e-04)     0.00581974      1.6      0.7      50000  0.037381     0.00     2.74
+    0    -0.78537094 (8.15e-04)     0.00497457      1.6      0.7      50000  0.036989     0.00     2.16

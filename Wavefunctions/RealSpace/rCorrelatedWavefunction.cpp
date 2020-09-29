@@ -107,8 +107,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
             //random rotation
             Vector3d riIhat = riI.normalized();
-            //double angle = uR() * 2.0 * M_PI;
-            double angle = 0.0;
+            double angle = walk.uR() * 2.0 * M_PI;
+            //double angle = 0.0; //this is easier when debugging
             AngleAxis<double> rot(angle, riIhat);
 
             VectorXd Integral = VectorXd::Zero(norbs);
@@ -285,8 +285,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
                 //random rotation
                 Vector3d riIhat = riI.normalized();
-                //double angle = walk.uR() * 2.0 * M_PI;
-                double angle = 0.0;
+                double angle = walk.uR() * 2.0 * M_PI;
+                //double angle = 0.0; //this is easier when debugging
                 AngleAxis<double> rot(angle, riIhat);
 
                 VectorXd G = VectorXd::Zero(CPShamRatio.size());
@@ -722,8 +722,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
 
             //random rotation
             Vector3d riIhat = riI.normalized();
-            //double angle = uR() * 2.0 * M_PI;
-            double angle = 0.0;
+            double angle = walk.uR() * 2.0 * M_PI;
+            //double angle = 0.0; //this is easier when debugging
             AngleAxis<double> rot(angle, riIhat);
 
             VectorXd Integral = VectorXd::Zero(norbs);
@@ -922,8 +922,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
 
             //random rotation
             Vector3d riIhat = riI.normalized();
-            //double angle = uR() * 2.0 * M_PI;
-            double angle = 0.0;
+            double angle = walk.uR() * 2.0 * M_PI;
+            //double angle = 0.0; //this is easier when debugging
             AngleAxis<double> rot(angle, riIhat);
 
             VectorXd Integral = VectorXd::Zero(norbs);
@@ -1088,7 +1088,8 @@ double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFS
 
             //random rotation
             Vector3d riIhat = riI.normalized();
-            double angle = random() * 2.0 * M_PI;
+            double angle = walk.uR() * 2.0 * M_PI;
+            //double angle = 0.0; //this is easier when debugging
             AngleAxis<double> rot(angle, riIhat);
             
             //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
