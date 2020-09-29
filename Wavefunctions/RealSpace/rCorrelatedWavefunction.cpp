@@ -335,22 +335,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
     RefGradcOvlp = VectorXcd::Zero(getNumRefVariables());
     RefGradcEloc = VectorXcd::Zero(getNumRefVariables());
 
-    int size = norbs;
-    if (schd.hf == "ghf") { size *= 2; }
-    
-    MatrixXd AoRi = MatrixXd::Zero(nelec, size);
-    vector<double>& aoValues = const_cast<vector<double>&>(walk.refHelper.aoValues);
-    aoValues.resize(norbs);  
-    for (int elec=0; elec<nelec; elec++) {
-      schd.basis->eval(walk.d.coord[elec], &aoValues[0]);
-      for (int orb = 0; orb<norbs; orb++) 
-        if (elec < nalpha || schd.hf != "ghf")
-          AoRi(elec, orb) = aoValues[orb];
-        else
-          AoRi(elec, norbs+orb) = aoValues[orb];
-    } 
-
-    //MatrixXd AoRi = walk.refHelper.AO;
+    MatrixXd AoRi = walk.refHelper.AO;
     MatrixXd AOLaplacian = walk.refHelper.AOLaplacian;
     MatrixXd AOGradx = walk.refHelper.AOGradient[0];
     MatrixXd AOGrady = walk.refHelper.AOGradient[1];
