@@ -100,7 +100,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
       else if (pQuad == "octahedral") schd.pQuad = octahedral;
       else if (pQuad == "icosahedral") schd.pQuad = icosahedral;
       schd.pCutOff = input.get("realspace.pseudoCutOff", 3.0);
-      if (schd.pQuad = tetrahedral)
+      if (schd.pQuad == tetrahedral)
       {
         //sample 4 vertices of tetrahedral
         double a = std::sqrt(1.0 / 3.0);
@@ -109,7 +109,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
         schd.Q.push_back(Vector3d(-a, a, -a));
         schd.Q.push_back(Vector3d(-a, -a, a));
       }
-      else if (schd.pQuad = octahedral)
+      else if (schd.pQuad == octahedral)
       {
         //sample 6 vertices of octahedral
         schd.Q.push_back(Vector3d(1.0, 0.0, 0.0));
@@ -119,7 +119,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
         schd.Q.push_back(Vector3d(0.0, 0.0, 1.0));
         schd.Q.push_back(Vector3d(0.0, 0.0, -1.0));
       }
-      else if (schd.pQuad = icosahedral)
+      else if (schd.pQuad == icosahedral)
       {
         //sample 12 vertices of icosahedral
         double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
@@ -227,7 +227,6 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.integralSampleSize = input.get("sampling.integralSampleSize", 10);
     schd.seed = input.get("sampling.seed", getTime());
     schd.sampleEveryRt = input.get("sampling.sampleEveryRt", true);
-    schd.doTMove = input.get("sampling.doTMove", false);
     
     //gfmc 
     schd.maxIter = input.get("sampling.maxIter", 50); //note: parameter repeated in optimizer for vmc
@@ -248,12 +247,14 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.targetPop = input.get("sampling.targetPop", 1000.0);
 
     //realspace
-    schd.realSpaceStep = input.get("sampling.realSpaceStep", 0.1);
+    schd.rStepSize = input.get("sampling.rStepSize", 0.1);
     string stepType = input.get("sampling.rStepType", "spherical");
     if (stepType == "spherical") schd.rStepType = SPHERICAL;
     else if (stepType == "simple") schd.rStepType = SIMPLE;
     else if (stepType == "dmc") schd.rStepType = DMC;
     else if (stepType == "gaussian") schd.rStepType = GAUSSIAN;
+    schd.doTMove = input.get("sampling.doTMove", false);
+    schd.scaledVelocity = input.get("sampling.scaledVelocity", true);
 
     //trans
     schd.nMaxMacroIter = input.get("sampling.macroIter", 1);

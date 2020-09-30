@@ -116,10 +116,10 @@ private:
       & addENCusp
       & enforceENCusp
       & enforceEECusp
+      & scaledVelocity
       & testCusp
       & doTMove
       & sigma
-      & realSpaceStep
       & Ncoords
       & Ncharge
       & uniqueAtoms
@@ -129,6 +129,7 @@ private:
       & NSbasis
       & direct
       & rStepType
+      & rStepSize
       & ifComplex
       & uagp
       & CorrSampleFrac
@@ -196,6 +197,7 @@ public:
   
   //realspace step type
   RSTEPTYPE rStepType;
+  double rStepSize;
   //pseudopotential options
   PSEUDOQUAD pQuad; //sampled vertices of regular polhydral
   std::vector<Vector3d> Q;  //qudrature points
@@ -219,7 +221,8 @@ public:
   bool enforceENCusp; //enforces EN cusp condition for slater orbitals, when true noENCusp must be true (otherwise interferes with cusp)
   bool enforceEECusp; //enforces that three-body jastrows do not interfere with EE cusp condition
   bool testCusp; //tests cusp conditions before a dmc calculation
-  bool doTMove;
+  bool doTMove; //Casula's size consistent t moves
+  bool scaledVelocity; //Cyrus' scaled velocity
   double sigma;
   int numResonants;
   bool singleJastrow;
@@ -244,7 +247,6 @@ public:
   bool printOpt;
   bool printGrad;
   HAM Hamiltonian;
-  double realSpaceStep;
   
 //Deprecated options for optimizers
 //because now we just use the python implementation

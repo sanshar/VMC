@@ -1009,7 +1009,7 @@ double getEnergyMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double 
   double ovlpRatio = -1.0, proposalProb;
   while (iter < niter) {
     elecToMove = iter%nelec;
-    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    walk.getStep(step, elecToMove, schd.rStepSize, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
     iter ++;
     if (iter%sampleSteps == 0 && iter > 0.01*niter) {
@@ -1240,7 +1240,7 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
   */
   while (iter < niter) {
     elecToMove = iter%nelec;
-    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
+    walk.getStep(step, elecToMove, schd.rStepSize, wave.ref, wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
     iter ++;
     if (iter%sampleSteps == 0 && iter > 0.01*niter) {
@@ -1354,7 +1354,7 @@ void getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, d
   double ovlpRatio = -1.0, proposalProb;
   while (iter < niter) {
     elecToMove = iter%nelec;
-    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    walk.getStep(step, elecToMove, schd.rStepSize, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
     iter ++;
     if (iter%sampleSteps == 0 && iter > 0.01*niter) {
@@ -1476,7 +1476,7 @@ double getGradientHessianMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0
   while (iter < niter) {
     elecToMove = iter%nelec;
 
-    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    walk.getStep(step, elecToMove, schd.rStepSize, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
 
     iter ++;
@@ -1650,7 +1650,7 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
   for (int iter = 0; iter < niter; iter++)
   {
     elecToMove = iter % nelec;
-    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    walk.getStep(step, elecToMove, schd.rStepSize, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
     if (iter % nelec == 0 && iter > 0.01*niter)
     {
@@ -1861,7 +1861,7 @@ double getGradientMetricRandomMetropolisRealSpace(Wfn &wave, Walker &walk, doubl
   while (iter < niter) {
     elecToMove = iter%nelec;
 
-    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    walk.getStep(step, elecToMove, schd.rStepSize, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
 
     iter ++;
@@ -2031,7 +2031,7 @@ double getGradientHessianRandomMetropolisRealSpace(Wfn &wave, Walker &walk, doub
   double ovlpRatio = -1.0, proposalProb;
   for (int iter = 0; iter < niter; iter++) {
     elecToMove = iter%nelec;
-    walk.getStep(step, elecToMove, schd.realSpaceStep, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
+    walk.getStep(step, elecToMove, schd.rStepSize, wave.getRef(), wave.getCorr(), ovlpRatio, proposalProb);
     step += walk.d.coord[elecToMove];
     if (iter%sampleSteps == 0 && iter > 0.01*niter) {
       int sample = iter % (int) std::round(sampleSteps * rk);
@@ -2245,7 +2245,7 @@ void CorrelatedSamplingRealSpace(int niter, std::vector<Eigen::VectorXd> &V, std
   {
     int elecToMove = iter % nelec;
     double ovlpRatio, proposalProb;
-    Walk[0].getStep(step, elecToMove, schd.realSpaceStep, Wave[0].getRef(), Wave[0].getCorr(), ovlpRatio, proposalProb);
+    Walk[0].getStep(step, elecToMove, schd.rStepSize, Wave[0].getRef(), Wave[0].getCorr(), ovlpRatio, proposalProb);
     step += Walk[0].d.coord[elecToMove];
     //if move is simple or gaussian
     if (ovlpRatio < -0.5) 

@@ -722,8 +722,8 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
 
   Vector3d &r = d.coord[elecI];
   Vector3d v;
-  //getGradient(elecI, v);
-  getScaledGradient(elecI, tau, v);
+  if (schd.scaledVelocity) { getScaledGradient(elecI, tau, v); }
+  else { getGradient(elecI, v); }
 
   Vector3d xsi;
   xsi(0) = nR(generator);
@@ -735,8 +735,8 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
   double forwardProb = std::exp( - xsi.squaredNorm() / 2.0) / std::pow(2.0 * M_PI * tau, 3 / 2);
 
   Vector3d vp;
-  //ovlpRatio = getGradientAfterSingleElectronMove(elecI, rp, vp, ref);
-  ovlpRatio = getScaledGradientAfterSingleElectronMove(elecI, tau, rp, vp, ref);
+  if (schd.scaledVelocity) { ovlpRatio = getScaledGradientAfterSingleElectronMove(elecI, tau, rp, vp, ref); }
+  else { ovlpRatio = getGradientAfterSingleElectronMove(elecI, rp, vp, ref); }
 
   double reverseProb = std::exp( - (r - rp - tau * vp).squaredNorm() / (2.0 * tau)) / std::pow(2.0 * M_PI * tau, 3 / 2);
   
@@ -746,9 +746,10 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
 
 //size-consistent T moves
 //J. Chem. Phys. 132, 154113 (2010)
-void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlater& ref, const rJastrow& corr) {
+void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double &Vminus) {
   double tau = stepsize;
   Vector3d ri = d.coord[elecI];
+  Vminus = 0.0;
 
   //T are the heat bath probabilities, steps are the corresponding moves
   std::vector<double> T;
@@ -802,6 +803,8 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
             //store matrix element and step if vxpx is negative
             if (vxpx <= 0.0)
             {
+              Vminus += vxpx;
+
               double txpx = 0.0;
               if ((riprime - ri).norm() < 1.e-8) { txpx = 1.0; }
               txpx += - tau * vxpx;

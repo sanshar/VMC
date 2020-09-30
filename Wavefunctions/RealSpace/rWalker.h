@@ -96,7 +96,7 @@ struct rWalker<rJastrow, rSlater> {
 
   void doDMCMove(Vector3d& coord, int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double& ovlpRatio, double& proposalProb);
 
-  void doTMove(int elecI, double stepsize, const rSlater& ref, const rJastrow& corr);
+  void doTMove(int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double &Vminus);
 
   void getGradient(int elecI, Vector3d& grad);
   void getScaledGradient(int elecI, double tau, Vector3d& vbar);
