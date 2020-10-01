@@ -744,12 +744,12 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
   coord = rp - r;
 }
 
+/*
 //size-consistent T moves
 //J. Chem. Phys. 132, 154113 (2010)
 void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double &Vminus) {
   double tau = stepsize;
   Vector3d ri = d.coord[elecI];
-  Vminus = 0.0;
 
   //T are the heat bath probabilities, steps are the corresponding moves
   std::vector<double> T;
@@ -775,8 +775,8 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
 
           //random rotation
           Vector3d riIhat = riI.normalized();
-          double angle = uR() * 2.0 * M_PI;
-          //double angle = 0.0; //this is easier when debugging
+          //double angle = uR() * 2.0 * M_PI;
+          double angle = 0.0; //this is easier when debugging
           AngleAxis<double> rot(angle, riIhat);
 
           //if atom - elec distance larger than 2.0 au, or local potential, don't calculate probability
@@ -786,7 +786,7 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
           double val = 0.0;
           for (int m = 0; m < pec.size(); m = m + 3) { val += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
           
-          double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
+          double C = (2.0 * double(l) + 1.0);
           for (int q = 0; q < schd.Q.size(); q++) //loop over quadrature points
           {
             //calculate new vector, riprime
@@ -798,12 +798,16 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
             //wavefunction overlap ratio
             double ovlpRatio = corrHelper.OverlapRatio(elecI, riprime, corr, d) * refHelper.getDetFactor(elecI, riprime, d, ref);
             //matrix element
-            double vxpx = val * C * 4.0 * M_PI * boost::math::legendre_p<double>(l, costheta) * ovlpRatio / double(schd.Q.size());
+            double vxpx = val * C * boost::math::legendre_p<double>(l, costheta) * ovlpRatio / double(schd.Q.size());
+
+            Vminus += vxpx;
+
+            //cout << val * C * boost::math::legendre_p<double>(l, costheta) * corrHelper.OverlapRatio(elecI, riprime, corr, d);
+            //cout << " " << riprime.transpose() << endl;
 
             //store matrix element and step if vxpx is negative
             if (vxpx <= 0.0)
             {
-              Vminus += vxpx;
 
               double txpx = 0.0;
               if ((riprime - ri).norm() < 1.e-8) { txpx = 1.0; }
@@ -831,6 +835,7 @@ void rWalker<rJastrow, rSlater>::doTMove(int elecI, double stepsize, const rSlat
     updateWalker(elecI, steps[index], ref, corr);
   }
 }
+*/
 
 //JCP, 109, 2630
 //used in vmc algorithm

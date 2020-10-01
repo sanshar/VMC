@@ -214,40 +214,51 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   dr2_proposed /= double(nelec);
   acceptedProb /= double(nelec);
 
-  double T, Vij, ViI, Vpp, VIJ;
-  Eloc = w.rHam(walk, T, Vij, ViI, Vpp, VIJ);
-
-  //double Eavg = (Eloc + oldEloc) / 2.0;
-  //double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
-  //wt *= std::exp(- tau_eff * (Eavg - Eshift));
+  //calculate energy and t moves
+  double T, Vij, ViI, Vnl, VIJ;
+  std::vector<std::vector<double>> viq;
+  std::vector<std::vector<Vector3d>> riq;
+  Eloc = w.rHam(walk, T, Vij, ViI, Vnl, VIJ, viq, riq);
 
   double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
   wt *= std::exp(- tau_eff * (Eloc - Eshift));
 
+  //print if walker has weirdly large weight print
+  if (wt > 2.5)
+  {
+    cout << "Large weight: " << wt << endl;
+    cout << "Local energy: " << Eloc << " | " << w.rHam(walk) << endl;
+    cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
+    cout << "coords" << endl;
+    cout << walk.d << endl;
+    cout << "RiI" << endl;
+    cout << walk.RiN << endl;
+    cout << "Rij" << endl;
+    cout << walk.Rij << endl;
+  }
+
   //size consistent t-moves
-  double Vminus = 0.0;
   if (schd.doTMove)
   {
     for (int i = 0; i < nelec; i++)
     {
-      walk.doTMove(i, tau, w.getRef(), w.getCorr(), Vminus);
+      //if no moves, continue
+      if (viq[i].empty()) { continue; }
+
+      //make heat bath move
+      double cumT = 0.0;
+      std::vector<double> t;
+      for (int q = 0; q < viq[i].size(); q++)
+      {
+        cumT += - tau * viq[i][q];
+        t.push_back(cumT);
+      }
+      double move = random() * cumT;
+      int index = std::lower_bound(t.begin(), t.end(), move) - t.begin();
+      walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr());
     }
-    Eloc -= Vminus;
   }
 
-  //print if walker has weirdly large weight
-  if (wt > 2.5)
-  {
-      cout << "Large weight: " << wt << endl;
-      cout << "Local energy: " << Eloc << endl;
-      cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vpp: " << Vpp - Vminus << " VIJ: " << VIJ << endl;
-      cout << "coords" << endl;
-      cout << walk.d << endl;
-      cout << "RiI" << endl;
-      cout << walk.RiN << endl;
-      cout << "Rij" << endl;
-      cout << walk.Rij << endl;
-  }
   return acceptedProb;
 }
 

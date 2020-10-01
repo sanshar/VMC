@@ -112,7 +112,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
             AngleAxis<double> rot(angle, riIhat);
 
             VectorXd Integral = VectorXd::Zero(norbs);
-            double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
+            double C = (2.0 * double(l) + 1.0);
             for (int q = 0; q < schd.Q.size(); q++)
             {
               //calculate new vector, riprime
@@ -130,7 +130,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
               for (int j = 0; j < norbs; j++)
               {
-                Integral(j) += C * f * walk.refHelper.aoValues[j] * 4.0 * M_PI / double(schd.Q.size());
+                Integral(j) += C * f * walk.refHelper.aoValues[j] / double(schd.Q.size());
               }
             }
 
@@ -290,7 +290,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
                 AngleAxis<double> rot(angle, riIhat);
 
                 VectorXd G = VectorXd::Zero(CPShamRatio.size());
-                double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
+                double C = (2.0 * double(l) + 1.0);
                 for (int q = 0; q < schd.Q.size(); q++)
                 {
                   //calculate new vector, riprime
@@ -303,7 +303,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
                   //multiply legendre polynomial and jastrow overlap ratio
                   VectorXd g;
                   double ratio = walk.refHelper.getDetFactor(i, riprime, walk.d, ref) * walk.corrHelper.OverlapRatioAndParamGradient(i, riprime, corr, walk.d, g);
-                  G += C * boost::math::legendre_p<double>(l, costheta) * ratio * g * 4.0 * M_PI / double(schd.Q.size());
+                  G += C * boost::math::legendre_p<double>(l, costheta) * ratio * g / double(schd.Q.size());
                 }
 
                 //update CPShamRatio
@@ -669,7 +669,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
              //calculate potential
              double v = 0.0;
              for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
-             potentiali_pp += v;    
+             //potentiali_pp += v;    
+             potentiali += v;    
           }
         }
       }
@@ -712,7 +713,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
             AngleAxis<double> rot(angle, riIhat);
 
             VectorXd Integral = VectorXd::Zero(norbs);
-            double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
+            double C = (2.0 * double(l) + 1.0);
             for (int q = 0; q < schd.Q.size(); q++)
             {
               //calculate new vector, riprime
@@ -730,7 +731,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
 
               for (int j = 0; j < norbs; j++)
               {
-                Integral(j) += C * f * walk.refHelper.aoValues[j] * 4.0 * M_PI / double(schd.Q.size());
+                Integral(j) += C * f * walk.refHelper.aoValues[j] / double(schd.Q.size());
               }
             }
 
@@ -819,37 +820,39 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
   return -0.5*(kinetic) + potentialij + potentiali + potentiali_pp + potentialN; 
 }
 
-double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlater>& walk, double& T, double& Vij, double& ViI, double& Vpp, double& VIJ) const {
+//this is used only in the dmc algorithm, generates tmoves with the corresponding effective hamiltonian
+//size-consistent T moves
+//J. Chem. Phys. 132, 154113 (2010)
+double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlater>& walk, double& T, double& Vij, double& ViI, double& Vnl, double& VIJ, std::vector<std::vector<double>> &Viq, std::vector<std::vector<Vector3d>> &Riq) const {
   int norbs = Determinant::norbs;
   int nalpha = rDeterminant::nalpha;
   int nbeta = rDeterminant::nbeta;
   int nelec = nalpha+nbeta;
   int numDets = ref.determinants.size();
 
-  double potentialij = 0.0, potentiali = 0.0, potentiali_pp = 0.0, potentialN = 0.0;
-
   //get potential
+  Vij = 0.0, ViI = 0.0, VIJ = 0.0, Vnl = 0.0;
+
   for (int i=0; i<walk.d.nelec; i++)
     for (int j=i+1; j<walk.d.nelec; j++) {
-      potentialij += 1./walk.Rij(i,j);
+      Vij += 1./walk.Rij(i,j);
     }
 
   for (int i=0; i<walk.d.nelec; i++) {
     for (int j=0; j<schd.Ncoords.size(); j++) {
-      potentiali -= schd.Ncharge[j]/walk.RiN(i,j);
+      ViI -= schd.Ncharge[j]/walk.RiN(i,j);
     }
   }
 
   for (int i=0; i<schd.Ncoords.size(); i++) {
     for (int j=i+1; j<schd.Ncoords.size(); j++) {
-      potentialN += schd.Ncharge[i] * schd.Ncharge[j]/walk.RNM(i,j);
+      VIJ += schd.Ncharge[i] * schd.Ncharge[j]/walk.RNM(i,j);
     }
   }
 
   //pseudopotential
   const Pseudopotential &pp = *schd.pseudo;
-  MatrixXcd Bnl;        //Bnl(elec, mo) = Vnl * DetMatrix     
-  MatrixXd AOBnl;        //AOBnl(elec, ao) = \partial_{mocoeff} Vnl * DetMatrix    
+  double Vminus = 0.0, Vplus = 0.0;
   if (pp.size()) //if pseudopotential object is not empty
   {
     //local potential
@@ -869,20 +872,21 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
              //calculate potential
              double v = 0.0;
              for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
-             potentiali_pp += v;    
+             ViI += v;    
           }
         }
       }
     }
 
     //nonlocal potential
-    int nmo = nelec; //ghf num molecular orbitals
-    int nao = schd.hf == "ghf" ? 2*norbs : norbs; //num atomic orbitals
-    
-    Bnl = MatrixXd::Zero(nelec, nelec);
-    AOBnl = MatrixXd::Zero(nelec, nao);
+    std::vector<std::vector<VectorXd>> AOiqn; // \phi_n (q) atomic orbitals evaluated at every quadrature point [elec][q](n)
+    std::vector<std::vector<double>> viq; // <q|Vnl|r> matrix element of nonlocal potential at every quarature point [elec][q]
+    std::vector<std::vector<Vector3d>> iq; // steps for each electron
     for (int i = 0; i < nelec; i++) //loop over electrons
     {
+      std::vector<VectorXd> AOqn;
+      std::vector<double> vq;
+      std::vector<Vector3d> x;
       for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
       {
         const ppHelper &ppatm = it->second;
@@ -911,8 +915,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
             //double angle = 0.0; //this is easier when debugging
             AngleAxis<double> rot(angle, riIhat);
 
-            VectorXd Integral = VectorXd::Zero(norbs);
-            double C = (2.0 * double(l) + 1.0) / (4.0 * M_PI);
+            double C = (2.0 * double(l) + 1.0);
             for (int q = 0; q < schd.Q.size(); q++)
             {
               //calculate new vector, riprime
@@ -921,6 +924,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
 
               //eval basis
               schd.basis->eval(riprime, &walk.refHelper.aoValues[0]);
+              VectorXd basis(norbs);
+              for (int j = 0; j < norbs; j++) { basis(j) = walk.refHelper.aoValues[j]; }
 
               //calculate angle
               double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
@@ -928,71 +933,115 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
               //multiply legendre polynomial and jastrow overlap ratio
               double f = boost::math::legendre_p<double>(l, costheta) * walk.corrHelper.OverlapRatio(i, riprime, corr, walk.d);
 
-              for (int j = 0; j < norbs; j++)
-              {
-                Integral(j) += C * f * walk.refHelper.aoValues[j] * 4.0 * M_PI / double(schd.Q.size());
-              }
+              //update tensors
+              AOqn.push_back(basis);
+              vq.push_back(v * C * f / double(schd.Q.size()));
+              x.push_back(riprime);
             }
-
-            //update AOBnl
-            if (i < nalpha)
-            {
-              AOBnl.row(i).head(norbs) += v * Integral;
-            }
-            else
-            {
-              AOBnl.row(i).tail(norbs) += v * Integral;
-            }  
 
           }
         }
       }
+
+      //update tensors
+      AOiqn.push_back(AOqn);
+      viq.push_back(vq);
+      iq.push_back(x);
     }
 
+    //calculate mo's
+    std::vector<std::vector<VectorXcd>> MOiqm; // \psi_m (q) molecular orbitals evaluated at every quadrature point [elec][q](m)
     for (int i = 0; i < nelec; i++)
     {
       //options for rhf/uhf
       int sz = i < nalpha ? 0 : 1;
       int nmo = i < nalpha ? nalpha : nbeta;
 
-      if (schd.hf == "ghf")
+      std::vector<VectorXcd> MOqm;
+      for (int q = 0; q < AOiqn[i].size(); q++)
       {
-        for (int mo = 0; mo < nelec; mo++) 
+        VectorXcd temp;
+        if (schd.hf == "ghf")
         {
-          for (int j = 0; j < norbs; j++)
+          temp.setZero(nelec);
+          for (int mo = 0; mo < nelec; mo++) 
           {
-            int J = i < nalpha ? j : j + norbs;
-            Bnl(i, mo) += AOBnl(i, J) * ref.getHforbs(0)(J, mo);
+            for (int j = 0; j < norbs; j++)
+            {
+              int J = i < nalpha ? j : j + norbs;
+              temp(mo) += AOiqn[i][q][j] * ref.getHforbs(0)(J, mo);
+            }
           }
+          //update tensor
+          MOqm.push_back(temp);
         }
-      }
-      else //rhf/ufh
-      {
-        for (int mo = 0; mo < nmo; mo++)
+        else //rhf/ufh
         {
-          for (int j = 0; j < norbs; j++)
+          temp.setZero(nmo);
+          for (int mo = 0; mo < nmo; mo++)
           {
-            Bnl(i, mo + sz * nalpha) += AOBnl(i, j) * ref.getHforbs(sz)(j, mo);
+            for (int j = 0; j < norbs; j++)
+            {
+              temp(mo) += AOiqn[i][q][j] * ref.getHforbs(sz)(j, mo);
+            }
           }
+          //update tensor
+          MOqm.push_back(temp);
         }
-      }
-    }
+      } //for q
+      //update tensor
+      MOiqm.push_back(MOqm);
+    } //for i
 
+    Viq.clear();
+    Riq.clear();
     std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
     for (int i = 0; i < nelec; i++)
     {
-      std::complex<double> factor = 0.0;
-      if (schd.hf == "ghf") { factor = Bnl.row(i) * walk.refHelper.thetaInv[0].col(i); }
-      else
+      std::vector<double> Vq;
+      std::vector<Vector3d> Rq;
+      for (int q = 0; q < MOiqm[i].size(); q++)
       {
-        if (i < walk.d.nalpha) { factor = Bnl.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
-        else { factor = Bnl.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
+        std::complex<double> factor = 0.0;
+        if (schd.hf == "ghf")
+        {
+          factor = MOiqm[i][q].transpose() * walk.refHelper.thetaInv[0].col(i);
+        }
+        else
+        {
+          if (i < walk.d.nalpha) { factor = MOiqm[i][q].transpose() * walk.refHelper.thetaInv[0].col(i); }
+          else { factor = MOiqm[i][q].transpose() * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
+        }
+        double vxpx = viq[i][q] * (DetFactor * factor).real() / DetFactor.real();
+
+        if (vxpx < 0.0)
+        {
+          Vminus += vxpx;
+          Vq.push_back(vxpx);
+          Rq.push_back(iq[i][q]);
+        }
+        else
+        {
+          Vplus += vxpx;
+        }
+
       }
-      potentiali_pp += (DetFactor * factor).real() / DetFactor.real();
+
+      //update tensors
+      Viq.push_back(Vq);
+      Riq.push_back(Rq);
     } 
-  }
+    
+    /*
+    //if tmoves
+    if (schd.doTMove) { Vnl = Vplus; }
+    else { Vnl = Vplus + Vminus; }
+    */
+  } //end pseudopotential
+  Vnl = Vplus + Vminus;
   
-  double kinetic = 0.0;  
+  //kinetic energy
+  T = 0.0;
   {
     MatrixXcd Bij = walk.refHelper.Laplacian; //i = nelec , j = norbs
 
@@ -1011,17 +1060,13 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
         if (i < walk.d.nalpha) { factor = Bij.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
         else { factor = Bij.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
       }
-      kinetic += (DetFactor * factor).real() / DetFactor.real();
-      kinetic += walk.corrHelper.LaplaceRatio[i];
+      T += (DetFactor * factor).real() / DetFactor.real();
+      T += walk.corrHelper.LaplaceRatio[i];
     }
+
+    T *= -0.5;
   }
-  //cout << -0.5*(kinetic) << " " << potentialij << " " << potentiali << " " << potentiali_pp << " " << potentialN << endl;
-  T = -0.5 * kinetic;
-  Vij = potentialij;
-  ViI = potentiali;
-  Vpp = potentiali_pp;
-  VIJ = potentialN;
-  return -0.5*(kinetic) + potentialij + potentiali + potentiali_pp + potentialN; 
+  return T + Vij + ViI + Vnl + VIJ; 
 }
 
 template<>
