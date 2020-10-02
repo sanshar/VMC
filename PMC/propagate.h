@@ -248,14 +248,24 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
       //make heat bath move
       double cumT = 0.0;
       std::vector<double> t;
+      //first possible move is no move, with txx = 1.0
+      cumT += 1.0;
+      t.push_back(cumT);
       for (int q = 0; q < viq[i].size(); q++)
       {
-        cumT += - tau * viq[i][q];
+        double txpx = - tau * viq[i][q];
+        //cout << txpx << " | " << riq[i][q].transpose() << endl;
+
+        cumT += txpx;
         t.push_back(cumT);
       }
       double move = random() * cumT;
       int index = std::lower_bound(t.begin(), t.end(), move) - t.begin();
-      walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr());
+      if (index != 0) { walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr()); } //first move is no move
+      /*
+      double ovlpRatio = w.getOverlapFactor(i, riq[i][index], walk);
+      if (ovlpRatio > 0.0) { walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr()); } //don't cross node
+      */
     }
   }
 
