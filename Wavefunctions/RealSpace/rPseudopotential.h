@@ -1,6 +1,8 @@
 #ifndef rPP_HEADER_H
 #define rPP_HEADER_H
 
+#include "rDeterminants.h"
+#include <Eigen/Dense>
 #include <map>
 #include <vector>
 #include <fstream>
@@ -52,7 +54,6 @@ class Pseudopotential
 
     public:
     Pseudopotential(std::string filename = "ppInfo.txt");
-    //~Pseudopotential() {}
 
     int ncore() const; //returns the total number of core electrons replaced by PP, (ie. this is summed over all atoms)
     const ppHelper &operator[](int atm) const { return Store.at(atm); }
@@ -63,5 +64,13 @@ class Pseudopotential
     auto end() { return Store.end(); }
     auto begin() const { return Store.begin(); }
     auto end() const { return Store.end(); }
+
+    //computes the local part of the pseudopotential
+    double localPotential(const rDeterminant &d) const;
+
+    //computes matrix elements and coordinates for nonlocal part of pseudopotential
+    //viq = <q|Vnl|r>_i, matrix element of nonlocal potential at every quarature point [i=elec][q]
+    //riq = q_i, coordinate q corresponding to every viq matrix element [i=elec][q]
+    void nonLocalPotential(const rDeterminant &d, std::vector<std::vector<double>> &viq, std::vector<std::vector<Eigen::Vector3d>> &riq) const;
 };
 #endif

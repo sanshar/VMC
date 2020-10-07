@@ -1,7 +1,7 @@
 User:
 ilsa8974
 Hostname:
-bnode0302.rc.int.colorado.edu
+bnode0303.rc.int.colorado.edu
 CPU info:
 Architecture:          x86_64
 CPU op-mode(s):        32-bit, 64-bit
@@ -17,10 +17,10 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               2648.906
+CPU MHz:               2908.031
 Computation started at:
-Tue Sep 29 12:22:35 MDT 2020
-git commit: b94a92fa22a5d659e732c1ec35188dcd4add8833, branch: merged, compiled at: Tue Sep 29 12:12:01 MDT 2020
+Tue Oct  6 18:34:13 MDT 2020
+git commit: fb0228d2cff205bdfaf9218a5fb812c931903909, branch: merged, compiled at: Tue Oct 6 11:17:58 MDT 2020
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -34,6 +34,7 @@ Input file  :
     },
     "realspace": {
         "basis": "gto",
+        "pseudo": "octahedral",
         "pseudoCutOff": "2.0",
         "nalpha": "1",
         "nbeta": "1",
@@ -63,9 +64,9 @@ Input file  :
 Number of Jastrow vars: 30
 Number of Reference vars: 29
 Number of Optimized vars: 59
-    0    -0.79603757 (1.28e-03)     0.03766633      1.9      0.8     0.47     0.47     0.47 
-    1    -0.79884857 (1.25e-03)     0.03698551      1.9      0.7     1.01     1.02     1.46 
-    2    -0.80796612 (8.59e-04)     0.02096849      1.9      0.7     1.99     2.01     2.44 
-    3    -0.81993388 (4.81e-04)     0.00852192      1.8      0.7     2.97     3.09     3.54 
-    4    -0.82110326 (4.12e-04)     0.00785223      1.4      0.7     4.08     4.17     4.61 
-    5    -0.82195386 (3.26e-04)     0.00354806      1.1      0.7     5.11     5.12     5.53 
+    0    -0.79603757 (1.28e-03)     0.03766633      1.9      0.8     0.42     0.42     0.42 
+    1    -0.79841317 (1.18e-03)     0.03567987      1.7      0.7     0.86     0.87     1.22 
+    2    -0.80935138 (8.18e-04)     0.01976279      1.9      0.7     1.63     1.65     2.00 
+    3    -0.81927207 (4.85e-04)     0.00740229      1.8      0.7     2.44     2.53     2.87 
+    4    -0.82147318 (3.52e-04)     0.00430985      1.4      0.7     3.31     3.35     3.70 
+    5    -0.82172700 (3.32e-04)     0.00287685      1.2      0.7     4.12     4.12     4.48 

@@ -3,7 +3,6 @@
 #include "global.h"
 #include "input.h"
 #include <boost/math/special_functions/legendre.hpp>
-#include <boost/math/special_functions/spherical_harmonic.hpp>
 
 template<>
 double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, rSlater>& walk,
@@ -49,147 +48,100 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
   //pseudopotential
   const Pseudopotential &pp = *schd.pseudo;
-  MatrixXcd Bnl;        //Bnl(elec, mo) = Vnl * DetMatrix     
-  MatrixXd AOBnl;        //AOBnl(elec, ao) = \partial_{mocoeff} Vnl * DetMatrix    
+  std::vector<std::vector<double>> viq; //matrix elements of nonlocal potential for every quadrature point [elec][quad]
+  std::vector<std::vector<Vector3d>> riq; //coordinates corresponding to above matrix elements
+  std::vector<std::vector<double>> Yiq; //reference overlap ratio for above coordinates
+  std::vector<std::vector<std::complex<double>>> cYiq; //complex overlap ratio
+  std::vector<std::vector<double>> Jiq; //jastrow overlap ratio for above coordinates
+  std::vector<std::vector<VectorXd>> AOiqn; // \phi_n (q) atomic orbitals evaluated at every quadrature point [elec][q](n)
+  std::vector<std::vector<VectorXcd>> MOiqm; // \psi_m (q) molecular orbitals evaluated at every quadrature point [elec][q](m)
   if (pp.size()) //if pseudopotential object is not empty
   {
     //local potential
-    for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
-    {
-      const ppHelper &ppatm = it->second;
-      for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
-      {
-        int I = ppatm.indices()[a];
-        auto it1 = ppatm.begin();
-        int l = it1->first;
-        if (l == -1) //first angular momentum channel should be local potential
-        {
-          const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-          for (int i = 0; i < nelec; i++) //loop over electrons
-          {
-             //calculate potential
-             double v = 0.0;
-             for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
-             potentiali_ppl += v;    
-          }
-        }
-      }
-    }
+    potentiali_ppl += pp.localPotential(walk.d);
 
     //nonlocal potential
-    int nao = schd.hf == "ghf" ? 2*norbs : norbs; //num atomic orbitals
-    
-    Bnl = MatrixXd::Zero(nelec, nelec);
-    AOBnl = MatrixXd::Zero(nelec, nao);
-    for (int i = 0; i < nelec; i++) //loop over electrons
-    {
-      for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
-      {
-        const ppHelper &ppatm = it->second;
-        for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
-        {
-          int I = ppatm.indices()[a];
-          for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-          {
-            int l = it1->first; //angular momentum
-            const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-      
-            Vector3d rI = schd.Ncoords[I];
-            Vector3d ri = walk.d.coord[i];
-            Vector3d riI = ri - rI;
+    pp.nonLocalPotential(walk.d, viq, riq); 
 
-            //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l == -1 || riI.norm() > schd.pCutOff) { continue; } 
-
-            //calculate potential
-            double v = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
-
-            //random rotation
-            Vector3d riIhat = riI.normalized();
-            double angle = walk.uR() * 2.0 * M_PI;
-            //double angle = 0.0; //this is easier when debugging
-            AngleAxis<double> rot(angle, riIhat);
-
-            VectorXd Integral = VectorXd::Zero(norbs);
-            double C = (2.0 * double(l) + 1.0);
-            for (int q = 0; q < schd.Q.size(); q++)
-            {
-              //calculate new vector, riprime
-              Vector3d riIprime = riI.norm() * (rot * schd.Q[q]);
-              Vector3d riprime = riIprime + rI;
-
-              //eval basis
-              schd.basis->eval(riprime, &walk.refHelper.aoValues[0]);
-
-              //calculate angle
-              double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-
-              //multiply legendre polynomial and jastrow overlap ratio
-              double f = boost::math::legendre_p<double>(l, costheta) * walk.corrHelper.OverlapRatio(i, riprime, corr, walk.d);
-
-              for (int j = 0; j < norbs; j++)
-              {
-                Integral(j) += C * f * walk.refHelper.aoValues[j] / double(schd.Q.size());
-              }
-            }
-
-            //update AOBnl
-            if (i < nalpha)
-            {
-              AOBnl.row(i).head(norbs) += v * Integral;
-            }
-            else
-            {
-              AOBnl.row(i).tail(norbs) += v * Integral;
-            }  
-
-          }
-        }
-      }
-    }
-
+    //calculate reference and jastrow overlap ratios
+    //this basically populates all the above tensors for later use in local gradients and energy
     for (int i = 0; i < nelec; i++)
     {
+      std::vector<double> Yq;
+      std::vector<std::complex<double>> cYq;
+      std::vector<double> Jq;
+      std::vector<VectorXd> AOqn;
+      std::vector<VectorXcd> MOqm;
+
       //options for rhf/uhf
       int sz = i < nalpha ? 0 : 1;
       int nmo = i < nalpha ? nalpha : nbeta;
 
-      if (schd.hf == "ghf")
+      for (int q = 0; q < riq[i].size(); q++)
       {
-        for (int mo = 0; mo < nelec; mo++) 
-        {
-          for (int j = 0; j < norbs; j++)
-          {
-            int J = i < nalpha ? j : j + norbs;
-            Bnl(i, mo) += AOBnl(i, J) * ref.getHforbs(0)(J, mo);
-          }
-        }
-      }
-      else //rhf/ufh
-      {
-        for (int mo = 0; mo < nmo; mo++)
-        {
-          for (int j = 0; j < norbs; j++)
-          {
-            Bnl(i, mo + sz * nalpha) += AOBnl(i, j) * ref.getHforbs(sz)(j, mo);
-          }
-        }
-      }
-    }
+        //jastrow ratio
+        Jq.push_back(walk.corrHelper.OverlapRatio(i, riq[i][q], corr, walk.d));
+        
+        //reference ratio
+        //eval basis
+        schd.basis->eval(riq[i][q], &walk.refHelper.aoValues[0]);
 
+        //atomic orbitals
+        VectorXd basis(norbs);
+        for (int j = 0; j < norbs; j++) { basis(j) = walk.refHelper.aoValues[j]; }
+        AOqn.push_back(basis);
+
+        //ratio
+        std::complex<double> factor = 0.0;
+        if (schd.hf == "ghf")
+        {
+          //molecular orbital
+          VectorXcd row(nelec);
+          for (int mo = 0; mo < nelec; mo++) {
+            for (int j = 0; j < norbs; j++) {
+              int J = i < nalpha ? j : j + norbs;
+              row(mo) += walk.refHelper.aoValues[j] * ref.getHforbs(0)(J, mo);
+            }
+          }
+          MOqm.push_back(row);
+          factor = row.transpose() * walk.refHelper.thetaInv[0].col(i);
+        }
+        else //rhf/ufh
+        {
+          //molecular orbital
+          VectorXcd row(nmo);
+          for (int mo = 0; mo < nmo; mo++) {
+            for (int j = 0; j < norbs; j++) {
+              row(mo) += walk.refHelper.aoValues[j] * ref.getHforbs(sz)(j, mo);
+            }
+          }
+          MOqm.push_back(row);
+          factor = row.transpose() * walk.refHelper.thetaInv[sz].col(i - sz * walk.d.nalpha);
+        }
+
+        //update tensors
+        cYq.push_back(factor);
+        Yq.push_back((factor * thetaDet).real() / thetaDet.real());
+
+      }//q
+
+      //update tensors
+      Jiq.push_back(Jq);
+      cYiq.push_back(cYq);
+      Yiq.push_back(Yq);
+      AOiqn.push_back(AOqn);
+      MOiqm.push_back(MOqm);
+    }//nelec
+
+    //calculate nonlocal potential
     for (int i = 0; i < nelec; i++)
     {
-      std::complex<double> factor = 0.0;
-      if (schd.hf == "ghf") { factor = Bnl.row(i) * thetaInv[0].col(i); }
-      else
+      for (int q = 0; q < riq[i].size(); q++)
       {
-        if (i < walk.d.nalpha) { factor = Bnl.row(i).head(walk.d.nalpha) * thetaInv[0].col(i); }
-        else { factor = Bnl.row(i).tail(walk.d.nbeta) * thetaInv[1].col(i - walk.d.nalpha); }
+        potentiali_ppnl += viq[i][q] * Jiq[i][q] * Yiq[i][q];
+        cpotentiali_ppnl += viq[i][q] * Jiq[i][q] * cYiq[i][q];
       }
-      potentiali_ppnl += (thetaDet * factor).real() / thetaDet.real();
-      cpotentiali_ppnl += factor;
-    } 
+    }
   }
 
   double kinetic = 0.0; 
@@ -217,7 +169,6 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   }
   Eloc = -0.5 * kinetic + potentialij + potentiali + potentiali_ppl + potentiali_ppnl + potentialN; 
   cEloc = -0.5 * ckinetic + potentialij + potentiali + potentiali_ppl + cpotentiali_ppnl + potentialN; 
-  //cout << "T\t\tVij\t\tViI\t\tVl\t\tVnl\t\tVIJ" << endl;
   //cout << -0.5 * kinetic << " " << potentialij << " " << potentiali << " " << potentiali_ppl << " " << potentiali_ppnl << " " << potentialN; 
   //cout << endl << endl;
  
@@ -231,11 +182,9 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
       CPShamRatio = VectorXd::Zero(getNumJastrowVariables());
 
       numVars += corr._params.size();
-      //VectorXcd Bij = VectorXcd::Zero(nelec);
       for (int j = 0; j < corr._params.size(); j++)
       {
           CPSgradRatio[j] = walk.corrHelper.ParamValues[j];
-          //CPShamRatio[j] = 0.0;
           VectorXcd Bij;
           for (int i = 0; i < nelec; i++)
           {
@@ -243,7 +192,6 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
               Bij += -walk.corrHelper.ParamGradient[1](i,j) * walk.refHelper.Gradient[1].row(i);
               Bij += -walk.corrHelper.ParamGradient[2](i,j) * walk.refHelper.Gradient[2].row(i);
         
-              //std::complex<double> factor = Bij.transpose() * thetaInv.col(i);
               std::complex<double> factor = 0.0;
               if (schd.hf == "ghf") { factor = Bij.transpose() * thetaInv[0].col(i); }
               else {
@@ -260,58 +208,17 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 
       if (pp.size())
       {
-        for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
+        for (int i = 0; i < nelec; i++)
         {
-          const ppHelper &ppatm = it->second;
-          for (int j = 0; j < ppatm.indices().size(); j++) //loop over indices of atom
+          for (int q = 0; q < riq[i].size(); q++)
           {
-            int I = ppatm.indices()[j];
-            for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-            {
-              int l = it1->first; //angular momentum
-              const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-              for (int i = 0; i < walk.d.nelec; i++) //loop over electrons
-              {
-                Vector3d rI = schd.Ncoords[I];
-                Vector3d ri = walk.d.coord[i];
-                Vector3d riI = ri - rI;
-                
-                //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-                if (l == -1 || riI.norm() > schd.pCutOff) { continue; } 
-
-                //calculate potential
-                double v = 0.0;
-                for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
-
-                //random rotation
-                Vector3d riIhat = riI.normalized();
-                double angle = walk.uR() * 2.0 * M_PI;
-                //double angle = 0.0; //this is easier when debugging
-                AngleAxis<double> rot(angle, riIhat);
-
-                VectorXd G = VectorXd::Zero(CPShamRatio.size());
-                double C = (2.0 * double(l) + 1.0);
-                for (int q = 0; q < schd.Q.size(); q++)
-                {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * (rot * schd.Q[q]);
-                  Vector3d riprime = riIprime + rI;
-
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-
-                  //multiply legendre polynomial and jastrow overlap ratio
-                  VectorXd g;
-                  double ratio = walk.refHelper.getDetFactor(i, riprime, walk.d, ref) * walk.corrHelper.OverlapRatioAndParamGradient(i, riprime, corr, walk.d, g);
-                  G += C * boost::math::legendre_p<double>(l, costheta) * ratio * g / double(schd.Q.size());
-                }
-
-                //update CPShamRatio
-                CPShamRatio += v * G;
-              }
-            }
+            //corr ratio and param gradient
+            VectorXd g;
+            double corrRatio = walk.corrHelper.OverlapRatioAndParamGradient(i, riq[i][q], corr, walk.d, g);
+            //gradient element
+            CPShamRatio += viq[i][q] * Yiq[i][q] * corrRatio * g;
           }
-        }    
+        }
       }
 
       CPShamRatio[corr.EEsameSpinIndex] = 0.0;
@@ -354,7 +261,47 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
       AOGrady.row(mo) *= walk.corrHelper.GradRatio(mo,1);
       AOGradz.row(mo) *= walk.corrHelper.GradRatio(mo,2);
     }
-    
+
+    //for pseudopotential gradients
+    int nao = schd.hf == "ghf" ? 2*norbs : norbs; //num atomic orbitals
+    MatrixXcd Bnl = MatrixXd::Zero(nelec, nelec); //Bnl(elec, mo) = Vnl * DetMatrix     
+    MatrixXd AOBnl = MatrixXd::Zero(nelec, nao);  //AOBnl(elec, ao) = \partial_{mocoeff} Vnl * DetMatrix    
+    if (pp.size())
+    {
+      for (int i = 0; i < nelec; i++)
+      {
+        for (int q = 0; q < riq[i].size(); q++)
+        {
+          //atomic orbitals
+          for (int j = 0; j < norbs; j++)
+          {
+            int J = i < nalpha ? j : j + norbs;
+            if (schd.hf == "ghf") { AOBnl(i, J) += viq[i][q] * Jiq[i][q] * AOiqn[i][q][j]; }
+            else { AOBnl(i, j) += viq[i][q] * Jiq[i][q] * AOiqn[i][q][j]; }
+          }
+
+          //molecular orbitals
+          int nmo = i < nalpha ? nalpha : nbeta; //for hf
+          if (schd.hf == "ghf")
+          {
+            for (int j = 0; j < nelec; j++)
+            {
+              Bnl(i, j) += viq[i][q] * Jiq[i][q] * MOiqm[i][q][j];
+            }
+          }
+          else //rhf/uhf
+          {
+            for (int j = 0; j < nmo; j++)
+            {
+              int J = i < nalpha ? j : j + nalpha;
+              Bnl(i, J) += viq[i][q] * Jiq[i][q] * MOiqm[i][q][j];
+            }
+          }
+
+        }//q
+      }//nelec
+    }//if
+ 
     if (schd.hf == "ghf")
     {
       MatrixXcd X = thetaInv[0] * Laplacian * thetaInv[0];
@@ -648,149 +595,23 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
 
   //pseudopotential
   const Pseudopotential &pp = *schd.pseudo;
-  MatrixXcd Bnl;        //Bnl(elec, mo) = Vnl * DetMatrix     
-  MatrixXd AOBnl;        //AOBnl(elec, ao) = \partial_{mocoeff} Vnl * DetMatrix    
   if (pp.size()) //if pseudopotential object is not empty
   {
     //local potential
-    for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
-    {
-      const ppHelper &ppatm = it->second;
-      for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
-      {
-        int I = ppatm.indices()[a];
-        auto it1 = ppatm.begin();
-        int l = it1->first;
-        if (l == -1) //first angular momentum channel should be local potential
-        {
-          const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-          for (int i = 0; i < nelec; i++) //loop over electrons
-          {
-             //calculate potential
-             double v = 0.0;
-             for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
-             //potentiali_pp += v;    
-             potentiali += v;    
-          }
-        }
-      }
-    }
+    potentiali_pp += pp.localPotential(walk.d);
 
     //nonlocal potential
-    int nmo = nelec; //ghf num molecular orbitals
-    int nao = schd.hf == "ghf" ? 2*norbs : norbs; //num atomic orbitals
+    std::vector<std::vector<double>> viq;
+    std::vector<std::vector<Vector3d>> riq;
+    pp.nonLocalPotential(walk.d, viq, riq);
     
-    Bnl = MatrixXd::Zero(nelec, nelec);
-    AOBnl = MatrixXd::Zero(nelec, nao);
-    for (int i = 0; i < nelec; i++) //loop over electrons
-    {
-      for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
-      {
-        const ppHelper &ppatm = it->second;
-        for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
-        {
-          int I = ppatm.indices()[a];
-          for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-          {
-            int l = it1->first; //angular momentum
-            const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-      
-            Vector3d rI = schd.Ncoords[I];
-            Vector3d ri = walk.d.coord[i];
-            Vector3d riI = ri - rI;
-
-            //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l == -1 || riI.norm() > schd.pCutOff) { continue; } 
-
-            //calculate potential
-            double v = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
-
-            //random rotation
-            Vector3d riIhat = riI.normalized();
-            double angle = walk.uR() * 2.0 * M_PI;
-            //double angle = 0.0; //this is easier when debugging
-            AngleAxis<double> rot(angle, riIhat);
-
-            VectorXd Integral = VectorXd::Zero(norbs);
-            double C = (2.0 * double(l) + 1.0);
-            for (int q = 0; q < schd.Q.size(); q++)
-            {
-              //calculate new vector, riprime
-              Vector3d riIprime = riI.norm() * (rot * schd.Q[q]);
-              Vector3d riprime = riIprime + rI;
-
-              //eval basis
-              schd.basis->eval(riprime, &walk.refHelper.aoValues[0]);
-
-              //calculate angle
-              double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-
-              //multiply legendre polynomial and jastrow overlap ratio
-              double f = boost::math::legendre_p<double>(l, costheta) * walk.corrHelper.OverlapRatio(i, riprime, corr, walk.d);
-
-              for (int j = 0; j < norbs; j++)
-              {
-                Integral(j) += C * f * walk.refHelper.aoValues[j] / double(schd.Q.size());
-              }
-            }
-
-            //update AOBnl
-            if (i < nalpha)
-            {
-              AOBnl.row(i).head(norbs) += v * Integral;
-            }
-            else
-            {
-              AOBnl.row(i).tail(norbs) += v * Integral;
-            }  
-
-          }
-        }
-      }
-    }
-
     for (int i = 0; i < nelec; i++)
     {
-      //options for rhf/uhf
-      int sz = i < nalpha ? 0 : 1;
-      int nmo = i < nalpha ? nalpha : nbeta;
-
-      if (schd.hf == "ghf")
+      for (int q = 0; q < riq[i].size(); q++)
       {
-        for (int mo = 0; mo < nelec; mo++) 
-        {
-          for (int j = 0; j < norbs; j++)
-          {
-            int J = i < nalpha ? j : j + norbs;
-            Bnl(i, mo) += AOBnl(i, J) * ref.getHforbs(0)(J, mo);
-          }
-        }
-      }
-      else //rhf/ufh
-      {
-        for (int mo = 0; mo < nmo; mo++)
-        {
-          for (int j = 0; j < norbs; j++)
-          {
-            Bnl(i, mo + sz * nalpha) += AOBnl(i, j) * ref.getHforbs(sz)(j, mo);
-          }
-        }
+        potentiali_pp += viq[i][q] * getOverlapFactor(i, riq[i][q], walk);
       }
     }
-
-    std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
-    for (int i = 0; i < nelec; i++)
-    {
-      std::complex<double> factor = 0.0;
-      if (schd.hf == "ghf") { factor = Bnl.row(i) * walk.refHelper.thetaInv[0].col(i); }
-      else
-      {
-        if (i < walk.d.nalpha) { factor = Bnl.row(i).head(walk.d.nalpha) * walk.refHelper.thetaInv[0].col(i); }
-        else { factor = Bnl.row(i).tail(walk.d.nbeta) * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
-      }
-      potentiali_pp += (DetFactor * factor).real() / DetFactor.real();
-    } 
   }
   
   double kinetic = 0.0;  
@@ -856,187 +677,54 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
   if (pp.size()) //if pseudopotential object is not empty
   {
     //local potential
-    for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
-    {
-      const ppHelper &ppatm = it->second;
-      for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
-      {
-        int I = ppatm.indices()[a];
-        auto it1 = ppatm.begin();
-        int l = it1->first;
-        if (l == -1) //first angular momentum channel should be local potential
-        {
-          const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-          for (int i = 0; i < nelec; i++) //loop over electrons
-          {
-             //calculate potential
-             double v = 0.0;
-             for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(walk.RiN(i, I), pec[m] - 2)  * std::exp(-pec[m + 1] * walk.RiN(i, I) * walk.RiN(i, I)) * pec[m + 2]; }
-             ViI += v;    
-          }
-        }
-      }
-    }
+    ViI += pp.localPotential(walk.d);
 
     //nonlocal potential
-    std::vector<std::vector<VectorXd>> AOiqn; // \phi_n (q) atomic orbitals evaluated at every quadrature point [elec][q](n)
-    std::vector<std::vector<double>> viq; // <q|Vnl|r> matrix element of nonlocal potential at every quarature point [elec][q]
-    std::vector<std::vector<Vector3d>> iq; // steps for each electron
-    for (int i = 0; i < nelec; i++) //loop over electrons
-    {
-      std::vector<VectorXd> AOqn;
-      std::vector<double> vq;
-      std::vector<Vector3d> x;
-      for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
-      {
-        const ppHelper &ppatm = it->second;
-        for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
-        {
-          int I = ppatm.indices()[a];
-          for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-          {
-            int l = it1->first; //angular momentum
-            const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-      
-            Vector3d rI = schd.Ncoords[I];
-            Vector3d ri = walk.d.coord[i];
-            Vector3d riI = ri - rI;
-
-            //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l == -1 || riI.norm() > schd.pCutOff) { continue; } 
-
-            //calculate potential
-            double v = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
-
-            //random rotation
-            Vector3d riIhat = riI.normalized();
-            double angle = walk.uR() * 2.0 * M_PI;
-            //double angle = 0.0; //this is easier when debugging
-            AngleAxis<double> rot(angle, riIhat);
-
-            double C = (2.0 * double(l) + 1.0);
-            for (int q = 0; q < schd.Q.size(); q++)
-            {
-              //calculate new vector, riprime
-              Vector3d riIprime = riI.norm() * (rot * schd.Q[q]);
-              Vector3d riprime = riIprime + rI;
-
-              //eval basis
-              schd.basis->eval(riprime, &walk.refHelper.aoValues[0]);
-              VectorXd basis(norbs);
-              for (int j = 0; j < norbs; j++) { basis(j) = walk.refHelper.aoValues[j]; }
-
-              //calculate angle
-              double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-
-              //multiply legendre polynomial and jastrow overlap ratio
-              double f = boost::math::legendre_p<double>(l, costheta) * walk.corrHelper.OverlapRatio(i, riprime, corr, walk.d);
-
-              //update tensors
-              AOqn.push_back(basis);
-              vq.push_back(v * C * f / double(schd.Q.size()));
-              x.push_back(riprime);
-            }
-
-          }
-        }
-      }
-
-      //update tensors
-      AOiqn.push_back(AOqn);
-      viq.push_back(vq);
-      iq.push_back(x);
-    }
-
-    //calculate mo's
-    std::vector<std::vector<VectorXcd>> MOiqm; // \psi_m (q) molecular orbitals evaluated at every quadrature point [elec][q](m)
+    std::vector<std::vector<double>> viq;
+    std::vector<std::vector<Vector3d>> riq;
+    pp.nonLocalPotential(walk.d, viq, riq);
+    
+    //calculate wavefunction overlap ratios with riq;
+    std::vector<std::vector<double>> Yiq;
     for (int i = 0; i < nelec; i++)
     {
-      //options for rhf/uhf
-      int sz = i < nalpha ? 0 : 1;
-      int nmo = i < nalpha ? nalpha : nbeta;
-
-      std::vector<VectorXcd> MOqm;
-      for (int q = 0; q < AOiqn[i].size(); q++)
+      std::vector<double> Yq;
+      for (int q = 0; q < riq[i].size(); q++)
       {
-        VectorXcd temp;
-        if (schd.hf == "ghf")
-        {
-          temp.setZero(nelec);
-          for (int mo = 0; mo < nelec; mo++) 
-          {
-            for (int j = 0; j < norbs; j++)
-            {
-              int J = i < nalpha ? j : j + norbs;
-              temp(mo) += AOiqn[i][q][j] * ref.getHforbs(0)(J, mo);
-            }
-          }
-          //update tensor
-          MOqm.push_back(temp);
-        }
-        else //rhf/ufh
-        {
-          temp.setZero(nmo);
-          for (int mo = 0; mo < nmo; mo++)
-          {
-            for (int j = 0; j < norbs; j++)
-            {
-              temp(mo) += AOiqn[i][q][j] * ref.getHforbs(sz)(j, mo);
-            }
-          }
-          //update tensor
-          MOqm.push_back(temp);
-        }
-      } //for q
-      //update tensor
-      MOiqm.push_back(MOqm);
-    } //for i
+        double ovlpRatio = getOverlapFactor(i, riq[i][q], walk);
+        Yq.push_back(ovlpRatio);
+      }
+      Yiq.push_back(Yq);
+    }
 
+    //calculate nonlocal potential and matrix elements for t moves
     Viq.clear();
     Riq.clear();
-    std::complex<double> DetFactor = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
     for (int i = 0; i < nelec; i++)
     {
       std::vector<double> Vq;
       std::vector<Vector3d> Rq;
-      for (int q = 0; q < MOiqm[i].size(); q++)
+      for (int q = 0; q < riq[i].size(); q++)
       {
-        std::complex<double> factor = 0.0;
-        if (schd.hf == "ghf")
-        {
-          factor = MOiqm[i][q].transpose() * walk.refHelper.thetaInv[0].col(i);
-        }
-        else
-        {
-          if (i < walk.d.nalpha) { factor = MOiqm[i][q].transpose() * walk.refHelper.thetaInv[0].col(i); }
-          else { factor = MOiqm[i][q].transpose() * walk.refHelper.thetaInv[1].col(i - walk.d.nalpha); }
-        }
-        double vxpx = viq[i][q] * (DetFactor * factor).real() / DetFactor.real();
+        //matrix element
+        double vxpx = viq[i][q] * Yiq[i][q];
 
         if (vxpx < 0.0)
         {
           Vminus += vxpx;
           Vq.push_back(vxpx);
-          Rq.push_back(iq[i][q]);
+          Rq.push_back(riq[i][q]);
         }
         else
         {
           Vplus += vxpx;
         }
-
       }
-
       //update tensors
       Viq.push_back(Vq);
       Riq.push_back(Rq);
-    } 
-    
-    /*
-    //if tmoves
-    if (schd.doTMove) { Vnl = Vplus; }
-    else { Vnl = Vplus + Vminus; }
-    */
+    }
+
   } //end pseudopotential
   Vnl = Vplus + Vminus;
   
@@ -1097,62 +785,19 @@ double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFS
   const Pseudopotential &pp = *schd.pseudo;
   if (pp.size() != 0) //if pseudopotential object is not empty
   {
-    auto random = std::bind(std::normal_distribution<double>(0.0, 1.0), std::ref(generator));
-    for (auto it = pp.begin(); it != pp.end(); ++it) //loop over atoms with pseudopotential
+    //local potential
+    potentiali_pp += pp.localPotential(walk.d);
+
+    //nonlocal potential
+    std::vector<std::vector<double>> viq;
+    std::vector<std::vector<Vector3d>> riq;
+    pp.nonLocalPotential(walk.d, viq, riq);
+    
+    for (int i = 0; i < walk.d.nelec; i++)
     {
-      const ppHelper &ppatm = it->second;
-      for (int j = 0; j < ppatm.indices().size(); j++) //loop over indices of atom
+      for (int q = 0; q < riq[i].size(); q++)
       {
-        int I = ppatm.indices()[j];
-        for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
-        {
-          int l = it1->first; //angular momentum
-          const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-          for (int i = 0; i < walk.d.nelec; i++) //loop over electrons
-          {
-            double Int = 1.0;
-            double C = 1.0;
-            Vector3d rI = schd.Ncoords[I];
-            Vector3d ri = walk.d.coord[i];
-            Vector3d riI = ri - rI;
-
-            //random rotation
-            Vector3d riIhat = riI.normalized();
-            double angle = walk.uR() * 2.0 * M_PI;
-            //double angle = 0.0; //this is easier when debugging
-            AngleAxis<double> rot(angle, riIhat);
-            
-            //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-            if (l != -1 && riI.norm() > 2.0) { continue; } 
-
-            //calculate potential
-            double val = 0.0;
-            for (int m = 0; m < pec.size(); m = m + 3) { val += std::pow(riI.norm(), pec[m] - 2)  * std::exp(-pec[m + 1] * riI.norm() * riI.norm()) * pec[m + 2]; }
-            
-            //integrate if nonlocal potential
-            if (l != -1) //angular momentum projector
-            {
-              Int = 0.0;
-              C = std::sqrt((2.0 * (double) l + 1.0) / (4.0 * M_PI));
-
-              for (int v = 0; v < schd.Q.size(); v++)
-              {
-                  //calculate new vector, riprime
-                  Vector3d riIprime = riI.norm() * (rot * schd.Q[v]);
-                  //calculate angle
-                  double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
-                  //multiply legendre polynomial and wavefunction overlap ratio
-                  Vector3d riprime = riIprime + rI;
-                  Int += boost::math::legendre_p<double>(l, costheta) * getOverlapFactor(i, riprime, walk);
-              }
-              Int /= (double) schd.Q.size();
-              Int *= (C * 4.0 * M_PI);
-
-            }
-
-            potentiali_pp += val * C * Int;
-          }
-        }
+        potentiali_pp += viq[i][q] * getOverlapFactor(i, riq[i][q], walk);
       }
     }
   }
