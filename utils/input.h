@@ -36,7 +36,7 @@ class Determinant;
 enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod}; //varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
-enum JBASIS {NC, sNC, AB, AB2, sAB2, SS, SG, G, mG};
+enum JBASIS {NC, sNC, AB2, sAB2, SS, SG, G};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
 enum PSEUDOQUAD {tetrahedral, octahedral, icosahedral};
 

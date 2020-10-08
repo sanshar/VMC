@@ -17,6 +17,9 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   int nelec = nalpha+nbeta;
   int numDets = ref.determinants.size();
 
+  //init jastrow gradient and laplacian
+  walk.corrHelper.GradientAndLaplacian(walk.d);
+
   std::complex<double> thetaDet = walk.refHelper.thetaDet[0][0] * walk.refHelper.thetaDet[0][1];
   std::array<MatrixXcd, 2> thetaInv = walk.refHelper.thetaInv;
   std::complex<double> i(0.0, 1.0);
@@ -572,6 +575,9 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
   int nbeta = rDeterminant::nbeta;
   int nelec = nalpha+nbeta;
   int numDets = ref.determinants.size();
+  
+  //init jastrow gradient and laplacian
+  walk.corrHelper.GradientAndLaplacian(walk.d);
 
   double potentialij = 0.0, potentiali = 0.0, potentiali_pp = 0.0, potentialN = 0.0;
 
@@ -650,6 +656,9 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
   int nbeta = rDeterminant::nbeta;
   int nelec = nalpha+nbeta;
   int numDets = ref.determinants.size();
+
+  //init jastrow gradient and laplacian
+  walk.corrHelper.GradientAndLaplacian(walk.d);
 
   //get potential
   Vij = 0.0, ViI = 0.0, VIJ = 0.0, Vnl = 0.0;
@@ -760,6 +769,9 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
 template<>
 double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFSlater>& walk) const {
   int norbs = Determinant::norbs;
+
+  //init jastrow gradient and laplacian
+  walk.corrHelper.GradientAndLaplacian(walk.d);
 
   double potentialij = 0.0, potentiali = 0.0, potentiali_pp = 0.0, potentialN = 0.0;
 

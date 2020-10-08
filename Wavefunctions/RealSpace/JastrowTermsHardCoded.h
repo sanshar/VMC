@@ -54,6 +54,10 @@ double JastrowEEValueGrad(int i, int j, int maxQ,
                           int ss);
 
 //input take the maximum exponent Q (rij^o). o = 1...maxQ
+//returns an array of values
+void JastrowEEValues(int i, int j, int maxQ, const vector<Vector3d>& r, VectorXd& values, double factor, int startIndex, int ss);
+
+//input take the maximum exponent Q (rij^o). o = 1...maxQ
 //returns an array of values, gx, gy, gz
 void JastrowEE(int i, int j, int maxQ,
                const vector<Vector3d>& r,
@@ -75,6 +79,10 @@ double JastrowENValueGrad(int i, int maxQ,
                           Vector3d& grad,
                           const VectorXd& params,
                           int startIndex);
+
+//input take the maximum exponent Q (rij^o). o = 1...maxQ
+//returns an array of values
+void JastrowENValues(int i, int maxQ, const vector<Vector3d>& r, VectorXd& values, double factor, int startIndex);
 
 //input take the maximum exponent Q (rij^o). o = 1...maxQ
 //returns an array of values, gx, gy, gz
@@ -103,6 +111,11 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
 
 // (riN^m  jN^n + rjN^m riN^n) rij^o
 // m + n + o <= maxQ
+//returns an array of values
+void JastrowEENValues(int i, int j, int maxQ, const vector<Vector3d>& r, VectorXd& values, double factor, int startIndex, int ss);
+
+// (riN^m  jN^n + rjN^m riN^n) rij^o
+// m + n + o <= maxQ
 //returns an array of values, gx, gy, gz
 void JastrowEEN(int i, int j, int maxQ,
                 const vector<Vector3d>& r,
@@ -113,18 +126,28 @@ void JastrowEEN(int i, int j, int maxQ,
                 int ss);
 
 
+//initializes N_I = \sum_i n_I (r_i) vector and n_I (r_i) matrix for four body jastrows
 void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::array<MatrixXd, 3> &gradn, MatrixXd &lapn);
 
-void JastrowEENN(const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, const MatrixXd &lapn, VectorXd &ParamValues, std::vector<MatrixXd> &ParamGradient, MatrixXd &ParamLaplacian, int startIndex);
+//updates N_I = \sum_i n_I (r_i) vector and n_I (r_i) matrix for four body jastrows, assumes r has been updated
+void JastrowEENNupdate(int elec, const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::array<MatrixXd, 3> &gradn, MatrixXd &lapn);
 
+//returns vector of param values
+void JastrowEENNValues(const VectorXd &N, const MatrixXd &n, VectorXd &ParamValues, int startIndex);
+
+//returns gradient with respect to electron coordinates
+void JastrowEENNgradient(int elec, const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, Vector3d &grad, const VectorXd &params, int startIndex);
+
+//returns overlap ratio assuming elec is moved to coord
 double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, const VectorXd &params, int startIndex);
 
-double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, Vector3d &grad, const VectorXd &params, int startIndex);
-
+//returns overlap ratio and values assuming elec is moved to coord
 double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, VectorXd &ParamValues, int startIndex);
 
-void JastrowEENNupdate(int elec, const Vector3d &coord, const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::array<MatrixXd, 3> &gradn, MatrixXd &lapn, int startIndex);
+//returns overlap ratio and gradient with respect to electron coordinates assuming elec is moved to coord
+double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vector<Vector3d> &r, const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, Vector3d &grad, const VectorXd &params, int startIndex);
 
-void JastrowEENNupdateParam(int elec, const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, const MatrixXd &lapn, VectorXd &ParamValues, std::vector<MatrixXd> &ParamGradient, MatrixXd &ParamLaplacian, int startIndex);
+//populates gx, gy, gz, values, and laplacian
+void JastrowEENN(const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd, 3> &gradn, const MatrixXd &lapn, VectorXd &ParamValues, std::array<MatrixXd, 3> &ParamGradient, MatrixXd &ParamLaplacian, int startIndex);
 
 #endif

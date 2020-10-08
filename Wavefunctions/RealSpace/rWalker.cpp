@@ -408,9 +408,17 @@ void rWalker<rJastrow, rSlater>::getGradient(int elecI, Vector3d& grad) {
     }
   }
 
+  Vector3d gradRatio;
+  corrHelper.Gradient(elecI, gradRatio, d);
+  grad[0] = gradRatio(0) + detgx;    
+  grad[1] = gradRatio(1) + detgy;
+  grad[2] = gradRatio(2) + detgz;
+
+  /*
   grad[0] = corrHelper.GradRatio(elecI,0) + detgx;    
   grad[1] = corrHelper.GradRatio(elecI,1) + detgy;
   grad[2] = corrHelper.GradRatio(elecI,2) + detgz;
+  */
 
 }
 
@@ -492,7 +500,8 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
   Vector3d gi, gplus, gminus;
   gplus.setZero();
   gminus.setZero();
-  grad = corrHelper.GradRatio.row(elecI);
+  //grad = corrHelper.GradRatio.row(elecI);
+  corrHelper.Gradient(elecI, grad, d);
   grad[0] += gxnew; grad[1] += gynew; grad[2] += gznew;
   
   VectorXd& params = corrHelper.jastrowParams;

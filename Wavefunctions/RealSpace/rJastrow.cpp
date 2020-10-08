@@ -65,9 +65,6 @@ rJastrow::rJastrow () {
    else if (schd.fourBodyJastrowBasis == SG) {
      EENNIndex = EENNlinearIndex + 2 * schd.Ncharge.size();
    }
-   else if (schd.fourBodyJastrowBasis == AB) {
-     EENNIndex = EENNlinearIndex + 2 * norbs;
-   }
    else if (schd.fourBodyJastrowBasis == AB2) {
      EENNIndex = EENNlinearIndex + 2 * norbs;
    }
@@ -78,9 +75,6 @@ rJastrow::rJastrow () {
      EENNIndex = EENNlinearIndex + 2 * norbs;
    }
    else if (schd.fourBodyJastrowBasis == G) {
-     EENNIndex = EENNlinearIndex + 2 * schd.gridGaussians.size();
-   }
-   else if (schd.fourBodyJastrowBasis == mG) {
      EENNIndex = EENNlinearIndex + 2 * schd.gridGaussians.size();
    }
    
@@ -101,9 +95,6 @@ rJastrow::rJastrow () {
      else if (schd.fourBodyJastrowBasis == SG) {
        numParams = EENNIndex + 4 * schd.Ncharge.size() * schd.Ncharge.size();
      }
-     else if(schd.fourBodyJastrowBasis == AB) {
-       numParams = EENNIndex + 4 * norbs * norbs;
-     }
      else if(schd.fourBodyJastrowBasis == AB2) {
        numParams = EENNIndex + 4 * norbs * norbs;
      }
@@ -114,9 +105,6 @@ rJastrow::rJastrow () {
        numParams = EENNIndex + 4 * norbs * norbs;
      }
      else if (schd.fourBodyJastrowBasis == G) {
-       numParams = EENNIndex + 4 * schd.gridGaussians.size() * schd.gridGaussians.size();
-     }
-     else if (schd.fourBodyJastrowBasis == mG) {
        numParams = EENNIndex + 4 * schd.gridGaussians.size() * schd.gridGaussians.size();
      }
    }

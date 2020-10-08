@@ -169,19 +169,21 @@ class rWalkerHelper<rJastrow>
       EENNlinearIndex,
       EENNIndex;
   
-  //Equation 33 of https://doi.org/10.1063/1.4948778
-  double   exponential;
-  MatrixXd GradRatio; //nelec x 3 
-  VectorXd LaplaceRatioIntermediate;
-  VectorXd LaplaceRatio;
-
-  VectorXd ParamValues;
-  MatrixXd ParamLaplacian;                      //nelec X njastrow matrix -> Del^2_i J_j
-  std::vector<MatrixXd>  ParamGradient;         //vector of GradRatio for each Jastrow
-  //MatrixXd workMatrix;
+  //these are populated at initialization and updated with the walker
   VectorXd jastrowParams;
+  VectorXd ParamValues;
+  double exponential;
+
+  //these are only populated when the GradientAndLaplacian() member function is called
+  MatrixXd GradRatio; //nelec x 3 
+  VectorXd LaplaceRatio;
+  VectorXd LaplaceRatioIntermediate;
+
+  MatrixXd ParamLaplacian;                      //nelec X njastrow matrix -> Del^2_i J_j
+  std::array<MatrixXd, 3> ParamGradient;         //vector of GradRatio for each Jastrow
 
   //for four body jastrow
+  //N, n, gradn, and lapn are populated at initialization and updated
   VectorXd N; //Vector of N_I
   MatrixXd n; //matrix of n_I (r_i)
   std::array<MatrixXd, 3> gradn;
@@ -192,36 +194,26 @@ class rWalkerHelper<rJastrow>
   rWalkerHelper(const rJastrow& cps, const rDeterminant& d,
                 MatrixXd& Rij, MatrixXd& RiN);
 
-  void InitializeGradAndLaplaceRatio(const rJastrow& cps, const rDeterminant& d,
-                                     MatrixXd& Rij, MatrixXd& RiN);
-  
-  //Assumes that Rij has already been updated
-  void updateGradAndLaplaceRatio(int elec, Vector3d& oldCoord,
-                                 const rJastrow& cps, const rDeterminant& d,
-                                 MatrixXd& Rij, MatrixXd& RiN);
-
   void updateWalker(int i, Vector3d& oldcoord,
                     const rJastrow& cps, const rDeterminant& d,
                     MatrixXd& Rij, MatrixXd& RiN);
-
 
   //the position of the ith electron has changed
   double OverlapRatio(int i, Vector3d& coord, const rJastrow& cps,
                       const rDeterminant &d) const;
 
-
   double OverlapRatioAndParamGradient(int i, Vector3d& coord, const rJastrow& cps, const rDeterminant &d, VectorXd &paramValues) const;
-
 
   void OverlapWithGradient(const rJastrow& cps,
                            VectorXd& grad,
                            const rDeterminant& d,
                            const double& ovlp) const;
 
-  void HamOverlap(const rJastrow& cps,
-                  VectorXd& grad,
-                  const rDeterminant& d,
-                  const double& ovlp) const;
+  //populates param gradient and laplacian
+  void GradientAndLaplacian(const rDeterminant &d);
+
+  //returns vector of grad ratio for a specific electron, used in making moves
+  void Gradient(int elec, Vector3d &gradRatio, const rDeterminant &d);
 
 };  
 

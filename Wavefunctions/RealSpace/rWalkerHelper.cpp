@@ -40,6 +40,113 @@ rWalkerHelper<rSlater>::rWalkerHelper(const rSlater &w, const rDeterminant &d)
   }
 }
 
+void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDeterminant &d) {
+  int norbs = Determinant::norbs;
+  aoValues.resize(10*norbs, 0.0);
+
+  DetMatrix[0] = MatrixXd::Zero(d.nalpha, d.nalpha);
+  DetMatrix[1] = MatrixXd::Zero(d.nbeta, d.nbeta);
+
+  Gradient[0] = MatrixXd::Zero(d.nelec, d.nelec);
+  Gradient[1] = MatrixXd::Zero(d.nelec, d.nelec);
+  Gradient[2] = MatrixXd::Zero(d.nelec, d.nelec);
+
+  Laplacian = MatrixXd::Zero(d.nelec, d.nelec);
+
+  AO = MatrixXd::Zero(d.nelec, norbs);
+  AOLaplacian = MatrixXd::Zero(d.nelec, norbs);
+  AOGradient[0]  = MatrixXd::Zero(d.nelec, norbs);
+  AOGradient[1]  = MatrixXd::Zero(d.nelec, norbs);
+  AOGradient[2]  = MatrixXd::Zero(d.nelec, norbs);
+
+  for (int elec = 0; elec < d.nalpha; elec++)
+  {
+    schd.basis->eval_deriv2(d.coord[elec], &aoValues[0]);
+
+    for (int j=0; j<norbs; j++)
+    {
+      AO(elec, j) = aoValues[j];
+      AOGradient[0](elec, j) = aoValues[1*norbs+j];
+      AOGradient[1](elec, j) = aoValues[2*norbs+j];
+      AOGradient[2](elec, j) = aoValues[3*norbs+j];
+      AOLaplacian  (elec, j) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
+    }
+
+    for (int mo = 0; mo < d.nalpha; mo++) 
+    {
+      for (int j = 0; j < norbs; j++)
+      {
+        DetMatrix[0](elec, mo) += aoValues[j] * w.getHforbs(0)(j, mo);
+
+        Laplacian(elec, mo) += (aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j]) * w.getHforbs(0)(j, mo);
+
+        Gradient[0](elec, mo) += aoValues[1*norbs+j] * w.getHforbs(0)(j, mo);
+        Gradient[1](elec, mo) += aoValues[2*norbs+j] * w.getHforbs(0)(j, mo);
+        Gradient[2](elec, mo) += aoValues[3*norbs+j] * w.getHforbs(0)(j, mo);
+      }          
+    }
+  }
+    
+  if (d.nalpha != 0) {
+    Eigen::FullPivLU<MatrixXcd> lua(DetMatrix[0]);
+    if (lua.isInvertible()) {
+      thetaInv[0] = lua.inverse();
+      thetaDet[0][0] = lua.determinant();
+    }
+    else {
+      cout << " overlap with alpha determinant not invertible" << endl;
+      exit(0);
+    }
+  }
+  else {
+    thetaDet[0][0] = 1.0;
+  }
+
+    
+  for (int elec = 0; elec < d.nbeta; elec++)
+  {
+    schd.basis->eval_deriv2(d.coord[elec + d.nalpha], &aoValues[0]);
+    for (int j=0; j<norbs; j++)
+    {
+      AO(elec + d.nalpha, j) = aoValues[j];
+      AOGradient[0](elec + d.nalpha, j) = aoValues[1*norbs+j];
+      AOGradient[1](elec + d.nalpha, j) = aoValues[2*norbs+j];
+      AOGradient[2](elec + d.nalpha, j) = aoValues[3*norbs+j];
+      AOLaplacian  (elec + d.nalpha, j) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
+    }
+
+    for (int mo = 0; mo < d.nbeta; mo++) 
+    {
+      for (int j = 0; j < norbs; j++)
+      {
+        DetMatrix[1](elec, mo) += aoValues[j] * w.getHforbs(1)(j, mo);
+
+        Laplacian(elec + d.nalpha, mo + d.nalpha) += (aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j] ) * w.getHforbs(1)(j, mo);
+      
+        Gradient[0](elec + d.nalpha, mo + d.nalpha) += aoValues[1*norbs+j] * w.getHforbs(1)(j, mo);
+        Gradient[1](elec + d.nalpha, mo + d.nalpha) += aoValues[2*norbs+j] * w.getHforbs(1)(j, mo);
+        Gradient[2](elec + d.nalpha, mo + d.nalpha) += aoValues[3*norbs+j] * w.getHforbs(1)(j, mo);
+      }
+    }
+  }
+
+
+  if (d.nbeta != 0) {
+    Eigen::FullPivLU<MatrixXcd> lub(DetMatrix[1]);
+    if (lub.isInvertible()) {
+      thetaInv[1] = lub.inverse();
+      thetaDet[0][1] = lub.determinant();
+    }
+    else {
+      cout << " overlap with beta determinant not invertible" << endl;
+      exit(0);
+    }
+  }
+  else {
+      thetaDet[0][1] = 1.0;
+  }
+}
+
 void rWalkerHelper<rSlater>::initInvDetsTablesGhf(const rSlater& w, const rDeterminant &d) {
   int norbs = Determinant::norbs;
   aoValues.resize(10*norbs, 0.0);
@@ -899,12 +1006,11 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
                                        MatrixXd& Rij, MatrixXd& RiN) {
   Qmax = cps.Qmax;
   QmaxEEN = cps.QmaxEEN;
-  jastrowParams = VectorXd::Zero(cps._params.size());
 
-  for (int i=0; i<cps._params.size(); i++) 
-    jastrowParams(i) = cps._params[i];
-  
-  
+  ParamValues.setZero(cps._params.size());
+  jastrowParams.setZero(cps._params.size());
+  for (int i=0; i<cps._params.size(); i++) { jastrowParams(i) = cps._params[i]; }
+   
   EEsameSpinIndex      = cps.EEsameSpinIndex;
   EEoppositeSpinIndex  = cps.EEoppositeSpinIndex;
   ENIndex              = cps.ENIndex;
@@ -913,66 +1019,28 @@ rWalkerHelper<rJastrow>::rWalkerHelper(const rJastrow& cps, const rDeterminant& 
   EENNlinearIndex = cps.EENNlinearIndex;
   EENNIndex = cps.EENNIndex;
 
-  GradRatio                = MatrixXd::Zero(d.nelec,3);
-  LaplaceRatio             = VectorXd::Zero(d.nelec);
-  LaplaceRatioIntermediate = VectorXd::Zero(d.nelec);
-  
-  ParamValues                = VectorXd::Zero(cps._params.size());
-  ParamLaplacian             = MatrixXd::Zero(d.nelec, cps._params.size());
-  ParamGradient.resize(3, MatrixXd::Zero(d.nelec, cps._params.size()));
-  //workMatrix                 = ParamLaplacian;
-
   for (int i=0; i<d.nelec; i++) {
-    JastrowEN(i, Qmax, d.coord, ParamValues, ParamGradient[0],
-              ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, ENIndex);
+    JastrowENValues(i, Qmax, d.coord, ParamValues, 1.0, ENIndex);
 
     for (int j=0; j<i; j++) {
 
-      JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
-                ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEsameSpinIndex, 1);
+      JastrowEEValues(i, j, Qmax, d.coord, ParamValues, 1.0, EEsameSpinIndex, 1);
 
-      JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
-                ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEoppositeSpinIndex, 0);
+      JastrowEEValues(i, j, Qmax, d.coord, ParamValues, 1.0, EEoppositeSpinIndex, 0);
       
-        JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
-                   ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENsameSpinIndex, 1);
+      JastrowEENValues(i, j, QmaxEEN, d.coord, ParamValues, 1.0, EENsameSpinIndex, 1);
 
-        JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
-                   ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENoppositeSpinIndex, 0);
+      JastrowEENValues(i, j, QmaxEEN, d.coord, ParamValues, 1.0, EENoppositeSpinIndex, 0);
 
     }
   }
 
   if (schd.fourBodyJastrow) {
     JastrowEENNinit(d.coord, N, n, gradn, lapn);
-    JastrowEENN(N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
+    JastrowEENNValues(N, n, ParamValues, EENNlinearIndex);
   }
-
-  /*
-  for (int i = EENNlinearIndex; i < ParamValues.size(); i++) {
-      cout << i << " " << jastrowParams[i] << " Val: " << ParamValues[i] << endl;
-      //cout << "GradxVal: " << ParamGradient[0](0, i) << " " << ParamGradient[0](1, i) << endl; 
-      //cout << "GradyVal: " << ParamGradient[1](0, i) << " " << ParamGradient[1](1, i) << endl; 
-      //cout << "GradzVal: " << ParamGradient[2](0, i) << " " << ParamGradient[2](1, i) << endl; 
-      //cout << "LaplaceVal: " << ParamLaplacian(0, i) << " " << ParamLaplacian(1, i)<< endl; 
-      cout << endl;
-  }
-  cout << "################################" << endl;
-  */
-  
+ 
   exponential = ParamValues.dot(jastrowParams);
-  GradRatio.col(0) = ParamGradient[0]*jastrowParams;
-  GradRatio.col(1) = ParamGradient[1]*jastrowParams;
-  GradRatio.col(2) = ParamGradient[2]*jastrowParams;
-  LaplaceRatioIntermediate = ParamLaplacian*jastrowParams;
-
-  for (int i=0; i<d.nelec; i++) {
-    LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
-        pow(GradRatio(i,0), 2) +
-        pow(GradRatio(i,1), 2) +
-        pow(GradRatio(i,2), 2) ;
-  }
-
 }
 
 void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
@@ -980,81 +1048,53 @@ void rWalkerHelper<rJastrow>::updateWalker(int i, Vector3d& oldcoord,
                                            const rDeterminant& d,
                                            MatrixXd& Rij, MatrixXd& RiN) {
 
-  Vector3d bkp = d.coord[i];
+  Vector3d bkp = d.coord[i]; //new coordinate
+
+  //remove old elements
   const_cast<Vector3d&>(d.coord[i]) = oldcoord;
 
-  JastrowEN(i, Qmax, d.coord, ParamValues, ParamGradient[0],
-            ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, ENIndex);
+  JastrowENValues(i, Qmax, d.coord, ParamValues, -1.0, ENIndex);
 
   for (int j=0; j<d.nelec; j++) {
 
     if (i == j) continue;
  
-    JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0], 
-            ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EEsameSpinIndex, 1);
+    JastrowEEValues(i, j, Qmax, d.coord, ParamValues, -1.0, EEsameSpinIndex, 1);
     
-    JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
-              ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EEoppositeSpinIndex, 0);
+    JastrowEEValues(i, j, Qmax, d.coord, ParamValues, -1.0, EEoppositeSpinIndex, 0);
     
-      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0], 
-              ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENsameSpinIndex, 1);
-      
-      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
-                 ParamGradient[1], ParamGradient[2], ParamLaplacian, -1.0, EENoppositeSpinIndex, 0);
+    JastrowEENValues(i, j, QmaxEEN, d.coord, ParamValues, -1.0, EENsameSpinIndex, 1);
+    
+    JastrowEENValues(i, j, QmaxEEN, d.coord, ParamValues, -1.0, EENoppositeSpinIndex, 0);
+
   }
 
+  //add new elements
   const_cast<Vector3d&>(d.coord[i]) = bkp;
-  //  d.coord[i] = bkp;
-  JastrowEN(i, Qmax, d.coord, ParamValues, ParamGradient[0],
-            ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, ENIndex);
+
+  JastrowENValues(i, Qmax, d.coord, ParamValues, 1.0, ENIndex);
 
   for (int j=0; j<d.nelec; j++) {
 
     if (i == j) continue;
 
-    JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
-              ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEsameSpinIndex, 1);
+    JastrowEEValues(i, j, Qmax, d.coord, ParamValues, 1.0, EEsameSpinIndex, 1);
     
-    JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
-              ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEoppositeSpinIndex, 0);
+    JastrowEEValues(i, j, Qmax, d.coord, ParamValues, 1.0, EEoppositeSpinIndex, 0);
     
-      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
-                 ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENsameSpinIndex, 1);
-      
-      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
-                 ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENoppositeSpinIndex, 0);
+    JastrowEENValues(i, j, QmaxEEN, d.coord, ParamValues, 1.0, EENsameSpinIndex, 1);
+    
+    JastrowEENValues(i, j, QmaxEEN, d.coord, ParamValues, 1.0, EENoppositeSpinIndex, 0);
+
   }
 
   if (schd.fourBodyJastrow) {
-    JastrowEENNupdate(i, bkp, d.coord, N, n, gradn, lapn, EENNlinearIndex);
-    //JastrowEENN(N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
-    JastrowEENNupdateParam(i, N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
+    //assumes d.coord has been updated
+    JastrowEENNupdate(i, d.coord, N, n, gradn, lapn);
+    JastrowEENNValues(N, n, ParamValues, EENNlinearIndex);
   }
- 
-  /*
-  for (int i = EENNlinearIndex; i < ParamValues.size(); i++) {
-      cout << i << " " << jastrowParams[i] << " Val: " << ParamValues[i] << endl;
-      //cout << "GradxVal: " << ParamGradient[0](0, i) << " " << ParamGradient[0](1, i) << endl; 
-      //cout << "GradyVal: " << ParamGradient[1](0, i) << " " << ParamGradient[1](1, i) << endl; 
-      //cout << "GradzVal: " << ParamGradient[2](0, i) << " " << ParamGradient[2](1, i) << endl; 
-      //cout << "LaplaceVal: " << ParamLaplacian(0, i) << " " << ParamLaplacian(1, i)<< endl; 
-      cout << endl;
-  }
-  cout << "################################" << endl;
-  */
 
   exponential = ParamValues.dot(jastrowParams);
-  GradRatio.col(0) = ParamGradient[0]*jastrowParams;
-  GradRatio.col(1) = ParamGradient[1]*jastrowParams;
-  GradRatio.col(2) = ParamGradient[2]*jastrowParams;
-  LaplaceRatioIntermediate = ParamLaplacian*jastrowParams;
-
-  for (int i=0; i<d.nelec; i++) {
-    LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
-        pow(GradRatio(i,0), 2) +
-        pow(GradRatio(i,1), 2) +
-        pow(GradRatio(i,2), 2) ;
-  }
 }
 
 
@@ -1068,6 +1108,8 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
   }
   
   Vector3d bkp = d.coord[i];
+
+  //new coord values
   const_cast<rDeterminant&>(d).coord[i] = coord;
  
   diff += JastrowENValue(i, Qmax, d.coord, jastrowParams, ENIndex);
@@ -1079,13 +1121,12 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
     diff += JastrowEEValue(i, j, Qmax, d.coord, jastrowParams, EEsameSpinIndex, 1);
     diff += JastrowEEValue(i, j, Qmax, d.coord, jastrowParams, EEoppositeSpinIndex, 0);
 
-      diff += JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENsameSpinIndex, 1);
-      diff += JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENoppositeSpinIndex, 0);    
+    diff += JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENsameSpinIndex, 1);
+    diff += JastrowEENValue(i, j, QmaxEEN, d.coord, jastrowParams, EENoppositeSpinIndex, 0);    
   }
 
+  //old coord values
   const_cast<rDeterminant&>(d).coord[i] = bkp;
-  //d.coord[i] = bkp;
-  //diff = 0.0;
   
   diff -= JastrowENValue(i, Qmax, d.coord, jastrowParams, ENIndex);
 
@@ -1107,74 +1148,128 @@ double rWalkerHelper<rJastrow>::OverlapRatio(int i, Vector3d& coord, const rJast
 
 double rWalkerHelper<rJastrow>::OverlapRatioAndParamGradient(int i, Vector3d& coord, const rJastrow& cps, const rDeterminant &d, VectorXd &paramValues) const
 {
-  paramValues = VectorXd::Zero(ParamValues.size());
-  std::vector<MatrixXd> paramGradient(3, MatrixXd::Zero(ParamGradient[0].rows(), ParamGradient[0].cols()));
-  MatrixXd paramLaplacian = MatrixXd::Zero(ParamLaplacian.rows(), ParamLaplacian.cols());
+  paramValues.setZero(ParamValues.size());
 
   if (schd.fourBodyJastrow) {
     JastrowEENNfactorVector(i, coord, d.coord, N, n, paramValues, EENNlinearIndex);
   }
 
-  Vector3d bkp = d.coord[i];
+  Vector3d bkp = d.coord[i]; //old coord
+
+  //new coord values
   const_cast<rDeterminant&>(d).coord[i] = coord;
 
-  JastrowEN(i, Qmax, d.coord, paramValues, paramGradient[0],
-            paramGradient[1], paramGradient[2], paramLaplacian, 1.0, ENIndex);
+  JastrowENValues(i, Qmax, d.coord, paramValues, 1.0, ENIndex);
 
   for (int j=0; j<d.nelec; j++) {
 
     if (i == j) continue;
 
-    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
-              paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EEsameSpinIndex, 1);
+    JastrowEEValues(i, j, Qmax, d.coord, paramValues, 1.0, EEsameSpinIndex, 1);
     
-    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
-              paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EEoppositeSpinIndex, 0);
+    JastrowEEValues(i, j, Qmax, d.coord, paramValues, 1.0, EEoppositeSpinIndex, 0);
     
-      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
-                 paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENsameSpinIndex, 1);
-      
-      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
-                 paramGradient[1], paramGradient[2], paramLaplacian, 1.0, EENoppositeSpinIndex, 0);
+    JastrowEENValues(i, j, QmaxEEN, d.coord, paramValues, 1.0, EENsameSpinIndex, 1);
+    
+    JastrowEENValues(i, j, QmaxEEN, d.coord, paramValues, 1.0, EENoppositeSpinIndex, 0);
+
   }
 
+  //old coord values
   const_cast<rDeterminant&>(d).coord[i] = bkp;
 
-  JastrowEN(i, Qmax, d.coord, paramValues, paramGradient[0],
-            paramGradient[1], paramGradient[2], paramLaplacian, -1.0, ENIndex);
+  JastrowENValues(i, Qmax, d.coord, paramValues, -1.0, ENIndex);
 
   for (int j=0; j<d.nelec; j++) {
 
     if (i == j) continue;
 
-    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
-              paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EEsameSpinIndex, 1);
+    JastrowEEValues(i, j, Qmax, d.coord, paramValues, -1.0, EEsameSpinIndex, 1);
     
-    JastrowEE(i, j, Qmax, d.coord, paramValues, paramGradient[0],
-              paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EEoppositeSpinIndex, 0);
+    JastrowEEValues(i, j, Qmax, d.coord, paramValues, -1.0, EEoppositeSpinIndex, 0);
     
-      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
-                 paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENsameSpinIndex, 1);
-      
-      JastrowEEN(i, j, QmaxEEN, d.coord, paramValues, paramGradient[0],
-                 paramGradient[1], paramGradient[2], paramLaplacian, -1.0, EENoppositeSpinIndex, 0);
-  }
+    JastrowEENValues(i, j, QmaxEEN, d.coord, paramValues, -1.0, EENsameSpinIndex, 1);
+    
+    JastrowEENValues(i, j, QmaxEEN, d.coord, paramValues, -1.0, EENoppositeSpinIndex, 0);
 
-  /*
-  for (int i = EENNlinearIndex; i < ParamValues.size(); i++) {
-      cout << i << " " << jastrowParams[i] << " Val: " << paramValues[i] << endl;
-      //cout << "GradxVal: " << ParamGradient[0](0, i) << " " << ParamGradient[0](1, i) << endl; 
-      //cout << "GradyVal: " << ParamGradient[1](0, i) << " " << ParamGradient[1](1, i) << endl; 
-      //cout << "GradzVal: " << ParamGradient[2](0, i) << " " << ParamGradient[2](1, i) << endl; 
-      //cout << "LaplaceVal: " << ParamLaplacian(0, i) << " " << ParamLaplacian(1, i)<< endl; 
-      cout << endl;
   }
-  cout << "################################" << endl;
-  */
 
   double exp = paramValues.dot(jastrowParams);
   //cout << "diff: " << exp << endl;
   return std::exp(exp);
+}
+
+void rWalkerHelper<rJastrow>::GradientAndLaplacian(const rDeterminant &d)
+{
+  GradRatio.setZero(d.nelec, 3);
+  LaplaceRatio.setZero(d.nelec);
+  LaplaceRatioIntermediate.setZero(d.nelec);
+  
+  ParamValues.setZero(jastrowParams.size());
+  ParamLaplacian.setZero(d.nelec, jastrowParams.size());
+  ParamGradient[0].setZero(d.nelec, jastrowParams.size());
+  ParamGradient[1].setZero(d.nelec, jastrowParams.size());
+  ParamGradient[2].setZero(d.nelec, jastrowParams.size());
+
+  for (int i=0; i<d.nelec; i++) {
+    JastrowEN(i, Qmax, d.coord, ParamValues, ParamGradient[0],
+              ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, ENIndex);
+
+    for (int j=0; j<i; j++) {
+
+      JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
+                ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEsameSpinIndex, 1);
+
+      JastrowEE(i, j, Qmax, d.coord, ParamValues, ParamGradient[0],
+                ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EEoppositeSpinIndex, 0);
+      
+      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
+                ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENsameSpinIndex, 1);
+
+      JastrowEEN(i, j, QmaxEEN, d.coord, ParamValues, ParamGradient[0],
+                ParamGradient[1], ParamGradient[2], ParamLaplacian, 1.0, EENoppositeSpinIndex, 0);
+
+    }
+  }
+
+  if (schd.fourBodyJastrow) {
+    JastrowEENN(N, n, gradn, lapn, ParamValues, ParamGradient, ParamLaplacian, EENNlinearIndex);
+  }
+
+  exponential = ParamValues.dot(jastrowParams);
+  GradRatio.col(0) = ParamGradient[0]*jastrowParams;
+  GradRatio.col(1) = ParamGradient[1]*jastrowParams;
+  GradRatio.col(2) = ParamGradient[2]*jastrowParams;
+  LaplaceRatioIntermediate = ParamLaplacian*jastrowParams;
+
+  for (int i=0; i<d.nelec; i++) {
+    LaplaceRatio[i] = LaplaceRatioIntermediate[i] +
+        pow(GradRatio(i,0), 2) +
+        pow(GradRatio(i,1), 2) +
+        pow(GradRatio(i,2), 2) ;
+  }
+}
+
+
+void rWalkerHelper<rJastrow>::Gradient(int elec, Vector3d &gradRatio, const rDeterminant &d)
+{
+  gradRatio.setZero();
+
+  if (schd.fourBodyJastrow) {
+    JastrowEENNgradient(elec, N, n, gradn, gradRatio, jastrowParams, EENNlinearIndex);
+  }
+
+  JastrowENValueGrad(elec, Qmax, d.coord, gradRatio, jastrowParams, ENIndex);
+  for (int j = 0; j < d.nelec; j++)
+  {
+    if (j == elec) continue;
+
+    JastrowEEValueGrad(elec, j, Qmax, d.coord, gradRatio, jastrowParams, EEsameSpinIndex, 1);
+    JastrowEEValueGrad(elec, j, Qmax, d.coord, gradRatio, jastrowParams, EEoppositeSpinIndex, 0);
+
+    JastrowEENValueGrad(elec, j, QmaxEEN, d.coord, gradRatio, jastrowParams, EENsameSpinIndex, 1);
+    JastrowEENValueGrad(elec, j, QmaxEEN, d.coord, gradRatio, jastrowParams, EENoppositeSpinIndex, 0);
+  }
 }
 
 
@@ -1191,122 +1286,4 @@ void rWalkerHelper<rJastrow>::OverlapWithGradient(const rJastrow& cps,
     if (schd.noENCusp || schd.addENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { grad[ENIndex + I * Qmax] = 0.0; }
   }
 
-}
-
-void rWalkerHelper<rJastrow>::HamOverlap(const rJastrow& cps,
-                                         VectorXd& grad,
-                                         const rDeterminant& d,
-                                         const double& ovlp) const {
-                                                    
-  if (schd.optimizeCps) {
-    //cps.OverlapWithGradient(grad, d);
-  }
-  return;
-}
-
-void rWalkerHelper<rSlater>::initInvDetsTables(const rSlater& w, const rDeterminant &d) {
-  int norbs = Determinant::norbs;
-  aoValues.resize(10*norbs, 0.0);
-
-  DetMatrix[0] = MatrixXd::Zero(d.nalpha, d.nalpha);
-  DetMatrix[1] = MatrixXd::Zero(d.nbeta, d.nbeta);
-
-  Gradient[0] = MatrixXd::Zero(d.nelec, d.nelec);
-  Gradient[1] = MatrixXd::Zero(d.nelec, d.nelec);
-  Gradient[2] = MatrixXd::Zero(d.nelec, d.nelec);
-
-  Laplacian = MatrixXd::Zero(d.nelec, d.nelec);
-
-  AO = MatrixXd::Zero(d.nelec, norbs);
-  AOLaplacian = MatrixXd::Zero(d.nelec, norbs);
-  AOGradient[0]  = MatrixXd::Zero(d.nelec, norbs);
-  AOGradient[1]  = MatrixXd::Zero(d.nelec, norbs);
-  AOGradient[2]  = MatrixXd::Zero(d.nelec, norbs);
-
-  for (int elec = 0; elec < d.nalpha; elec++)
-  {
-    schd.basis->eval_deriv2(d.coord[elec], &aoValues[0]);
-
-    for (int j=0; j<norbs; j++)
-    {
-      AO(elec, j) = aoValues[j];
-      AOGradient[0](elec, j) = aoValues[1*norbs+j];
-      AOGradient[1](elec, j) = aoValues[2*norbs+j];
-      AOGradient[2](elec, j) = aoValues[3*norbs+j];
-      AOLaplacian  (elec, j) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
-    }
-
-    for (int mo = 0; mo < d.nalpha; mo++) 
-    {
-      for (int j = 0; j < norbs; j++)
-      {
-        DetMatrix[0](elec, mo) += aoValues[j] * w.getHforbs(0)(j, mo);
-
-        Laplacian(elec, mo) += (aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j]) * w.getHforbs(0)(j, mo);
-
-        Gradient[0](elec, mo) += aoValues[1*norbs+j] * w.getHforbs(0)(j, mo);
-        Gradient[1](elec, mo) += aoValues[2*norbs+j] * w.getHforbs(0)(j, mo);
-        Gradient[2](elec, mo) += aoValues[3*norbs+j] * w.getHforbs(0)(j, mo);
-      }          
-    }
-  }
-    
-  if (d.nalpha != 0) {
-    Eigen::FullPivLU<MatrixXcd> lua(DetMatrix[0]);
-    if (lua.isInvertible()) {
-      thetaInv[0] = lua.inverse();
-      thetaDet[0][0] = lua.determinant();
-    }
-    else {
-      cout << " overlap with alpha determinant not invertible" << endl;
-      exit(0);
-    }
-  }
-  else {
-    thetaDet[0][0] = 1.0;
-  }
-
-    
-  for (int elec = 0; elec < d.nbeta; elec++)
-  {
-    schd.basis->eval_deriv2(d.coord[elec + d.nalpha], &aoValues[0]);
-    for (int j=0; j<norbs; j++)
-    {
-      AO(elec + d.nalpha, j) = aoValues[j];
-      AOGradient[0](elec + d.nalpha, j) = aoValues[1*norbs+j];
-      AOGradient[1](elec + d.nalpha, j) = aoValues[2*norbs+j];
-      AOGradient[2](elec + d.nalpha, j) = aoValues[3*norbs+j];
-      AOLaplacian  (elec + d.nalpha, j) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
-    }
-
-    for (int mo = 0; mo < d.nbeta; mo++) 
-    {
-      for (int j = 0; j < norbs; j++)
-      {
-        DetMatrix[1](elec, mo) += aoValues[j] * w.getHforbs(1)(j, mo);
-
-        Laplacian(elec + d.nalpha, mo + d.nalpha) += (aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j] ) * w.getHforbs(1)(j, mo);
-      
-        Gradient[0](elec + d.nalpha, mo + d.nalpha) += aoValues[1*norbs+j] * w.getHforbs(1)(j, mo);
-        Gradient[1](elec + d.nalpha, mo + d.nalpha) += aoValues[2*norbs+j] * w.getHforbs(1)(j, mo);
-        Gradient[2](elec + d.nalpha, mo + d.nalpha) += aoValues[3*norbs+j] * w.getHforbs(1)(j, mo);
-      }
-    }
-  }
-
-
-  if (d.nbeta != 0) {
-    Eigen::FullPivLU<MatrixXcd> lub(DetMatrix[1]);
-    if (lub.isInvertible()) {
-      thetaInv[1] = lub.inverse();
-      thetaDet[0][1] = lub.determinant();
-    }
-    else {
-      cout << " overlap with beta determinant not invertible" << endl;
-      exit(0);
-    }
-  }
-  else {
-      thetaDet[0][1] = 1.0;
-  }
 }
