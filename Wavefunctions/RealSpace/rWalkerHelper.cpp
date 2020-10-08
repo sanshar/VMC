@@ -382,29 +382,10 @@ void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d,
   int nelec = nalpha+nbeta;
   int numDets = ref.determinants.size();
   
-  /*
-  MatrixXd AoRia = MatrixXd::Zero(nalpha, norbs);
-  MatrixXd AoRib = MatrixXd::Zero(nbeta, norbs);
-  aoValues.resize(norbs);
-  
-  for (int elec=0; elec<nalpha; elec++) {
-    schd.basis->eval(d.coord[elec], &aoValues[0]);
-    for (int orb = 0; orb<norbs; orb++)
-      AoRia(elec, orb) = aoValues[orb];
-  }
-  
-  for (int elec=0; elec<nbeta; elec++) {
-    schd.basis->eval(d.coord[elec+nalpha], &aoValues[0]);
-    for (int orb = 0; orb<norbs; orb++)
-      AoRib(elec, orb) = aoValues[orb];
-  }
-  */
-  
   std::complex<double> DetFactor = thetaDet[0][0] * thetaDet[0][1];
   //Assuming a single determinant
   for (int moa=0; moa<nalpha; moa++) {//alpha mo 
     for (int orb=0; orb<norbs; orb++) {//ao
-      //std::complex<double> factor = thetaInv[0].row(moa) * AoRia.col(orb);
       std::complex<double> factor = thetaInv[0].row(moa) * AO.col(orb).head(nalpha);
       factor *= DetFactor / DetFactor.real();
       grad[numDets + 2*orb * nalpha + 2*moa] += factor.real();
@@ -417,16 +398,10 @@ void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d,
         std::complex<double> factor = thetaInv[1].row(mob) * AO.col(orb).tail(nbeta);
         factor *= DetFactor / DetFactor.real();
       if (ref.hftype == Restricted) {
-        //std::complex<double> factor = thetaInv[1].row(mob) * AoRib.col(orb);
-        //std::complex<double> factor = thetaInv[1].row(mob) * AO.col(orb).tail(nbeta);
-        //factor *= DetFactor / DetFactor.real();
         grad[numDets + 2*orb * nbeta + 2*mob] += factor.real();
         grad[numDets + 2*orb * nbeta + 2*mob + 1] += -factor.imag();
       }
       else {
-        //std::complex<double> factor = thetaInv[1].row(mob) * AoRib.col(orb);
-        //std::complex<double> factor = thetaInv[1].row(mob) * AO.col(orb).tail(nbeta);
-        //factor *= DetFactor / DetFactor.real();
         grad[numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob] += factor.real();
         grad[numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob + 1] += -factor.imag();
       }
@@ -450,24 +425,8 @@ void rWalkerHelper<rSlater>::OverlapWithGradientGhf(const rDeterminant& d,
   int numDets = ref.determinants.size();
   std::complex<double> i(0.0, 1.0);
   
-  /*
-  MatrixXd AoRi = MatrixXd::Zero(nelec, 2*norbs);
-  aoValues.resize(norbs);
-  
-  for (int elec=0; elec<nelec; elec++) {
-    schd.basis->eval(d.coord[elec], &aoValues[0]);
-    for (int orb = 0; orb<norbs; orb++) {
-      if (elec < nalpha)
-        AoRi(elec, orb) = aoValues[orb];
-      else
-        AoRi(elec, norbs+orb) = aoValues[orb];
-    }
-  }
-  */
-
   for (int mo=0; mo<nelec; mo++) {
     for (int orb=0; orb< 2*norbs; orb++) {
-      //std:complex<double> factor = thetaInv[0].row(mo) * AoRi.col(orb);
       std:complex<double> factor = thetaInv[0].row(mo) * AO.col(orb);
       grad[numDets + 2*orb * nelec + 2*mo] = (factor * thetaDet[0][0]).real() / thetaDet[0][0].real();
       if (schd.ifComplex) grad[numDets + 2*orb * nelec + 2*mo + 1] = (i * factor * thetaDet[0][0]).real() / thetaDet[0][0].real();
