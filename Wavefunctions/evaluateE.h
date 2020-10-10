@@ -1685,22 +1685,27 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
               wave.getVariables(v);
               Walker _walk;
               Wfn _wave;
+              _wave.updateVariables(v);
+              _wave.initWalker(_walk, walk.d);
+              double ham1 = _wave.rHam(_walk);
+              cout << "should be same: " << ham << " " << ham1 << endl;
+              cout << "local energy gradient" << endl;
               Eigen::VectorXd finiteGradEloc = Eigen::VectorXd::Zero(v.size());
               for (int i = 0; i < v.size(); ++i)
               {
-                double dt = 0.00001;
+                double dt = 0.001;
                 Eigen::VectorXd vdt = v;
                 vdt(i) += dt;
                 _wave.updateVariables(vdt);
                 _wave.initWalker(_walk, walk.d);
                 double Eloc = _wave.rHam(_walk);
-                finiteGradEloc(i) = (Eloc - ham) / dt;
+                finiteGradEloc(i) = (Eloc - ham1) / dt;
               }
               VectorXd localdiagonalGrad(numVars);
               wave.OverlapWithGradient(walk, ovlp, localdiagonalGrad);
               VectorXd G1(numVars + 1), H1(numVars + 1);
               G1 << 1.0, localdiagonalGrad;
-              H1 << ham, (finiteGradEloc + ham * gradRatio);
+              H1 << ham1, (finiteGradEloc + ham1 * gradRatio);
 
               //cout << "eloc: " << ham << endl;
               //VectorXd gradEloc = hamRatio - ham * gradRatio;

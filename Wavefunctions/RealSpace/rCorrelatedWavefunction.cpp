@@ -99,7 +99,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
         if (schd.hf == "ghf")
         {
           //molecular orbital
-          VectorXcd row(nelec);
+          VectorXcd row = VectorXd::Zero(nelec);
           for (int mo = 0; mo < nelec; mo++) {
             for (int j = 0; j < norbs; j++) {
               int J = i < nalpha ? j : j + norbs;
@@ -112,7 +112,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
         else //rhf/ufh
         {
           //molecular orbital
-          VectorXcd row(nmo);
+          VectorXcd row = VectorXd::Zero(nmo);
           for (int mo = 0; mo < nmo; mo++) {
             for (int j = 0; j < norbs; j++) {
               row(mo) += walk.refHelper.aoValues[j] * ref.getHforbs(sz)(j, mo);
@@ -172,6 +172,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
   }
   Eloc = -0.5 * kinetic + potentialij + potentiali + potentiali_ppl + potentiali_ppnl + potentialN; 
   cEloc = -0.5 * ckinetic + potentialij + potentiali + potentiali_ppl + cpotentiali_ppnl + potentialN; 
+  //cout << "hamOvlp" << endl;
   //cout << -0.5 * kinetic << " " << potentialij << " " << potentiali << " " << potentiali_ppl << " " << potentiali_ppnl << " " << potentialN; 
   //cout << endl << endl;
  
@@ -216,7 +217,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
           for (int q = 0; q < riq[i].size(); q++)
           {
             //corr ratio and param gradient
-            VectorXd g;
+            VectorXd g = VectorXd::Zero(getNumJastrowVariables());
             double corrRatio = walk.corrHelper.OverlapRatioAndParamGradient(i, riq[i][q], corr, walk.d, g);
             //gradient element
             CPShamRatio += viq[i][q] * Yiq[i][q] * corrRatio * g;
@@ -579,7 +580,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
   //init jastrow gradient and laplacian
   walk.corrHelper.GradientAndLaplacian(walk.d);
 
-  double potentialij = 0.0, potentiali = 0.0, potentiali_pp = 0.0, potentialN = 0.0;
+  double potentialij = 0.0, potentiali = 0.0, potentiali_ppl = 0.0, potentiali_ppnl = 0.0, potentialN = 0.0;
 
   //get potential
   for (int i=0; i<walk.d.nelec; i++)
@@ -604,7 +605,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
   if (pp.size()) //if pseudopotential object is not empty
   {
     //local potential
-    potentiali_pp += pp.localPotential(walk.d);
+    potentiali_ppl += pp.localPotential(walk.d);
 
     //nonlocal potential
     std::vector<std::vector<double>> viq;
@@ -615,7 +616,7 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
     {
       for (int q = 0; q < riq[i].size(); q++)
       {
-        potentiali_pp += viq[i][q] * getOverlapFactor(i, riq[i][q], walk);
+        potentiali_ppnl += viq[i][q] * getOverlapFactor(i, riq[i][q], walk);
       }
     }
   }
@@ -643,8 +644,10 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlate
       kinetic += walk.corrHelper.LaplaceRatio[i];
     }
   }
-  //cout << -0.5*(kinetic) << " " << potentialij << " " << potentiali << " " << potentiali_pp << " " << potentialN << endl;
-  return -0.5*(kinetic) + potentialij + potentiali + potentiali_pp + potentialN; 
+  //cout << "rHam" << endl;
+  //cout << -0.5*(kinetic) << " " << potentialij << " " << potentiali << " " << potentiali_ppl << " " << potentiali_ppnl << " " << potentialN << endl;
+  //cout << endl;
+  return -0.5*(kinetic) + potentialij + potentiali + potentiali_ppl + potentiali_ppnl + potentialN; 
 }
 
 //this is used only in the dmc algorithm, generates tmoves with the corresponding effective hamiltonian
