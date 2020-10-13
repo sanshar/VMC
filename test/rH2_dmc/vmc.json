@@ -4,15 +4,17 @@
     "name": "jastrowslater",
     "hfType": "rhf",
     "complex": false,
-    "QmaxEEN": 3,
-    "Qmax": 3
+    "addENCusp": true,
+    "enforceEECusp": true,
+    "QmaxEEN": 6,
+    "Qmax": 6
   },
   "realspace":
   {
     "basis": "sto",
     "nalpha": 1,
     "nbeta": 1,
-    "norbs": 12
+    "norbs": 4
   },
   "sampling":
   {

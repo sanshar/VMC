@@ -279,7 +279,7 @@ cd $here/rBe_lm/
 ../clean.sh
 printf "...running rBe direct lm\n"
 $MPICOMMAND $VMCPATH > vmc.out
-python2 ../testEnergy.py 'vmc' $tol
+python2 ../testEnergy.py 'vmc' 3.0e-3
 if [ $clean == 1 ]
 then
     ../clean.sh

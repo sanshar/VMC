@@ -108,7 +108,7 @@ void rWalker<rJastrow, rSlater>::readBestDeterminant(rDeterminant& d) const
 {
   if (commrank == 0) {
     char file[5000];
-    sprintf(file, "BestCoordinates.txt");
+    sprintf(file, "BestCoordinates.bkp");
     std::ifstream ifs(file, std::ios::binary);
     boost::archive::binary_iarchive load(ifs);
     load >> d;

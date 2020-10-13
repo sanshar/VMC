@@ -15,12 +15,12 @@
   },
   "sampling":
   {
-    "stochasticIter": 30000,
+    "stochasticIter": 10000,
     "seed": 1
   },
   "optimizer":
   {
-    "maxIter": 10,
+    "maxIter": 6,
     "stepsize": 0.01,
     "decay1": 0.1,
     "decay2": 0.01

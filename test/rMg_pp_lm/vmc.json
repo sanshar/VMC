@@ -8,23 +8,25 @@
   {
     "basis": "gto",
     "pseudo": "octahedral",
-    "pseudoCutOff": 2.0,
+    "pseudoCutOff": 3.0,
     "nalpha": 1,
     "nbeta": 1,
     "norbs": 14
   },
   "sampling":
   {
-    "stochasticIter": 10000,
+    "stochasticIter": 5000,
+    "sampleEveryRt": true,
     "seed": 1
   },
   "optimizer":
   {
     "method": "lm",
     "maxIter": 6,
-    "stepsizes": [0.1, 0.01, 0.05, 0.5, 1.0],
+    "stepsizes": [0.0, 0.01, 0.1, 1.0],
     "hDiagShift": 0.1,
     "decay": 0.1,
+    "sDiagShift": 0.0,
     "cgTol": 1.0e-3,
     "dTol": 1.0e-3
   }

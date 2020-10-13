@@ -4,19 +4,21 @@
     "name": "jastrowslater",
     "hfType": "rhf",
     "fourBodyJastrow": "AB2",
+    "noENCusp": true,
     "Qmax": 3,
-    "Qmaxeen": 3
+    "Qmaxeen": 0
   },
   "realspace":
   {
-    "basis": "gto",
+    "basis": "sto",
     "nalpha": 1,
     "nbeta": 1,
-    "norbs": 2
+    "norbs": 4
   },
   "sampling":
   {
-    "stochasticIter": 20000,
+    "stochasticIter": 10000,
+    "sampleEveryRt": true,
     "seed": 1
   },
   "optimizer":
@@ -30,7 +32,7 @@
     "dTol": 1.0e-3,
     "cgTol": 1.0e-3,
     "sgdIter": 0,
-    "maxIter": 4
+    "maxIter": 5
   },
   "print":
   {

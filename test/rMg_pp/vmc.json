@@ -6,14 +6,14 @@
   "realspace":
   {
     "basis": "gto",
-    "pseudoCutOff": 2.0,
+    "pseudoCutOff": 3.0,
     "nalpha": 1,
     "nbeta": 1,
     "norbs": 14
   },
   "sampling":
   {
-    "stochasticIter": 50000,
+    "stochasticIter": 30000,
     "seed": 1
   },
   "optimizer":

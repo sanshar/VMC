@@ -210,7 +210,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
       walk.updateWalker(i, newCoord, w.getRef(), w.getCorr());
     }
   }
-  dr2_accepted /= acceptedProb;
+  if (acceptedProb != 0) { dr2_accepted /= acceptedProb; } //don't divide by zero
   dr2_proposed /= double(nelec);
   acceptedProb /= double(nelec);
 
@@ -223,10 +223,14 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
   wt *= std::exp(- tau_eff * (Eloc - Eshift));
 
-  //print if walker has weirdly large weight print
-  if (wt > 2.5)
+  //print if walker has weird wt or Eloc
+  if (wt > 3.0 || std::isnan(Eloc) || std::isnan(wt))
   {
+    cout << "Process: " << commrank << endl;
     cout << "Large weight: " << wt << endl;
+    cout << "exponential: " << - tau_eff * (Eloc - Eshift) << endl;
+    cout << "effective time step: " << tau_eff << endl;
+    cout << "Energy shift: " << Eshift << endl;
     cout << "Local energy: " << Eloc << " | " << w.rHam(walk) << endl;
     cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
     cout << "coords" << endl;

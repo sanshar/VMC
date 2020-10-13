@@ -15,7 +15,8 @@
   },
   "sampling":
   {
-    "stochasticIter": 25000,
+    "stochasticIter": 7500,
+    "sampleEveryRt": true,
     "seed": 1
   },
   "optimizer":
