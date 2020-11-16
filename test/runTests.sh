@@ -290,6 +290,9 @@ cd $here/rMg_pp/
 printf "...running rMg with pseudopotentials\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python2 ../testEnergy.py 'vmc' $tol
+printf "...running rMg with pseudopotentials dmc\n"
+$MPICOMMAND $DMCPATH > dmc.out
+python2 ../testEnergy.py 'dmc' $tol
 if [ $clean == 1 ]
 then
     ../clean.sh

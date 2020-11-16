@@ -32,7 +32,7 @@
     "dTol": 1.0e-3,
     "cgTol": 1.0e-3,
     "sgdIter": 0,
-    "maxIter": 5
+    "maxIter": 4
   },
   "print":
   {

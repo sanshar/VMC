@@ -22,6 +22,7 @@
 #include <boost/serialization/serialization.hpp>
 #include "iowrapper.h"
 #include "global.h"
+#include "statistics.h"
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
 #include <list>
@@ -263,13 +264,12 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
         cumT += txpx;
         t.push_back(cumT);
       }
+      //get index of move, remember first index is no move
       double move = random() * cumT;
-      int index = std::lower_bound(t.begin(), t.end(), move) - t.begin();
-      if (index != 0) { walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr()); } //first move is no move
-      /*
-      double ovlpRatio = w.getOverlapFactor(i, riq[i][index], walk);
-      if (ovlpRatio > 0.0) { walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr()); } //don't cross node
-      */
+      int index = std::lower_bound(t.begin(), t.end(), move) - t.begin() - 1;
+      if (index > -1) { walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr()); }
+      //double ovlpRatio = w.getOverlapFactor(i, riq[i][index], walk);
+      //if (ovlpRatio > 0.0) { walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr()); } //don't cross node
     }
   }
 
@@ -524,6 +524,9 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
   //energy average
   double Eavg = 0.0, Eexp = 0.0;
   double Enum = 0.0, Eden = 0.0;
+  double E2num = 0.0;
+  //error averages
+  Statistics Stats;
 
   double olditerPop = oldwt;
   for (int iter = 0; iter < niter; iter++)
@@ -541,6 +544,8 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
 
       iterPop += wt;
       Enum += wt * Eloc;
+      E2num += wt * Eloc * Eloc;
+      Stats.push_back(Eloc, wt);
       Eden += wt;
     }
 
@@ -559,19 +564,28 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
 
     if (iter % nGeneration == 0 && iter != 0)
     {
+      Stats.Block();
+      double rt = Stats.BlockCorrTime();
+      double Neff = Stats.Neff();
       //accumulate the total energy across processors
 #ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &rt, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &Neff, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &E2num, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &Enum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &Eden, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      rt /= commsize;
 #endif
-
-      //calculate average energy acorss all procs
-      double Ecurrentavg = Enum/Eden;
+      //calculate average energy across all procs
+      double Ecurrentavg = Enum / Eden;
+      Enum /= Eden;
+      E2num /= Eden;
+      double variance = E2num - Enum * Enum;
+      double error = std::sqrt(rt * variance / Neff);
 
       //this is the exponentially moving average
       if (iter == nGeneration) { Eexp = Ecurrentavg; }
       else { Eexp = 0.9 * Eexp + 0.1 * Ecurrentavg; }
-
 
       //this is the average energy, but only start
       //taking averages after 4 generations because 
@@ -585,11 +599,11 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       else { Eavg = Eexp; }
 
       if (commrank == 0) {
-	    cout << format("%8i  %14.8f  %14.8f  %14.8f  %8.3f  %10i  %8.2f  %14.8f  %8.2f\n") % iter % Ecurrentavg % Eexp % Eavg % acceptedFrac % Walkers.size() % (iterPop/commsize) % Eshift % (getTime()-startofCalc);
+	    cout << format("%8i %14.8f (%8.2e) %14.8f %14.8f %8.3f %10i %8.2f %14.8f %8.2f\n") % iter % Ecurrentavg % error % Eexp % Eavg % acceptedFrac % Walkers.size() % (iterPop/commsize) % Eshift % (getTime()-startofCalc);
       }
 
       //restart Enum and Eden
-      Enum = 0.0; Eden = 0.0;
+      Enum = 0.0; Eden = 0.0; E2num = 0.0;
     }
 
     //reconfigure

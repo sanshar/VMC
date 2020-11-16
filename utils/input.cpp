@@ -70,13 +70,15 @@ void readInput(string inputFile, schedule& schd, bool print) {
         schd.basis = boost::shared_ptr<Basis>(new gaussianBasis);
         schd.basis->read();
         readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
+        schd.gBasis = boost::shared_ptr<Basis>(new gaussianBasis);
+        schd.gBasis->read();
       }
       if (basis == "sto") {
         schd.walkerBasis = REALSPACESTO;
         //read gaussian basis just to read the nuclear charge and coordinates
-        gaussianBasis gBasis ;
-        gBasis.read();
-        readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, gBasis);
+        schd.gBasis = boost::shared_ptr<Basis>(new gaussianBasis);
+        schd.gBasis->read();
+        readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, dynamic_cast<gaussianBasis&>(*schd.gBasis));
         schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
         map<string, Vector3d> atomList;
         for (int i=0; i<schd.Ncoords.size(); i++) {

@@ -16,9 +16,9 @@ using namespace Eigen;
     vector<int>& Nbasis = schd.Nbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval(x[elec], &aoValues[0]);
+    schd.gBasis->eval(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(Ncharge.size());
     double denom = 0.0;
@@ -42,9 +42,9 @@ using namespace Eigen;
     vector<int>& Nbasis = schd.Nbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(Ncharge.size());
     VectorXd gradxNum = VectorXd::Zero(Ncharge.size());
@@ -85,9 +85,9 @@ using namespace Eigen;
     vector<int>& Nbasis = schd.Nbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(Ncharge.size());
     VectorXd gradxNum = VectorXd::Zero(Ncharge.size());
@@ -153,9 +153,9 @@ using namespace Eigen;
     vector<vector<int>>& NSbasis = schd.NSbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval(x[elec], &aoValues[0]);
+    schd.gBasis->eval(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(Ncharge.size());
     double denom = 0.0;
@@ -179,9 +179,9 @@ using namespace Eigen;
     vector<vector<int>>& NSbasis = schd.NSbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(Ncharge.size());
     VectorXd gradxNum = VectorXd::Zero(Ncharge.size());
@@ -223,9 +223,9 @@ using namespace Eigen;
     vector<vector<int>>& NSbasis = schd.NSbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(Ncharge.size());
     VectorXd gradxNum = VectorXd::Zero(Ncharge.size());
@@ -289,10 +289,10 @@ using namespace Eigen;
 //Iliya style, square of orbital value
   void AB2_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
   {
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
 
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval(x[elec], &aoValues[0]);
+    schd.gBasis->eval(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(norbs);
     double denom = 0.0;
@@ -308,10 +308,10 @@ using namespace Eigen;
 
   void AB2_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
   {
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
 
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(norbs);
     VectorXd gradxNum = VectorXd::Zero(norbs);
@@ -343,10 +343,10 @@ using namespace Eigen;
 
   void AB2_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &grad2)
   {
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
 
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     VectorXd num = VectorXd::Zero(norbs);
     VectorXd gradxNum = VectorXd::Zero(norbs);
@@ -406,9 +406,9 @@ using namespace Eigen;
     vector<vector<int>>& NSbasis = schd.NSbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval(x[elec], &aoValues[0]);
+    schd.gBasis->eval(x[elec], &aoValues[0]);
 
     int numSorb = 0;
     for (int i = 0; i < NSbasis.size(); i++) { numSorb += NSbasis[i].size(); }
@@ -439,9 +439,9 @@ using namespace Eigen;
     vector<vector<int>>& NSbasis = schd.NSbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     int numSorb = 0;
     for (int i = 0; i < NSbasis.size(); i++) { numSorb += NSbasis[i].size(); }
@@ -489,9 +489,9 @@ using namespace Eigen;
     vector<vector<int>>& NSbasis = schd.NSbasis;
     vector<Vector3d>& Ncoords = schd.Ncoords;
 
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     int numSorb = 0;
     for (int i = 0; i < NSbasis.size(); i++) { numSorb += NSbasis[i].size(); }
@@ -561,10 +561,10 @@ using namespace Eigen;
 //Sorella style, orbital value
   void SS_eval(int elec, const vector<Vector3d> &x, VectorXd &values)
   {
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
 
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval(x[elec], &aoValues[0]);
+    schd.gBasis->eval(x[elec], &aoValues[0]);
 
     values = VectorXd::Zero(norbs);
     for (int I = 0; I < norbs; I++)
@@ -576,10 +576,10 @@ using namespace Eigen;
 
   void SS_eval_deriv(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad)
   {
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
 
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     values = VectorXd::Zero(norbs);
     grad[0] = VectorXd::Zero(norbs);
@@ -597,10 +597,10 @@ using namespace Eigen;
 
   void SS_eval_deriv2(int elec, const vector<Vector3d> &x, VectorXd &values, array<VectorXd, 3> &grad, array<VectorXd, 3> &grad2)
   {
-    int norbs = schd.basis->getNorbs();
+    int norbs = schd.gBasis->getNorbs();
 
     vector<double> aoValues(10*norbs, 0.0);
-    schd.basis->eval_deriv2(x[elec], &aoValues[0]);
+    schd.gBasis->eval_deriv2(x[elec], &aoValues[0]);
 
     values = VectorXd::Zero(norbs);
     grad[0] = VectorXd::Zero(norbs);

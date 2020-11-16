@@ -199,9 +199,7 @@ obj/%.o: VMC/%.cpp
 	$(CXX) $(FLAGS) -I./VMC $(OPT) -c $< -o $@
 obj/%.o: FCIQMC/%.cpp  
 	$(CXX) $(FLAGS) -I./FCIQMC $(OPT) -c $< -o $@
-obj/%.o: GFMC/%.cpp  
-	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./PMC $(OPT) -c $< -o $@
-obj/%.o: DMC/%.cpp  
+obj/%.o: PMC/%.cpp  
 	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./PMC $(OPT) -c $< -o $@
 obj/%.o: executables/%.cpp  
 	$(CXX) $(FLAGS) $(VERSION_FLAGS) -I./PMC -I./VMC -I./FCIQMC $(OPT) -c $< -o $@

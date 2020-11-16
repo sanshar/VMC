@@ -19,7 +19,7 @@
   "optimizer":
   {
     "maxIter": 1,
-    "stepsize": 0.01,
+    "stepsize": 0.0,
     "decay1": 0.1,
     "decay2": 0.01,
     "optimizecps": false

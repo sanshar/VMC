@@ -1,0 +1,23 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowslater"
+  },
+  "realspace":
+  {
+    "basis": "gto",
+    "nalpha": 1,
+    "nbeta": 1,
+    "norbs": 14
+  },
+  "sampling":
+  {
+    "stochasticIter": 5000,
+    "seed": 1,
+    "nwalk": 250,
+    "tau": 0.1,
+    "doTMove": true,
+    "ngeneration": 5,
+    "maxIter": 26
+  }
+}

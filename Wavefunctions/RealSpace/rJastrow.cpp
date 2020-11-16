@@ -124,8 +124,8 @@ rJastrow::rJastrow () {
    */
 
   //_params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
-  _params.resize(numParams, 1.e-4);
-  //_params.resize(numParams, 0.0);
+  //_params.resize(numParams, 1.e-4);
+  _params.resize(numParams, 0.0);
 
   _params[EEsameSpinIndex] = 0.25;
   _params[EEoppositeSpinIndex] = 0.5;
@@ -165,6 +165,11 @@ void rJastrow::updateVariables(const Eigen::VectorXd &v)
     _params[t] = v[t];
   }
 
+  //ensure these values stay constant
+  _params[EEsameSpinIndex] = 0.25;
+  _params[EEoppositeSpinIndex] = 0.5;
+  if (schd.noENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { _params[ENIndex + I * Qmax] = 0.0; }
+  if (schd.addENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { _params[ENIndex + I * Qmax] = - schd.uniqueAtoms[I]; }
 }
 
 

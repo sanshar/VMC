@@ -1649,8 +1649,8 @@ double getGradientHessianDirectMetropolisRealSpace(Wfn &wave, Walker &walk, doub
         eloc = wave.HamOverlap(walk, gradRatio, hamRatio);
 
         VectorXd G(numVars + 1), H(numVars + 1);
-        G << 1.0, gradRatio;
-        H << eloc, hamRatio;
+        G << 0.0, gradRatio;
+        H << 0.0, hamRatio;
 
         h.H.push_back(H);
         h.G.push_back(G);

@@ -106,6 +106,7 @@ private:
       & stepsizes
       & walkerBasis
       & basis
+      & gBasis
       & pseudo
       & nalpha
       & nbeta
@@ -171,6 +172,7 @@ public:
 //General options
   BASIS walkerBasis;                      //can be real space or local orbitals
   boost::shared_ptr<Basis> basis;
+  boost::shared_ptr<Basis> gBasis;      //if gto, this is just a copy of basis, if sto this stores the gaussian expansion of the sto's
   boost::shared_ptr<Pseudopotential> pseudo;
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
