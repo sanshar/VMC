@@ -885,15 +885,26 @@ void JastrowEENNValues(const VectorXd &N, const MatrixXd &n, VectorXd &ParamValu
 
       int stride = 2 * Nsize;
 
-      int aaindex = startIndex + stride + Ia * stride + Ja;
-      int bbindex = startIndex + stride + Ib * stride + Jb;
-      int abindex = startIndex + stride + Ia * stride + Jb;
-      int baindex = startIndex + stride + Ib * stride + Ja;
+      int max = std::max(Ia, Ja);
+      int min = std::min(Ia, Ja);
+      int aaindex = startIndex + stride + max * (max + 1) / 2 + min;
 
-      ParamValues[aaindex] = N[Ia] * N[Ja];
-      ParamValues[bbindex] = N[Ib] * N[Jb];
-      ParamValues[abindex] = N[Ia] * N[Jb];
-      ParamValues[baindex] = N[Ib] * N[Ja];  
+      max = std::max(Ib, Jb);
+      min = std::min(Ib, Jb);
+      int bbindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      max = std::max(Ia, Jb);
+      min = std::min(Ia, Jb);
+      int abindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      max = std::max(Ib, Ja);
+      min = std::min(Ib, Ja);
+      int baindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      ParamValues[aaindex] += N[Ia] * N[Ja];
+      ParamValues[bbindex] += N[Ib] * N[Jb];
+      ParamValues[abindex] += N[Ia] * N[Jb];
+      ParamValues[baindex] += N[Ib] * N[Ja];  
     }
   }
 }
@@ -935,7 +946,9 @@ void JastrowEENNgradient(int elec, const VectorXd &N, const MatrixXd &n, const s
       if (sz = 0)
       {
         {
-          int aaindex = startIndex + stride + Ia * stride + Ja;
+          int max = std::max(Ia, Ja);
+          int min = std::min(Ia, Ja);
+          int aaindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[aaindex];
 
           grad[0] += factor * (gradn[0](elec, I) * N[Ja] + N[Ia] * gradn[0](elec, J));
@@ -944,7 +957,9 @@ void JastrowEENNgradient(int elec, const VectorXd &N, const MatrixXd &n, const s
         }
 
         {
-          int abindex = startIndex + stride + Ia * stride + Jb;
+          int max = std::max(Ia, Jb);
+          int min = std::min(Ia, Jb);
+          int abindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[abindex];
 
           grad[0] += factor * gradn[0](elec, I) * N[Jb];
@@ -953,7 +968,9 @@ void JastrowEENNgradient(int elec, const VectorXd &N, const MatrixXd &n, const s
         }
 
         {
-          int baindex = startIndex + stride + Ib * stride + Ja;
+          int max = std::max(Ib, Ja);
+          int min = std::min(Ib, Ja);
+          int baindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[baindex];
 
           grad[0] += factor * N[Ib] * gradn[0](elec, J);
@@ -964,7 +981,9 @@ void JastrowEENNgradient(int elec, const VectorXd &N, const MatrixXd &n, const s
       else
       {
         {
-          int bbindex = startIndex + stride + Ib * stride + Jb;
+          int max = std::max(Ib, Jb);
+          int min = std::min(Ib, Jb);
+          int bbindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[bbindex];
 
           grad[0] += factor * (gradn[0](elec, I) * N[Jb] + N[Ib] * gradn[0](elec, J));
@@ -973,7 +992,9 @@ void JastrowEENNgradient(int elec, const VectorXd &N, const MatrixXd &n, const s
         }
 
         {
-          int abindex = startIndex + stride + Ia * stride + Jb;
+          int max = std::max(Ia, Jb);
+          int min = std::min(Ia, Jb);
+          int abindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[abindex];
 
           grad[0] += factor * N[Ia] * gradn[0](elec, J);
@@ -982,7 +1003,9 @@ void JastrowEENNgradient(int elec, const VectorXd &N, const MatrixXd &n, const s
         }
 
         {
-          int baindex = startIndex + stride + Ib * stride + Ja;
+          int max = std::max(Ib, Ja);
+          int min = std::min(Ib, Ja);
+          int baindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[baindex];
 
           grad[0] += factor * gradn[0](elec, I) * N[Ja];
@@ -1066,7 +1089,9 @@ double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d>
       if (sz = 0)
       {
         {
-          int aaindex = startIndex + stride + Ia * stride + Ja;
+          int max = std::max(Ia, Ja);
+          int min = std::min(Ia, Ja);
+          int aaindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[aaindex];
           val += factor * Np(Ia) * Np(Ja);
           val -= factor * N(Ia) * N(Ja);
@@ -1075,7 +1100,9 @@ double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d>
       else
       {
         {
-          int bbindex = startIndex + stride + Ib * stride + Jb;
+          int max = std::max(Ib, Jb);
+          int min = std::min(Ib, Jb);
+          int bbindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[bbindex];
           val += factor * Np(Ib) * Np(Jb);
           val -= factor * N(Ib) * N(Jb);
@@ -1083,14 +1110,18 @@ double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d>
       }
 
       {
-        int abindex = startIndex + stride + Ia * stride + Jb;
+        int max = std::max(Ia, Jb);
+        int min = std::min(Ia, Jb);
+        int abindex = startIndex + stride + max * (max + 1) / 2 + min;
         double factor = params[abindex];
         val += factor * Np(Ia) * Np(Jb);
         val -= factor * N(Ia) * N(Jb);
       }
 
       {
-        int baindex = startIndex + stride + Ib * stride + Ja;
+        int max = std::max(Ib, Ja);
+        int min = std::min(Ib, Ja);
+        int baindex = startIndex + stride + max * (max + 1) / 2 + min;
         double factor = params[baindex];
         val += factor * Np(Ib) * Np(Ja);
         val -= factor * N(Ib) * N(Ja);
@@ -1171,10 +1202,21 @@ double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vec
 
       int stride = 2 * Nsize;
 
-      int aaindex = startIndex + stride + Ia * stride + Ja;
-      int bbindex = startIndex + stride + Ib * stride + Jb;
-      int abindex = startIndex + stride + Ia * stride + Jb;
-      int baindex = startIndex + stride + Ib * stride + Ja;
+      int max = std::max(Ia, Ja);
+      int min = std::min(Ia, Ja);
+      int aaindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      max = std::max(Ib, Jb);
+      min = std::min(Ib, Jb);
+      int bbindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      max = std::max(Ia, Jb);
+      min = std::min(Ia, Jb);
+      int abindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      max = std::max(Ib, Ja);
+      min = std::min(Ib, Ja);
+      int baindex = startIndex + stride + max * (max + 1) / 2 + min;
 
       ParamValues[aaindex] += Np[Ia] * Np[Ja];
       ParamValues[bbindex] += Np[Ib] * Np[Jb];
@@ -1266,7 +1308,9 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
       if (sz = 0)
       {
         {
-          int aaindex = startIndex + stride + Ia * stride + Ja;
+          int max = std::max(Ia, Ja);
+          int min = std::min(Ia, Ja);
+          int aaindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[aaindex];
 
           val += factor * Np(Ia) * Np(Ja);
@@ -1282,7 +1326,9 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
         }
 
         {
-          int abindex = startIndex + stride + Ia * stride + Jb;
+          int max = std::max(Ia, Jb);
+          int min = std::min(Ia, Jb);
+          int abindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[abindex];
 
           val += factor * Np(Ia) * Np(Jb);
@@ -1298,7 +1344,9 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
         }
 
         {
-          int baindex = startIndex + stride + Ib * stride + Ja;
+          int max = std::max(Ib, Ja);
+          int min = std::min(Ib, Ja);
+          int baindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[baindex];
 
           val += factor * Np(Ib) * Np(Ja);
@@ -1316,7 +1364,9 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
       else
       {
         {
-          int bbindex = startIndex + stride + Ib * stride + Jb;
+          int max = std::max(Ib, Jb);
+          int min = std::min(Ib, Jb);
+          int bbindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[bbindex];
 
           val += factor * Np(Ib) * Np(Jb);
@@ -1332,7 +1382,9 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
         }
 
         {
-          int abindex = startIndex + stride + Ia * stride + Jb;
+          int max = std::max(Ia, Jb);
+          int min = std::min(Ia, Jb);
+          int abindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[abindex];
 
           val += factor * Np(Ia) * Np(Jb);
@@ -1348,7 +1400,9 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
         }
 
         {
-          int baindex = startIndex + stride + Ib * stride + Ja;
+          int max = std::max(Ib, Ja);
+          int min = std::min(Ib, Ja);
+          int baindex = startIndex + stride + max * (max + 1) / 2 + min;
           double factor = params[baindex];
 
           val += factor * Np(Ib) * Np(Ja);
@@ -1417,64 +1471,74 @@ void JastrowEENN(const VectorXd &N, const MatrixXd &n, const std::array<MatrixXd
 
       int stride = 2 * Nsize;
 
-      int aaindex = startIndex + stride + Ia * stride + Ja;
-      int bbindex = startIndex + stride + Ib * stride + Jb;
-      int abindex = startIndex + stride + Ia * stride + Jb;
-      int baindex = startIndex + stride + Ib * stride + Ja;
+      int max = std::max(Ia, Ja);
+      int min = std::min(Ia, Ja);
+      int aaindex = startIndex + stride + max * (max + 1) / 2 + min;
 
-      ParamValues[aaindex] = N[Ia] * N[Ja];
-      ParamValues[bbindex] = N[Ib] * N[Jb];
-      ParamValues[abindex] = N[Ia] * N[Jb];
-      ParamValues[baindex] = N[Ib] * N[Ja];
-      
+      max = std::max(Ib, Jb);
+      min = std::min(Ib, Jb);
+      int bbindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      max = std::max(Ia, Jb);
+      min = std::min(Ia, Jb);
+      int abindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      max = std::max(Ib, Ja);
+      min = std::min(Ib, Ja);
+      int baindex = startIndex + stride + max * (max + 1) / 2 + min;
+
+      ParamValues[aaindex] += N[Ia] * N[Ja];
+      ParamValues[bbindex] += N[Ib] * N[Jb];
+      ParamValues[abindex] += N[Ia] * N[Jb];
+      ParamValues[baindex] += N[Ib] * N[Ja];
+ 
       for (int i = 0; i < nelec; i++)
       {
         if (i < nalpha)
         {
-          ParamGradient[0](i, aaindex) = gradn[0](i, I) * N[Ja] + N[Ia] * gradn[0](i, J);
-          ParamGradient[1](i, aaindex) = gradn[1](i, I) * N[Ja] + N[Ia] * gradn[1](i, J);
-          ParamGradient[2](i, aaindex) = gradn[2](i, I) * N[Ja] + N[Ia] * gradn[2](i, J);
+          ParamGradient[0](i, aaindex) += gradn[0](i, I) * N[Ja] + N[Ia] * gradn[0](i, J);
+          ParamGradient[1](i, aaindex) += gradn[1](i, I) * N[Ja] + N[Ia] * gradn[1](i, J);
+          ParamGradient[2](i, aaindex) += gradn[2](i, I) * N[Ja] + N[Ia] * gradn[2](i, J);
 
-          ParamGradient[0](i, abindex) = gradn[0](i, I) * N[Jb];
-          ParamGradient[1](i, abindex) = gradn[1](i, I) * N[Jb];
-          ParamGradient[2](i, abindex) = gradn[2](i, I) * N[Jb];
+          ParamGradient[0](i, abindex) += gradn[0](i, I) * N[Jb];
+          ParamGradient[1](i, abindex) += gradn[1](i, I) * N[Jb];
+          ParamGradient[2](i, abindex) += gradn[2](i, I) * N[Jb];
 
-          ParamGradient[0](i, baindex) = N[Ib] * gradn[0](i, J);
-          ParamGradient[1](i, baindex) = N[Ib] * gradn[1](i, J);
-          ParamGradient[2](i, baindex) = N[Ib] * gradn[2](i, J);
+          ParamGradient[0](i, baindex) += N[Ib] * gradn[0](i, J);
+          ParamGradient[1](i, baindex) += N[Ib] * gradn[1](i, J);
+          ParamGradient[2](i, baindex) += N[Ib] * gradn[2](i, J);
 
-          ParamLaplacian(i, aaindex) = lapn(i, I) * N[Ja] + N[Ia] * lapn(i, J) + 2.0 * gradn[0](i, I) * gradn[0](i, J) 
-                                                                               + 2.0 * gradn[1](i, I) * gradn[1](i, J) 
-                                                                               + 2.0 * gradn[2](i, I) * gradn[2](i, J);
+          ParamLaplacian(i, aaindex) += lapn(i, I) * N[Ja] + N[Ia] * lapn(i, J) + 2.0 * gradn[0](i, I) * gradn[0](i, J) 
+                                                                                + 2.0 * gradn[1](i, I) * gradn[1](i, J) 
+                                                                                + 2.0 * gradn[2](i, I) * gradn[2](i, J);
 
-          ParamLaplacian(i, abindex) = lapn(i, I) * N[Jb];
+          ParamLaplacian(i, abindex) += lapn(i, I) * N[Jb];
 
-          ParamLaplacian(i, baindex) = N[Ib] * lapn(i, J);
+          ParamLaplacian(i, baindex) += N[Ib] * lapn(i, J);
         }
         else
         {
-          ParamGradient[0](i, bbindex) = gradn[0](i, I) * N[Jb] + N[Ib] * gradn[0](i, J);
-          ParamGradient[1](i, bbindex) = gradn[1](i, I) * N[Jb] + N[Ib] * gradn[1](i, J);
-          ParamGradient[2](i, bbindex) = gradn[2](i, I) * N[Jb] + N[Ib] * gradn[2](i, J);
+          ParamGradient[0](i, bbindex) += gradn[0](i, I) * N[Jb] + N[Ib] * gradn[0](i, J);
+          ParamGradient[1](i, bbindex) += gradn[1](i, I) * N[Jb] + N[Ib] * gradn[1](i, J);
+          ParamGradient[2](i, bbindex) += gradn[2](i, I) * N[Jb] + N[Ib] * gradn[2](i, J);
 
-          ParamGradient[0](i, abindex) = N[Ia] * gradn[0](i, J);
-          ParamGradient[1](i, abindex) = N[Ia] * gradn[1](i, J);
-          ParamGradient[2](i, abindex) = N[Ia] * gradn[2](i, J);
+          ParamGradient[0](i, abindex) += N[Ia] * gradn[0](i, J);
+          ParamGradient[1](i, abindex) += N[Ia] * gradn[1](i, J);
+          ParamGradient[2](i, abindex) += N[Ia] * gradn[2](i, J);
 
-          ParamGradient[0](i, baindex) = gradn[0](i, I) * N[Ja];
-          ParamGradient[1](i, baindex) = gradn[1](i, I) * N[Ja];
-          ParamGradient[2](i, baindex) = gradn[2](i, I) * N[Ja];
+          ParamGradient[0](i, baindex) += gradn[0](i, I) * N[Ja];
+          ParamGradient[1](i, baindex) += gradn[1](i, I) * N[Ja];
+          ParamGradient[2](i, baindex) += gradn[2](i, I) * N[Ja];
 
-          ParamLaplacian(i, bbindex) = lapn(i, I) * N[Jb] + N[Ib] * lapn(i, J) + 2.0 * gradn[0](i, I) * gradn[0](i, J) 
-                                                                               + 2.0 * gradn[1](i, I) * gradn[1](i, J) 
-                                                                               + 2.0 * gradn[2](i, I) * gradn[2](i, J);
+          ParamLaplacian(i, bbindex) += lapn(i, I) * N[Jb] + N[Ib] * lapn(i, J) + 2.0 * gradn[0](i, I) * gradn[0](i, J) 
+                                                                                + 2.0 * gradn[1](i, I) * gradn[1](i, J) 
+                                                                                + 2.0 * gradn[2](i, I) * gradn[2](i, J);
 
-          ParamLaplacian(i, abindex) = N[Ia] * lapn(i, J);
+          ParamLaplacian(i, abindex) += N[Ia] * lapn(i, J);
 
-          ParamLaplacian(i, baindex) = lapn(i, I) * N[Ja];
+          ParamLaplacian(i, baindex) += lapn(i, I) * N[Ja];
         }
       }
     }
   }    
 }
-

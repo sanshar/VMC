@@ -17,10 +17,10 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               2923.218
+CPU MHz:               2934.750
 Computation started at:
-Mon Nov 16 12:34:01 MST 2020
-git commit: 894511970d314fe1dc56e677e77b990a96d6cd25, branch: merged, compiled at: Mon Nov 16 12:07:13 MST 2020
+Mon Nov 23 14:46:53 MST 2020
+git commit: fd335749c5d540a2104f8b50bde740f5c6c88631, branch: merged, compiled at: Mon Nov 23 13:51:32 MST 2020
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -63,17 +63,19 @@ Input file  :
         "dTol": "1.0e-3",
         "cgTol": "1.0e-3",
         "sgdIter": "0",
-        "maxIter": "4"
+        "maxIter": "6"
     },
     "print": {
         "vars": "false"
     }
 }
 
-Number of Jastrow vars: 81
+Number of Jastrow vars: 53
 Number of Reference vars: 9
-Number of Optimized vars: 90
-    0    -0.83096102 (2.62e-02)     0.12860277    433.6      0.9     0.88     1.41     1.93 
-    1    -0.93222286 (1.80e-02)     0.13532693    481.4      0.9     2.53     2.55     3.06 
-    2    -0.96265690 (1.29e-02)     0.05785458    371.3      0.9     3.67     3.69     4.21 
-    3    -0.99631181 (2.22e-03)     0.01298233     19.7      0.9     4.80     4.82     5.33 
+Number of Optimized vars: 62
+    0    -0.83096102 (2.62e-02)     0.14677035    433.6      0.9     0.84     1.18     1.69 
+    1    -0.92672196 (1.05e-02)     0.15639035    159.9      0.9     2.37     2.37     2.90 
+    2    -0.98797650 (4.39e-03)     0.03364404    128.2      0.9     3.52     3.53     4.05 
+    3    -0.97878492 (7.73e-03)     0.04446906    246.4      0.9     4.67     4.69     5.20 
+    4    -0.98654398 (7.04e-03)     0.02302748    148.8      0.9     5.84     5.86     6.38 
+    5    -1.00165190 (5.11e-04)     0.02315096      2.3      0.9     7.04     7.05     7.57 

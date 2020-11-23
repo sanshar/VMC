@@ -80,35 +80,27 @@ rJastrow::rJastrow () {
    
    int numParams = EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex;
 
-   /*
-   if (schd.fourBodyJastrow) {
-     if (schd.fourBodyJastrowBasis == NC)
-       numParams = EENNIndex + schd.Ncharge.size() * (schd.Ncharge.size() + 1) / 2;
-     else if(schd.fourBodyJastrowBasis == AB2)
-       numParams = EENNIndex + norbs * (norbs + 1) / 2;
-   }
-   */
    if (schd.fourBodyJastrow) {
      if (schd.fourBodyJastrowBasis == NC || schd.fourBodyJastrowBasis == sNC) {
-       numParams = EENNIndex + 4 * schd.Ncharge.size() * schd.Ncharge.size();
+       numParams = EENNIndex + (2 * schd.Ncharge.size()) * (2 * schd.Ncharge.size() + 1) / 2;
      }
      else if (schd.fourBodyJastrowBasis == SG) {
-       numParams = EENNIndex + 4 * schd.Ncharge.size() * schd.Ncharge.size();
+       numParams = EENNIndex + (2 * schd.Ncharge.size()) * (2 * schd.Ncharge.size() + 1) / 2;
      }
      else if(schd.fourBodyJastrowBasis == AB2) {
-       numParams = EENNIndex + 4 * norbs * norbs;
+       numParams = EENNIndex + (2 * norbs) * (2 * norbs + 1) / 2;
      }
      else if(schd.fourBodyJastrowBasis == sAB2) {
-       numParams = EENNIndex + 4 * numSorb * numSorb;
+       numParams = EENNIndex + (2 * numSorb) * (2 * numSorb + 1) / 2;
      }
      else if(schd.fourBodyJastrowBasis == SS) {
-       numParams = EENNIndex + 4 * norbs * norbs;
+       numParams = EENNIndex + (2 * norbs) * (2 * norbs + 1) / 2;
      }
      else if (schd.fourBodyJastrowBasis == G) {
-       numParams = EENNIndex + 4 * schd.gridGaussians.size() * schd.gridGaussians.size();
+       numParams = EENNIndex + (2 * schd.gridGaussians.size()) * (2 * schd.gridGaussians.size() + 1) / 2;
      }
    }
-   
+
    /*
    if (commrank == 0) {
    cout << schd.fourBodyJastrowBasis << endl;
@@ -123,7 +115,6 @@ rJastrow::rJastrow () {
    }
    */
 
-  //_params.resize(EENoppositeSpinIndex + EENoppositeSpinIndex - EENsameSpinIndex, 1.e-4);
   //_params.resize(numParams, 1.e-4);
   _params.resize(numParams, 0.0);
 
@@ -239,7 +230,9 @@ void rJastrow::printVariables() const
     cout << "EENNquadratic" << endl;
     for (int i = 0; i < size; i++) {
       for (int j = 0; j < size; j++) {
-        cout << _params[EENNlinearIndex + size + i * size + j] << " ";
+        int max = std::max(i, j);
+        int min = std::min(i, j);
+        cout << _params[EENNlinearIndex + size + max * (max + 1) / 2 + min] << " ";
       }
       cout << endl;
     }
