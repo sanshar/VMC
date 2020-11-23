@@ -224,24 +224,6 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
   wt *= std::exp(- tau_eff * (Eloc - Eshift));
 
-  //print if walker has weird wt or Eloc
-  if (wt > 3.0 || std::isnan(Eloc) || std::isnan(wt))
-  {
-    cout << "Process: " << commrank << endl;
-    cout << "Large weight: " << wt << endl;
-    cout << "exponential: " << - tau_eff * (Eloc - Eshift) << endl;
-    cout << "effective time step: " << tau_eff << endl;
-    cout << "Energy shift: " << Eshift << endl;
-    cout << "Local energy: " << Eloc << " | " << w.rHam(walk) << endl;
-    cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
-    cout << "coords" << endl;
-    cout << walk.d << endl;
-    cout << "RiI" << endl;
-    cout << walk.RiN << endl;
-    cout << "Rij" << endl;
-    cout << walk.Rij << endl;
-  }
-
   //size consistent t-moves
   if (schd.doTMove)
   {
@@ -271,6 +253,24 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
       //double ovlpRatio = w.getOverlapFactor(i, riq[i][index], walk);
       //if (ovlpRatio > 0.0) { walk.updateWalker(i, riq[i][index], w.getRef(), w.getCorr()); } //don't cross node
     }
+  }
+
+  //print if walker has weird wt or Eloc
+  if (wt > 10.0 || std::isnan(Eloc) || std::isnan(wt))
+  {
+    cout << "Process: " << commrank << endl;
+    cout << "Large weight: " << wt << endl;
+    cout << "exponential: " << - tau_eff * (Eloc - Eshift) << endl;
+    cout << "effective time step: " << tau_eff << endl;
+    cout << "Energy shift: " << Eshift << endl;
+    cout << "Local energy: " << Eloc << " | " << w.rHam(walk) << endl;
+    cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
+    cout << "coords" << endl;
+    cout << walk.d << endl;
+    cout << "RiI" << endl;
+    cout << walk.RiN << endl;
+    cout << "Rij" << endl;
+    cout << walk.Rij << endl;
   }
 
   return acceptedProb;

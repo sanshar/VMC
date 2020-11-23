@@ -222,10 +222,6 @@ class Metropolis
   {
     Stats.Block();
     rk = Stats.BlockCorrTime();
-    if (commrank == 0)
-    { 
-      Stats.WriteBlock();
-    }
     S1 /= n;
 #ifndef SERIAL
     MPI_Allreduce(MPI_IN_PLACE, &Energy, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -241,7 +237,7 @@ class Metropolis
     fracAmoves = nAMoves / n;
     if (commrank == 0)
     {
-      cout << "Fraction of accepted moves:\t" << fracAmoves << endl;
+      //cout << "Fraction of accepted moves:\t" << fracAmoves << endl;
       char file[50];
       sprintf(file, "BestDeterminant.txt");
       std::ofstream ofs(file, std::ios::binary);

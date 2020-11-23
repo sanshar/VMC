@@ -2133,7 +2133,7 @@ void getStochasticGradientHessianDirectContinuousTime(Wfn &w, Walker& walk, doub
 
 //############################################################Metropolis Evaluation############################################################################
 template<typename Wfn, typename Walker>
-void getStochasticGradientMetropolis(Wfn &w, Walker &walk, double &Energy, double &stddev, VectorXd &grad, double &rk, int niter)
+double getStochasticGradientMetropolis(Wfn &w, Walker &walk, double &Energy, double &stddev, VectorXd &grad, double &rk, int niter)
 {
   Metropolis<Wfn, Walker> M(w, walk, niter); 
   Energy = 0.0, stddev = 0.0, rk = 0.0;
@@ -2149,6 +2149,7 @@ void getStochasticGradientMetropolis(Wfn &w, Walker &walk, double &Energy, doubl
   }
   M.FinishEnergy(Energy, stddev, rk);
   M.FinishGradient(grad, grad_ratio_bar, Energy);
+  return M.fracAmoves;
 }
 
 //############################################################Correlated Sampling Evaluation############################################################################
@@ -2313,25 +2314,28 @@ class getGradientWrapper
   {
     w.updateVariables(vars);
     w.initWalker(walk);
+    double acceptanceProb;
     if (!deterministic)
     {
       if (ctmc)
       {
+        acceptanceProb = 1.0;
         getStochasticGradientContinuousTime(w, walk, E0, stddev, grad, rt, stochasticIter);
       }
       else
       {
-        getStochasticGradientMetropolis(w, walk, E0, stddev, grad, rt, stochasticIter);
+        acceptanceProb = getStochasticGradientMetropolis(w, walk, E0, stddev, grad, rt, stochasticIter);
       }
     }
     else
     {
+      acceptanceProb = 1.0;
       stddev = 0.0;
       rt = 1.0;
       getGradientDeterministic(w, walk, E0, grad);
     }
     w.writeWave();
-    return 1.0;
+    return acceptanceProb;
   };
 
   double getGradientRealSpace(VectorXd &vars, VectorXd &grad, double &E0, double &stddev, double &rt, bool deterministic)
