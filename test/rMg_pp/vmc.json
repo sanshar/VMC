@@ -6,7 +6,6 @@
   "realspace":
   {
     "basis": "gto",
-    "pseudoCutOff": 3.0,
     "nalpha": 1,
     "nbeta": 1,
     "norbs": 14

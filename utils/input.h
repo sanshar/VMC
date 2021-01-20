@@ -128,6 +128,7 @@ private:
       & gridGaussians
       & Nbasis
       & NSbasis
+      & NPbasis
       & direct
       & rStepType
       & rStepSize
@@ -181,6 +182,7 @@ public:
   vector<int> uniqueAtomsMap;
   vector<int> Nbasis;
   vector<vector<int>> NSbasis;
+  vector<vector<int>> NPbasis;
 
   bool restart;                          //option to restart calculation
   bool fullRestart;                          //option to restart calculation
@@ -390,6 +392,7 @@ void readGeometry(vector<Vector3d>& Ncoords,
                   vector<int>  & uniqueAtomsMap,
                   vector<int>  & Nbasis,
                   vector<vector<int>> & NSbasis,
+                  vector<vector<int>> & NPbasis,
                   gaussianBasis& gBasis);
 
 void readGridGaussians(vector<pair<double,Vector3d>> &gridGaussians);

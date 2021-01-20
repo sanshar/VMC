@@ -69,7 +69,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
         schd.walkerBasis = REALSPACEGTO;
         schd.basis = boost::shared_ptr<Basis>(new gaussianBasis);
         schd.basis->read();
-        readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
+        readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, schd.NPbasis, dynamic_cast<gaussianBasis&>(*schd.basis));
         schd.gBasis = boost::shared_ptr<Basis>(new gaussianBasis);
         schd.gBasis->read();
       }
@@ -78,7 +78,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
         //read gaussian basis just to read the nuclear charge and coordinates
         schd.gBasis = boost::shared_ptr<Basis>(new gaussianBasis);
         schd.gBasis->read();
-        readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, dynamic_cast<gaussianBasis&>(*schd.gBasis));
+        readGeometry(schd.Ncoords, schd.Ncharge, schd.uniqueAtoms, schd.uniqueAtomsMap, schd.Nbasis, schd.NSbasis, schd.NPbasis, dynamic_cast<gaussianBasis&>(*schd.gBasis));
         schd.basis = boost::shared_ptr<Basis>(new slaterBasis);
         map<string, Vector3d> atomList;
         for (int i=0; i<schd.Ncoords.size(); i++) {
@@ -101,7 +101,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
       if (pQuad == "tetrahedral") schd.pQuad = tetrahedral;
       else if (pQuad == "octahedral") schd.pQuad = octahedral;
       else if (pQuad == "icosahedral") schd.pQuad = icosahedral;
-      schd.pCutOff = input.get("realspace.pseudoCutOff", 3.0);
+      schd.pCutOff = input.get("realspace.pseudoCutOff", 1.0e-8);
       if (schd.pQuad == tetrahedral)
       {
         //sample 4 vertices of tetrahedral
@@ -451,12 +451,14 @@ void readGeometry(vector<Vector3d>& Ncoords,
                   vector<int>  & uniqueAtomsMap,
                   vector<int> & Nbasis,
                   vector<vector<int>> & NSbasis,
+                  vector<vector<int>> & NPbasis,
                   gaussianBasis& gBasis) {
   int N = gBasis.natm;
   Ncoords.resize(N);
   Ncharge.resize(N);
   Nbasis.assign(N, 0);
   NSbasis.resize(N);
+  NPbasis.resize(N);
 
   int stride = gBasis.atm.size()/N;
   for (int i=0; i<N; i++) {
@@ -472,11 +474,11 @@ void readGeometry(vector<Vector3d>& Ncoords,
     int l = gBasis.bas[i * 8 + 1];
     int n = gBasis.bas[i * 8 + 3];
     int numOrbs = n * (2 * l + 1);
-    if (l == 2) numOrbs += 1; //we use a cartesian basis, this results in 6 d orbitals, not 5
 
-    Nbasis[index] += numOrbs;
+    Nbasis[index] += numOrbs; //total number of orbitals for each atom
 
     if (l == 0) NSbasis[index].push_back(orb); //map to s orbitals for each atom
+    if (l == 1) NPbasis[index].push_back(orb); //map to p orbitals for each atom
 
     orb += numOrbs;
   }

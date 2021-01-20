@@ -9,19 +9,19 @@
 
 std::ostream &operator<<(std::ostream &os, const Pseudopotential &PP)
 {
-    for (auto it = PP.begin(); it != PP.end(); ++it)
+    for (auto it = PP.begin(); it != PP.end(); it++)
     {
         int atm = it->first;
         const ppHelper &ppatm = it->second;
         os << atm << "\t" << ppatm.ncore() << "\tidx";
         for (int i = 0; i < ppatm.indices().size(); i++) { os << "\t" << ppatm.indices()[i]; }
         os << std::endl;
-        for (auto it1 = ppatm.begin(); it1 != ppatm.end(); ++it1)
+        for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++)
         {
             int l = it1->first;
             const std::vector<double> &lchannel = it1->second;
             os << l << std::endl;
-            for (int i = 0; i < lchannel.size(); ++i)
+            for (int i = 0; i < lchannel.size(); i++)
             {
                 if (i % 3 == 0 && i != 0) { os << std::endl; }
                 os << lchannel[i] << "\t";
@@ -37,7 +37,7 @@ int Pseudopotential::ncore() const
     int ncore = 0;
     if (!Store.empty())
     {
-        for (auto it = begin(); it != end(); ++it)
+        for (auto it = begin(); it != end(); it++)
         {
             int atm = it->first;
             const ppHelper &ppatm = it->second;
@@ -60,7 +60,7 @@ Pseudopotential::Pseudopotential(std::string filename)
             std::getline(f, line);
             boost::algorithm::trim(line);
             std::vector<std::string> token;
-            boost::split(token, line, boost::is_any_of(" \t\n"), boost::token_compress_on);
+            boost::split(token, line, boost::is_any_of(" \t"), boost::token_compress_on);
             
             if (token.size() == 1 && token[0] == "\0") { break; } //reached end of file
 
@@ -96,7 +96,7 @@ double Pseudopotential::localPotential(const rDeterminant &d) const
     {
         for (int i = 0; i < d.nelec; i++) //loop over electrons
         {
-            for (auto it = begin(); it != end(); ++it) //loop over atoms with pseudopotential
+            for (auto it = begin(); it != end(); it++) //loop over atoms with pseudopotential
             {
                 const ppHelper &ppatm = it->second;
                 for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
@@ -114,7 +114,7 @@ double Pseudopotential::localPotential(const rDeterminant &d) const
   
                         //calculate potential
                         double v = 0.0;
-                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2) * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
+                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), int(pec.at(m) - 2)) * std::exp(-pec.at(m + 1) * riI.squaredNorm()) * pec.at(m + 2); }
                         
                         //accumulate
                         Vl += v;    
@@ -140,7 +140,7 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
         {
             std::vector<double> vq;
             std::vector<Vector3d> rq;
-            for (auto it = begin(); it != end(); ++it) //loop over atoms with pseudopotential
+            for (auto it = begin(); it != end(); it++) //loop over atoms with pseudopotential
             {
                 const ppHelper &ppatm = it->second;
                 for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
@@ -155,17 +155,30 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                         Eigen::Vector3d riI = ri - rI;
                         
                         //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
-                        if (l == -1 || riI.norm() > schd.pCutOff) { continue; } 
+                        if (l == -1) { continue; } 
                         
                         //calculate potential
                         double v = 0.0;
-                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), pec[m] - 2) * std::exp(-pec[m + 1] * riI.squaredNorm()) * pec[m + 2]; }
+                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), int(pec.at(m) - 2)) * std::exp(-pec.at(m + 1) * riI.squaredNorm()) * pec.at(m + 2); }
+
+                        if (std::abs(v) < schd.pCutOff) { continue; } //if potential weak, don't integrate
                         
                         //random rotation
-                        Eigen::Vector3d riIhat = riI.normalized();
-                        double angle = random() * 2.0 * M_PI;
-                        //double angle = 0.0; //this is easier when debugging
-                        Eigen::AngleAxis<double> rot(angle, riIhat);
+                        auto unit_vector = [](double theta, double phi) -> Eigen::Vector3d { return Vector3d(std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta)); };
+                        //z
+                        double theta = random() * M_PI;
+                        double phi = random() * 2.0 * M_PI;
+                        Eigen::Vector3d zhat = unit_vector(theta, phi);
+                        //x
+                        Eigen::Vector3d xhat = unit_vector(theta + M_PI / 2.0, phi);
+                        double phi1 = random() * 2.0 * M_PI;
+                        Eigen::AngleAxis<double> rot1(phi1, zhat);
+                        xhat = rot1 * xhat;
+                        //y
+                        Eigen::Vector3d yhat = zhat.cross(xhat);
+                        //matrix
+                        Matrix3d rot;
+                        rot << zhat.transpose(), xhat.transpose(), yhat.transpose();
                         
                         double C = (2.0 * double(l) + 1.0);
                         for (int q = 0; q < schd.Q.size(); q++)
@@ -178,8 +191,18 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                             double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
                             
                             //legendre polynomial
-                            double Pl = boost::math::legendre_p<double>(l, costheta);
-                            
+                            auto leg_pol = [](int l, double x) -> double
+                            {
+                                double Pl = 0.0;
+                                if (l == 0) { Pl = 1; }
+                                else if (l == 1) { Pl = x; }
+                                else if (l == 2) { Pl = 0.5 * (3 * x * x - 1); }
+                                else if (l == 3) { Pl = 0.5 * (5 * x * x * x - 3 * x); }
+                                else if (l == 4) { Pl = 0.125 * (35 * x * x * x * x - 30 * x * x + 3); }
+                                return Pl;
+                            };
+                            double Pl = leg_pol(l, costheta);
+
                             //update tensors
                             vq.push_back(v * C * Pl / double(schd.Q.size()));
                             rq.push_back(riprime);

@@ -8,7 +8,6 @@
   {
     "basis": "gto",
     "pseudo": "octahedral",
-    "pseudoCutOff": 3.0,
     "nalpha": 1,
     "nbeta": 1,
     "norbs": 14

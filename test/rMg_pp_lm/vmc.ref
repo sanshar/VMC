@@ -17,10 +17,10 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               2899.968
+CPU MHz:               3013.781
 Computation started at:
-Mon Nov 16 12:26:44 MST 2020
-git commit: 894511970d314fe1dc56e677e77b990a96d6cd25, branch: merged, compiled at: Mon Nov 16 12:07:13 MST 2020
+Wed Jan 20 14:57:55 MST 2021
+git commit: 1f397869be5f22599ed2839bbce51915bb4977eb, branch: merged, compiled at: Tue Jan 19 22:18:57 MST 2021
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -35,7 +35,6 @@ Input file  :
     "realspace": {
         "basis": "gto",
         "pseudo": "octahedral",
-        "pseudoCutOff": "3.0",
         "nalpha": "1",
         "nbeta": "1",
         "norbs": "14"
@@ -65,9 +64,9 @@ Input file  :
 Number of Jastrow vars: 30
 Number of Reference vars: 29
 Number of Optimized vars: 59
-    0    -0.79529043 (1.22e-03)     0.03575621      1.8      0.7     0.52     0.52     0.52 
-    1    -0.79456514 (1.22e-03)     0.03817221      1.8      0.7     1.28     1.30     1.77 
-    2    -0.80637469 (8.63e-04)     0.01981769      2.1      0.7     2.52     2.55     3.01 
-    3    -0.81565221 (4.69e-04)     0.00656566      1.8      0.7     3.63     3.67     4.13 
-    4    -0.81838871 (3.77e-04)     0.00405773      1.4      0.7     4.89     5.01     5.47 
-    5    -0.81871193 (3.99e-04)     0.00324940      1.2      0.7     6.23     6.25     6.71 
+    0    -0.79372150 (1.24e-03)     0.03687900      1.8      0.8     0.59     0.59     0.59 
+    1    -0.79471663 (1.15e-03)     0.03621851      1.6      0.7     1.44     1.46     2.05 
+    2    -0.80509826 (8.09e-04)     0.01999468      1.7      0.7     2.98     3.01     3.62 
+    3    -0.81683784 (4.89e-04)     0.00603292      1.8      0.7     4.55     4.73     5.30 
+    4    -0.81856057 (3.61e-04)     0.00266928      1.4      0.7     6.20     6.28     6.85 
+    5    -0.81922959 (3.23e-04)     0.00336080      1.2      0.7     7.71     7.80     8.39 
