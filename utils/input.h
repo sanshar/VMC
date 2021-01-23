@@ -80,6 +80,7 @@ private:
       & doHessian
       & hf
       & optimizeOrbs
+      & optimizeCiCoeffs
       & optimizeCps
       & optimizeBackflow
       & optimizeJastrow
@@ -95,6 +96,7 @@ private:
       & nGeneration
       & excitationLevel
       & numActive
+      & nciCore
       & nciAct
       & sDiagShift
       & hDiagShift
@@ -209,6 +211,8 @@ public:
   bool fourBodyJastrow;
   JBASIS fourBodyJastrowBasis;
   
+  int nciCore;                          // number of core spatial orbitals
+  int nciAct;                           // number of active spatial orbitals, assumed to be the first in the basis
 //input file to define the correlator parts of the wavefunction
   int nalpha;
   int nbeta;
@@ -243,6 +247,7 @@ public:
   bool doHessian;                        //This calcules the Hessian and overlap for the linear method
   std::string hf;
   bool optimizeOrbs;
+  bool optimizeCiCoeffs;
   bool optimizeCps;
   bool optimizeBackflow;
   bool optimizeJastrow;//used in jrbm
@@ -303,7 +308,6 @@ public:
   //options for configuration interaction
   int excitationLevel;
   int numActive; //number of active spatial orbitals, assumed to be the first in the basis
-  int nciAct; //number of active spatial orbitals, assumed to be the first in the basis
   double actWidth; //used in lanczos
   double overlapCutoff; //used in SCCI
   std::string diagMethod;
@@ -396,5 +400,32 @@ void readGeometry(vector<Vector3d>& Ncoords,
                   gaussianBasis& gBasis);
 
 void readGridGaussians(vector<pair<double,Vector3d>> &gridGaussians);
+
+// for vmc
+// reads determinants from Dice, for now assumes rhf dets and converts them into ghf = block_diag(rhf, rhf) 
+// the reference determinant, assumed to be the first in the file, is read in as a list of integers
+// the rest are stored as excitations from ref
+// assumes Dice parity included in ci coeffs
+// the parity vector in the function arguments refers to parity of excitations required when using matrix det lemma
+void readDeterminants(std::string input, std::vector<int>& ref, std::vector<int>& open, std::vector<std::array<Eigen::VectorXi, 2>>& ciExcitations,
+        std::vector<int>& ciParity, std::vector<double>& ciCoeffs);
+
+
+void readDeterminantsGHF(std::string input, std::vector<int>& ref, std::vector<int>& open, std::vector<std::array<Eigen::VectorXi, 2>>& ciExcitations,
+        std::vector<int>& ciParity, std::vector<double>& ciCoeffs);
+
+
+// for dqmc
+// reads determinants from Dice, uses uhf dets
+// the reference determinant, assumed to be the first in the file, is read in as a list of integers
+// the rest are stored as excitations from ref
+// assumes Dice parity included in ci coeffs
+// the parity vector in the function arguments refers to parity of excitations required when using matrix det lemma
+void readDeterminants(std::string input, std::array<std::vector<int>, 2>& ref, std::array<std::vector<std::array<Eigen::VectorXi, 2>>, 2>& ciExcitations,
+        std::vector<double>& ciParity, std::vector<double>& ciCoeffs);
+
+// same as above but for binary files
+void readDeterminantsBinary(std::string input, std::array<std::vector<int>, 2>& ref, std::array<std::vector<std::array<Eigen::VectorXi, 2>>, 2>& ciExcitations,
+        std::vector<double>& ciParity, std::vector<double>& ciCoeffs);
 
 #endif

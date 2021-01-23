@@ -60,6 +60,9 @@ void readInput(string inputFile, schedule& schd, bool print) {
       cout << ss.str() << endl;
     }
 
+    schd.nciCore = input.get("system.numCore", 0);                  // TODO: rename these because active spaces are also used without ci
+    schd.nciAct = input.get("system.numAct", -1);
+
     //check for realspace block, containing only system info, wave function info still in that block
     optional< property_tree::iptree& > realspace = input.get_child_optional("realspace");
     if (realspace) {
@@ -286,6 +289,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.avgIter = input.get("optimizer.avgIter", 0);
     schd.stepsize = input.get("optimizer.stepsize", 0.001);
     schd.optimizeOrbs = input.get("optimizer.optimizeOrbs", true);
+    schd.optimizeCiCoeffs = input.get("optimizer.optimizeCiCoeffs", true);
     schd.optimizeCps = input.get("optimizer.optimizeCps", true);
     schd.optimizeJastrow = input.get("optimizer.optimizeJastrow", true);//this is only used in jrbm, doesn't affect jslater
     schd.optimizeRBM = input.get("optimizer.optimizeRBM", true);
@@ -620,4 +624,419 @@ void readDeterminants(std::string input, vector<Determinant> &determinants,
 	  *ciExpansion.rbegin() *= getParityForDiceToAlphaBeta(det);
 	}
     }
+}
+
+void readDeterminants(std::string input, std::vector<int>& ref, std::vector<int>& open, std::vector<std::array<VectorXi, 2>>& ciExcitations,
+        std::vector<int>& ciParity, std::vector<double>& ciCoeffs)
+{
+  int norbs = Determinant::norbs;
+  ifstream dump(input.c_str());
+  bool isFirst = true;
+  Determinant refDet;
+  VectorXi sizes = VectorXi::Zero(10);
+  int numDets = 0;
+  
+  while (dump.good()) {
+    std::string Line;
+    std::getline(dump, Line);
+
+    boost::trim_if(Line, boost::is_any_of(", \t\n"));
+    
+    vector<string> tok;
+    boost::split(tok, Line, boost::is_any_of(", \t\n"), boost::token_compress_on);
+
+
+    if (tok.size() > 2 ) {
+      if (isFirst) {//first det is ref
+        isFirst = false;
+        ciCoeffs.push_back(atof(tok[0].c_str()));
+        ciParity.push_back(1);
+        std::array<VectorXi, 2> empty;
+        ciExcitations.push_back(empty);
+        vector<int> closedBeta, openBeta; //no ghf det structure, so artificially using vector of ints, alpha followed by beta
+        for (int i=0; i<norbs; i++) {
+          if (boost::iequals(tok[1+i], "2")) {
+            refDet.setoccA(i, true);
+            refDet.setoccB(i, true);
+            ref.push_back(i);
+            closedBeta.push_back(i + norbs);
+          }
+          else if (boost::iequals(tok[1+i], "a")) {
+            refDet.setoccA(i, true);
+            ref.push_back(i);
+            openBeta.push_back(i + norbs);
+          }
+          else if (boost::iequals(tok[1+i], "b")) {
+            refDet.setoccB(i, true);
+            closedBeta.push_back(i + norbs);
+            open.push_back(i);
+          }
+          else if (boost::iequals(tok[1+i], "0")) {
+            open.push_back(i);
+            openBeta.push_back(i + norbs);
+          }
+        }
+        ref.insert(ref.end(), closedBeta.begin(), closedBeta.end());
+        open.insert(open.end(), openBeta.begin(), openBeta.end());
+      }
+      else {
+        vector<int> desA, creA, desB, creB;
+        for (int i=0; i<norbs; i++) {
+          if (boost::iequals(tok[1+i], "2")) {
+            if (!refDet.getoccA(i)) creA.push_back(i);
+            if (!refDet.getoccB(i)) creB.push_back(i);
+          }
+          else if (boost::iequals(tok[1+i], "a")) {
+            if (!refDet.getoccA(i)) creA.push_back(i);
+            if (refDet.getoccB(i)) desB.push_back(i);
+          }
+          else if (boost::iequals(tok[1+i], "b")) {
+            if (refDet.getoccA(i)) desA.push_back(i);
+            if (!refDet.getoccB(i)) creB.push_back(i);
+          }
+          else if (boost::iequals(tok[1+i], "0")) {
+            if (refDet.getoccA(i)) desA.push_back(i);
+            if (refDet.getoccB(i)) desB.push_back(i);
+          }
+        }
+        VectorXi cre = VectorXi::Zero(creA.size() + creB.size());
+        VectorXi des = VectorXi::Zero(desA.size() + desB.size());
+        for (int i = 0; i < creA.size(); i++) {
+          des[i] = std::search_n(ref.begin(), ref.end(), 1, desA[i]) - ref.begin();
+          cre[i] = std::search_n(open.begin(), open.end(), 1, creA[i]) - open.begin();
+          //cre[i] = creA[i];
+        }
+        for (int i = 0; i < creB.size(); i++) {
+          des[i + desA.size()] = std::search_n(ref.begin(), ref.end(), 1, desB[i] + norbs) - ref.begin();
+          cre[i + creA.size()] = std::search_n(open.begin(), open.end(), 1, creB[i] + norbs) - open.begin();
+          //cre[i + creA.size()] = creB[i] + norbs;
+        }
+        std::array<VectorXi, 2> excitations;
+        excitations[0] = des;
+        excitations[1] = cre;
+        if (cre.size() > schd.excitationLevel) continue;
+        numDets++;
+        ciCoeffs.push_back(atof(tok[0].c_str()));
+        ciParity.push_back(refDet.parityA(creA, desA) * refDet.parityB(creB, desB));
+        ciExcitations.push_back(excitations);
+        if (cre.size() < 10) sizes(cre.size())++;
+      }
+    }
+  }
+  if (commrank == 0) {
+    cout << "Rankwise number of excitations " << sizes.transpose() << endl;
+    cout << "Number of determinants " << numDets << endl << endl;
+  }
+}
+
+void readDeterminantsGHF(std::string input, std::vector<int>& ref, std::vector<int>& open, std::vector<std::array<VectorXi, 2>>& ciExcitations,
+        std::vector<int>& ciParity, std::vector<double>& ciCoeffs)
+{
+  int norbs = Determinant::norbs;
+  ifstream dump(input.c_str());
+  bool isFirst = true;
+  Determinant refDet;
+
+  while (dump.good()) {
+    std::string Line;
+    std::getline(dump, Line);
+
+    boost::trim_if(Line, boost::is_any_of(", \t\n"));
+    
+    vector<string> tok;
+    boost::split(tok, Line, boost::is_any_of(", \t\n"), boost::token_compress_on);
+
+    if (tok.size() > 2 ) {
+      if (isFirst) {//first det is ref
+        isFirst = false;
+        ciCoeffs.push_back(atof(tok[0].c_str()));
+        ciParity.push_back(1);
+        std::array<VectorXi, 2> empty;
+        ciExcitations.push_back(empty);
+        for (int i=0; i<norbs; i++) {
+          if (boost::iequals(tok[1+i], "2")) {
+            refDet.setoccA(2*i, true);
+            refDet.setoccA(2*i+1, true);
+            ref.push_back(2*i);
+            ref.push_back(2*i+1);
+          }
+          else if (boost::iequals(tok[1+i], "a")) {
+            refDet.setoccA(2*i, true);
+            ref.push_back(2*i);
+            open.push_back(2*i+1);
+          }
+          else if (boost::iequals(tok[1+i], "b")) {
+            refDet.setoccA(2*i+1, true);
+            ref.push_back(2*i+1);
+            open.push_back(2*i);
+          }
+          else if (boost::iequals(tok[1+i], "0")) {
+            open.push_back(2*i);
+            open.push_back(2*i+1);
+          }
+        }
+      }
+      else {
+        ciCoeffs.push_back(atof(tok[0].c_str()));
+        vector<int> des, cre;
+        for (int i=0; i<norbs; i++) {
+          if (boost::iequals(tok[1+i], "2")) {
+            if (!refDet.getoccA(2*i)) cre.push_back(2*i);
+            if (!refDet.getoccA(2*i+1)) cre.push_back(2*i+1);
+          }
+          else if (boost::iequals(tok[1+i], "a")) {
+            if (!refDet.getoccA(2*i)) cre.push_back(2*i);
+            if (refDet.getoccA(2*i+1)) des.push_back(2*i+1);
+          }
+          else if (boost::iequals(tok[1+i], "b")) {
+            if (refDet.getoccA(2*i)) des.push_back(2*i);
+            if (!refDet.getoccA(2*i+1)) cre.push_back(2*i+1);
+          }
+          else if (boost::iequals(tok[1+i], "0")) {
+            if (refDet.getoccA(2*i)) des.push_back(2*i);
+            if (refDet.getoccA(2*i+1)) des.push_back(2*i+1);
+          }
+        }
+        ciParity.push_back(refDet.parityA(cre, des));
+        VectorXi creV = VectorXi::Zero(cre.size());
+        VectorXi desV = VectorXi::Zero(des.size());
+        for (int i = 0; i < cre.size(); i++) {
+          desV[i] = std::search_n(ref.begin(), ref.end(), 1, des[i]) - ref.begin();
+          creV[i] = std::search_n(open.begin(), open.end(), 1, cre[i]) - open.begin();
+          //creV[i] = cre[i];
+        }
+        std::array<VectorXi, 2> excitations;
+        excitations[0] = desV;
+        excitations[1] = creV;
+        ciExcitations.push_back(excitations);
+      }
+    }
+  }
+}
+
+
+void readDeterminants(std::string input, std::array<std::vector<int>, 2>& ref, std::array<std::vector<std::array<Eigen::VectorXi, 2>>, 2>& ciExcitations,
+        std::vector<double>& ciParity, std::vector<double>& ciCoeffs)
+{
+  int norbs = Determinant::norbs;
+  int nact = norbs;
+  if (schd.nciAct > 0) nact = schd.nciAct;
+  int ncore = 0;
+  if (schd.nciCore > 0) ncore = schd.nciCore;
+  ifstream dump(input.c_str());
+  bool isFirst = true;
+  Determinant refDet;
+  for (int i = 0; i < ncore; i++) {
+    refDet.setoccA(i, true);
+    refDet.setoccB(i, true);
+  }
+  VectorXi sizes = VectorXi::Zero(10);
+  int numDets = 0;
+  
+  while (dump.good()) {
+    std::string Line;
+    std::getline(dump, Line);
+
+    boost::trim_if(Line, boost::is_any_of(", \t\n"));
+    
+    vector<string> tok;
+    boost::split(tok, Line, boost::is_any_of(", \t\n"), boost::token_compress_on);
+
+    if (tok.size() > 2 ) {
+      if (isFirst) {// first det is ref
+        isFirst = false;
+        ciCoeffs.push_back(atof(tok[0].c_str()));
+        ciParity.push_back(1);
+        std::array<VectorXi, 2> empty;
+        ciExcitations[0].push_back(empty);
+        ciExcitations[1].push_back(empty);
+        vector<int> closedBeta, openBeta; 
+        for (int i = 0; i < nact; i++) {
+          if (boost::iequals(tok[1+i], "2")) {
+            refDet.setoccA(ncore + i, true);
+            refDet.setoccB(ncore + i, true);
+            ref[0].push_back(ncore + i);
+            ref[1].push_back(ncore + i);
+          }
+          else if (boost::iequals(tok[1+i], "a")) {
+            refDet.setoccA(ncore + i, true);
+            ref[0].push_back(ncore + i);
+          }
+          else if (boost::iequals(tok[1+i], "b")) {
+            refDet.setoccB(ncore + i, true);
+            ref[1].push_back(ncore + i);
+          }
+        }
+        numDets++;
+        sizes(0) = 1;
+      }
+      else {
+        vector<int> desA, creA, desB, creB;
+        for (int i = 0; i < nact; i++) {
+          if (boost::iequals(tok[1+i], "2")) {
+            if (!refDet.getoccA(ncore + i)) creA.push_back(ncore + i);
+            if (!refDet.getoccB(ncore + i)) creB.push_back(ncore + i);
+          }
+          else if (boost::iequals(tok[1+i], "a")) {
+            if (!refDet.getoccA(ncore + i)) creA.push_back(ncore + i);
+            if (refDet.getoccB(ncore + i)) desB.push_back(ncore + i);
+          }
+          else if (boost::iequals(tok[1+i], "b")) {
+            if (refDet.getoccA(ncore + i)) desA.push_back(ncore + i);
+            if (!refDet.getoccB(ncore + i)) creB.push_back(ncore + i);
+          }
+          else if (boost::iequals(tok[1+i], "0")) {
+            if (refDet.getoccA(ncore + i)) desA.push_back(ncore + i);
+            if (refDet.getoccB(ncore + i)) desB.push_back(ncore + i);
+          }
+        }
+
+        std::array<VectorXi, 2> excitationsA;
+        excitationsA[0] = VectorXi::Zero(creA.size());
+        excitationsA[1] = VectorXi::Zero(desA.size());
+        for (int i = 0; i < creA.size(); i++) {
+          //des[i] = std::search_n(ref.begin(), ref.end(), 1, desA[i]) - ref.begin();
+          //cre[i] = std::search_n(open.begin(), open.end(), 1, creA[i]) - open.begin();
+          excitationsA[0](i) = desA[i];
+          excitationsA[1](i) = creA[i];
+        }
+
+        std::array<VectorXi, 2> excitationsB;
+        excitationsB[0] = VectorXi::Zero(creB.size());
+        excitationsB[1] = VectorXi::Zero(desB.size());
+        for (int i = 0; i < creB.size(); i++) {
+          //des[i + desA.size()] = std::search_n(ref.begin(), ref.end(), 1, desB[i] + norbs) - ref.begin();
+          //cre[i + creA.size()] = std::search_n(open.begin(), open.end(), 1, creB[i] + norbs) - open.begin();
+          excitationsB[0](i) = desB[i];
+          excitationsB[1](i) = creB[i];
+        }
+        
+        if (creA.size() + creB.size() > schd.excitationLevel) continue;
+        numDets++;
+        ciCoeffs.push_back(atof(tok[0].c_str()));
+        ciParity.push_back(refDet.parityA(creA, desA) * refDet.parityB(creB, desB));
+        ciExcitations[0].push_back(excitationsA);
+        ciExcitations[1].push_back(excitationsB);
+        if (creA.size() + creB.size() < 10) sizes(creA.size() + creB.size())++;
+      }
+    }
+  }
+  if (commrank == 0) {
+    cout << "Rankwise number of excitations " << sizes.transpose() << endl;
+    cout << "Number of determinants " << numDets << endl << endl;
+  }
+}
+
+// same as above but for binary files
+void readDeterminantsBinary(std::string input, std::array<std::vector<int>, 2>& ref, std::array<std::vector<std::array<Eigen::VectorXi, 2>>, 2>& ciExcitations,
+        std::vector<double>& ciParity, std::vector<double>& ciCoeffs)
+{
+  int norbs = Determinant::norbs;
+  int nact = norbs;
+  if (schd.nciAct > 0) nact = schd.nciAct;
+  int ncore = 0;
+  if (schd.nciCore > 0) ncore = schd.nciCore;
+  int ndetsDice = 0, norbsDice = 0;
+  ifstream dump(input, ios::binary);
+  dump.read((char*) &ndetsDice, sizeof(int));
+  dump.read((char*) &norbsDice, sizeof(int));
+  bool isFirst = true;
+  Determinant refDet;
+  for (int i = 0; i < ncore; i++) {
+    refDet.setoccA(i, true);
+    refDet.setoccB(i, true);
+  }
+  VectorXi sizes = VectorXi::Zero(10);
+  int numDets = 0;
+  
+  for (int n = 0; n < ndetsDice; n++) {
+    if (isFirst) {// first det is ref
+      isFirst = false;
+      double ciCoeff;
+      dump.read((char*) &ciCoeff, sizeof(double));
+      ciCoeffs.push_back(ciCoeff);
+      ciParity.push_back(1);
+      std::array<VectorXi, 2> empty;
+      ciExcitations[0].push_back(empty);
+      ciExcitations[1].push_back(empty);
+      vector<int> closedBeta, openBeta; 
+      for (int i = ncore; i < ncore + norbsDice; i++) {
+        char detocc;
+        dump.read((char*) &detocc, sizeof(char));
+        if (detocc == '2') {
+          refDet.setoccA(i, true);
+          refDet.setoccB(i, true);
+          ref[0].push_back(i);
+          ref[1].push_back(i);
+        }
+        else if (detocc == 'a') {
+          refDet.setoccA(i, true);
+          ref[0].push_back(i);
+        }
+        else if (detocc == 'b') {
+          refDet.setoccB(i, true);
+          ref[1].push_back(i);
+        }
+      }
+      numDets++;
+      sizes(0) = 1;
+    }
+    else {
+      double ciCoeff;
+      dump.read((char*) &ciCoeff, sizeof(double));
+      vector<int> desA, creA, desB, creB;
+      for (int i = ncore; i < ncore + norbsDice; i++) {
+        char detocc;
+        dump.read((char*) &detocc, sizeof(char));
+        if (detocc == '2') {
+          if (!refDet.getoccA(i)) creA.push_back(i);
+          if (!refDet.getoccB(i)) creB.push_back(i);
+        }
+        else if (detocc == 'a') {
+          if (!refDet.getoccA(i)) creA.push_back(i);
+          if (refDet.getoccB(i)) desB.push_back(i);
+        }
+        else if (detocc == 'b') {
+          if (refDet.getoccA(i)) desA.push_back(i);
+          if (!refDet.getoccB(i)) creB.push_back(i);
+        }
+        else if (detocc == '0') {
+          if (refDet.getoccA(i)) desA.push_back(i);
+          if (refDet.getoccB(i)) desB.push_back(i);
+        }
+      }
+
+      std::array<VectorXi, 2> excitationsA;
+      excitationsA[0] = VectorXi::Zero(creA.size());
+      excitationsA[1] = VectorXi::Zero(desA.size());
+      for (int i = 0; i < creA.size(); i++) {
+        //des[i] = std::search_n(ref.begin(), ref.end(), 1, desA[i]) - ref.begin();
+        //cre[i] = std::search_n(open.begin(), open.end(), 1, creA[i]) - open.begin();
+        excitationsA[0](i) = desA[i];
+        excitationsA[1](i) = creA[i];
+      }
+
+      std::array<VectorXi, 2> excitationsB;
+      excitationsB[0] = VectorXi::Zero(creB.size());
+      excitationsB[1] = VectorXi::Zero(desB.size());
+      for (int i = 0; i < creB.size(); i++) {
+        //des[i + desA.size()] = std::search_n(ref.begin(), ref.end(), 1, desB[i] + norbs) - ref.begin();
+        //cre[i + creA.size()] = std::search_n(open.begin(), open.end(), 1, creB[i] + norbs) - open.begin();
+        excitationsB[0](i) = desB[i];
+        excitationsB[1](i) = creB[i];
+      }
+      
+      if (creA.size() + creB.size() > schd.excitationLevel) continue;
+      numDets++;
+      ciCoeffs.push_back(ciCoeff);
+      ciParity.push_back(refDet.parityA(creA, desA) * refDet.parityB(creB, desB));
+      ciExcitations[0].push_back(excitationsA);
+      ciExcitations[1].push_back(excitationsB);
+      if (creA.size() + creB.size() < 10) sizes(creA.size() + creB.size())++;
+    }
+  }
+  if (commrank == 0) {
+    cout << "Rankwise number of excitations " << sizes.transpose() << endl;
+    cout << "Number of determinants " << numDets << endl << endl;
+  }
 }

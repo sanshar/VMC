@@ -256,22 +256,22 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   }
 
   //print if walker has weird wt or Eloc
-  if (wt > 10.0 || std::isnan(Eloc) || std::isnan(wt))
-  {
-    cout << "Process: " << commrank << endl;
-    cout << "Large weight: " << wt << endl;
-    cout << "exponential: " << - tau_eff * (Eloc - Eshift) << endl;
-    cout << "effective time step: " << tau_eff << endl;
-    cout << "Energy shift: " << Eshift << endl;
-    cout << "Local energy: " << Eloc << " | " << w.rHam(walk) << endl;
-    cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
-    cout << "coords" << endl;
-    cout << walk.d << endl;
-    cout << "RiI" << endl;
-    cout << walk.RiN << endl;
-    cout << "Rij" << endl;
-    cout << walk.Rij << endl;
-  }
+  //if (wt > 10.0 || std::isnan(Eloc) || std::isnan(wt))
+  //{
+  //  cout << "Process: " << commrank << endl;
+  //  cout << "Large weight: " << wt << endl;
+  //  cout << "exponential: " << - tau_eff * (Eloc - Eshift) << endl;
+  //  cout << "effective time step: " << tau_eff << endl;
+  //  cout << "Energy shift: " << Eshift << endl;
+  //  cout << "Local energy: " << Eloc << " | " << w.rHam(walk) << endl;
+  //  cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
+  //  cout << "coords" << endl;
+  //  cout << walk.d << endl;
+  //  cout << "RiI" << endl;
+  //  cout << walk.RiN << endl;
+  //  cout << "Rij" << endl;
+  //  cout << walk.Rij << endl;
+  //}
 
   return acceptedProb;
 }
