@@ -26,6 +26,10 @@
 #include <boost/serialization/vector.hpp>
 #include "rWalker.h"
 #include "rWalkerHelper.h"
+#include "rMultiSlater.h"
+#include "rSlater.h"
+#include "rBFSlater.h"
+#include "rJastrow.h"
 
 class rDeterminant;
 
@@ -40,8 +44,7 @@ struct rCorrelatedWavefunction {
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version) {
-    ar & corr
-        & ref;
+    ar & corr & ref;
   }
 
  public:
@@ -69,7 +72,6 @@ struct rCorrelatedWavefunction {
   {
     return exp(walk.corrHelper.exponential) * walk.getDetOverlap(ref);
   }
-
 
   /**
    * This basically calls the overlapwithgradient(determinant, factor, grad)
@@ -99,18 +101,10 @@ struct rCorrelatedWavefunction {
 
   void updateOptVariables(Eigen::VectorXd &v) 
   {
-    if (schd.optimizeCps) {
-      corr.updateVariables(v);
-    }
-    if (schd.optimizeOrbs) {
-      Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
-      ref.updateVariables(vtail);
-    }
-
-    if (schd.walkerBasis == REALSPACESTO && schd.enforceENCusp)
-      enforceCusp();
+    cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
+    exit(0);
+    return 0;
   }
-
 
   void getVariables(Eigen::VectorXd &v) const
   {
@@ -123,14 +117,9 @@ struct rCorrelatedWavefunction {
 
   void getOptVariables(Eigen::VectorXd &v) const
   {
-    v.setZero(getNumOptVariables());
-    if (schd.optimizeCps) {
-      corr.getVariables(v);
-    }
-    if (schd.optimizeOrbs) {
-      Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
-      ref.getVariables(vtail);
-    }
+    cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
+    exit(0);
+    return 0;
   }
 
   long getNumJastrowVariables() const
@@ -153,13 +142,13 @@ struct rCorrelatedWavefunction {
 
   long getNumOptVariables() const
   {
-    long numVars = 0;
-    if (schd.optimizeCps) numVars += getNumJastrowVariables();
-    if (schd.optimizeOrbs) numVars += getNumRefVariables();
-    return numVars;
+    cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
+    exit(0);
+    return 0;
   }
 
-  string getfileName() const {
+  string getfileName() const
+  {
     return ref.getfileName() + corr.getfileName();
   }
   
@@ -168,7 +157,6 @@ struct rCorrelatedWavefunction {
     if (commrank == 0)
     {
       char file[5000];
-      //sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
       sprintf(file, (getfileName()+".bkp").c_str() );
       std::ofstream outfs(file);
       boost::archive::text_oarchive save(outfs);
@@ -182,7 +170,6 @@ struct rCorrelatedWavefunction {
     if (commrank == 0)
     {
       char file[5000];
-      //sprintf (file, "wave.bkp" , schd.prefix[0].c_str() );
       sprintf(file, (getfileName()+".bkp").c_str() );
       std::ifstream infs(file);
       boost::archive::text_iarchive load(infs);
@@ -216,17 +203,8 @@ struct rCorrelatedWavefunction {
     exit(0);
     return 0;
   }
-  
-  double HamOverlap(rWalker<rJastrow, rSlater>& walk,
-                  Eigen::VectorXd &gradRatio,
-                  Eigen::VectorXd &hamRatio) const
-  {
-    cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
-    exit(0);
-    return 0;
-  }
 
-  double HamOverlap(rWalker<rJastrow, rBFSlater>& walk,
+  double HamOverlap(rWalker<Corr, Reference>& walk,
                   Eigen::VectorXd &gradRatio,
                   Eigen::VectorXd &hamRatio) const
   {
@@ -234,18 +212,23 @@ struct rCorrelatedWavefunction {
     exit(0);
     return 0;
   }
-  
+ 
   void enforceCusp()
   {
     cout << "Should not be here. There is a specialized enforceCusp for various cases "<<endl;
     exit(0);
     return 0;
   }
-
-  double getDMCMove(Vector3d& coord, int elecI, double stepsize,
-                    rWalker<rJastrow, rSlater>& walk);
 };
 
+template<>
+void rCorrelatedWavefunction<rJastrow, rSlater>::updateOptVariables(Eigen::VectorXd &v);
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rSlater>::getOptVariables(Eigen::VectorXd &v) const;
+
+template<>
+long rCorrelatedWavefunction<rJastrow, rSlater>::getNumOptVariables() const;
 
 template<>
 double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlater>& walk, double& T, double& Vij, double& ViI, double& Vpp, double& VIJ, std::vector<std::vector<double>> &Viq, std::vector<std::vector<Vector3d>> &Riq) const;
@@ -261,6 +244,41 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
 template<>
 void rCorrelatedWavefunction<rJastrow, rSlater>::enforceCusp();
 
+
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rMultiSlater>::updateOptVariables(Eigen::VectorXd &v);
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rMultiSlater>::getOptVariables(Eigen::VectorXd &v) const;
+
+template<>
+long rCorrelatedWavefunction<rJastrow, rMultiSlater>::getNumOptVariables() const;
+
+template<>
+double rCorrelatedWavefunction<rJastrow, rMultiSlater>::rHam(rWalker<rJastrow, rMultiSlater>& walk, double& T, double& Vij, double& ViI, double& Vpp, double& VIJ, std::vector<std::vector<double>> &Viq, std::vector<std::vector<Vector3d>> &Riq) const;
+
+template<>
+double rCorrelatedWavefunction<rJastrow, rMultiSlater>::rHam(rWalker<rJastrow, rMultiSlater>& walk) const;
+
+template<>
+double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJastrow, rMultiSlater>& walk,
+                                                              Eigen::VectorXd& gradRatio,
+                                                              Eigen::VectorXd& hamRatio) const;
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rMultiSlater>::enforceCusp();
+
+
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rBFSlater>::updateOptVariables(Eigen::VectorXd &v);
+
+template<>
+void rCorrelatedWavefunction<rJastrow, rBFSlater>::getOptVariables(Eigen::VectorXd &v) const;
+
+template<>
+long rCorrelatedWavefunction<rJastrow, rBFSlater>::getNumOptVariables() const;
 
 template<>
 double rCorrelatedWavefunction<rJastrow, rBFSlater>::rHam(rWalker<rJastrow, rBFSlater>& walk) const;

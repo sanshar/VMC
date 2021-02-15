@@ -335,7 +335,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.expCorrelator = input.get("wavefunction.expCorrelator", false); 
     schd.PTlambda = input.get("PTlambda", 0.);
     schd.beta = input.get("beta", 1.);
-    schd.excitationLevel = input.get("excitationLevel", 1);
+    schd.excitationLevel = input.get("excitationLevel", 10);
     schd.sgdStepsize = input.get("optimizer.sgdStepsize", 0.1); 
     schd.doHessian = input.get("optimizer.doHessian", false);
     
@@ -921,10 +921,10 @@ void readDeterminants(std::string input, std::array<std::vector<int>, 2>& ref, s
       }
     }
   }
-  if (commrank == 0) {
-    cout << "Rankwise number of excitations " << sizes.transpose() << endl;
-    cout << "Number of determinants " << numDets << endl << endl;
-  }
+  //if (commrank == 0) {
+  //  cout << "Rankwise number of excitations " << sizes.transpose() << endl;
+  //  cout << "Number of determinants " << numDets << endl << endl;
+  //}
 }
 
 // same as above but for binary files

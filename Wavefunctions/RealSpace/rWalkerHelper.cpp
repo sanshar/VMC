@@ -434,6 +434,417 @@ void rWalkerHelper<rSlater>::OverlapWithGradientGhf(const rDeterminant& d,
   }
 }
 
+//********************** MultiSlater ******************
+rWalkerHelper<rMultiSlater>::rWalkerHelper(const rMultiSlater &w, const rDeterminant &d)
+{
+  initInvDetsTables(w, d);
+}
+
+void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const rDeterminant &d)
+{
+  int norbs = Determinant::norbs;
+  aoValues.resize(10*norbs, 0.0);
+
+  A[0] = MatrixXd::Zero(d.nalpha, d.nalpha);
+  A[1] = MatrixXd::Zero(d.nbeta, d.nbeta);
+
+  Ainv[0] = MatrixXd::Zero(d.nalpha, d.nalpha);
+  Ainv[1] = MatrixXd::Zero(d.nbeta, d.nbeta);
+
+  Abar[0] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
+  Abar[1] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
+
+  Lap[0] = MatrixXd::Zero(d.nalpha, d.nalpha);
+  Lap[1] = MatrixXd::Zero(d.nbeta, d.nbeta);
+
+  Lapbar[0] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
+  Lapbar[1] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
+
+  Grad[0][0] = MatrixXd::Zero(d.nalpha, d.nalpha);
+  Grad[0][1] = MatrixXd::Zero(d.nalpha, d.nalpha);
+  Grad[0][2] = MatrixXd::Zero(d.nalpha, d.nalpha);
+  Grad[1][0] = MatrixXd::Zero(d.nbeta, d.nbeta);
+  Grad[1][1] = MatrixXd::Zero(d.nbeta, d.nbeta);
+  Grad[1][2] = MatrixXd::Zero(d.nbeta, d.nbeta);
+
+  Gradbar[0][0] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
+  Gradbar[0][1] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
+  Gradbar[0][2] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
+  Gradbar[1][0] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
+  Gradbar[1][1] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
+  Gradbar[1][2] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
+
+  AO[0] = MatrixXd::Zero(d.nalpha, norbs);
+  AO[1] = MatrixXd::Zero(d.nbeta, norbs);
+
+  AOLap[0] = MatrixXd::Zero(d.nalpha, norbs);
+  AOLap[1] = MatrixXd::Zero(d.nbeta, norbs);
+
+  AOGrad[0][0] = MatrixXd::Zero(d.nalpha, norbs);
+  AOGrad[0][1] = MatrixXd::Zero(d.nalpha, norbs);
+  AOGrad[0][2] = MatrixXd::Zero(d.nalpha, norbs);
+
+  AOGrad[1][0] = MatrixXd::Zero(d.nbeta, norbs);
+  AOGrad[1][1] = MatrixXd::Zero(d.nbeta, norbs);
+  AOGrad[1][2] = MatrixXd::Zero(d.nbeta, norbs);
+
+  //alpha
+  for (int elec = 0; elec < d.nalpha; elec++)
+  {
+    schd.basis->eval_deriv2(d.coord[elec], &aoValues[0]);
+
+    for (int j = 0; j < norbs; j++)
+    {
+      AO[0](elec, j) = aoValues[j];
+
+      AOGrad[0][0](elec, j) = aoValues[1*norbs+j];
+      AOGrad[0][1](elec, j) = aoValues[2*norbs+j];
+      AOGrad[0][2](elec, j) = aoValues[3*norbs+j];
+
+      AOLap[0](elec, j) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
+    }
+  }
+
+  //occ
+  for (int mo = 0; mo < w.ref[0].size(); mo++)
+  {
+    int orb = w.ref[0].at(mo);
+
+    A[0].col(mo) = AO[0] * w.HforbsA.col(orb);
+
+    Grad[0][0].col(mo) = AOGrad[0][0] * w.HforbsA.col(orb);
+    Grad[0][1].col(mo) = AOGrad[0][1] * w.HforbsA.col(orb);
+    Grad[0][2].col(mo) = AOGrad[0][2] * w.HforbsA.col(orb);
+
+    Lap[0].col(mo) = AOLap[0] * w.HforbsA.col(orb);
+  }
+
+  //unocc
+  for (int mo = 0; mo < w.open[0].size(); mo++)
+  {
+    int orb = w.open[0].at(mo);
+
+    Abar[0].col(mo) = AO[0] * w.HforbsA.col(orb);
+
+    Gradbar[0][0].col(mo) = AOGrad[0][0] * w.HforbsA.col(orb);
+    Gradbar[0][1].col(mo) = AOGrad[0][1] * w.HforbsA.col(orb);
+    Gradbar[0][2].col(mo) = AOGrad[0][2] * w.HforbsA.col(orb);
+
+    Lapbar[0].col(mo) = AOLap[0] * w.HforbsA.col(orb);
+  }
+
+  if (d.nalpha != 0) {
+    Eigen::FullPivLU<MatrixXcd> lua(A[0]);
+    if (lua.isInvertible()) {
+      Ainv[0] = lua.inverse();
+      detA[0] = lua.determinant();
+      AinvAbar[0] = Ainv[0] * Abar[0];
+    }
+    else {
+      cout << " overlap with alpha determinant not invertible" << endl;
+      exit(0);
+    }
+  }
+  else { detA[0] = 1.0; }
+
+
+  //beta
+  for (int elec = 0; elec < d.nbeta; elec++)
+  {
+    schd.basis->eval_deriv2(d.coord[elec + d.nalpha], &aoValues[0]);
+
+    for (int j=0; j<norbs; j++)
+    {
+      AO[1](elec, j) = aoValues[j];
+
+      AOGrad[1][0](elec, j) = aoValues[1*norbs+j];
+      AOGrad[1][1](elec, j) = aoValues[2*norbs+j];
+      AOGrad[1][2](elec, j) = aoValues[3*norbs+j];
+
+      AOLap[1](elec, j) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
+    }
+  }
+
+  //occ
+  for (int mo = 0; mo < w.ref[1].size(); mo++)
+  {
+    int orb = w.ref[1].at(mo);
+
+    A[1].col(mo) = AO[1] * w.HforbsB.col(orb);
+
+    Grad[1][0].col(mo) = AOGrad[1][0] * w.HforbsB.col(orb);
+    Grad[1][1].col(mo) = AOGrad[1][1] * w.HforbsB.col(orb);
+    Grad[1][2].col(mo) = AOGrad[1][2] * w.HforbsB.col(orb);
+
+    Lap[1].col(mo) = AOLap[1] * w.HforbsB.col(orb);
+  }
+
+  //unocc
+  for (int mo = 0; mo < w.open[1].size(); mo++)
+  {
+    int orb = w.open[1].at(mo);
+
+    Abar[1].col(mo) = AO[1] * w.HforbsB.col(orb);
+
+    Gradbar[1][0].col(mo) = AOGrad[1][0] * w.HforbsB.col(orb);
+    Gradbar[1][1].col(mo) = AOGrad[1][1] * w.HforbsB.col(orb);
+    Gradbar[1][2].col(mo) = AOGrad[1][2] * w.HforbsB.col(orb);
+
+    Lapbar[1].col(mo) = AOLap[1] * w.HforbsB.col(orb);
+  }
+ 
+  if (d.nbeta != 0) {
+    Eigen::FullPivLU<MatrixXcd> lub(A[1]);
+    if (lub.isInvertible()) {
+      Ainv[1] = lub.inverse();
+      detA[1] = lub.determinant();
+      AinvAbar[1] = Ainv[1] * Abar[1];
+    }
+    else {
+      cout << " overlap with beta determinant not invertible" << endl;
+      exit(0);
+    }
+  }
+  else { detA[1] = 1.0; }
+
+
+  //totalRatio and detRatios
+  std::array<std::complex<double>, 2> ratio;
+  ratio[0] = 1.0;
+  ratio[1] = 1.0;
+  detRatios.push_back(ratio);
+  std::complex<double> d0 = detA[0] * detA[1];
+  double c0 = w.ciParity[0] * w.ciCoeffs[0];
+
+  std::complex<double> sum = 0.0;
+  for (int I = 1; I < w.getNumOfDets(); I++)
+  {
+    //alpha
+    Eigen::VectorXi rowVecA = w.ciIndices[0][I][0];
+    Eigen::VectorXi colVecA = w.ciIndices[0][I][1];
+
+    Eigen::MatrixXcd aA;
+    igl::slice(AinvAbar[0], rowVecA, colVecA, aA);
+
+    Eigen::FullPivLU<MatrixXcd> lua(aA);
+    std::complex<double> ratioA = lua.determinant();
+
+    //beta
+    Eigen::VectorXi rowVecB = w.ciIndices[1][I][0];
+    Eigen::VectorXi colVecB = w.ciIndices[1][I][1];
+
+    Eigen::MatrixXcd aB;
+    igl::slice(AinvAbar[1], rowVecB, colVecB, aB);
+
+    Eigen::FullPivLU<MatrixXcd> lub(aB);
+    std::complex<double> ratioB = lub.determinant();
+
+    //alpha and beta
+    double cI = w.ciParity[I] * w.ciCoeffs[I];
+    std::complex<double> ratioI = ratioA * ratioB;
+
+    sum += cI * ratioI;
+    ratio[0] = ratioA;
+    ratio[1] = ratioB;
+    detRatios.push_back(ratio);
+  }
+  totalRatio = c0 + sum;
+}
+
+double rWalkerHelper<rMultiSlater>::getDetFactor(int elec, Vector3d& newCoord, const rDeterminant &d, const rMultiSlater& w) const
+{
+  int norbs = Determinant::norbs;
+  aoValues.resize(norbs);
+
+  int sz = 0;
+  if (elec >= d.nalpha) //beta electron
+  {
+    elec -= d.nalpha;
+    sz = 1;
+  }
+
+  schd.basis->eval(newCoord, &aoValues[0]);
+  VectorXcd newAO = VectorXd::Zero(norbs);
+  for (int i = 0; i < norbs; i++) { newAO(i) = aoValues[i]; }
+
+  //occ
+  VectorXcd newA = VectorXd::Zero(w.ref[sz].size());
+  for (int mo = 0; mo < newA.size(); mo++)
+  {
+    int orb = w.ref[sz].at(mo);
+    newA(mo) = newAO.transpose() * w.getHforbs(sz).col(orb);
+  }
+
+  //unocc
+  VectorXcd newAbar = VectorXd::Zero(w.open[sz].size());
+  for (int mo = 0; mo < newAbar.size(); mo++)
+  {
+    int orb = w.open[sz].at(mo);
+    newAbar(mo) = newAO.transpose() * w.getHforbs(sz).col(orb);
+  }
+
+  //intermediates
+  MatrixXcd Mbar = Ainv[sz].col(elec) * newAbar.transpose();
+  VectorXcd temp;
+  temp.transpose() = newA.transpose() * AinvAbar[sz];
+  Mbar -= Ainv[sz].col(elec) * temp.transpose();
+
+  std::complex<double> refRatio = newA.transpose() * Ainv[sz].col(elec);  
+
+  std::complex<double> sum = 0.0;
+  for (size_t I = 1; I < w.getNumOfDets(); I++)
+  {
+    Eigen::VectorXi rowVec = w.ciIndices[sz][I][0];
+    Eigen::VectorXi colVec = w.ciIndices[sz][I][1];
+
+    Eigen::MatrixXcd aI;
+    igl::slice(AinvAbar[sz], rowVec, colVec, aI);
+
+    Eigen::MatrixXcd MbarI;
+    igl::slice(Mbar, rowVec, colVec, MbarI);
+
+    //alpha and beta
+    double cI = w.ciParity[I] * w.ciCoeffs[I];
+    std::complex<double> ratioI = detRatios[I][0] * detRatios[I][1];
+
+    Eigen::FullPivLU<MatrixXcd> lu(aI);
+    if (!lu.isInvertible()) { continue; }
+    Eigen::MatrixXcd aIinv = lu.inverse();
+
+    sum += cI * (aIinv * MbarI).trace() * ratioI;
+  }
+
+  return (refRatio + sum / totalRatio).real();
+}
+
+void rWalkerHelper<rMultiSlater>::updateWalker(int elec, Vector3d& oldCoord, const rDeterminant &d, const rMultiSlater& w)
+{
+  int norbs = Determinant::norbs;
+  aoValues.resize(10 * norbs, 0.0);
+  schd.basis->eval_deriv2(d.coord[elec], &aoValues[0]);
+
+  int sz = 0;
+  if (elec >= d.nalpha) //beta electron
+  {
+    elec -= d.nalpha;
+    sz = 1;
+  }
+
+  for (int j = 0; j < norbs; j++)
+  {
+    AO[sz](elec, j) = aoValues[j];
+
+    AOGrad[sz][0](elec, j) = aoValues[1*norbs+j];
+    AOGrad[sz][1](elec, j) = aoValues[2*norbs+j];
+    AOGrad[sz][2](elec, j) = aoValues[3*norbs+j];
+
+    AOLap[sz](elec, j) = aoValues[4*norbs+j] + aoValues[7*norbs+j] + aoValues[9*norbs+j];
+  }
+
+  //occ
+  Eigen::VectorXcd oldArow = A[sz].row(elec).transpose();
+  for (int mo = 0; mo < w.ref[sz].size(); mo++)
+  {
+    int orb = w.ref[sz].at(mo);
+
+    A[sz](elec, mo) = AO[sz].row(elec) * w.getHforbs(sz).col(orb);
+
+    Grad[sz][0](elec, mo) = AOGrad[sz][0].row(elec) * w.getHforbs(sz).col(orb);
+    Grad[sz][1](elec, mo) = AOGrad[sz][1].row(elec) * w.getHforbs(sz).col(orb);
+    Grad[sz][2](elec, mo) = AOGrad[sz][2].row(elec) * w.getHforbs(sz).col(orb);
+
+    Lap[sz](elec, mo) = AOLap[sz].row(elec) * w.getHforbs(sz).col(orb);
+  }
+  Eigen::VectorXcd newArow = A[sz].row(elec).transpose();
+
+  //unocc
+  Eigen::VectorXcd oldAbarrow = Abar[sz].row(elec).transpose();
+  for (int mo = 0; mo < w.open[sz].size(); mo++)
+  {
+    int orb = w.open[sz].at(mo);
+
+    Abar[sz](elec, mo) = AO[sz].row(elec) * w.getHforbs(sz).col(orb);
+
+    Gradbar[sz][0](elec, mo) = AOGrad[sz][0].row(elec) * w.getHforbs(sz).col(orb);
+    Gradbar[sz][1](elec, mo) = AOGrad[sz][1].row(elec) * w.getHforbs(sz).col(orb);
+    Gradbar[sz][2](elec, mo) = AOGrad[sz][2].row(elec) * w.getHforbs(sz).col(orb);
+
+    Lapbar[sz](elec, mo) = AOLap[sz].row(elec) * w.getHforbs(sz).col(orb);
+  }
+  Eigen::VectorXcd newAbarrow = Abar[sz].row(elec).transpose();
+
+  //new Ainv
+  Eigen::MatrixXcd newAinv = Ainv[sz];
+  Eigen::VectorXcd deltaA = newArow - oldArow;
+  Eigen::VectorXcd temp;
+  temp.transpose() = deltaA.transpose() * Ainv[sz];
+  std::complex<double> denom = 1.0 + deltaA.transpose() * Ainv[sz].col(elec);
+  newAinv -= Ainv[sz].col(elec) * temp.transpose() / denom;
+
+  //new AinvAbar
+  //1
+  Eigen::MatrixXcd newAinvAbar = AinvAbar[sz];
+  //2
+  Eigen::VectorXcd deltaAbar = newAbarrow - oldAbarrow;
+  newAinvAbar += Ainv[sz].col(elec) * deltaAbar.transpose();
+  //3
+  temp.transpose() = deltaA.transpose() * AinvAbar[sz];
+  newAinvAbar -= Ainv[sz].col(elec) * temp.transpose() / denom;
+  //4
+  std::complex<double> middle = deltaA.transpose() * Ainv[sz].col(elec);
+  newAinvAbar -= middle * Ainv[sz].col(elec) * deltaAbar.transpose() / denom;
+
+  //update walker variables
+  Ainv[sz] = newAinv;
+  AinvAbar[sz] = newAinvAbar;
+  detA[sz] = detA[sz] * denom;
+
+  //recalculate totalRatio and detRatios
+  std::array<std::complex<double>, 2> ratio;
+  ratio[0] = 1.0;
+  ratio[1] = 1.0;
+  detRatios.at(0) = ratio;
+  std::complex<double> d0 = detA[0] * detA[1];
+  double c0 = w.ciParity[0] * w.ciCoeffs[0];
+
+  std::complex<double> sum = 0.0;
+  for (int I = 1; I < w.getNumOfDets(); I++)
+  {
+    //alpha
+    Eigen::VectorXi rowVecA = w.ciIndices[0][I][0];
+    Eigen::VectorXi colVecA = w.ciIndices[0][I][1];
+
+    Eigen::MatrixXcd aA;
+    igl::slice(AinvAbar[0], rowVecA, colVecA, aA);
+    std::complex<double> ratioA = aA.determinant();
+
+    //beta
+    Eigen::VectorXi rowVecB = w.ciIndices[1][I][0];
+    Eigen::VectorXi colVecB = w.ciIndices[1][I][1];
+
+    Eigen::MatrixXcd aB;
+    igl::slice(AinvAbar[1], rowVecB, colVecB, aB);
+    std::complex<double> ratioB = aB.determinant();
+
+    //alpha and beta
+    double cI = w.ciParity[I] * w.ciCoeffs[I];
+    std::complex<double> ratioI = ratioA * ratioB;
+
+    sum += cI * ratioI;
+    ratio[0] = ratioA;
+    ratio[1] = ratioB;
+    detRatios.at(I) = ratio;
+  }
+  totalRatio = c0 + sum;
+}
+
+void rWalkerHelper<rMultiSlater>::OverlapWithGradient(const rDeterminant& d, const rMultiSlater& w, Eigen::VectorBlock<VectorXd>& grad) const
+{
+  if (schd.optimizeCiCoeffs) {
+    for (int I = 0; I < w.getNumOfDets(); I++) { grad(I) = w.ciParity[I] * (detRatios[I][0] * detRatios[I][1] / totalRatio).real(); }
+  }
+}
+
 //********************** Backflow Slater ***************
 rWalkerHelper<rBFSlater>::rWalkerHelper(const rBFSlater &w, const rDeterminant &d, const MatrixXd &Rij, const MatrixXd &RiN) 
 {

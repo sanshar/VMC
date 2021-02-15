@@ -24,6 +24,7 @@
 #include "igl/slice_into.h"
 #include "ShermanMorrisonWoodbury.h"
 #include "rSlater.h"
+#include "rMultiSlater.h"
 #include "rBFSlater.h"
 #include "rJastrow.h"
 #include "JastrowTermsHardCoded.h"
@@ -89,6 +90,47 @@ class rWalkerHelper<rSlater>
   void OverlapWithGradientGhf(const rDeterminant& d, 
                            const rSlater& w,
                            Eigen::VectorBlock<VectorXd>& grad) ;
+  
+};
+
+template<>
+class rWalkerHelper<rMultiSlater>
+{
+
+ public:
+  std::array<MatrixXcd, 2> A;         //reference configuration overlap matrix
+  std::array<MatrixXcd, 2> Ainv;          //inverse of the reference configuration overlap matrix
+  std::array<std::complex<double>, 2> detA;    //determinant of the reference configuration overlap matrix, D0
+  std::array<MatrixXcd, 2> Abar;        //overlap matrix extended to unoccupied orbitals of the reference configuration
+
+  std::array<MatrixXcd, 2> AinvAbar;         //matrix of single excitations: Ainv * Abar
+
+  std::complex<double> totalRatio;                      //total overlap ratio with reference det = c0 + \sum_I cI * DI / D0
+  std::vector<std::array<std::complex<double>, 2>> detRatios;         //overlap ratio with each determinant DI / D0, note 
+
+  mutable vector<double> aoValues;                   //this is used to store the ao values at some coordinate
+
+  std::array<MatrixXcd, 2> Lap;          //lap A(elec, mo)
+  std::array<std::array<MatrixXcd, 3>, 2> Grad;   //each of three matrices is grad A(elec, mo) 
+
+  std::array<MatrixXcd, 2> Lapbar;          //lap Abar(elec, mo)
+  std::array<std::array<MatrixXcd, 3>, 2> Gradbar;   //each of three matrices is grad Abar(elec, mo) 
+
+  std::array<MatrixXd, 2> AOLap;                      //ne X Ao matrix -> Del^2_i ao_j(r_i)
+  std::array<std::array<MatrixXd, 3>, 2>  AOGrad;        //ne X Ao matrix -> Del_ia ao_j(r_i), a=x,y,z
+  std::array<MatrixXd, 2> AO;                              //ne X Ao matrix -> ao_j(r_i)
+
+  rWalkerHelper() {};
+
+  rWalkerHelper(const rMultiSlater &w, const rDeterminant &d);
+
+  void initInvDetsTables(const rMultiSlater& w, const rDeterminant &d);
+
+  double getDetFactor(int elec, Vector3d& newCoord, const rDeterminant &d, const rMultiSlater& w) const;
+  
+  void updateWalker(int i, Vector3d& oldCoord, const rDeterminant &d, const rMultiSlater& w);
+  
+  void OverlapWithGradient(const rDeterminant& d, const rMultiSlater& w, Eigen::VectorBlock<VectorXd>& grad) const;
   
 };
 

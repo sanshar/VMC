@@ -497,7 +497,7 @@ double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI,
   //cout << gxnew <<" update det "<<endl;
   //Do the new gx, gy, gz for the Jastrows
   double diff = 0;
-  Vector3d gi, gplus, gminus;
+  Vector3d gplus, gminus;
   gplus.setZero();
   gminus.setZero();
   //grad = corrHelper.GradRatio.row(elecI);
@@ -814,6 +814,798 @@ void rWalker<rJastrow, rSlater>::getSphericalStep(Vector3d& coord, int elecI, do
 
     Vector3d gradi; //gradient at initial point
     getGradient(elecI, gradi);
+    
+    //initialize radial function U
+    double eta, a;
+    SphericalSteps::initializeU(gradi, eta, a, d.coord[elecI], closestNucleus);
+
+    //sample r
+    double newRiN = SphericalSteps::RejectionSampleR(eta, a, dR, RiN, uR);
+    
+    //sample theta
+    double newTheta = acos ( 1 - uR() * (1 - cos(thetaParam1)) );
+    
+    //sample phi
+    double newPhi = SphericalSteps::SamplePhi(newRiN, newTheta, d.coord[elecI],
+                                              gradi, closestNucleus, uR);
+    
+    //find the new electron coordinate if RiN is the z-axis
+    Vector3d riRelativeToN( newRiN * sin(newTheta) * cos(newPhi),
+                            newRiN * sin(newTheta) * sin(newPhi),
+                            newRiN * cos(newTheta)) ;
+
+    Vector3d vIN = d.coord[elecI] - schd.Ncoords[closestNucleus];
+
+    //now rotate to obtain coordinate relative to true origin
+    SphericalSteps::RotateTowards(vIN, riRelativeToN, newRi);
+    newRi +=  schd.Ncoords[closestNucleus];
+
+    double Sforward = abs( pow(newRiN, -1.5) * (1 + a * newRiN) * exp(-eta * newRiN)) ;
+    probOfMove = Sforward/SphericalSteps::volume(a, eta, RiN, dR, thetaParam1);
+  }
+
+  {
+    double dInewNnew; //new position
+    int newclosestNucleus = SphericalSteps::findTheNearestNucleus(newRi, dInewNnew);
+    double Z = schd.Ncharge[newclosestNucleus];
+
+    
+    Vector3d vIoldNnew = d.coord[elecI] - schd.Ncoords[newclosestNucleus];
+    Vector3d vInewNnew = newRi          - schd.Ncoords[newclosestNucleus];
+    double theta = acos(vIoldNnew.dot(vInewNnew)/
+                        sqrt( vIoldNnew.dot(vIoldNnew) * vInewNnew.dot(vInewNnew)));
+
+    //first check if the move is possible
+    double dIoldNnew = SphericalSteps::distance(d.coord[elecI], schd.Ncoords[newclosestNucleus]);
+    
+    if (theta > thetaParam1) {//move not possible
+      volumeOfReverseMove = 0.0;
+    }
+    else if (dIoldNnew > dInewNnew*dR || dIoldNnew < dInewNnew/dR) {//move not possible
+      volumeOfReverseMove = 0.0;
+    }
+    else {
+
+      Vector3d gradInew;
+      ovlpRatio = pow(getGradientAfterSingleElectronMove(elecI, newRi, gradInew, ref),2);
+
+      double eta, a;
+      SphericalSteps::initializeU(gradInew, eta, a, newRi, newclosestNucleus);
+
+      double Sback = abs( pow(dIoldNnew, -1.5) * (1 + a * dIoldNnew) * exp(-eta * dIoldNnew)) ;
+
+      volumeOfReverseMove = SphericalSteps::volume(a, eta, dInewNnew, dR, thetaParam1);
+      probOfReverseMove = Sback/volumeOfReverseMove;
+      
+    }
+  }
+
+  coord = newRi - d.coord[elecI];
+
+  if (abs(volumeOfReverseMove) < 1.e-20) {
+    //cout << "I should not be here "<<endl;
+    //cout << volumeOfReverseMove<<endl; exit(0);
+    proposalProb = 0.0;
+  }
+  else
+    proposalProb = probOfReverseMove / probOfMove;
+    
+}
+
+
+rWalker<rJastrow, rMultiSlater>::rWalker() {
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double>(.0,1.0); //0 mean and 1 stddev  
+}
+
+rWalker<rJastrow, rMultiSlater>::rWalker(const rJastrow &corr, const rMultiSlater &ref) 
+{
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double> (.0,1.0); //0 mean and 1 stddev  
+
+  initDet(ref.HforbsA, ref.HforbsB);
+
+  initR();
+  initHelpers(corr, ref);
+}
+
+rWalker<rJastrow, rMultiSlater>::rWalker(const rJastrow &corr, const rMultiSlater &ref, const rDeterminant &pd) : d(pd)
+{
+  uR = std::bind(std::uniform_real_distribution<double>(0, 1),
+                 std::ref(generator));
+  nR = std::normal_distribution<double> (.0,1.0); //0 mean and 1 stddev  
+  initR();
+  initHelpers(corr, ref);
+}
+
+void rWalker<rJastrow, rMultiSlater>::initHelpers(const rJastrow &corr, const rMultiSlater &ref) {
+  refHelper = rWalkerHelper<rMultiSlater>(ref, d);
+  corrHelper = rWalkerHelper<rJastrow>(corr, d, Rij, RiN);
+}
+
+void rWalker<rJastrow, rMultiSlater>::initR() {
+  Rij = MatrixXd::Zero(d.nelec, d.nelec);
+  for (int i=0; i<d.nelec; i++)
+    for (int j=0; j<i; j++) {
+      double rij = pow( pow(d.coord[i][0] - d.coord[j][0], 2) +
+                        pow(d.coord[i][1] - d.coord[j][1], 2) +
+                        pow(d.coord[i][2] - d.coord[j][2], 2), 0.5);
+
+      Rij(i,j) = rij;
+      Rij(j,i) = rij;        
+    }
+
+  RiN = MatrixXd::Zero(d.nelec, schd.Ncoords.size());
+  for (int i=0; i<d.nelec; i++)
+    for (int j=0; j<schd.Ncoords.size(); j++) {
+      double rij = pow( pow(d.coord[i][0] - schd.Ncoords[j][0], 2) +
+                        pow(d.coord[i][1] - schd.Ncoords[j][1], 2) +
+                        pow(d.coord[i][2] - schd.Ncoords[j][2], 2), 0.5);
+
+      RiN(i,j) = rij;
+    }
+
+  RNM = MatrixXd::Zero(schd.Ncoords.size(), schd.Ncoords.size());
+  for (int i=0; i<schd.Ncoords.size(); i++) {
+    for (int j=i+1; j<schd.Ncoords.size(); j++) {
+      double rij = pow( pow(schd.Ncoords[i][0] - schd.Ncoords[j][0], 2) +
+                        pow(schd.Ncoords[i][1] - schd.Ncoords[j][1], 2) +
+                        pow(schd.Ncoords[i][2] - schd.Ncoords[j][2], 2), 0.5);
+      
+      RNM(i,j) = rij;
+      RNM(j,i) = rij;
+    }
+  }
+}
+
+rDeterminant& rWalker<rJastrow, rMultiSlater>::getDet() {return d;}
+
+void rWalker<rJastrow, rMultiSlater>::readBestDeterminant(rDeterminant& d) const 
+{
+  if (commrank == 0) {
+    char file[5000];
+    sprintf(file, "BestCoordinates.bkp");
+    std::ifstream ifs(file, std::ios::binary);
+    boost::archive::binary_iarchive load(ifs);
+    load >> d;
+  }
+#ifndef SERIAL
+  boost::mpi::communicator world;
+  mpi::broadcast(world, d, 0);
+#endif
+}
+
+
+double rWalker<rJastrow, rMultiSlater>::getDetOverlap(const rMultiSlater &ref) const
+{
+  return (refHelper.totalRatio * refHelper.detA[0] * refHelper.detA[1]).real();
+}
+
+/**
+ * makes det based on mo coeffs 
+ */
+void rWalker<rJastrow, rMultiSlater>::guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXcd& HforbsA, const Eigen::MatrixXcd& HforbsB) const 
+{
+/*
+  auto random = std::bind(std::uniform_real_distribution<double>(-1., 1.), std::ref(generator));
+  for (int i=0; i<d.nelec; i++) {
+    d.coord[i][0] = random();
+    d.coord[i][1] = random();
+    d.coord[i][2] = random();
+  }
+*/
+  auto random = std::bind(std::normal_distribution<double>(0.0, 1.0), std::ref(generator));
+  int norbs = schd.basis->getNorbs();
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = nalpha+nbeta;
+  /*
+  int i = 0;
+  while (i < nelec)
+  {
+      for (int I = 0; I < schd.Ncharge.size(); I++)
+      {
+          for (int n = 0; n < schd.Ncharge[I]; n++)
+          {
+              Vector3d r(random(), random(), random());
+              d.coord[i] = schd.Ncoords[I] + r;
+              i++;
+
+              //cout << d << endl;
+          }
+      }
+  }
+  */
+  std::ifstream f("initCoord");
+  if (f.is_open())
+  {
+    for (int i = 0; i < nelec; i++)
+    {
+      int atm;
+      f >> atm;
+      //cout << atm << endl;
+      Vector3d r(random(), random(), random());
+      d.coord[i] = schd.Ncoords[atm] + r;
+    }
+  }
+  else
+  {
+    int i = 0;
+    int a = 0, b = 0;
+    for (int I = 0; I < schd.Ncharge.size(); I++)
+    {
+      for (int n = 0; n < schd.Ncharge[I];)
+      {
+        if (a < nalpha) {
+          Vector3d r(random(), random(), random());
+          d.coord[a] = schd.Ncoords[I] + r;
+          //d.coord[a] = schd.Ncoords[I];
+          a++;
+          n++;
+          i++;
+        }
+        if (n >= schd.Ncharge[I]) continue;
+
+        if (b < nbeta) {
+          Vector3d r(random(), random(), random());
+          d.coord[nalpha + b] = schd.Ncoords[I] + r;
+          //d.coord[nalpha + b] = schd.Ncoords[I];
+          b++;
+          n++;
+          i++;
+        }
+
+        if (i >= nelec) break; //need this incase ion
+      }
+    }
+  }
+
+/*
+d.coord[0] = schd.Ncoords[0] + Vector3d(1.0, 0.0, 0.0);
+if (d.coord.size() > 1)
+d.coord[1] = schd.Ncoords[0] + Vector3d(0.0, 1.0, 0.0);
+if (d.coord.size() > 2)
+d.coord[2] = schd.Ncoords[0] + Vector3d(-1.0, 0.0, 0.0);
+if (d.coord.size() > 3)
+d.coord[3] = schd.Ncoords[0] + Vector3d(0.0, -1.0, 0.0);
+*/
+
+/*
+  cout << "Electrons" << endl;
+  std::cout << d << endl << endl;
+  cout << "Basis" << endl;
+  slaterBasis &basis = dynamic_cast<slaterBasis&>(*schd.basis);
+  for (int i = 0; i < basis.atomicBasis.size(); i++)
+  {
+    std::cout << basis.atomicBasis[i] << endl;
+  }
+  cout << endl;
+  cout << "N" << endl;
+  for (int i = 0; i < schd.Ncoords.size(); i++)
+  {
+    std::cout << schd.Ncharge[i] << endl;
+    std::cout << schd.Ncoords[i] << endl << endl;
+  }
+*/
+}
+
+void rWalker<rJastrow, rMultiSlater>::initDet(const MatrixXcd& HforbsA, const MatrixXcd& HforbsB) 
+{
+  bool readDeterminant = false;
+  char file[5000];
+  sprintf(file, "BestCoordinates.txt");
+  
+  {
+    ifstream ofile(file);
+    if (ofile)
+      readDeterminant = true;
+  }
+  if (readDeterminant)
+    readBestDeterminant(d);
+  else
+    guessBestDeterminant(d, HforbsA, HforbsB);
+}
+
+
+void rWalker<rJastrow, rMultiSlater>::updateWalker(int elec, Vector3d& coord, const rMultiSlater& ref, const rJastrow& corr) {
+  Vector3d oldCoord = d.coord[elec];
+  d.coord[elec] = coord;
+  for (int j=0; j<d.nelec; j++) {
+    Rij(elec, j) = pow( pow(d.coord[elec][0] - d.coord[j][0], 2) +
+                     pow(d.coord[elec][1] - d.coord[j][1], 2) +
+                     pow(d.coord[elec][2] - d.coord[j][2], 2), 0.5);
+
+    Rij(j,elec) = Rij(elec,j);
+  }
+
+  for (int j=0; j<schd.Ncoords.size(); j++) {
+    RiN(elec, j) = pow( pow(d.coord[elec][0] - schd.Ncoords[j][0], 2) +
+                     pow(d.coord[elec][1] - schd.Ncoords[j][1], 2) +
+                     pow(d.coord[elec][2] - schd.Ncoords[j][2], 2), 0.5);
+  }
+
+  corrHelper.updateWalker(elec, oldCoord, corr, d, Rij, RiN);
+  refHelper.updateWalker(elec, oldCoord, d, ref);
+}
+
+void rWalker<rJastrow, rMultiSlater>::OverlapWithGradient(const rMultiSlater &ref, const rJastrow& cps, VectorXd &grad)
+{
+  double factor1 = 1.0;
+  corrHelper.OverlapWithGradient(cps, grad, d, factor1);
+
+  if (schd.optimizeCiCoeffs == false) { return; }
+  Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - cps.getNumVariables());
+  refHelper.OverlapWithGradient(d, ref, gradtail);
+}
+
+/*
+void rWalker<rJastrow, rMultiSlater>::HamOverlap(const rMultiSlater &ref,
+                                           const rJastrow& cps,
+                                           VectorXd &hamgrad) 
+{
+  //double factor1 = 1.0;
+  //corrHelper.HamOverlap(cps, grad, d, factor1);
+  
+  Eigen::VectorBlock<VectorXd> hamtail = hamgrad.tail(hamgrad.rows()
+                                                      - cps.getNumVariables());
+
+  if (schd.optimizeOrbs == false) return;
+  //refHelper.HamOverlap(d, ref, Rij, RiN, hamtail);
+}
+*/
+
+void rWalker<rJastrow, rMultiSlater>::getStep(Vector3d& coord, int elecI,
+                                         double stepsize, const rMultiSlater& ref,
+                                         const rJastrow& corr,double&ovlpRatio,
+                                         double& proposalProb) {
+  if (schd.rStepType == SIMPLE)
+    return getSimpleStep(coord, stepsize, ovlpRatio, proposalProb);
+  
+  else if (schd.rStepType == GAUSSIAN)
+    return getGaussianStep(coord, elecI, stepsize, ovlpRatio, proposalProb);
+
+  else if (schd.rStepType == DMC)
+    return getDMCStep(coord, elecI, stepsize, ref, corr, ovlpRatio, proposalProb);
+  
+  else if (schd.rStepType == SPHERICAL)
+    return getSphericalStep(coord, elecI, stepsize, ref, ovlpRatio, proposalProb);
+}
+
+void rWalker<rJastrow, rMultiSlater>::getSimpleStep(Vector3d& coord,  double stepsize,
+                                               double& ovlpRatio, double& proposalProb) {
+  coord[0] = (uR()-0.5)*stepsize;
+  coord[1] = (uR()-0.5)*stepsize;
+  coord[2] = (uR()-0.5)*stepsize;
+  proposalProb = 1.0;
+  ovlpRatio = -1.0;
+}
+
+void rWalker<rJastrow, rMultiSlater>::getGaussianStep(Vector3d& coord, int elecI, double stepsize,
+                                                   double& ovlpRatio, double& proposalProb) {
+  double stepx = nR(generator),
+      stepy = nR(generator),
+      stepz = nR(generator);
+  coord[0] = stepx * stepsize;
+  coord[1] = stepy * stepsize;
+  coord[2] = stepz * stepsize;
+  proposalProb = 1.0;
+  ovlpRatio = -1.0;
+}
+
+void rWalker<rJastrow, rMultiSlater>::getGradient(int elecI, Vector3d& grad, const rMultiSlater &ref) {
+  int norbs = Determinant::norbs;
+
+  int sz = 0;
+  int i = elecI;
+  if (elecI >= d.nalpha) //beta electron
+  {
+    i -= d.nalpha;
+    sz = 1;
+  }
+
+  //intermediates
+  //x
+  MatrixXcd Mbarx = refHelper.Ainv[sz].col(i) * refHelper.Gradbar[sz][0].row(i);
+  VectorXcd tempx;
+  tempx.transpose() = refHelper.Grad[sz][0].row(i) * refHelper.AinvAbar[sz];
+  Mbarx -= refHelper.Ainv[sz].col(i) * tempx.transpose();
+  std::complex<double> refGradx = refHelper.Grad[sz][0].row(i) * refHelper.Ainv[sz].col(i);  
+  //y
+  MatrixXcd Mbary = refHelper.Ainv[sz].col(i) * refHelper.Gradbar[sz][1].row(i);
+  VectorXcd tempy;
+  tempy.transpose() = refHelper.Grad[sz][1].row(i) * refHelper.AinvAbar[sz];
+  Mbary -= refHelper.Ainv[sz].col(i) * tempy.transpose();
+  std::complex<double> refGrady = refHelper.Grad[sz][1].row(i) * refHelper.Ainv[sz].col(i);  
+  //z
+  MatrixXcd Mbarz = refHelper.Ainv[sz].col(i) * refHelper.Gradbar[sz][2].row(i);
+  VectorXcd tempz;
+  tempz.transpose() = refHelper.Grad[sz][2].row(i) * refHelper.AinvAbar[sz];
+  Mbarz -= refHelper.Ainv[sz].col(i) * tempz.transpose();
+  std::complex<double> refGradz = refHelper.Grad[sz][2].row(i) * refHelper.Ainv[sz].col(i);  
+
+  std::complex<double> sumx = 0.0;
+  std::complex<double> sumy = 0.0;
+  std::complex<double> sumz = 0.0;
+  for (size_t I = 1; I < ref.getNumOfDets(); I++)
+  {
+    Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
+    Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
+
+    Eigen::MatrixXcd aI;
+    igl::slice(refHelper.AinvAbar[sz], rowVec, colVec, aI);
+
+    Eigen::FullPivLU<MatrixXcd> lu(aI);
+    if (!lu.isInvertible()) { continue; }
+    Eigen::MatrixXcd aIinv = lu.inverse();
+
+    //x
+    Eigen::MatrixXcd MbarxI;
+    igl::slice(Mbarx, rowVec, colVec, MbarxI);
+    //y
+    Eigen::MatrixXcd MbaryI;
+    igl::slice(Mbary, rowVec, colVec, MbaryI);
+    //z
+    Eigen::MatrixXcd MbarzI;
+    igl::slice(Mbarz, rowVec, colVec, MbarzI);
+
+    //alpha and beta
+    double cI = ref.ciParity[I] * ref.ciCoeffs[I];
+    std::complex<double> ratioI = refHelper.detRatios[I][0] * refHelper.detRatios[I][1];
+
+    sumx += cI * (aIinv * MbarxI).trace() * ratioI;
+    sumy += cI * (aIinv * MbaryI).trace() * ratioI;
+    sumz += cI * (aIinv * MbarzI).trace() * ratioI;
+  }
+  grad[0] = (refGradx + sumx / refHelper.totalRatio).real();
+  grad[1] = (refGrady + sumy / refHelper.totalRatio).real();
+  grad[2] = (refGradz + sumz / refHelper.totalRatio).real();
+
+  Vector3d gradRatio;
+  corrHelper.Gradient(elecI, gradRatio, d);
+  grad[0] += gradRatio(0);    
+  grad[1] += gradRatio(1);
+  grad[2] += gradRatio(2);
+}
+
+double rWalker<rJastrow, rMultiSlater>::getGradientAfterSingleElectronMove(int elecI, Vector3d& newCoord, Vector3d& grad, const rMultiSlater& ref)
+{
+  int norbs = Determinant::norbs;
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+  vector<double>& aoValues = refHelper.aoValues;
+  aoValues.resize(10*norbs, 0.0);
+  schd.basis->eval_deriv2(newCoord, &aoValues[0]);
+
+  int sz = 0;
+  int i = elecI;
+  if (elecI >= d.nalpha) //beta electron
+  {
+    i -= d.nalpha;
+    sz = 1;
+  }
+
+  VectorXcd newAO = VectorXd::Zero(norbs);
+  VectorXcd newAOGradx = VectorXd::Zero(norbs);
+  VectorXcd newAOGrady = VectorXd::Zero(norbs);
+  VectorXcd newAOGradz = VectorXd::Zero(norbs);
+  for (int i = 0; i < norbs; i++)
+  {
+    newAO(i) = aoValues[i];
+    newAOGradx(i) = aoValues[norbs + i];
+    newAOGrady(i) = aoValues[2 * norbs + i];
+    newAOGradz(i) = aoValues[3 * norbs + i];
+  }
+
+  //occ
+  VectorXcd newA = VectorXd::Zero(ref.ref[sz].size());
+  VectorXcd newGradx = VectorXd::Zero(ref.ref[sz].size());
+  VectorXcd newGrady = VectorXd::Zero(ref.ref[sz].size());
+  VectorXcd newGradz = VectorXd::Zero(ref.ref[sz].size());
+  for (int mo = 0; mo < newA.size(); mo++)
+  {
+    int orb = ref.ref[sz].at(mo);
+    newA(mo) = newAO.transpose() * ref.getHforbs(sz).col(orb);
+    newGradx(mo) = newAOGradx.transpose() * ref.getHforbs(sz).col(orb);
+    newGrady(mo) = newAOGrady.transpose() * ref.getHforbs(sz).col(orb);
+    newGradz(mo) = newAOGradz.transpose() * ref.getHforbs(sz).col(orb);
+  }
+
+  //unocc
+  VectorXcd newAbar = VectorXd::Zero(ref.open[sz].size());
+  VectorXcd newGradxbar = VectorXd::Zero(ref.open[sz].size());
+  VectorXcd newGradybar = VectorXd::Zero(ref.open[sz].size());
+  VectorXcd newGradzbar = VectorXd::Zero(ref.open[sz].size());
+  for (int mo = 0; mo < newAbar.size(); mo++)
+  {
+    int orb = ref.open[sz].at(mo);
+    newAbar(mo) = newAO.transpose() * ref.getHforbs(sz).col(orb);
+    newGradxbar(mo) = newAOGradx.transpose() * ref.getHforbs(sz).col(orb);
+    newGradybar(mo) = newAOGrady.transpose() * ref.getHforbs(sz).col(orb);
+    newGradzbar(mo) = newAOGradz.transpose() * ref.getHforbs(sz).col(orb);
+  }
+
+  //intermediates
+  MatrixXcd Mbar = refHelper.Ainv[sz].col(i) * newAbar.transpose();
+  VectorXcd temp;
+  temp.transpose() = newA.transpose() * refHelper.AinvAbar[sz];
+  Mbar -= refHelper.Ainv[sz].col(i) * temp.transpose();
+  std::complex<double> refRatio = newA.transpose() * refHelper.Ainv[sz].col(i);  
+  //x
+  MatrixXcd Mbarx = refHelper.Ainv[sz].col(i) * newGradxbar.transpose();
+  VectorXcd tempx;
+  tempx.transpose() = newGradx.transpose() * refHelper.AinvAbar[sz];
+  Mbarx -= refHelper.Ainv[sz].col(i) * tempx.transpose();
+  std::complex<double> refGradx = newGradx.transpose() * refHelper.Ainv[sz].col(i);  
+  //y
+  MatrixXcd Mbary = refHelper.Ainv[sz].col(i) * newGradybar.transpose();
+  VectorXcd tempy;
+  tempy.transpose() = newGrady.transpose() * refHelper.AinvAbar[sz];
+  Mbary -= refHelper.Ainv[sz].col(i) * tempy.transpose();
+  std::complex<double> refGrady = newGrady.transpose() * refHelper.Ainv[sz].col(i);  
+  //z
+  MatrixXcd Mbarz = refHelper.Ainv[sz].col(i) * newGradzbar.transpose();
+  VectorXcd tempz;
+  tempz.transpose() = newGradz.transpose() * refHelper.AinvAbar[sz];
+  Mbarz -= refHelper.Ainv[sz].col(i) * tempz.transpose();
+  std::complex<double> refGradz = newGradz.transpose() * refHelper.Ainv[sz].col(i);  
+
+  std::complex<double> sum = 0.0;
+  std::complex<double> sumx = 0.0;
+  std::complex<double> sumy = 0.0;
+  std::complex<double> sumz = 0.0;
+  for (size_t I = 1; I < ref.getNumOfDets(); I++)
+  {
+    Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
+    Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
+
+    Eigen::MatrixXcd aI;
+    igl::slice(refHelper.AinvAbar[sz], rowVec, colVec, aI);
+
+    Eigen::FullPivLU<MatrixXcd> lu(aI);
+    if (!lu.isInvertible()) { continue; }
+    Eigen::MatrixXcd aIinv = lu.inverse();
+
+    Eigen::MatrixXcd MbarI;
+    igl::slice(Mbar, rowVec, colVec, MbarI);
+    //x
+    Eigen::MatrixXcd MbarxI;
+    igl::slice(Mbarx, rowVec, colVec, MbarxI);
+    //y
+    Eigen::MatrixXcd MbaryI;
+    igl::slice(Mbary, rowVec, colVec, MbaryI);
+    //z
+    Eigen::MatrixXcd MbarzI;
+    igl::slice(Mbarz, rowVec, colVec, MbarzI);
+
+    //alpha and beta
+    double cI = ref.ciParity[I] * ref.ciCoeffs[I];
+    std::complex<double> ratioI = refHelper.detRatios[I][0] * refHelper.detRatios[I][1];
+
+    sum += cI * (aIinv * MbarI).trace() * ratioI;
+    sumx += cI * (aIinv * MbarxI).trace() * ratioI;
+    sumy += cI * (aIinv * MbaryI).trace() * ratioI;
+    sumz += cI * (aIinv * MbarzI).trace() * ratioI;
+  }
+  double ovlpRatio = (refRatio + sum / refHelper.totalRatio).real();
+  double gradx = (refGradx + sumx / refHelper.totalRatio).real();
+  double grady = (refGrady + sumy / refHelper.totalRatio).real();
+  double gradz = (refGradz + sumz / refHelper.totalRatio).real();
+
+  gradx /= ovlpRatio;
+  grady /= ovlpRatio;
+  gradz /= ovlpRatio;
+
+  double diff = 0;
+  Vector3d gplus, gminus;
+  gplus.setZero();
+  gminus.setZero();
+  corrHelper.Gradient(elecI, grad, d);
+  grad[0] += gradx; grad[1] += grady; grad[2] += gradz;
+  
+  VectorXd& params = corrHelper.jastrowParams;
+  int Qmax = corrHelper.Qmax;
+  int QmaxEEN = corrHelper.QmaxEEN;
+  int EEsameSpinIndex      = corrHelper.EEsameSpinIndex,
+      EEoppositeSpinIndex  = corrHelper.EEoppositeSpinIndex,
+      ENIndex              = corrHelper.ENIndex,
+      EENsameSpinIndex     = corrHelper.EENsameSpinIndex,
+      EENoppositeSpinIndex = corrHelper.EENoppositeSpinIndex,
+      EENNlinearIndex      = corrHelper.EENNlinearIndex,
+      EENNIndex            = corrHelper.EENNIndex;
+
+  diff -= JastrowENValueGrad(elecI, Qmax, d.coord, gminus,  params, ENIndex);
+  for (int j=0; j<d.nelec; j++) {
+
+    if (j == elecI) continue;
+
+    diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEsameSpinIndex, 1);
+    diff -= JastrowEEValueGrad(elecI, j, Qmax, d.coord, gminus,  params, EEoppositeSpinIndex, 0);
+
+      diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus, params, EENsameSpinIndex, 1);
+      diff -= JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gminus, params, EENoppositeSpinIndex, 0);
+  }
+
+  Vector3d bkp = d.coord[elecI];
+  d.coord[elecI] = newCoord;
+
+  diff += JastrowENValueGrad(elecI, Qmax, d.coord, gplus,  params, ENIndex);
+  for (int j=0; j<d.nelec; j++) {
+
+    if (j == elecI) continue;
+
+    diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus, params, EEsameSpinIndex, 1);
+    diff += JastrowEEValueGrad(elecI, j, Qmax, d.coord, gplus, params, EEoppositeSpinIndex, 0);
+
+      diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENsameSpinIndex, 1);
+      diff += JastrowEENValueGrad(elecI, j, QmaxEEN, d.coord, gplus, params, EENoppositeSpinIndex, 0);
+  }
+
+  d.coord[elecI] = bkp;
+
+  //cout << grad[0] - gxnew + gplus[0] - gminus[0] <<endl;
+  
+  grad += (gplus - gminus);
+
+  if (schd.fourBodyJastrow) {
+    diff += JastrowEENNfactorAndGradient(elecI, newCoord, d.coord, corrHelper.N, corrHelper.n, corrHelper.gradn, grad, params, EENNlinearIndex);
+  }
+
+  //cout << "grad ratio" << endl;
+  //Vector3d print = corrHelper.GradRatio.row(elecI);
+  //if (schd.fourBodyJastrow) {
+  //  JastrowEENNfactorAndGradient(elecI, newCoord, d.coord, corrHelper.N, corrHelper.n, corrHelper.gradn, print, params, EENNlinearIndex);
+  //}
+  //print += (gplus - gminus);
+  //cout << print.transpose() << endl;
+    
+  ovlpRatio = ovlpRatio * std::exp(diff);
+
+  return ovlpRatio;
+}
+
+//use cyrus' scaled velocity
+//J. Chem. Phys., Vol. 99, No.4, 15 August 1993
+void rWalker<rJastrow, rMultiSlater>::getScaledGradient(int elecI, double tau, Vector3d& vbar, const rMultiSlater &ref) {
+  Vector3d &ri = d.coord[elecI];
+
+  Vector3d v;
+  getGradient(elecI, v, ref);
+  Vector3d vhat = v.normalized();
+
+  double null;
+  int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
+  Vector3d rI = schd.Ncoords[closestNucleus];
+  double Z = schd.Ncharge[closestNucleus];
+
+  Vector3d z = ri - rI;
+  Vector3d zhat = z.normalized();
+
+  double zZ2 = Z * Z * z.squaredNorm();
+  double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+
+  double av2t = a * v.squaredNorm() * tau;
+  double factor = (-1.0 + std::sqrt(1.0 + 2.0 * av2t)) / av2t;
+
+  vbar = factor * v;
+}
+
+double rWalker<rJastrow, rMultiSlater>::getScaledGradientAfterSingleElectronMove(int elecI, double tau, Vector3d& newCoord, Vector3d& vbar, const rMultiSlater& ref)
+{
+  Vector3d &ri = newCoord;
+
+  Vector3d v;
+  double ovlpRatio = getGradientAfterSingleElectronMove(elecI, ri, v, ref);
+  Vector3d vhat = v.normalized();
+
+  double null;
+  int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
+  Vector3d rI = schd.Ncoords[closestNucleus];
+  double Z = schd.Ncharge[closestNucleus];
+
+  Vector3d z = ri - rI;
+  Vector3d zhat = z.normalized();
+
+  double zZ2 = Z * Z * z.squaredNorm();
+  double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+
+  double av2t = a * v.squaredNorm() * tau;
+  double factor = (-1.0 + std::sqrt(1.0 + 2.0 * av2t)) / av2t;
+
+  vbar = factor * v;
+  return ovlpRatio;
+}
+
+//this is used in the dmc algorithm
+void rWalker<rJastrow, rMultiSlater>::doDMCMove(Vector3d& coord, int elecI, double stepsize, const rMultiSlater& ref, const rJastrow& corr, double& ovlpRatio, double& proposalProb) {
+  double tau = stepsize;
+
+  Vector3d &r = d.coord[elecI];
+  Vector3d v;
+  if (schd.scaledVelocity) { getScaledGradient(elecI, tau, v, ref); }
+  else { getGradient(elecI, v, ref); }
+
+  Vector3d xsi;
+  xsi(0) = nR(generator);
+  xsi(1) = nR(generator);
+  xsi(2) = nR(generator);
+
+  Vector3d rp = r + tau * v + std::sqrt(tau) * xsi;
+
+  double forwardProb = std::exp( - xsi.squaredNorm() / 2.0) / std::pow(2.0 * M_PI * tau, 3 / 2);
+
+  Vector3d vp;
+  if (schd.scaledVelocity) { ovlpRatio = getScaledGradientAfterSingleElectronMove(elecI, tau, rp, vp, ref); }
+  else { ovlpRatio = getGradientAfterSingleElectronMove(elecI, rp, vp, ref); }
+
+  double reverseProb = std::exp( - (r - rp - tau * vp).squaredNorm() / (2.0 * tau)) / std::pow(2.0 * M_PI * tau, 3 / 2);
+  
+  proposalProb = reverseProb / forwardProb;  
+  coord = rp - r;
+}
+
+//JCP, 109, 2630
+//used in vmc algorithm
+void rWalker<rJastrow, rMultiSlater>::getDMCStep(Vector3d& coord, int elecI, double stepsize,
+                                           const rMultiSlater& ref, const rJastrow& corr, double& ovlpRatio,
+                                           double& proposalProb) {
+  Vector3d gradi; //gradient at initial point
+  //obtain the gradient
+  getGradient(elecI, gradi, ref);
+
+  double driftSize = pow(stepsize, 0.5);
+  double stepx = nR(generator), stepy = nR(generator), stepz = nR(generator);
+
+  double kappa = stepsize;
+  double gnorm = pow(gradi[0]*gradi[0] + gradi[1]*gradi[1] + gradi[2]*gradi[2], 0.5);
+  double alphainit = kappa/gnorm, deltainit = sqrt(alphainit);
+
+  coord[0] = stepx * deltainit + alphainit * gradi[0];
+  coord[1] = stepy * deltainit + alphainit * gradi[1];
+  coord[2] = stepz * deltainit + alphainit * gradi[2];
+
+  double forwardProb = exp(-(stepx*stepx + stepy*stepy + stepz*stepz)/2.)
+      /pow(2*M_PI* deltainit*deltainit, 1.5);
+
+  Vector3d newCoord = d.coord[elecI] + coord;
+
+
+  //now calculate the reverse probability
+
+  Vector3d gradInew;
+  ovlpRatio = pow(getGradientAfterSingleElectronMove(elecI, newCoord, gradInew, ref),2);
+
+  double gnormnew = pow(gradInew[0]*gradInew[0]+gradInew[1]*gradInew[1]+gradInew[2]*gradInew[2], 0.5);
+  double alphanew = kappa/gnormnew, deltanew = sqrt(alphanew);//kappa1/gnormnew;
+  //double alphanew = stepsize, deltanew = driftSize;
+  
+  //calculate the stepx/y/z needed to go back
+  stepx = (-coord[0] - alphanew * gradInew[0])/deltanew;
+  stepy = (-coord[1] - alphanew * gradInew[1])/deltanew;
+  stepz = (-coord[2] - alphanew * gradInew[2])/deltanew;
+  
+  double reverseProb = exp(-(stepx*stepx + stepy*stepy + stepz*stepz)/2.)
+      /pow(2*M_PI*deltanew*deltanew, 1.5);
+  
+  proposalProb =  reverseProb/forwardProb;
+}
+
+//
+void rWalker<rJastrow, rMultiSlater>::getSphericalStep(Vector3d& coord, int elecI, double stepsize,
+                                                  const rMultiSlater& ref, double& ovlpRatio,
+                                                  double& proposalProb) {
+
+  double dR = 5.0, thetaParam1 = M_PI/2; 
+  Vector3d newRi; int closestNucleus; double probOfMove, probOfReverseMove;
+  double volumeOfReverseMove = 1.0;
+
+  {
+    double RiN;
+    closestNucleus = SphericalSteps::findTheNearestNucleus(d.coord[elecI], RiN);
+
+    Vector3d gradi; //gradient at initial point
+    getGradient(elecI, gradi, ref);
     
     //initialize radial function U
     double eta, a;

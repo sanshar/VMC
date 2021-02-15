@@ -25,7 +25,9 @@
 #include "igl/slice.h"
 #include "igl/slice_into.h"
 #include "rSlater.h"
+#include "rMultiSlater.h"
 #include "rBFSlater.h"
+#include "rJastrow.h"
 #include <random>
 
 template<typename jastrow, typename slater> class rCorrelatedWavefunction;
@@ -107,6 +109,80 @@ struct rWalker<rJastrow, rSlater> {
     os << "dets\n" << w.refHelper.thetaDet[0][0] << "  " << w.refHelper.thetaDet[0][1] << endl << endl;
     os << "alphaInv\n" << w.refHelper.thetaInv[0] << endl << endl;
     os << "betaInv\n" << w.refHelper.thetaInv[1] << endl << endl;
+    return os;
+  }
+  
+};
+
+template<>
+struct rWalker<rJastrow, rMultiSlater> {
+
+  rDeterminant d;
+  MatrixXd RNM;
+  MatrixXd Rij;         //the inter-electron distances
+  MatrixXd RiN;         //electron-nucleus distances  
+  rWalkerHelper<rJastrow> corrHelper;
+  rWalkerHelper<rMultiSlater> refHelper;
+  uniformRandom uR;
+  std::normal_distribution<double> nR;
+  
+  rWalker();
+  
+  rWalker(const rJastrow &corr, const rMultiSlater &ref) ;
+
+  rWalker(const rJastrow &corr, const rMultiSlater &ref, const rDeterminant &pd);
+
+  void initR();
+
+  void initHelpers(const rJastrow &corr, const rMultiSlater &ref);
+
+  rDeterminant& getDet();
+
+  void readBestDeterminant(rDeterminant& d) const ;
+
+  double getDetOverlap(const rMultiSlater &ref) const;
+
+  /**
+   * makes det based on mo coeffs 
+   */
+  void guessBestDeterminant(rDeterminant& d, const Eigen::MatrixXcd& HforbsA, const Eigen::MatrixXcd& HforbsB) const ;
+
+  void initDet(const MatrixXcd& HforbsA, const MatrixXcd& HforbsB) ;
+
+
+  void updateWalker(int elec, Vector3d& coord, const rMultiSlater& ref, const rJastrow& corr);
+
+  void OverlapWithGradient(const rMultiSlater &ref, const rJastrow& cps, VectorXd &grad);
+
+  void HamOverlap(const rMultiSlater &ref, const rJastrow& cps, VectorXd &grad) ;
+
+  void getStep(Vector3d& coord, int elecI, double stepsize,
+               const rMultiSlater& ref, const rJastrow& corr, double& ovlpRatio,
+               double& proposalProb) ;
+               
+  void getSimpleStep(Vector3d& coord,  double stepsize, double& ovlpRatio, double& proposalProb);
+
+  void getSphericalStep(Vector3d& coord, int elecToMove, double stepsize, const rMultiSlater& ref,
+                        double& ovlpRatio, double& proposalProb);
+  void getDMCStep(Vector3d& coord, int elecI, double stepsize,
+                 const rMultiSlater& ref, const rJastrow& corr, double& ovlpRatio,
+                 double& proposalProb) ;
+  void getGaussianStep(Vector3d& coord, int elecToMove, double stepsize,
+                       double& ovlpRatio, double& proposalProb);
+
+  void doDMCMove(Vector3d& coord, int elecI, double stepsize, const rMultiSlater& ref, const rJastrow& corr, double& ovlpRatio, double& proposalProb);
+
+  void getGradient(int elecI, Vector3d& grad, const rMultiSlater &ref);
+  void getScaledGradient(int elecI, double tau, Vector3d& vbar, const rMultiSlater &ref);
+
+  double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad, const rMultiSlater& ref);
+  double getScaledGradientAfterSingleElectronMove(int elecI, double tau, Vector3d& move, Vector3d& grad, const rMultiSlater& ref);
+
+  friend ostream& operator<<(ostream& os, const rWalker<rJastrow, rMultiSlater>& w) {
+    os << w.d << endl << endl;
+    //os << "dets\n" << w.refHelper.thetaDet[0][0] << "  " << w.refHelper.thetaDet[0][1] << endl << endl;
+    //os << "alphaInv\n" << w.refHelper.thetaInv[0] << endl << endl;
+    //os << "betaInv\n" << w.refHelper.thetaInv[1] << endl << endl;
     return os;
   }
   

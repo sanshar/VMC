@@ -67,8 +67,11 @@ double JastrowEEValue(int i, int j, int maxQ,
       double rijbar, df, d2f;
       scaledRij(rij, rijbar, df, d2f);
 
-      for (int n = 1; n <= maxQ; n++) 
-        value += pow(rijbar, n) * params[startIndex + n - 1];
+      double pow = 1.0;
+      for (int n = 1; n <= maxQ; n++) {
+        pow *= rijbar;
+        value += pow * params[startIndex + n - 1];
+      }
 
     }
   }
@@ -99,9 +102,12 @@ double JastrowEEValueGrad(int i, int j, int maxQ,
       double rijbar, df, d2f;
       scaledRij(rij, rijbar, df, d2f);
     
+      double pow = 1.0;
       for (int n = 1; n <= maxQ; n++) {
         const double& factor = params[startIndex + n - 1];
-        double val = pow(rijbar, n);
+
+        pow *= rijbar;
+        double val = pow;
 
         value   += val * factor;      
         grad(0) += factor * (n * val / rijbar) * df * xij/rij;
@@ -132,8 +138,10 @@ void JastrowEEValues(int i, int j, int maxQ, const vector<Vector3d>& r, VectorXd
       double rijbar, df, d2f;
       scaledRij(rij, rijbar, df, d2f);
     
+      double pow = 1.0;
       for (int n = 1; n <= maxQ; n++) {
-        double value = pow(rijbar, n);
+        pow *= rijbar;
+        double value = pow;
       
         values[startIndex + n - 1] += factor*value;
       }
@@ -165,8 +173,10 @@ void JastrowEE(int i, int j, int maxQ,
       double rijbar, df, d2f;
       scaledRij(rij, rijbar, df, d2f);
     
+      double pow = 1.0;
       for (int n = 1; n <= maxQ; n++) {
-        double value = pow(rijbar, n);
+        pow *= rijbar;
+        double value = pow;
       
         values[startIndex + n - 1] += factor*value;
 
@@ -216,8 +226,11 @@ double JastrowENValue(int i, int maxQ,
     double riNbar, df, d2f;
     scaledRij(riN, riNbar, df, d2f);
 
-    for (int n = 1; n <= maxQ; n++) 
-      value += pow(riNbar, n) * params[startIndex + (n - 1) + schd.uniqueAtomsMap[N] * maxQ];
+    double pow = 1.0;
+    for (int n = 1; n <= maxQ; n++)  {
+      pow *= riNbar;
+      value += pow * params[startIndex + (n - 1) + schd.uniqueAtomsMap[N] * maxQ];
+    }
   }
   return value;
 }
@@ -244,9 +257,12 @@ double JastrowENValueGrad(int i, int maxQ,
     double riNbar, df, d2f;
     scaledRij(riN, riNbar, df, d2f);
     
+    double pow = 1.0;
     for (int n = 1; n <= maxQ; n++) {
       const double& factor = params[startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ];
-      double val = pow(riNbar, n);
+
+      pow *= riNbar;
+      double val = pow;
       
       value   += factor * val;
       grad(0) += factor * (n * val / riNbar) * df * xiN/riN;
@@ -276,8 +292,10 @@ void JastrowENValues(int i, int maxQ, const vector<Vector3d>& r, VectorXd& value
     double riNbar, df, d2f;
     scaledRij(riN, riNbar, df, d2f);
     
+    double pow = 1.0;
     for (int n = 1; n <= maxQ; n++) {
-      double value = pow(riNbar, n);
+      pow *= riNbar;
+      double value = pow;
       
       values[startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ] += factor*value;
     }
@@ -308,8 +326,10 @@ void JastrowEN(int i, int maxQ,
     double riNbar, df, d2f;
     scaledRij(riN, riNbar, df, d2f);
     
+    double pow = 1.0;
     for (int n = 1; n <= maxQ; n++) {
-      double value = pow(riNbar, n);
+      pow *= riNbar;
+      double value = pow;
       
       values[startIndex + n - 1 + schd.uniqueAtomsMap[N] * maxQ] += factor*value;
 
@@ -382,10 +402,13 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
       scaledRij(rjN, rjNbar, dfjN, d2fjN);
       
       VectorXd iNPowers = VectorXd::Zero(maxQ+1), jNPowers = VectorXd::Zero(maxQ+1), ijPowers = VectorXd::Zero(maxQ+1);
-      for (int m = 0; m <= maxQ; m++) {
-        iNPowers[m] = pow(riNbar, m);
-        jNPowers[m] = pow(rjNbar, m);
-        ijPowers[m] = pow(rijbar, m);
+      iNPowers[0] = 1.0;
+      jNPowers[0] = 1.0;
+      ijPowers[0] = 1.0;
+      for (int m = 1; m <= maxQ; m++) {
+        iNPowers[m] = riNbar * iNPowers[m - 1];
+        jNPowers[m] = rjNbar * jNPowers[m - 1];
+        ijPowers[m] = rijbar * ijPowers[m - 1];
       }
 
       int EENindex = 0;
@@ -479,10 +502,13 @@ double JastrowEENValue(int i, int j, int maxQ,
       scaledRij(rjN, rjNbar, dfjN, d2fjN);
 
       VectorXd iNPowers = VectorXd::Zero(maxQ+1), jNPowers = VectorXd::Zero(maxQ+1), ijPowers = VectorXd::Zero(maxQ+1);
-      for (int m = 0; m <= maxQ; m++) {
-        iNPowers[m] = pow(riNbar, m);
-        jNPowers[m] = pow(rjNbar, m);
-        ijPowers[m] = pow(rijbar, m);
+      iNPowers[0] = 1.0;
+      jNPowers[0] = 1.0;
+      ijPowers[0] = 1.0;
+      for (int m = 1; m <= maxQ; m++) {
+        iNPowers[m] = riNbar * iNPowers[m - 1];
+        jNPowers[m] = rjNbar * jNPowers[m - 1];
+        ijPowers[m] = rijbar * ijPowers[m - 1];
       }
 
       int EENindex = 0;
@@ -556,10 +582,13 @@ void JastrowEENValues(int i, int j, int maxQ, const vector<Vector3d>& r, VectorX
       scaledRij(rjN, rjNbar, dfjN, d2fjN);
       
       VectorXd iNPowers = VectorXd::Zero(maxQ+1), jNPowers = VectorXd::Zero(maxQ+1), ijPowers = VectorXd::Zero(maxQ+1);
-      for (int m = 0; m <= maxQ; m++) {
-        iNPowers[m] = pow(riNbar, m);
-        jNPowers[m] = pow(rjNbar, m);
-        ijPowers[m] = pow(rijbar, m);
+      iNPowers[0] = 1.0;
+      jNPowers[0] = 1.0;
+      ijPowers[0] = 1.0;
+      for (int m = 1; m <= maxQ; m++) {
+        iNPowers[m] = riNbar * iNPowers[m - 1];
+        jNPowers[m] = rjNbar * jNPowers[m - 1];
+        ijPowers[m] = rijbar * ijPowers[m - 1];
       }
 
       double lapIntermediateI = (xiN * xij + yiN * yij + ziN * zij) / riN / rij;
@@ -642,10 +671,13 @@ void JastrowEEN(int i, int j, int maxQ,
       scaledRij(rjN, rjNbar, dfjN, d2fjN);
       
       VectorXd iNPowers = VectorXd::Zero(maxQ+1), jNPowers = VectorXd::Zero(maxQ+1), ijPowers = VectorXd::Zero(maxQ+1);
-      for (int m = 0; m <= maxQ; m++) {
-        iNPowers[m] = pow(riNbar, m);
-        jNPowers[m] = pow(rjNbar, m);
-        ijPowers[m] = pow(rijbar, m);
+      iNPowers[0] = 1.0;
+      jNPowers[0] = 1.0;
+      ijPowers[0] = 1.0;
+      for (int m = 1; m <= maxQ; m++) {
+        iNPowers[m] = riNbar * iNPowers[m - 1];
+        jNPowers[m] = rjNbar * jNPowers[m - 1];
+        ijPowers[m] = rijbar * ijPowers[m - 1];
       }
 
       double lapIntermediateI = (xiN * xij + yiN * yij + ziN * zij) / riN / rij;

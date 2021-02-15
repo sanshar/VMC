@@ -71,6 +71,7 @@ OBJ_VMC = obj/staticVariables.o \
 	obj/Determinants.o \
 	obj/Slater.o \
 	obj/rSlater.o \
+	obj/rMultiSlater.o \
 	obj/rBFSlater.o \
 	obj/AGP.o \
 	obj/Pfaffian.o \
