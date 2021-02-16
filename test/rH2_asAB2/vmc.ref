@@ -17,10 +17,10 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               2934.750
+CPU MHz:               2936.250
 Computation started at:
-Mon Nov 23 14:46:53 MST 2020
-git commit: fd335749c5d540a2104f8b50bde740f5c6c88631, branch: merged, compiled at: Mon Nov 23 13:51:32 MST 2020
+Mon Feb 15 18:00:36 MST 2021
+git commit: 308d88b60ac836d0de6a4a600641e8293a9db5f7, branch: merged, compiled at: Mon Feb 15 16:43:53 MST 2021
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -31,16 +31,16 @@ Input file  :
     "wavefunction": {
         "name": "jastrowslater",
         "hfType": "rhf",
-        "fourBodyJastrow": "AB2",
+        "fourBodyJastrow": "asAB2",
         "noENCusp": "true",
         "Qmax": "3",
         "Qmaxeen": "0"
     },
     "realspace": {
-        "basis": "sto",
+        "basis": "gto",
         "nalpha": "1",
         "nbeta": "1",
-        "norbs": "4"
+        "norbs": "10"
     },
     "sampling": {
         "stochasticIter": "10000",
@@ -63,19 +63,17 @@ Input file  :
         "dTol": "1.0e-3",
         "cgTol": "1.0e-3",
         "sgdIter": "0",
-        "maxIter": "6"
+        "maxIter": "4"
     },
     "print": {
         "vars": "false"
     }
 }
 
-Number of Jastrow vars: 53
-Number of Reference vars: 9
-Number of Optimized vars: 62
-    0    -0.83096102 (2.62e-02)     0.14677035    433.6      0.9     0.84     1.18     1.69 
-    1    -0.92672196 (1.05e-02)     0.15639035    159.9      0.9     2.37     2.37     2.90 
-    2    -0.98797650 (4.39e-03)     0.03364404    128.2      0.9     3.52     3.53     4.05 
-    3    -0.97878492 (7.73e-03)     0.04446906    246.4      0.9     4.67     4.69     5.20 
-    4    -0.98654398 (7.04e-03)     0.02302748    148.8      0.9     5.84     5.86     6.38 
-    5    -1.00165190 (5.11e-04)     0.02315096      2.3      0.9     7.04     7.05     7.57 
+Number of Jastrow vars: 23
+Number of Reference vars: 21
+Number of Optimized vars: 44
+    0    -1.16027343 (4.68e-03)     0.08870806      1.8      0.7     0.64     0.69     1.04 
+    1    -1.15447183 (2.77e-03)     0.02785872      1.5      0.7     1.65     1.71     2.05 
+    2    -1.16796003 (2.92e-03)     0.01189103      1.4      0.7     2.66     2.72     3.06 
+    3    -1.17168923 (3.04e-03)     0.01145158      1.5      0.7     3.66     3.72     4.07 

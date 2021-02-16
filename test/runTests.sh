@@ -308,9 +308,9 @@ then
     ../clean.sh
 fi
 
-cd $here/rH2_nc/
+cd $here/rH2_asAB2/
 ../clean.sh
-printf "...running rH2 with number counting jastrows and direct lm opt\n"
+printf "...running rH2 with active space AB2 jastrows and direct lm opt\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python2 ../testEnergy.py 'vmc' $tol
 if [ $clean == 1 ]

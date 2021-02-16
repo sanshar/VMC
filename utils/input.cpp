@@ -196,6 +196,11 @@ void readInput(string inputFile, schedule& schd, bool print) {
       else if (fbjBasis == "sNC") schd.fourBodyJastrowBasis = sNC;
       else if (fbjBasis == "AB2") schd.fourBodyJastrowBasis = AB2;
       else if (fbjBasis == "sAB2") schd.fourBodyJastrowBasis = sAB2;
+      else if (fbjBasis == "spAB2") schd.fourBodyJastrowBasis = spAB2;
+      else if (fbjBasis == "asAB2") {
+          schd.fourBodyJastrowBasis = asAB2;
+          readActiveSpaceOrbs(schd.asAO);
+      }
       else if (fbjBasis == "SS") schd.fourBodyJastrowBasis = SS;
       else if (fbjBasis == "SG") schd.fourBodyJastrowBasis = SG;
       else if (fbjBasis == "G")  {
@@ -479,19 +484,43 @@ void readGeometry(vector<Vector3d>& Ncoords,
     int n = gBasis.bas[i * 8 + 3];
     int numOrbs = n * (2 * l + 1);
 
-    Nbasis[index] += numOrbs; //total number of orbitals for each atom
+    if (gBasis.IntegralType == "cart") {
+        if (l == 2) { numOrbs = n * 6; }
+        else if (l == 3) { numOrbs = n * 10; }
+        else if (l == 4) { numOrbs = n * 15; }
+    }
 
-    if (l == 0) NSbasis[index].push_back(orb); //map to s orbitals for each atom
-    if (l == 1) NPbasis[index].push_back(orb); //map to p orbitals for each atom
+    //total number of orbitals for each atom
+    Nbasis[index] += numOrbs;
+
+    //map to s orbitals for each atom
+    if (l == 0) {
+        for (int j = orb; j < orb + numOrbs; j++) { NSbasis[index].push_back(j); }
+    }
+
+    //map to p orbitals for each atom
+    if (l == 1) {
+        for (int j = orb; j < orb + numOrbs; j++) { NPbasis[index].push_back(j); }
+    }
 
     orb += numOrbs;
   }
+
   /*
   for (int i = 0; i < NSbasis.size(); i++)
   {
     for (int j = 0; j < NSbasis[i].size(); j++)
     {
       cout << NSbasis[i][j] << endl;
+    }
+    cout << endl;
+  }
+  cout << endl;
+  for (int i = 0; i < NPbasis.size(); i++)
+  {
+    for (int j = 0; j < NPbasis[i].size(); j++)
+    {
+      cout << NPbasis[i][j] << endl;
     }
     cout << endl;
   }
@@ -525,6 +554,18 @@ void readGeometry(vector<Vector3d>& Ncoords,
   cout << endl;
   */
 
+}
+
+//reads in indices for active space atomic orbitals
+void readActiveSpaceOrbs(vector<int> &asAO)
+{
+  ifstream f("asAO.txt");
+  while (f.good())
+  {
+    int index;
+    f >> index;
+    asAO.push_back(index);
+  }
 }
 
 void readGridGaussians(vector<pair<double,Vector3d>> &gridGaussians)

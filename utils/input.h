@@ -36,7 +36,7 @@ class Determinant;
 enum Method { sgd, amsgrad, amsgrad_sgd, ftrl, sr, linearmethod}; //varLM };
 enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
-enum JBASIS {NC, sNC, AB2, sAB2, SS, SG, G};
+enum JBASIS {NC, sNC, AB2, sAB2, spAB2, asAB2, SS, SG, G};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
 enum PSEUDOQUAD {tetrahedral, octahedral, icosahedral};
 
@@ -128,6 +128,7 @@ private:
       & uniqueAtoms
       & uniqueAtomsMap
       & gridGaussians
+      & asAO
       & Nbasis
       & NSbasis
       & NPbasis
@@ -180,6 +181,7 @@ public:
   vector<Vector3d> Ncoords;
   vector<double>   Ncharge;
   vector<pair<double, Vector3d>> gridGaussians;
+  vector<int> asAO;
   vector<int> uniqueAtoms;
   vector<int> uniqueAtomsMap;
   vector<int> Nbasis;
@@ -398,6 +400,8 @@ void readGeometry(vector<Vector3d>& Ncoords,
                   vector<vector<int>> & NSbasis,
                   vector<vector<int>> & NPbasis,
                   gaussianBasis& gBasis);
+
+void readActiveSpaceOrbs(vector<int> &asAO);
 
 void readGridGaussians(vector<pair<double,Vector3d>> &gridGaussians);
 

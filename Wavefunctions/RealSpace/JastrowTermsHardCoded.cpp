@@ -778,6 +778,16 @@ void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::a
     for (int i = 0; i < schd.NSbasis.size(); i++) { numSorb += schd.NSbasis[i].size(); }
     Nsize = numSorb;
   }
+  else if (schd.fourBodyJastrowBasis == spAB2) {
+    int numSorb = 0;
+    for (int i = 0; i < schd.NSbasis.size(); i++) { numSorb += schd.NSbasis[i].size(); }
+    int numPorb = 0;
+    for (int i = 0; i < schd.NPbasis.size(); i++) { numPorb += schd.NPbasis[i].size(); }
+    Nsize = numPorb;
+  }
+  else if (schd.fourBodyJastrowBasis == asAB2) {
+    Nsize = schd.asAO.size();
+  }
   else if (schd.fourBodyJastrowBasis == SS) {
     Nsize = norbs;
   }
@@ -811,6 +821,12 @@ void JastrowEENNinit(const vector<Vector3d> &r, VectorXd &N, MatrixXd &n, std::a
     }
     else if (schd.fourBodyJastrowBasis == sAB2) {
       sAB2_eval_deriv2(i, r, pn, gradpn, grad2pn);
+    }
+    else if (schd.fourBodyJastrowBasis == spAB2) {
+      spAB2_eval_deriv2(i, r, pn, gradpn, grad2pn);
+    }
+    else if (schd.fourBodyJastrowBasis == asAB2) {
+      asAB2_eval_deriv2(i, r, pn, gradpn, grad2pn);
     }
     else if (schd.fourBodyJastrowBasis == SS) {
       SS_eval_deriv2(i, r, pn, gradpn, grad2pn);
@@ -859,6 +875,12 @@ void JastrowEENNupdate(int elec, const vector<Vector3d> &r, VectorXd &N, MatrixX
   }
   else if (schd.fourBodyJastrowBasis == sAB2) {
     sAB2_eval_deriv2(elec, r, np, gradnp, grad2np);
+  }
+  else if (schd.fourBodyJastrowBasis == spAB2) {
+    spAB2_eval_deriv2(elec, r, np, gradnp, grad2np);
+  }
+  else if (schd.fourBodyJastrowBasis == asAB2) {
+    asAB2_eval_deriv2(elec, r, np, gradnp, grad2np);
   }
   else if (schd.fourBodyJastrowBasis == SS) {
     SS_eval_deriv2(elec, r, np, gradnp, grad2np);
@@ -1192,6 +1214,12 @@ double JastrowEENNfactorVector(int elec, const Vector3d &coord, const vector<Vec
   else if (schd.fourBodyJastrowBasis == sAB2) {
     sAB2_eval(elec, r, nprime);
   }
+  else if (schd.fourBodyJastrowBasis == spAB2) {
+    spAB2_eval(elec, r, nprime);
+  }
+  else if (schd.fourBodyJastrowBasis == asAB2) {
+    asAB2_eval(elec, r, nprime);
+  }
   else if (schd.fourBodyJastrowBasis == SS) {
     SS_eval(elec, r, nprime);
   }
@@ -1294,6 +1322,12 @@ double JastrowEENNfactorAndGradient(int elec, const Vector3d &coord, const vecto
   }
   else if (schd.fourBodyJastrowBasis == sAB2) {
     sAB2_eval_deriv(elec, r, np, gradnp);
+  }
+  else if (schd.fourBodyJastrowBasis == spAB2) {
+    spAB2_eval_deriv(elec, r, np, gradnp);
+  }
+  else if (schd.fourBodyJastrowBasis == asAB2) {
+    asAB2_eval_deriv(elec, r, np, gradnp);
   }
   else if (schd.fourBodyJastrowBasis == SS) {
     SS_eval_deriv(elec, r, np, gradnp);
