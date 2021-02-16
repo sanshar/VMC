@@ -564,6 +564,7 @@ void readActiveSpaceOrbs(vector<int> &asAO)
   {
     int index;
     f >> index;
+    if (f.eof()) break;
     asAO.push_back(index);
   }
 }

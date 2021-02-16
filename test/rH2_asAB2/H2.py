@@ -23,7 +23,7 @@ mf.kernel()
 asAO = mol.search_ao_label("H 1s")
 f = open("asAO.txt", 'w')
 for i in range(len(asAO)):
-    f.write(f'{asAO[i]} ')
+    f.write(f'{asAO[i]}\t')
 
 norbs = mf.mo_coeff.shape[0]
 fileHF = open("hf.txt", 'w')
