@@ -188,7 +188,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
 
-  //double oldEloc = w.rHam(walk);
+  double Elocp = w.rHam(walk);
 
   //propogate every electron once via metropolis-hastings with dmc propogator
   double acceptedProb = 0.0;
@@ -221,8 +221,9 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   std::vector<std::vector<Vector3d>> riq;
   Eloc = w.rHam(walk, T, Vij, ViI, Vnl, VIJ, viq, riq);
 
+  double Eavg = (Eloc + Elocp) / 2.0;
   double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
-  wt *= std::exp(- tau_eff * (Eloc - Eshift));
+  wt *= std::exp(- tau_eff * (Eavg - Eshift));
 
   //size consistent t-moves
   if (schd.doTMove)
@@ -240,7 +241,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
       t.push_back(cumT);
       for (int q = 0; q < viq[i].size(); q++)
       {
-        double txpx = - tau * viq[i][q];
+        double txpx = - tau_eff * viq[i][q];
         //cout << txpx << " | " << riq[i][q].transpose() << endl;
 
         cumT += txpx;
@@ -255,23 +256,48 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
     }
   }
 
+  /*
   //print if walker has weird wt or Eloc
-  //if (wt > 10.0 || std::isnan(Eloc) || std::isnan(wt))
-  //{
-  //  cout << "Process: " << commrank << endl;
-  //  cout << "Large weight: " << wt << endl;
-  //  cout << "exponential: " << - tau_eff * (Eloc - Eshift) << endl;
-  //  cout << "effective time step: " << tau_eff << endl;
-  //  cout << "Energy shift: " << Eshift << endl;
-  //  cout << "Local energy: " << Eloc << " | " << w.rHam(walk) << endl;
-  //  cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
-  //  cout << "coords" << endl;
-  //  cout << walk.d << endl;
-  //  cout << "RiI" << endl;
-  //  cout << walk.RiN << endl;
-  //  cout << "Rij" << endl;
-  //  cout << walk.Rij << endl;
-  //}
+  if (wt > 3.0)
+  {
+    cout << "Process: " << commrank << endl;
+    cout << "Large weight: " << wt << endl;
+    cout << "delta weight: " << std::exp(- tau_eff * (Eavg - Eshift)) << endl;
+    cout << "exponential: " << - tau_eff * (Eavg - Eshift) << endl;
+    cout << "effective time step: " << tau_eff << endl;
+    cout << "Energy shift: " << Eshift << endl;
+    cout << "Local energy before and after diffusion: " << Elocp << " " << Eloc << endl;
+    cout << "Local energy after t move: " << w.rHam(walk) << endl;
+    cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
+    //cout << "coords" << endl;
+    //cout << walk.d << endl;
+    cout << "RiI" << endl;
+    cout << walk.RiN << endl;
+    cout << "Rij" << endl;
+    cout << walk.Rij << endl;
+  }
+
+  if (std::isnan(wt) || std::isnan(Eavg))
+  {
+    cout << "NAN" << endl;
+    cout << "Process: " << commrank << endl;
+    cout << "Large weight: " << wt << endl;
+    cout << "delta weight: " << std::exp(- tau_eff * (Eavg - Eshift)) << endl;
+    cout << "exponential: " << - tau_eff * (Eavg - Eshift) << endl;
+    cout << "effective time step: " << tau_eff << endl;
+    cout << "Energy shift: " << Eshift << endl;
+    cout << "Local energy before and after diffusion: " << Elocp << " " << Eloc << endl;
+    cout << "Local energy after t move: " << w.rHam(walk) << endl;
+    cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
+    //cout << "coords" << endl;
+    //cout << walk.d << endl;
+    cout << "RiI" << endl;
+    cout << walk.RiN << endl;
+    cout << "Rij" << endl;
+    cout << walk.Rij << endl;
+    exit(0);
+  }
+  */
 
   return acceptedProb;
 }
@@ -492,9 +518,14 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
   //sample the wavefunction w to generate walkers
   generaterWalkers(Walkers, w);
 
+  //text file of run { iter, time, Energy of population }
+  ofstream f("simulation.out");
+  f << std::fixed;
+  f << std::setprecision(5);
+
   //total weight equals to schd.nwalk;
-  double oldwt = schd.nwalk * commsize;
-  double targetwt = schd.nwalk * commsize;
+  double oldwt = schd.nwalk;
+  double targetPop = schd.nwalk;
 
   //energy of inital population
   double nE0 = 0.0;
@@ -506,11 +537,13 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       nE0 += Eloc * wt;
       dE0 += wt;
   }
+  double E0 = nE0 / dE0;
 #ifndef SERIAL
-      MPI_Allreduce(MPI_IN_PLACE, &nE0, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &dE0, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &E0, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-  if (commrank == 0) { cout << "Energy of initial population: " << nE0 / dE0 << endl; }
+  E0 /= commsize;
+  if (commrank == 0) { f << 0 << " " << double(0) << " " << E0 << " " << Walkers.size() << endl; }
+  if (commrank == 0) { cout << "Energy of initial population: " << E0 << endl; }
 
   //run calculation for niter iterations
   int niter = schd.maxIter;
@@ -518,20 +551,20 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
   //time step
   double tau = schd.tau;
 
-  //after every nGeneration iterations, calculate/print the energy
+  //number of iterations in a generation
   int nGeneration = schd.nGeneration;
 
   //energy average
   double Eavg = 0.0, Eexp = 0.0;
-  double Enum = 0.0, Eden = 0.0;
-  double E2num = 0.0;
-  //error averages
-  Statistics Stats;
+  Statistics StatsE;
+  Statistics StatsE2;
 
   double olditerPop = oldwt;
-  for (int iter = 0; iter < niter; iter++)
+  for (int iter = 0; iter < niter + 1; iter++)
   {
     //propogate walkers time tau and calculate energy
+    double N = 0.0, N2 = 0.0;
+    double D = 0.0;
     double iterPop = 0.0;
     double acceptedMoves = 0.0;
     for (auto it = Walkers.begin(); it != Walkers.end(); it++)
@@ -543,67 +576,82 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       acceptedMoves += applyPropogatorMetropolis(w, walk, wt, tau, Eshift, Eloc);
 
       iterPop += wt;
-      Enum += wt * Eloc;
-      E2num += wt * Eloc * Eloc;
-      Stats.push_back(Eloc, wt);
-      Eden += wt;
+      N += wt * Eloc;
+      N2 += wt * Eloc * Eloc;
+      D += wt;
     }
 
+    //energy of population at time t
+    double Et = N / D;
+    double Et2 = N2 / D;
+    double Vart = Et2 - Et * Et;
+    StatsE.push_back(Et);
+    StatsE2.push_back(Et2);
+
+    //average some variables over processes
     double totalMoves = double(Walkers.size());
-    //accumulate the total weight across processors
+    double totalPop = iterPop;
+    VectorXd wpp = VectorXd::Zero(commsize);
+    wpp(commrank) = iterPop;
+    VectorXd Eshiftpp = VectorXd::Zero(commsize);
+    Eshiftpp(commrank) = Eshift;
 #ifndef SERIAL
-    MPI_Allreduce(MPI_IN_PLACE, &iterPop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &acceptedMoves, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &totalMoves, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &totalPop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &wpp(0), wpp.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &Eshiftpp(0), Eshiftpp.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
     double acceptedFrac = acceptedMoves / totalMoves;
 
-    //all procs have the same Eshift
-    Eshift -= (0.1 / tau) * std::log(iterPop / olditerPop);
-    olditerPop = iterPop;
+    if (commrank == 0) { f << iter + 1 << " " << tau * double(iter + 1) << " " << Et << " " << int(totalMoves / commsize) << " " << totalPop / commsize << endl; }
+    if (commrank == 0) { f << wpp.transpose() << endl; }
+    if (commrank == 0) { f << Eshiftpp.transpose() << endl << endl; }
+
+    //every process is independent and have different Eshifts
+    Eshift = Et - (0.1 / tau) * std::log(iterPop / targetPop);
 
     if (iter % nGeneration == 0 && iter != 0)
     {
-      Stats.Block();
-      double rt = Stats.BlockCorrTime();
-      double Neff = Stats.Neff();
-      //accumulate the total energy across processors
+      //calculate average energy across generation
+      double Ep = StatsE.Average();
+      StatsE.Block();
+      double tp = StatsE.BlockCorrTime();
+      double Ep2 = StatsE2.Average();
+      double Varp = tp * (Ep2 - Ep * Ep);
+      double Neff = StatsE.Neff() * Walkers.size();
+      StatsE = Statistics(); //restart statistics for new generation
+      StatsE2 = Statistics(); //restart statistics for new generation
 #ifndef SERIAL
-      MPI_Allreduce(MPI_IN_PLACE, &rt, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &Neff, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &E2num, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &Enum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &Eden, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      rt /= commsize;
+    MPI_Allreduce(MPI_IN_PLACE, &Ep, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &Varp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &tp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &Neff, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-      //calculate average energy across all procs
-      double Ecurrentavg = Enum / Eden;
-      Enum /= Eden;
-      E2num /= Eden;
-      double variance = E2num - Enum * Enum;
-      double error = std::sqrt(rt * variance / Neff);
+      double Ebar = Ep / commsize;
+      double Varbar = Varp / commsize / commsize;
+      double tbar = tp / commsize;
+      double error = std::sqrt(Varbar / Neff);
 
-      //this is the exponentially moving average
-      if (iter == nGeneration) { Eexp = Ecurrentavg; }
-      else { Eexp = 0.9 * Eexp + 0.1 * Ecurrentavg; }
+      //this is the exponentially moving average over generations
+      if (iter == nGeneration) { Eexp = Ebar; }
+      else { Eexp = 0.75 * Eexp + 0.25 * Ebar; }
 
-      //this is the average energy, but only start
+      //this is the average energy over generations, but only start
       //taking averages after 4 generations because 
       //we assume that it takes atleast 4 generations to reach equilibration
-      if (iter/nGeneration == 4) { Eavg = Ecurrentavg; }
+      if (iter/nGeneration == 4) { Eavg = Ebar; }
       else if (iter/nGeneration > 4)
       {
 	    int oldIter = iter/nGeneration;
-	    Eavg = ((oldIter - 4) * Eavg + Ecurrentavg) / (oldIter - 3);
+	    Eavg = ((oldIter - 4) * Eavg + Ebar) / (oldIter - 3);
       }
       else { Eavg = Eexp; }
 
       if (commrank == 0) {
-	    cout << format("%8i %14.8f (%8.2e) %14.8f %14.8f %8.3f %10i %8.2f %14.8f %8.2f\n") % iter % Ecurrentavg % error % Eexp % Eavg % acceptedFrac % Walkers.size() % (iterPop/commsize) % Eshift % (getTime()-startofCalc);
+	    cout << format("%8i %14.8f (%8.2e) %8.1f %14.8f %14.8f %8.3f %10i %8.2f %14.8f %8.2f\n") % iter % Ebar % error % tbar % Eexp % Eavg % acceptedFrac % int(totalMoves/commsize) % (totalPop/commsize) % Eshift % (getTime()-startofCalc);
       }
 
-      //restart Enum and Eden
-      Enum = 0.0; Eden = 0.0; E2num = 0.0;
     }
 
     //reconfigure

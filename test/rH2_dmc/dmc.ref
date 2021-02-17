@@ -17,10 +17,10 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               2959.406
+CPU MHz:               2899.968
 Computation started at:
-Mon Nov 16 12:27:43 MST 2020
-git commit: 894511970d314fe1dc56e677e77b990a96d6cd25, branch: merged, compiled at: Mon Nov 16 12:07:13 MST 2020
+Wed Feb 17 13:54:35 MST 2021
+git commit: b3cd60d60e3bd8ea80bb4f7d185cd2724142863b, branch: merged, compiled at: Wed Feb 17 12:11:03 MST 2021
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -33,12 +33,12 @@ Input file  :
         "hfType": "rhf",
         "complex": "false",
         "addENCusp": "true",
-        "enforceEECusp": "true",
-        "QmaxEEN": "6",
+        "testCusp": "false",
+        "QmaxEEN": "0",
         "Qmax": "6"
     },
     "realspace": {
-        "basis": "sto",
+        "basis": "gto",
         "nalpha": "1",
         "nbeta": "1",
         "norbs": "4"
@@ -46,17 +46,16 @@ Input file  :
     "sampling": {
         "stochasticIter": "10000",
         "seed": "1",
-        "nwalk": "250",
+        "nwalk": "100",
         "tau": "0.1",
-        "ngeneration": "5",
-        "maxIter": "26"
+        "ngeneration": "500",
+        "maxIter": "2001"
     }
 }
 
-Energy of VMC wavefunction: -0.8593439126 (0.01568053304)
-Energy of initial population: -0.9318687696
-       5    -0.94817145 (7.73e-03)    -0.94817145    -0.94817145    0.984        249   260.07    -0.89883895     1.02
-      10    -0.95247803 (7.04e-03)    -0.94860211    -0.94860211    0.983        247   265.55    -0.91967638     1.07
-      15    -0.96841199 (6.57e-03)    -0.95058309    -0.95058309    0.984        247   270.47    -0.93803509     1.13
-      20    -0.96814037 (6.89e-03)    -0.95233882    -0.96814037    0.985        243   273.45    -0.94900186     1.18
-      25    -0.97266312 (6.36e-03)    -0.95437125    -0.97040174    0.984        236   275.69    -0.95716914     1.24
+Energy of VMC wavefunction: -1.054679394 (0.01043572503)
+Energy of initial population: -1.125566977
+     500    -1.21178346 (1.74e-03)      2.6    -1.21178346    -1.21178346    0.953         89   101.63    -1.14601527     1.29
+    1000    -1.21344609 (1.81e-03)      2.8    -1.21219912    -1.21219912    0.974         88   101.23    -1.17396482     2.16
+    1500    -1.21834945 (1.97e-03)      3.3    -1.21373670    -1.21373670    0.960         87   101.84    -1.35947605     3.02
+    2000    -1.20985705 (1.71e-03)      2.5    -1.21276679    -1.20985705    0.955         88   101.66    -1.17927787     3.89

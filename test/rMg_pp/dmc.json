@@ -14,10 +14,10 @@
   {
     "stochasticIter": 5000,
     "seed": 1,
-    "nwalk": 250,
+    "nwalk": 100,
     "tau": 0.1,
     "doTMove": true,
-    "ngeneration": 5,
-    "maxIter": 26
+    "ngeneration": 10,
+    "maxIter": 50
   }
 }

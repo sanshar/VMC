@@ -5,13 +5,13 @@
     "hfType": "rhf",
     "complex": false,
     "addENCusp": true,
-    "enforceEECusp": true,
-    "QmaxEEN": 6,
+    "testCusp": false,
+    "QmaxEEN": 0,
     "Qmax": 6
   },
   "realspace":
   {
-    "basis": "sto",
+    "basis": "gto",
     "nalpha": 1,
     "nbeta": 1,
     "norbs": 4
@@ -20,9 +20,9 @@
   {
     "stochasticIter": 10000,
     "seed": 1,
-    "nwalk": 250,
+    "nwalk": 100,
     "tau": 0.1,
-    "ngeneration": 5,
-    "maxIter": 26
+    "ngeneration": 500,
+    "maxIter": 2001
   }
 }

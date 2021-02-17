@@ -5,13 +5,12 @@
     "hfType": "rhf",
     "complex": false,
     "addENCusp": true,
-    "enforceEECusp": true,
-    "QmaxEEN": 6,
+    "QmaxEEN": 0,
     "Qmax": 6
   },
   "realspace":
   {
-    "basis": "sto",
+    "basis": "gto",
     "nalpha": 1,
     "nbeta": 1,
     "norbs": 4

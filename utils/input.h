@@ -118,7 +118,7 @@ private:
       & noENCusp
       & addENCusp
       & enforceENCusp
-      & enforceEECusp
+      & enforceCusp
       & scaledVelocity
       & testCusp
       & doTMove
@@ -229,7 +229,7 @@ public:
   bool noENCusp; //sets 0th order EN jastrow parameter to 0
   bool addENCusp; //sets 0th order EN jastrow parameter to -Z
   bool enforceENCusp; //enforces EN cusp condition for slater orbitals, when true noENCusp must be true (otherwise interferes with cusp)
-  bool enforceEECusp; //enforces that three-body jastrows do not interfere with EE cusp condition
+  bool enforceCusp; //enforces that three-body jastrows do not interfere with EE, EN cusp condition
   bool testCusp; //tests cusp conditions before a dmc calculation
   bool doTMove; //Casula's size consistent t moves
   bool scaledVelocity; //Cyrus' scaled velocity

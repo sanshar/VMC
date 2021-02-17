@@ -48,7 +48,7 @@ rJastrow::rJastrow () {
   for (int n = 0; n <= m   ; n++) 
   for (int o = 0; o <= (QmaxEEN-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
-    if (o == 1 && schd.enforceEECusp) continue;
+    if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
     EENterms++;
   }
   EENoppositeSpinIndex = EENsameSpinIndex + schd.uniqueAtoms.size()*EENterms;
@@ -185,7 +185,7 @@ void rJastrow::printVariables() const
   for (int n = 0; n <= m; n++)
   for (int o = 0; o <= (QmaxEEN-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
-    if (o == 1 && schd.enforceEECusp) continue;
+    if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
     EENterms++;
   }
 

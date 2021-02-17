@@ -365,7 +365,7 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
   for (int n = 0; n <= m   ; n++) 
   for (int o = 0; o <= (maxQ-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
-    if (o == 1 && schd.enforceEECusp) continue;
+    if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
     EENterms++;
   }
 
@@ -416,7 +416,7 @@ double JastrowEENValueGrad(int i, int j, int maxQ,
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
-        if (o == 1 && schd.enforceEECusp) continue;
+        if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
 
         int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
 
@@ -465,7 +465,7 @@ double JastrowEENValue(int i, int j, int maxQ,
   for (int n = 0; n <= m   ; n++) 
   for (int o = 0; o <= (maxQ-m-n); o++) {
     if (n == 0 && o == 0) continue; //EN term
-    if (o == 1 && schd.enforceEECusp) continue;
+    if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
     EENterms++;
   }
 
@@ -516,7 +516,7 @@ double JastrowEENValue(int i, int j, int maxQ,
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
-        if (o == 1 && schd.enforceEECusp) continue;
+        if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
 
         int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
         
@@ -545,7 +545,7 @@ void JastrowEENValues(int i, int j, int maxQ, const vector<Vector3d>& r, VectorX
     for (int n = 0; n <= m; n++)
     for (int o = 0; o <= (maxQ-m-n); o++) {
       if (n == 0 && o == 0) continue; //EN term
-      if (o == 1 && schd.enforceEECusp) continue;
+      if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
       EENterms++;
     }
 
@@ -599,7 +599,7 @@ void JastrowEENValues(int i, int j, int maxQ, const vector<Vector3d>& r, VectorX
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
-        if (o == 1 && schd.enforceEECusp) continue;
+        if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
 
         int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
         
@@ -634,7 +634,7 @@ void JastrowEEN(int i, int j, int maxQ,
     for (int n = 0; n <= m; n++)
     for (int o = 0; o <= (maxQ-m-n); o++) {
       if (n == 0 && o == 0) continue; //EN term
-      if (o == 1 && schd.enforceEECusp) continue;
+      if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
       EENterms++;
     }
 
@@ -688,7 +688,7 @@ void JastrowEEN(int i, int j, int maxQ,
       for (int n = 0; n <= m   ; n++) 
       for (int o = 0; o <= (maxQ-m-n); o++) {
         if (n == 0 && o == 0) continue; //EN term
-        if (o == 1 && schd.enforceEECusp) continue;
+        if ((m == 1 || n == 1 || o == 1) && schd.enforceCusp) continue; //interfere with cusp conditions
 
         int index = schd.uniqueAtomsMap[N] * EENterms + EENindex;
         

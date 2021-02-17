@@ -213,7 +213,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.noENCusp = input.get("wavefunction.noENCusp", false); //sets 0th order EN jastrow parameter to 0
     schd.addENCusp = input.get("wavefunction.addENCusp", false);  //sets 0th order EN jastrow parameter to -Z
     schd.enforceENCusp = input.get("wavefunction.enforceENCusp", false); //enforces EN cusp condition for slater orbitals, when true noENCusp must be true (otherwise interferes with cusp)
-    schd.enforceEECusp = input.get("wavefunction.enforceEECusp", false); //enforces that three-body jastrows do not interfere with EE cusp condition
+    schd.enforceCusp = input.get("wavefunction.enforceCusp", false); //enforces that three-body jastrows do not interfere with EE, EN cusp condition
     schd.testCusp = input.get("wavefunction.testCusp", false); //tests cusp conditions before dmc calculation
     schd.sigma = input.get("wavefunction.sigma", 1.0);
 
