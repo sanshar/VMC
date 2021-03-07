@@ -100,21 +100,23 @@ void readInput(string inputFile, schedule& schd, bool print) {
       //pseudopotential
       schd.pseudo = boost::shared_ptr<Pseudopotential>(new Pseudopotential);
       schd.nGrid = input.get("realspace.nGrid", 5);
-      string pQuad = input.get("realspace.pseudo", "tetrahedral");
-      if (pQuad == "tetrahedral") schd.pQuad = tetrahedral;
-      else if (pQuad == "octahedral") schd.pQuad = octahedral;
-      else if (pQuad == "icosahedral") schd.pQuad = icosahedral;
       schd.pCutOff = input.get("realspace.pseudoCutOff", 1.0e-8);
-      if (schd.pQuad == tetrahedral)
+      schd.pQuad = input.get("realspace.pseudo", 4);
+      if (schd.pQuad == 4)
       {
         //sample 4 vertices of tetrahedral
-        double a = std::sqrt(1.0 / 3.0);
+        double a = 1.0 / std::sqrt(3.0);
         schd.Q.push_back(Vector3d(a, a, a));
         schd.Q.push_back(Vector3d(a, -a, -a));
         schd.Q.push_back(Vector3d(-a, a, -a));
         schd.Q.push_back(Vector3d(-a, -a, a));
+
+        schd.Qwt.push_back(1.0 / 4.0);
+        schd.Qwt.push_back(1.0 / 4.0);
+        schd.Qwt.push_back(1.0 / 4.0);
+        schd.Qwt.push_back(1.0 / 4.0);
       }
-      else if (schd.pQuad == octahedral)
+      else if (schd.pQuad == 6)
       {
         //sample 6 vertices of octahedral
         schd.Q.push_back(Vector3d(1.0, 0.0, 0.0));
@@ -123,8 +125,15 @@ void readInput(string inputFile, schedule& schd, bool print) {
         schd.Q.push_back(Vector3d(0.0, -1.0, 0.0));
         schd.Q.push_back(Vector3d(0.0, 0.0, 1.0));
         schd.Q.push_back(Vector3d(0.0, 0.0, -1.0));
+
+        schd.Qwt.push_back(1.0 / 6.0);
+        schd.Qwt.push_back(1.0 / 6.0);
+        schd.Qwt.push_back(1.0 / 6.0);
+        schd.Qwt.push_back(1.0 / 6.0);
+        schd.Qwt.push_back(1.0 / 6.0);
+        schd.Qwt.push_back(1.0 / 6.0);
       }
-      else if (schd.pQuad == icosahedral)
+      else if (schd.pQuad == 12)
       {
         //sample 12 vertices of icosahedral
         double lambda = std::sqrt((5.0 - std::sqrt(5.0)) / 10.0);
@@ -143,6 +152,70 @@ void readInput(string inputFile, schedule& schd, bool print) {
         schd.Q.push_back(Vector3d(-lambda, roh, 0.0));
         schd.Q.push_back(Vector3d(lambda, -roh, 0.0));
         schd.Q.push_back(Vector3d(-lambda, -roh, 0.0)); 
+
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+        schd.Qwt.push_back(1.0 / 12.0);
+      }
+      else if (schd.pQuad == 18)
+      {
+        schd.Q.push_back(Vector3d(1.0, 0.0, 0.0));
+        schd.Q.push_back(Vector3d(-1.0, 0.0, 0.0));
+        schd.Q.push_back(Vector3d(0.0, 1.0, 0.0));
+        schd.Q.push_back(Vector3d(0.0, -1.0, 0.0));
+        schd.Q.push_back(Vector3d(0.0, 0.0, 1.0));
+        schd.Q.push_back(Vector3d(0.0, 0.0, -1.0));
+
+        schd.Qwt.push_back(1.0 / 30.0);
+        schd.Qwt.push_back(1.0 / 30.0);
+        schd.Qwt.push_back(1.0 / 30.0);
+        schd.Qwt.push_back(1.0 / 30.0);
+        schd.Qwt.push_back(1.0 / 30.0);
+        schd.Qwt.push_back(1.0 / 30.0);
+
+        double p = 1.0 / std::sqrt(2);
+        schd.Q.push_back(Vector3d(p, p, 0.0));
+        schd.Q.push_back(Vector3d(-p, p, 0.0));
+        schd.Q.push_back(Vector3d(p, -p, 0.0));
+        schd.Q.push_back(Vector3d(-p, -p, 0.0)); 
+
+        schd.Q.push_back(Vector3d(0.0, p, p));
+        schd.Q.push_back(Vector3d(0.0, -p, p));
+        schd.Q.push_back(Vector3d(0.0, p, -p));
+        schd.Q.push_back(Vector3d(0.0, -p, -p));
+
+        schd.Q.push_back(Vector3d(p, 0.0, p));
+        schd.Q.push_back(Vector3d(-p, 0.0, p));
+        schd.Q.push_back(Vector3d(p, 0.0, -p));
+        schd.Q.push_back(Vector3d(-p, 0.0, -p));
+
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+        schd.Qwt.push_back(1.0 / 15.0);
+      }
+      else
+      {
+        cout << "set pseudo to 4, 6, 12, or 18" << endl;
+        exit(0);
       }
     }
     else schd.walkerBasis = ORBITALS;

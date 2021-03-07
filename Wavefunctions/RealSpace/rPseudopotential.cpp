@@ -111,10 +111,11 @@ double Pseudopotential::localPotential(const rDeterminant &d) const
 
                         //vector
                         Eigen::Vector3d riI = d.coord[i] - schd.Ncoords[I];
+                        double riInorm = riI.norm();
   
                         //calculate potential
                         double v = 0.0;
-                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), int(pec.at(m) - 2)) * std::exp(-pec.at(m + 1) * riI.squaredNorm()) * pec.at(m + 2); }
+                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riInorm, int(pec.at(m) - 2)) * std::exp(-pec.at(m + 1) * riInorm * riInorm) * pec.at(m + 2); }
                         
                         //accumulate
                         Vl += v;    
@@ -132,6 +133,17 @@ double Pseudopotential::localPotential(const rDeterminant &d) const
 void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::vector<double>> &viq, std::vector<std::vector<Eigen::Vector3d>> &riq) const
 {
     auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+    auto unit_vector = [](double theta, double phi) -> Eigen::Vector3d { return Vector3d(std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta)); };
+    auto leg_pol = [](int l, double x) -> double
+    {
+        double Pl = 0.0;
+        if (l == 0) { Pl = 1.0; }
+        else if (l == 1) { Pl = x; }
+        else if (l == 2) { Pl = 0.5 * (3.0 * x * x - 1.0); }
+        else if (l == 3) { Pl = 0.5 * (5.0 * x * x * x - 3.0 * x); }
+        else if (l == 4) { Pl = 0.125 * (35.0 * x * x * x * x - 30.0 * x * x + 3.0); }
+        return Pl;
+    };
     viq.clear();
     riq.clear();
     if (size()) //if pseudopotential object is not empty
@@ -146,65 +158,52 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                 for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
                 {
                     int I = ppatm.indices()[a];
+
+                    //riI
+                    Eigen::Vector3d rI = schd.Ncoords[I];
+                    Eigen::Vector3d ri = d.coord[i];
+                    Eigen::Vector3d riI = ri - rI;
+                    double riInorm = riI.norm();
                     for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
                     {
                         int l = it1->first; //angular momentum
                         const std::vector<double> &pec = it1->second; //power - exponent - coeff vector
-                        Eigen::Vector3d rI = schd.Ncoords[I];
-                        Eigen::Vector3d ri = d.coord[i];
-                        Eigen::Vector3d riI = ri - rI;
                         
-                        //if atom - elec distance larger than 2.0 au, don't calculate nonlocal potential
+                        //skip local potential
                         if (l == -1) { continue; } 
                         
                         //calculate potential
                         double v = 0.0;
-                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riI.norm(), int(pec.at(m) - 2)) * std::exp(-pec.at(m + 1) * riI.squaredNorm()) * pec.at(m + 2); }
+                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riInorm, int(pec.at(m) - 2)) * std::exp(-pec.at(m + 1) * riInorm * riInorm) * pec.at(m + 2); }
 
-                        if (std::abs(v) < schd.pCutOff) { continue; } //if potential weak, don't integrate
-                        
+                        double C = 2.0 * double(l) + 1.0;
+                        if (C * std::abs(v) < schd.pCutOff) { continue; } //if potential weak, don't integrate
+
                         //random rotation
-                        auto unit_vector = [](double theta, double phi) -> Eigen::Vector3d { return Vector3d(std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta)); };
-                        //z
                         double theta = random() * M_PI;
                         double phi = random() * 2.0 * M_PI;
                         Eigen::Vector3d zhat = unit_vector(theta, phi);
-                        //x
                         Eigen::Vector3d xhat = unit_vector(theta + M_PI / 2.0, phi);
-                        double phi1 = random() * 2.0 * M_PI;
-                        Eigen::AngleAxis<double> rot1(phi1, zhat);
-                        xhat = rot1 * xhat;
-                        //y
-                        Eigen::Vector3d yhat = zhat.cross(xhat);
+                        Eigen::Vector3d yhat = unit_vector(M_PI / 2.0, phi - M_PI / 2.0);
                         //matrix
                         Matrix3d rot;
                         rot << zhat.transpose(), xhat.transpose(), yhat.transpose();
                         
-                        double C = (2.0 * double(l) + 1.0);
                         for (int q = 0; q < schd.Q.size(); q++)
                         {
                             //calculate new vector, riprime
-                            Eigen::Vector3d riIprime = riI.norm() * (rot * schd.Q[q]);
+                            Eigen::Vector3d rotQ = rot * schd.Q[q];
+                            Eigen::Vector3d riIprime = riInorm * rotQ;
                             Eigen::Vector3d riprime = riIprime + rI;
                             
                             //calculate angle
-                            double costheta = riI.dot(riIprime) / (riI.norm() * riIprime.norm());
+                            double costheta = riI.dot(riIprime) / (riInorm * riIprime.norm());
                             
                             //legendre polynomial
-                            auto leg_pol = [](int l, double x) -> double
-                            {
-                                double Pl = 0.0;
-                                if (l == 0) { Pl = 1; }
-                                else if (l == 1) { Pl = x; }
-                                else if (l == 2) { Pl = 0.5 * (3 * x * x - 1); }
-                                else if (l == 3) { Pl = 0.5 * (5 * x * x * x - 3 * x); }
-                                else if (l == 4) { Pl = 0.125 * (35 * x * x * x * x - 30 * x * x + 3); }
-                                return Pl;
-                            };
                             double Pl = leg_pol(l, costheta);
 
                             //update tensors
-                            vq.push_back(v * C * Pl / double(schd.Q.size()));
+                            vq.push_back(v * C * Pl * schd.Qwt[q]);
                             rq.push_back(riprime);
                         }//q
                     }//l

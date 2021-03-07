@@ -38,7 +38,6 @@ enum HAM {HUBBARD, ABINITIO};
 enum BASIS {REALSPACEGTO, REALSPACESTO, ORBITALS};
 enum JBASIS {NC, sNC, AB2, sAB2, spAB2, asAB2, SS, SG, G};
 enum RSTEPTYPE {SIMPLE, GAUSSIAN, DMC, SPHERICAL};
-enum PSEUDOQUAD {tetrahedral, octahedral, icosahedral};
 
 /**
  * This stores all the input options
@@ -150,6 +149,7 @@ private:
       & pQuad
       & pCutOff
       & Q
+      & Qwt
       & nNociSlater
       & ciCeption
       & actWidth
@@ -207,9 +207,10 @@ public:
   RSTEPTYPE rStepType;
   double rStepSize;
   //pseudopotential options
-  PSEUDOQUAD pQuad; //sampled vertices of regular polhydral
+  int pQuad; //sampled vertices of regular polhydral, number or points
   std::vector<Vector3d> Q;  //qudrature points
-  double pCutOff;
+  std::vector<double> Qwt; //quadrature point weights
+  double pCutOff; //cutoff for pseudopotential
   bool fourBodyJastrow;
   JBASIS fourBodyJastrowBasis;
   

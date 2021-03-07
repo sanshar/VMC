@@ -17,10 +17,10 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               2975.531
+CPU MHz:               2772.281
 Computation started at:
-Wed Jan 20 14:57:50 MST 2021
-git commit: 1f397869be5f22599ed2839bbce51915bb4977eb, branch: merged, compiled at: Tue Jan 19 22:18:57 MST 2021
+Sun Mar  7 14:58:42 MST 2021
+git commit: ae2c33cf86f5f900f57bfcc11c8a18ae817c6da9, branch: merged, compiled at: Sun Mar 7 13:43:12 MST 2021
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -53,4 +53,4 @@ Input file  :
 Number of Jastrow vars: 0
 Number of Reference vars: 29
 Number of Optimized vars: 29
-    0    -0.78560920 (7.22e-04)     0.00532659      1.7      0.7      30000  0.000000     0.00     2.72
+    0    -0.78541476 (6.78e-04)     0.00355359      1.6      0.7      30000  0.000000     0.00     1.99
