@@ -622,7 +622,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       double tp = StatsE.BlockCorrTime();
       double Ep2 = StatsE2.Average();
       double Varp = tp * (Ep2 - Ep * Ep);
-      double Neff = StatsE.Neff() * Walkers.size();
+      double Neff = StatsE.Neff();
       StatsE = Statistics(); //restart statistics for new generation
       StatsE2 = Statistics(); //restart statistics for new generation
       //now average over processes
