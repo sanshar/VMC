@@ -1102,6 +1102,12 @@ double JastrowEENNfactor(int elec, const Vector3d &coord, const vector<Vector3d>
   else if (schd.fourBodyJastrowBasis == sAB2) {
     sAB2_eval(elec, r, nprime);
   }
+  else if (schd.fourBodyJastrowBasis == spAB2) {
+    spAB2_eval(elec, r, nprime);
+  }
+  else if (schd.fourBodyJastrowBasis == asAB2) {
+    asAB2_eval(elec, r, nprime);
+  }
   else if (schd.fourBodyJastrowBasis == SS) {
     SS_eval(elec, r, nprime);
   }
