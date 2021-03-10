@@ -284,6 +284,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
     schd.Qmax = input.get("wavefunction.Qmax", 6);
     schd.QmaxEEN = input.get("wavefunction.QmaxEEN", 3);
     schd.noENCusp = input.get("wavefunction.noENCusp", false); //sets 0th order EN jastrow parameter to 0
+    schd.noEECusp = input.get("wavefunction.noEECusp", false); //sets 0th order EE jastrow parameter to 0
     schd.addENCusp = input.get("wavefunction.addENCusp", false);  //sets 0th order EN jastrow parameter to -Z
     schd.enforceENCusp = input.get("wavefunction.enforceENCusp", false); //enforces EN cusp condition for slater orbitals, when true noENCusp must be true (otherwise interferes with cusp)
     schd.enforceCusp = input.get("wavefunction.enforceCusp", false); //enforces that three-body jastrows do not interfere with EE, EN cusp condition

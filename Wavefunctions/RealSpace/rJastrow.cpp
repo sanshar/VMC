@@ -134,6 +134,9 @@ rJastrow::rJastrow () {
 
   _params[EEsameSpinIndex] = 0.25;
   _params[EEoppositeSpinIndex] = 0.5;
+  if (schd.noEECusp) _params[EEsameSpinIndex] = 0.0;
+  if (schd.noEECusp) _params[EEoppositeSpinIndex] = 0.0;
+
   if (schd.noENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { _params[ENIndex + I * Qmax] = 0.0; }
   if (schd.addENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { _params[ENIndex + I * Qmax] = - schd.uniqueAtoms[I]; }
 

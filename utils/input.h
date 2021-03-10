@@ -115,6 +115,7 @@ private:
       & Qmax
       & QmaxEEN
       & noENCusp
+      & noEECusp
       & addENCusp
       & enforceENCusp
       & enforceCusp
@@ -228,6 +229,7 @@ public:
   int Qmax;
   int QmaxEEN;
   bool noENCusp; //sets 0th order EN jastrow parameter to 0
+  bool noEECusp; //sets 0th order EE jastrow parameter to 0
   bool addENCusp; //sets 0th order EN jastrow parameter to -Z
   bool enforceENCusp; //enforces EN cusp condition for slater orbitals, when true noENCusp must be true (otherwise interferes with cusp)
   bool enforceCusp; //enforces that three-body jastrows do not interfere with EE, EN cusp condition

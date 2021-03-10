@@ -163,6 +163,7 @@ OBJ_DMC = obj/staticVariables.o \
 	obj/SHCIshm.o \
 	obj/Determinants.o \
 	obj/rSlater.o \
+	obj/rMultiSlater.o \
 	obj/rBFSlater.o \
 	obj/rJastrow.o \
 	obj/JastrowTermsHardCoded.o \

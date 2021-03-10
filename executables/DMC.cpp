@@ -40,6 +40,7 @@
 #include "rDeterminants.h"
 #include "rJastrow.h"
 #include "rSlater.h"
+#include "rMultiSlater.h"
 #include "rBFSlater.h"
 #include "input.h"
 #include "SHCIshm.h"
@@ -180,8 +181,30 @@ int main(int argc, char *argv[])
     //calculate the energy as a initial guess for shift
     double E0, error, rk;
     double acceptedFrac = getEnergyMetropolisRealSpace(wave, walk, E0, error, rk, schd.stochasticIter, 5.0e-3);
-    if (commrank == 0) cout << "Energy of VMC wavefunction: " << E0 << " ("<< error << ")" << endl;
+    if (commrank == 0) cout << "Energy of VMC wavefunction: " << E0 << " (" << error << ") " << endl;
 
+    //do DMC
+    doDMC(wave, walk, E0);
+  } 
+  if (schd.wavefunctionType == "jastrowmultislater") {
+    //initialize wavefunction
+    rCorrelatedWavefunction<rJastrow, rMultiSlater> wave; rWalker<rJastrow, rMultiSlater> walk;
+    wave.readWave(); wave.initWalker(walk);
+
+    if (schd.testCusp && commrank == 0)
+    {
+        cout << "EEcusp" << endl;
+        testElectronCusp(wave, walk);
+        cout << endl;
+        cout << "ENcusp" << endl;
+        testNuclearCusp(wave, walk);
+        cout << endl;
+    }
+
+    //calculate the energy as a initial guess for shift
+    double E0, error, rk;
+    double acceptedFrac = getEnergyMetropolisRealSpace(wave, walk, E0, error, rk, schd.stochasticIter, 5.0e-3);
+    if (commrank == 0) cout << "Energy of VMC wavefunction: " << E0 << " (" << error << ") " << endl;
 
     //do DMC
     doDMC(wave, walk, E0);
