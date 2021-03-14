@@ -81,7 +81,9 @@ void rMultiSlater::initCiExpansion()
   readDeterminants(fname, ref, ciExcitations, ciParity, ciCoeffs);
 
   //open orbitals
-  for (int i = 0; i < Determinant::norbs; i++)
+  int norbs = Determinant::norbs;
+  if (schd.nciAct > 0) { norbs = schd.nciAct; }
+  for (int i = 0; i < norbs; i++)
   {
     if (std::find(ref[0].begin(), ref[0].end(), i) == ref[0].end()) { open[0].push_back(i); }
     if (std::find(ref[1].begin(), ref[1].end(), i) == ref[1].end()) { open[1].push_back(i); }

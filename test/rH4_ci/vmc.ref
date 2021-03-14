@@ -1,0 +1,71 @@
+User:
+ilsa8974
+Hostname:
+bnode0303.rc.int.colorado.edu
+CPU info:
+Architecture:          x86_64
+CPU op-mode(s):        32-bit, 64-bit
+Byte Order:            Little Endian
+CPU(s):                28
+On-line CPU(s) list:   0-27
+Thread(s) per core:    1
+Core(s) per socket:    14
+Socket(s):             2
+NUMA node(s):          2
+Vendor ID:             GenuineIntel
+CPU family:            6
+Model:                 79
+Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
+Stepping:              1
+CPU MHz:               2933.437
+Computation started at:
+Sat Mar 13 21:07:59 MST 2021
+git commit: f89ce08a674cdac3da075436f81e222269c4f7e1, branch: merged, compiled at: Sat Mar 13 18:16:38 MST 2021
+
+nproc used: 4 (NB: stochasticIter below is per proc)
+
+**************************************************************
+Input file  :
+**************************************************************
+{
+    "wavefunction": {
+        "name": "jastrowmultislater",
+        "numact": "7",
+        "hfType": "rhf",
+        "complex": "false",
+        "QmaxEEN": "0",
+        "Qmax": "1"
+    },
+    "realspace": {
+        "basis": "gto",
+        "nalpha": "2",
+        "nbeta": "2",
+        "norbs": "20"
+    },
+    "sampling": {
+        "rStepType": "spherical",
+        "sampleEveryRt": "true",
+        "stochasticIter": "5e4",
+        "seed": "1"
+    },
+    "optimizer": {
+        "fullrestart": "false",
+        "optimizeorbs": "false",
+        "optimizecicoeffs": "false",
+        "optimizecps": "false",
+        "method": "amsgrad",
+        "stepsize": "0.01",
+        "decay1": "0.1",
+        "decay2": "0.01",
+        "maxIter": "1"
+    },
+    "print": {
+        "vars": "false",
+        "grad": "false"
+    }
+}
+
+Number of Jastrow vars: 0
+Number of Reference vars: 6
+Number of Optimized vars: 0
+    0    -2.02936765 (2.97e-03)     0.00000000      2.2      0.7      50000  0.000000     0.00     9.72

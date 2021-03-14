@@ -1053,7 +1053,7 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
         }
       
         //build Bbar_mu matrix for kinetic energy
-        Eigen::MatrixXcd Bbarmu = Eigen::MatrixXd::Zero(walk.refHelper.Lap[sz].rows(), walk.refHelper.Lap[sz].cols());
+        Eigen::MatrixXcd Bbarmu = Eigen::MatrixXd::Zero(walk.refHelper.Lapbar[sz].rows(), walk.refHelper.Lapbar[sz].cols());
         for (int i = 0; i < Bbarmu.rows(); i++)
         {
           Bbarmu.row(i) += - walk.corrHelper.ParamGradient[0](i + shift, mu) * walk.refHelper.Gradbar[sz][0].row(i);

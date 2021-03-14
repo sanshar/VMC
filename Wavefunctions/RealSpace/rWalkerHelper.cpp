@@ -451,14 +451,14 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
   Ainv[0] = MatrixXd::Zero(d.nalpha, d.nalpha);
   Ainv[1] = MatrixXd::Zero(d.nbeta, d.nbeta);
 
-  Abar[0] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
-  Abar[1] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
+  Abar[0] = MatrixXd::Zero(d.nalpha, w.open[0].size());
+  Abar[1] = MatrixXd::Zero(d.nbeta, w.open[1].size());
 
   Lap[0] = MatrixXd::Zero(d.nalpha, d.nalpha);
   Lap[1] = MatrixXd::Zero(d.nbeta, d.nbeta);
 
-  Lapbar[0] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
-  Lapbar[1] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
+  Lapbar[0] = MatrixXd::Zero(d.nalpha, w.open[0].size());
+  Lapbar[1] = MatrixXd::Zero(d.nbeta, w.open[1].size());
 
   Grad[0][0] = MatrixXd::Zero(d.nalpha, d.nalpha);
   Grad[0][1] = MatrixXd::Zero(d.nalpha, d.nalpha);
@@ -467,12 +467,12 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
   Grad[1][1] = MatrixXd::Zero(d.nbeta, d.nbeta);
   Grad[1][2] = MatrixXd::Zero(d.nbeta, d.nbeta);
 
-  Gradbar[0][0] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
-  Gradbar[0][1] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
-  Gradbar[0][2] = MatrixXd::Zero(d.nalpha, norbs - d.nalpha);
-  Gradbar[1][0] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
-  Gradbar[1][1] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
-  Gradbar[1][2] = MatrixXd::Zero(d.nbeta, norbs - d.nbeta);
+  Gradbar[0][0] = MatrixXd::Zero(d.nalpha, w.open[0].size());
+  Gradbar[0][1] = MatrixXd::Zero(d.nalpha, w.open[0].size());
+  Gradbar[0][2] = MatrixXd::Zero(d.nalpha, w.open[0].size());
+  Gradbar[1][0] = MatrixXd::Zero(d.nbeta, w.open[1].size());
+  Gradbar[1][1] = MatrixXd::Zero(d.nbeta, w.open[1].size());
+  Gradbar[1][2] = MatrixXd::Zero(d.nbeta, w.open[1].size());
 
   AO[0] = MatrixXd::Zero(d.nalpha, norbs);
   AO[1] = MatrixXd::Zero(d.nbeta, norbs);

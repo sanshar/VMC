@@ -1,0 +1,42 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowmultislater",
+    "numact": 7,
+    "hfType": "rhf",
+    "complex": false,
+    "QmaxEEN": 0,
+    "Qmax": 1
+  },
+  "realspace":
+  {
+    "basis": "gto",
+    "nalpha": 2,
+    "nbeta": 2,
+    "norbs": 20
+  },
+  "sampling":
+  {
+    "rStepType": "spherical",
+    "sampleEveryRt": true,
+    "stochasticIter": 5e4,
+    "seed": 1
+  },
+  "optimizer":
+  {
+    "fullrestart": false,
+    "optimizeorbs": false,
+    "optimizecicoeffs": false,
+    "optimizecps": false,
+    "method": "amsgrad",
+    "stepsize":0.01,
+    "decay1": 0.1,
+    "decay2": 0.01,
+    "maxIter": 1
+  },
+  "print":
+  {
+    "vars": false,
+    "grad": false
+  }
+}
