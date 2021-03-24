@@ -816,8 +816,12 @@ void rCorrelatedWavefunction<rJastrow, rMultiSlater>::updateOptVariables(Eigen::
     corr.updateVariables(v);
   }
   if (schd.optimizeCiCoeffs) {
-    Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
-    ref.updateVariables(vtail);
+    Eigen::VectorBlock<VectorXd> vmiddle = v.segment(getNumJastrowVariables(), ref.getNumOfDets());
+    ref.updateCiVariables(vmiddle);
+  }
+  if (schd.optimizeOrbs) {
+    Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables() - ref.getNumOfDets());
+    ref.updateOrbVariables(vtail);
   }
 }
 
@@ -829,8 +833,12 @@ void rCorrelatedWavefunction<rJastrow, rMultiSlater>::getOptVariables(Eigen::Vec
     corr.getVariables(v);
   }
   if (schd.optimizeCiCoeffs) {
-    Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables());
-    ref.getVariables(vtail);
+    Eigen::VectorBlock<VectorXd> vmiddle = v.segment(getNumJastrowVariables(), ref.getNumOfDets());
+    ref.getCiVariables(vmiddle);
+  }
+  if (schd.optimizeOrbs) {
+    Eigen::VectorBlock<VectorXd> vtail = v.tail(getNumRefVariables() - ref.getNumOfDets());
+    ref.getOrbVariables(vtail);
   }
 }
 
@@ -839,7 +847,8 @@ long rCorrelatedWavefunction<rJastrow, rMultiSlater>::getNumOptVariables() const
 {
   long numVars = 0;
   if (schd.optimizeCps) numVars += getNumJastrowVariables();
-  if (schd.optimizeCiCoeffs) numVars += getNumRefVariables();
+  if (schd.optimizeCiCoeffs) numVars += ref.getNumOfDets();
+  if (schd.optimizeOrbs) numVars += getNumRefVariables() - ref.getNumOfDets();
   return numVars;
 }
 
@@ -892,6 +901,31 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
   }
 
   //build Gamma (J. Chem. Theory Comput. 2017, 13, 5273−5281)
+  std::array<Eigen::MatrixXd, 2> R;
+  R[0] = Eigen::MatrixXd::Zero(nact, nalpha);
+  R[1] = Eigen::MatrixXd::Zero(nact, nbeta);
+  std::array<Eigen::MatrixXcd, 2> Aall;
+  Aall[0] = Eigen::MatrixXd::Zero(nalpha, nact);
+  Aall[1] = Eigen::MatrixXd::Zero(nbeta, nact);
+  for (int sz = 0; sz < 2; sz++)
+  {
+    for (int i = 0; i < ref.ref[sz].size(); i++)
+    {
+      R[sz](ref.ref[sz][i], i) = 1.0;
+
+      Aall[sz].col(ref.ref[sz][i]) = walk.refHelper.A[sz].col(i);
+    }
+
+    for (int i = 0; i < ref.open[sz].size(); i++)
+    {
+      Aall[sz].col(ref.open[sz][i]) = walk.refHelper.Abar[sz].col(i);
+    }
+  }
+  std::array<Eigen::MatrixXcd, 2> AinvAall;
+  AinvAall[0] = walk.refHelper.Ainv[0] * Aall[0];
+  AinvAall[1] = walk.refHelper.Ainv[1] * Aall[1];
+  std::array<Eigen::MatrixXcd, 2> &alpha = walk.refHelper.AinvAbar;
+
   std::array<Eigen::MatrixXcd, 2> Y;
   Y[0] = Eigen::MatrixXd::Zero(nact, nalpha);
   Y[1] = Eigen::MatrixXd::Zero(nact, nbeta);
@@ -902,8 +936,6 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
 
     for (int sz = 0; sz < 2; sz++)
     {
-      Eigen::MatrixXcd &alpha = walk.refHelper.AinvAbar[sz];
-
       //these are the orbital indices
       const Eigen::VectorXi &des = ref.ciExcitations[sz][I][0];
       const Eigen::VectorXi &cre = ref.ciExcitations[sz][I][1];
@@ -913,7 +945,7 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
       Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
 
       Eigen::MatrixXcd aI;
-      igl::slice(alpha, rowVec, colVec, aI);
+      igl::slice(alpha[sz], rowVec, colVec, aI);
 
       Eigen::FullPivLU<MatrixXcd> lu(aI);
       if (!lu.isInvertible()) { continue; }
@@ -923,7 +955,7 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
       {
         for (int j = 0; j < cre.size(); j++)
         {
-          Y[sz](cre(j), des(i)) += cI * ratioI * aIinv(j, i);
+          Y[sz](cre(j), rowVec(i)) += cI * ratioI * aIinv(j, i);
         }
       }
     }//sz
@@ -932,24 +964,101 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
   Y[1] /= walk.refHelper.totalRatio;
 
   std::array<Eigen::MatrixXcd, 2> G;
-  G[0] = Eigen::MatrixXd::Zero(nact, nalpha);
-  G[1] = Eigen::MatrixXd::Zero(nact, nbeta);
   for (int sz = 0; sz < 2; sz++)
   {
-    int size = walk.refHelper.A[sz].rows();
+    Eigen::MatrixXcd one = R[sz] * walk.refHelper.Ainv[sz];
+    Eigen::MatrixXcd two = Y[sz] * walk.refHelper.Ainv[sz];
+    Eigen::MatrixXcd three = R[sz] * AinvAall[sz];
+    G[sz] = one + two - (three * two);
+  }
 
-    Eigen::MatrixXcd Aall = Eigen::MatrixXd::Zero(size, nact);
-    Aall.leftCols(size) = walk.refHelper.A[sz];
-    Aall.rightCols(nact - size) = walk.refHelper.Abar[sz];
+  //build B matrix for kinetic and non local potential energies
+  std::array<Eigen::MatrixXcd, 2> Ball;
+  Ball[0] = Eigen::MatrixXd::Zero(nalpha, nact);
+  Ball[1] = Eigen::MatrixXd::Zero(nbeta, nact);
+  std::array<Eigen::MatrixXcd, 2> B;
+  std::array<Eigen::MatrixXcd, 2> Bbar;
+  std::array<Eigen::MatrixXd, 2> aoB;
+  for (int sz = 0; sz < 2; sz++)
+  {
+    //build B matrix
+    int shift = 0;
+    if (sz == 1) { shift = nalpha; }
 
-    Eigen::MatrixXcd AinvAall = Eigen::MatrixXd::Zero(size, nact);
-    AinvAall.leftCols(size) = Eigen::MatrixXd::Identity(size, size);
-    AinvAall.rightCols(nact - size) = walk.refHelper.AinvAbar[sz];
+    //build B matrix for kinetic energy
+    B[sz] = - 0.5 * walk.refHelper.Lap[sz];
+    for (int i = 0; i < B[sz].rows(); i++)
+    {
+      B[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 0) * walk.refHelper.Grad[sz][0].row(i);
+      B[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 1) * walk.refHelper.Grad[sz][1].row(i);
+      B[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 2) * walk.refHelper.Grad[sz][2].row(i);
 
-    Eigen::MatrixXcd temp = Y[sz] * walk.refHelper.Ainv[sz];
-    temp = AinvAall * temp;
-    G[sz].topRows(size) = walk.refHelper.Ainv[sz] - temp;
-    G[sz].bottomRows(nact - size) = Y[sz].bottomRows(nact - size) * walk.refHelper.Ainv[sz];
+      B[sz].row(i) += - 0.5 * walk.corrHelper.LaplaceRatio(i + shift) * walk.refHelper.A[sz].row(i);
+    }
+    
+    //build Bbar matrix for kinetic energy
+    Bbar[sz] = - 0.5 * walk.refHelper.Lapbar[sz];
+    for (int i = 0; i < Bbar[sz].rows(); i++)
+    {
+      Bbar[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 0) * walk.refHelper.Gradbar[sz][0].row(i);
+      Bbar[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 1) * walk.refHelper.Gradbar[sz][1].row(i);
+      Bbar[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 2) * walk.refHelper.Gradbar[sz][2].row(i);
+
+      Bbar[sz].row(i) += - 0.5 * walk.corrHelper.LaplaceRatio(i + shift) * walk.refHelper.Abar[sz].row(i);
+    }
+
+    //build aoB matrix for kinetic energy
+    aoB[sz] = - 0.5 * walk.refHelper.AOLap[sz];
+    for (int i = 0; i < aoB[sz].rows(); i++)
+    {
+      aoB[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 0) * walk.refHelper.AOGrad[sz][0].row(i);
+      aoB[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 1) * walk.refHelper.AOGrad[sz][1].row(i);
+      aoB[sz].row(i) += - walk.corrHelper.GradRatio(i + shift, 2) * walk.refHelper.AOGrad[sz][2].row(i);
+
+      aoB[sz].row(i) += - 0.5 * walk.corrHelper.LaplaceRatio(i + shift) * walk.refHelper.AO[sz].row(i);
+    }
+
+    //build B and Bbar matrix for pseudopotential
+    if (pp.size())
+    {
+      for (int i = 0; i < B[sz].rows(); i++)
+      {
+        for (int q = 0; q < riq[i + shift].size(); q++)
+        {
+          //jastrow ratio
+          double Jratio = walk.corrHelper.OverlapRatio(i + shift, riq[i + shift][q], corr, walk.d);
+
+          //atomic orbitals
+          schd.basis->eval(riq[i + shift][q], &walk.refHelper.aoValues[0]);
+          VectorXd ao(norbs);
+          for (int j = 0; j < norbs; j++) { ao(j) = walk.refHelper.aoValues[j]; }
+
+          //molecular orbitals
+          //occ
+          VectorXcd mo(ref.ref[sz].size());
+          for (int j = 0; j < ref.ref[sz].size(); j++)
+          {
+            int orb = ref.ref[sz].at(j);
+            mo(j) = ao.transpose() * ref.getHforbs(sz).col(orb);
+          }
+          //unocc
+          VectorXcd mobar(ref.open[sz].size());
+          for (int j = 0; j < ref.open[sz].size(); j++)
+          {
+            int orb = ref.open[sz].at(j);
+            mobar(j) = ao.transpose() * ref.getHforbs(sz).col(orb);
+          }
+
+          //accumulate
+          B[sz].row(i) += viq[i + shift][q] * Jratio * mo.transpose();
+          Bbar[sz].row(i) += viq[i + shift][q] * Jratio * mobar.transpose();
+          aoB[sz].row(i) += viq[i + shift][q] * Jratio * ao.transpose();
+        }
+      }
+    }
+
+    for (int i = 0; i < ref.ref[sz].size(); i++) { Ball[sz].col(ref.ref[sz][i]) = B[sz].col(i); }
+    for (int i = 0; i < ref.open[sz].size(); i++) { Ball[sz].col(ref.open[sz][i]) = Bbar[sz].col(i); }
   }
 
   //ci parameter gradient
@@ -961,133 +1070,73 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
   {
     for (int sz = 0; sz < 2; sz++)
     {
-      //build B matrix
-      int shift = 0;
-      if (sz == 1) { shift = nalpha; }
-
-      //build B matrix for kinetic energy
-      Eigen::MatrixXcd B = - 0.5 * walk.refHelper.Lap[sz];
-      for (int i = 0; i < B.rows(); i++)
-      {
-        B.row(i) += - walk.corrHelper.GradRatio(i + shift, 0) * walk.refHelper.Grad[sz][0].row(i);
-        B.row(i) += - walk.corrHelper.GradRatio(i + shift, 1) * walk.refHelper.Grad[sz][1].row(i);
-        B.row(i) += - walk.corrHelper.GradRatio(i + shift, 2) * walk.refHelper.Grad[sz][2].row(i);
-
-        B.row(i) += - 0.5 * walk.corrHelper.LaplaceRatio(i + shift) * walk.refHelper.A[sz].row(i);
-      }
-      
-      //build Bbar matrix for kinetic energy
-      Eigen::MatrixXcd Bbar = - 0.5 * walk.refHelper.Lapbar[sz];
-      for (int i = 0; i < Bbar.rows(); i++)
-      {
-        Bbar.row(i) += - walk.corrHelper.GradRatio(i + shift, 0) * walk.refHelper.Gradbar[sz][0].row(i);
-        Bbar.row(i) += - walk.corrHelper.GradRatio(i + shift, 1) * walk.refHelper.Gradbar[sz][1].row(i);
-        Bbar.row(i) += - walk.corrHelper.GradRatio(i + shift, 2) * walk.refHelper.Gradbar[sz][2].row(i);
-
-        Bbar.row(i) += - 0.5 * walk.corrHelper.LaplaceRatio(i + shift) * walk.refHelper.Abar[sz].row(i);
-      }
-
-      //build B and Bbar matrix for pseudopotential
-      if (pp.size())
-      {
-        for (int i = 0; i < B.rows(); i++)
-        {
-          for (int q = 0; q < riq[i + shift].size(); q++)
-          {
-            //jastrow ratio
-            double Jratio = walk.corrHelper.OverlapRatio(i + shift, riq[i + shift][q], corr, walk.d);
-
-            //atomic orbitals
-            schd.basis->eval(riq[i + shift][q], &walk.refHelper.aoValues[0]);
-            VectorXd ao(norbs);
-            for (int j = 0; j < norbs; j++) { ao(j) = walk.refHelper.aoValues[j]; }
-
-            //molecular orbitals
-            //occ
-            VectorXcd mo(ref.ref[sz].size());
-            for (int j = 0; j < ref.ref[sz].size(); j++)
-            {
-              int orb = ref.ref[sz].at(j);
-              mo(j) = ao.transpose() * ref.getHforbs(sz).col(orb);
-            }
-            //unocc
-            VectorXcd mobar(ref.open[sz].size());
-            for (int j = 0; j < ref.open[sz].size(); j++)
-            {
-              int orb = ref.open[sz].at(j);
-              mobar(j) = ao.transpose() * ref.getHforbs(sz).col(orb);
-            }
-
-            //accumulate
-            B.row(i) += viq[i + shift][q] * Jratio * mo.transpose();
-            Bbar.row(i) += viq[i + shift][q] * Jratio * mobar.transpose();
-          }
-        }
-      }
-    
-      //knl
-      int size = walk.refHelper.A[sz].rows();
-      Eigen::MatrixXcd Ball = Eigen::MatrixXd::Zero(size, nact);
-      Ball.leftCols(size) = B;
-      Ball.rightCols(nact - size) = Bbar;
       //trace
       double val = 0.0;
-      for (int i = 0; i < Ball.cols(); i++)
+      for (int i = 0; i < Ball[sz].cols(); i++)
       {
-        std::complex<double> factor = G[sz].row(i) * Ball.col(i);
+        std::complex<double> factor = G[sz].row(i) * Ball[sz].col(i);
         val += factor.real();
       }
       knl += val;
-
-      if (schd.optimizeCiCoeffs)
-      {
-        CIgradRatio.setZero(ref.getNumOfDets());
-        CIhamRatio.setZero(ref.getNumOfDets());
-
-        //intermediates
-        Eigen::MatrixXcd Mbar = Bbar - (B * walk.refHelper.AinvAbar[sz]);
-        Mbar = walk.refHelper.Ainv[sz] * Mbar;
-        Eigen::MatrixXcd alpha = walk.refHelper.AinvAbar[sz];
-        
-        //reference
-        double refknl = 0.0;
-        for (int i = 0; i < B.rows(); i++)
-        {
-          std::complex<double> factor = B.row(i) * walk.refHelper.Ainv[sz].col(i);
-          refknl += factor.real();
-        }
-
-        CIgradRatio(0) = ref.ciParity[0] * (walk.refHelper.detRatios[0][0] * walk.refHelper.detRatios[0][1] / walk.refHelper.totalRatio).real();
-        CIhamRatio(0) = ref.ciParity[0] * (refknl * walk.refHelper.detRatios[0][0] * walk.refHelper.detRatios[0][1] / walk.refHelper.totalRatio).real();
-
-        //sum over ci wavefunctions
-        for (size_t I = 1; I < ref.getNumOfDets(); I++)
-        {
-          Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
-          Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
-
-          Eigen::MatrixXcd aI;
-          igl::slice(alpha, rowVec, colVec, aI);
-        
-          Eigen::MatrixXcd MbarI;
-          igl::slice(Mbar, rowVec, colVec, MbarI);
-
-          //alpha and beta
-          double cI = ref.ciParity[I] * ref.ciCoeffs[I];
-          std::complex<double> ratioI = walk.refHelper.detRatios[I][0] * walk.refHelper.detRatios[I][1];
-        
-          Eigen::FullPivLU<MatrixXcd> lu(aI);
-          if (!lu.isInvertible()) { continue; }
-          Eigen::MatrixXcd aIinv = lu.inverse();
-
-          CIgradRatio(I) = ref.ciParity[I] * (ratioI / walk.refHelper.totalRatio).real();
-          CIhamRatio(I) = ref.ciParity[I] * ((refknl + (aIinv * MbarI).trace()) * ratioI / walk.refHelper.totalRatio).real();
-        }
-      }//param grad
-    }//sz
+    }
   }//knl
 
   double Eloc = knl + potentialij + potentiali + potentiali_ppl + potentialN; 
+
+  // *********calculate gradRatio and hamRatio for ci coeffs
+  if (schd.optimizeCiCoeffs)
+  {
+    CIgradRatio.setZero(ref.getNumOfDets());
+    CIhamRatio.setZero(ref.getNumOfDets());
+
+    std::array<Eigen::MatrixXcd, 2> Mbar;
+    double refEloc = 0.0;
+    for (int sz = 0; sz < 2; sz++)
+    {
+      //reference
+      for (int i = 0; i < B[sz].rows(); i++)
+      {
+        std::complex<double> factor = B[sz].row(i) * walk.refHelper.Ainv[sz].col(i);
+        refEloc += factor.real();
+      }
+
+      //intermediates
+      Eigen::MatrixXcd temp = Bbar[sz] - (B[sz] * walk.refHelper.AinvAbar[sz]);
+      Mbar[sz] = walk.refHelper.Ainv[sz] * temp;
+    }
+    refEloc += potentialij + potentiali + potentiali_ppl + potentialN; 
+
+    //1st det
+    CIgradRatio(0) += ref.ciParity[0] * (1.0 / walk.refHelper.totalRatio).real();
+    CIhamRatio(0) += ref.ciParity[0] * (refEloc / walk.refHelper.totalRatio).real();
+ 
+    //sum over dets
+    for (size_t I = 1; I < ref.getNumOfDets(); I++)
+    {
+      std::complex<double> ratioI = walk.refHelper.detRatios[I][0] * walk.refHelper.detRatios[I][1];
+
+      CIgradRatio(I) += ref.ciParity[I] * (ratioI / walk.refHelper.totalRatio).real();
+      CIhamRatio(I) += ref.ciParity[I] * (refEloc * ratioI / walk.refHelper.totalRatio).real();
+
+      for (int sz = 0; sz < 2; sz++)
+      {
+        Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
+        Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
+
+        Eigen::MatrixXcd aI;
+        igl::slice(alpha[sz], rowVec, colVec, aI);
+    
+        Eigen::MatrixXcd MbarI;
+        igl::slice(Mbar[sz], rowVec, colVec, MbarI);
+
+        Eigen::FullPivLU<MatrixXcd> lu(aI);
+        if (!lu.isInvertible()) { continue; }
+        Eigen::MatrixXcd aIinv = lu.inverse();
+      
+        CIhamRatio(I) += ref.ciParity[I] * ((aIinv * MbarI).trace() * ratioI / walk.refHelper.totalRatio).real();
+      }
+    }
+  }//param grad
 
   // *********calculate gradRatio and hamRatio for jastrows
   VectorXd CPSgradRatio = VectorXd::Zero(0);
@@ -1137,10 +1186,10 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
           Bbarmu.row(i) += - walk.corrHelper.GradRatio(i + shift, 2) * walk.corrHelper.ParamGradient[2](i + shift, mu) * walk.refHelper.Abar[sz].row(i);
         }
 
-        int size = walk.refHelper.A[sz].rows();
-        Eigen::MatrixXcd Bmuall = Eigen::MatrixXd::Zero(size, nact);
-        Bmuall.leftCols(size) = Bmu;
-        Bmuall.rightCols(nact - size) = Bbarmu;
+        Eigen::MatrixXcd Bmuall = Eigen::MatrixXd::Zero(Bmu.rows(), nact);
+        for (int i = 0; i < ref.ref[sz].size(); i++) { Bmuall.col(ref.ref[sz][i]) = Bmu.col(i); }
+        for (int i = 0; i < ref.open[sz].size(); i++) { Bmuall.col(ref.open[sz][i]) = Bbarmu.col(i); }
+
         //trace
         double val = 0.0;
         for (int i = 0; i < Bmuall.cols(); i++)
@@ -1148,8 +1197,8 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
           std::complex<double> factor = G[sz].row(i) * Bmuall.col(i);
           val += factor.real();
         }
-
         CPShamRatio(mu) += val;
+
       }//sz
     }//mu
 
@@ -1179,8 +1228,130 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
     CPShamRatio += Eloc * CPSgradRatio;
   } //CPS param gradients
 
-  hamRatio << CPShamRatio, CIhamRatio;
-  gradRatio << CPSgradRatio, CIgradRatio;
+
+  // *********calculate gradRatio and hamRatio for orbitals
+  VectorXd OrbgradRatio = VectorXd::Zero(0);
+  VectorXd OrbhamRatio = VectorXd::Zero(0);
+  if (schd.optimizeOrbs)
+  {
+    int num = nact * norbs; //num of orbital params
+    OrbgradRatio = VectorXd::Zero(num);
+    OrbhamRatio = VectorXd::Zero(num);
+
+    std::array<Eigen::MatrixXd, 2> &AO = walk.refHelper.AO;
+
+    std::array<Eigen::MatrixXcd, 2> Mbar;
+    std::array<Eigen::MatrixXcd, 2> Mall;
+    Mall[0] = Eigen::MatrixXd::Zero(nalpha, nact);
+    Mall[1] = Eigen::MatrixXd::Zero(nbeta, nact);
+    for (int sz = 0; sz < 2; sz++)
+    {
+      //intermediates
+      Eigen::MatrixXcd temp = Bbar[sz] - (B[sz] * walk.refHelper.AinvAbar[sz]);
+      Mbar[sz] = walk.refHelper.Ainv[sz] * temp;
+      for (int i = 0; i < ref.open[sz].size(); i++) { Mall[sz].col(ref.open[sz][i]) = Mbar[sz].col(i); }
+    }
+
+    std::array<Eigen::MatrixXcd, 2> dY;
+    dY[0] = Eigen::MatrixXd::Zero(nact, nalpha);
+    dY[1] = Eigen::MatrixXd::Zero(nact, nbeta);
+    for (int I = 1; I < ref.getNumOfDets(); I++)
+    {
+      double cI = ref.ciParity[I] * ref.ciCoeffs[I];
+      std::complex<double> ratioI = walk.refHelper.detRatios[I][0] * walk.refHelper.detRatios[I][1];
+
+      for (int sz = 0; sz < 2; sz++)
+      {
+        //these are the orbital indices
+        const Eigen::VectorXi &des = ref.ciExcitations[sz][I][0];
+        const Eigen::VectorXi &cre = ref.ciExcitations[sz][I][1];
+
+        if (des.size() < 2) { continue; }
+
+        //these are the internal indices
+        Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
+        Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
+
+        Eigen::MatrixXcd aI;
+        igl::slice(alpha[sz], rowVec, colVec, aI);
+
+        Eigen::FullPivLU<MatrixXcd> lu(aI);
+        if (!lu.isInvertible()) { continue; }
+        Eigen::MatrixXcd aIinv = lu.inverse();
+
+        for (int i = 0; i < des.size(); i++)
+        {
+          for (int j = 0; j < cre.size(); j++)
+          {
+            for (int k = 0; k < des.size(); k++)
+            {
+              for (int l = 0; l < cre.size(); l++)
+              {
+                //dY[sz](cre(j), rowVec(i)) += cI * ratioI * aIinv(j, i) * aIinv(l, k) * Mall[sz](rowVec(k), cre(l));
+                //dY[sz](cre(j), rowVec(i)) -= cI * ratioI * aIinv(j, k) * aIinv(l, i) * Mall[sz](rowVec(k), cre(l));
+                dY[sz](cre(j), rowVec(i)) += cI * ratioI * aIinv(j, i) * aIinv(l, k) * Mbar[sz](rowVec(k), colVec(l));
+                dY[sz](cre(j), rowVec(i)) -= cI * ratioI * aIinv(j, k) * aIinv(l, i) * Mbar[sz](rowVec(k), colVec(l));
+              }
+            }
+          }
+        }
+
+      }//sz
+    }//dets
+    dY[0] /= walk.refHelper.totalRatio;
+    dY[1] /= walk.refHelper.totalRatio;
+
+    for (int sz = 0; sz < 2; sz++)
+    {
+      //trace
+      double val = 0.0;
+      for (int l = 0; l < Y[sz].rows(); l++)
+      {
+        std::complex<double> factor = Y[sz].row(l) * Mall[sz].col(l);
+        val += factor.real();
+      }
+
+      dY[sz] -= Y[sz] * val;
+    }
+
+    std::array<Eigen::MatrixXcd, 2> dG;
+    for (int sz = 0; sz < 2; sz++)
+    {
+      Eigen::MatrixXcd one = - G[sz] * B[sz];
+      Eigen::MatrixXcd two = dY[sz];
+      Eigen::MatrixXcd three = Mall[sz] * Y[sz];
+      Eigen::MatrixXcd four = AinvAall[sz] * dY[sz];
+
+      Eigen::MatrixXcd temp1 = one + two;
+      Eigen::MatrixXcd temp2 = R[sz] * (three + four);
+      dG[sz] = (temp1 - temp2) * walk.refHelper.Ainv[sz];
+    }
+    
+    for (int p = 0; p < norbs; p++)
+    {
+      for (int q = 0; q < nact; q++)
+      {
+        for (int sz = 0; sz < 2; sz++)
+        {
+          //gradRatio
+          std::complex<double> factor = G[sz].row(q) * AO[sz].col(p);
+          OrbgradRatio(p * nact + q) += factor.real();
+
+          //hamRatio
+          std::complex<double> factor1 = G[sz].row(q) * aoB[sz].col(p);
+          OrbhamRatio(p * nact + q) += factor1.real();
+
+          std::complex<double> factor2 = dG[sz].row(q) * AO[sz].col(p);
+          OrbhamRatio(p * nact + q) += factor2.real();
+        }//sz
+      }//q
+    }//p
+
+    OrbhamRatio += Eloc * OrbgradRatio;
+  } //Orb param gradient
+
+  hamRatio << CPShamRatio, CIhamRatio, OrbhamRatio;
+  gradRatio << CPSgradRatio, CIgradRatio, OrbgradRatio;
   return Eloc;
 }
 

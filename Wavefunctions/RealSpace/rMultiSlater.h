@@ -25,6 +25,8 @@
 #include <Eigen/Dense>
 #include "Determinants.h" 
 #include "rMultiSlater.h"
+#include "global.h"
+#include "input.h"
 
 class oneInt;
 class twoInt;
@@ -80,7 +82,10 @@ class rMultiSlater {
 
   long getNumVariables() const
   {
-    return numDets;
+    int norbs = Determinant::norbs;
+    int nact = norbs;
+    if (schd.nciAct > 0) { nact = schd.nciAct; }
+    return numDets + norbs * nact;
   }
 
   const Eigen::MatrixXcd &getHforbs(int sz) const
@@ -92,13 +97,77 @@ class rMultiSlater {
   void getVariables(Eigen::VectorBlock<Eigen::VectorXd> &v) const
   {
     int norbs = Determinant::norbs;
+    int nact = norbs;
+    if (schd.nciAct > 0) { nact = schd.nciAct; }
+
     for (size_t i = 0; i < numDets; i++) { v[i] = ciCoeffs[i]; }
+
+    for (int p = 0; p < norbs; p++)
+    {
+      for (int q = 0; q < nact; q++)
+      {
+        v(numDets + p * nact + q) = HforbsA(p, q).real();
+      }
+    }
+  }
+
+  void getCiVariables(Eigen::VectorBlock<Eigen::VectorXd> &v) const
+  {
+    for (size_t i = 0; i < numDets; i++) { v[i] = ciCoeffs[i]; }
+  }
+
+  void getOrbVariables(Eigen::VectorBlock<Eigen::VectorXd> &v) const
+  {
+    int norbs = Determinant::norbs;
+    int nact = norbs;
+    if (schd.nciAct > 0) { nact = schd.nciAct; }
+
+    for (int p = 0; p < norbs; p++)
+    {
+      for (int q = 0; q < nact; q++)
+      {
+        v(p * nact + q) = HforbsA(p, q).real();
+      }
+    }
   }
 
   void updateVariables(const Eigen::VectorBlock<Eigen::VectorXd> &v)
   {
     int norbs = Determinant::norbs;
+    int nact = norbs;
+    if (schd.nciAct > 0) { nact = schd.nciAct; }
+
     for (size_t i = 0; i < numDets; i++) { ciCoeffs[i] = v[i]; }
+
+    for (int p = 0; p < norbs; p++)
+    {
+      for (int q = 0; q < nact; q++)
+      {
+        HforbsA(p, q) = std::complex<double>(v[numDets + p * nact + q], 0.0);
+        HforbsB(p, q) = HforbsA(p, q);
+      }
+    }
+  }
+
+  void updateCiVariables(const Eigen::VectorBlock<Eigen::VectorXd> &v)
+  {
+    for (size_t i = 0; i < numDets; i++) { ciCoeffs[i] = v[i]; }
+  }
+
+  void updateOrbVariables(const Eigen::VectorBlock<Eigen::VectorXd> &v)
+  {
+    int norbs = Determinant::norbs;
+    int nact = norbs;
+    if (schd.nciAct > 0) { nact = schd.nciAct; }
+
+    for (int p = 0; p < norbs; p++)
+    {
+      for (int q = 0; q < nact; q++)
+      {
+        HforbsA(p, q) = std::complex<double>(v[p * nact + q], 0.0);
+        HforbsB(p, q) = HforbsA(p, q);
+      }
+    }
   }
 
   void printVariables() const;

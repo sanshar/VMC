@@ -1132,11 +1132,26 @@ void rWalker<rJastrow, rMultiSlater>::updateWalker(int elec, Vector3d& coord, co
 
 void rWalker<rJastrow, rMultiSlater>::OverlapWithGradient(const rMultiSlater &ref, const rJastrow& cps, VectorXd &grad)
 {
-  double factor1 = 1.0;
-  corrHelper.OverlapWithGradient(cps, grad, d, factor1);
+  int norbs = schd.basis->getNorbs();
+  int nact = norbs;
+  if (schd.nciAct > 0) { nact = schd.nciAct; }
 
-  if (schd.optimizeCiCoeffs == false) { return; }
-  Eigen::VectorBlock<VectorXd> gradtail = grad.tail(grad.rows() - cps.getNumVariables());
+  int numVars = 0;
+  if (schd.optimizeCps) { numVars += cps.getNumVariables(); }
+  if (schd.optimizeCiCoeffs) { numVars += ref.getNumOfDets(); }
+  if (schd.optimizeOrbs) { numVars += nact * norbs; }
+  grad.setZero(numVars);
+
+  if (schd.optimizeCps) {
+    double factor1 = 1.0;
+    corrHelper.OverlapWithGradient(cps, grad, d, factor1);
+  }
+
+  int numRefVars = 0;
+  if (schd.optimizeCiCoeffs) { numRefVars += ref.getNumOfDets(); }
+  if (schd.optimizeOrbs) { numRefVars += nact * norbs; }
+
+  Eigen::VectorBlock<VectorXd> gradtail = grad.tail(numRefVars);
   refHelper.OverlapWithGradient(d, ref, gradtail);
 }
 

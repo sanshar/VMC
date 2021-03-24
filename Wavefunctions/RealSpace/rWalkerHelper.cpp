@@ -840,9 +840,115 @@ void rWalkerHelper<rMultiSlater>::updateWalker(int elec, Vector3d& oldCoord, con
 
 void rWalkerHelper<rMultiSlater>::OverlapWithGradient(const rDeterminant& d, const rMultiSlater& w, Eigen::VectorBlock<VectorXd>& grad) const
 {
-  if (schd.optimizeCiCoeffs) {
-    for (int I = 0; I < w.getNumOfDets(); I++) { grad(I) = w.ciParity[I] * (detRatios[I][0] * detRatios[I][1] / totalRatio).real(); }
-  }
+  int norbs = schd.basis->getNorbs();
+  int nact = norbs;
+  if (schd.nciAct > 0) { nact = schd.nciAct; }
+  int nalpha = rDeterminant::nalpha;
+  int nbeta = rDeterminant::nbeta;
+  int nelec = nalpha + nbeta;
+
+  Eigen::VectorXd CIgradRatio = VectorXd::Zero(0);
+  if (schd.optimizeCiCoeffs)
+  {
+    CIgradRatio.setZero(w.getNumOfDets());
+
+    for (int I = 0; I < w.getNumOfDets(); I++) { CIgradRatio(I) = w.ciParity[I] * (detRatios[I][0] * detRatios[I][1] / totalRatio).real(); }
+  }//ci param grad
+
+  Eigen::VectorXd OrbgradRatio = VectorXd::Zero(0);
+  if (schd.optimizeOrbs)
+  {
+    int num = nact * norbs; //num of orbital params
+    OrbgradRatio.setZero(num);
+
+    //build Gamma (J. Chem. Theory Comput. 2017, 13, 5273−5281)
+    std::array<Eigen::MatrixXd, 2> R;
+    R[0] = Eigen::MatrixXd::Zero(nact, nalpha);
+    R[1] = Eigen::MatrixXd::Zero(nact, nbeta);
+    std::array<Eigen::MatrixXcd, 2> Aall;
+    Aall[0] = Eigen::MatrixXd::Zero(nalpha, nact);
+    Aall[1] = Eigen::MatrixXd::Zero(nbeta, nact);
+    for (int sz = 0; sz < 2; sz++)
+    {
+      for (int i = 0; i < w.ref[sz].size(); i++)
+      {
+        R[sz](w.ref[sz][i], i) = 1.0;
+
+        Aall[sz].col(w.ref[sz][i]) = A[sz].col(i);
+      }
+
+      for (int i = 0; i < w.open[sz].size(); i++)
+      {
+        Aall[sz].col(w.open[sz][i]) = Abar[sz].col(i);
+      }
+    }
+    std::array<Eigen::MatrixXcd, 2> AinvAall;
+    AinvAall[0] = Ainv[0] * Aall[0];
+    AinvAall[1] = Ainv[1] * Aall[1];
+    std::array<Eigen::MatrixXcd, 2> alpha = AinvAbar;
+
+    std::array<Eigen::MatrixXcd, 2> Y;
+    Y[0] = Eigen::MatrixXd::Zero(nact, nalpha);
+    Y[1] = Eigen::MatrixXd::Zero(nact, nbeta);
+    for (int I = 1; I < w.getNumOfDets(); I++)
+    {
+      double cI = w.ciParity[I] * w.ciCoeffs[I];
+      std::complex<double> ratioI = detRatios[I][0] * detRatios[I][1];
+
+      for (int sz = 0; sz < 2; sz++)
+      {
+        //these are the orbital indices
+        const Eigen::VectorXi &des = w.ciExcitations[sz][I][0];
+        const Eigen::VectorXi &cre = w.ciExcitations[sz][I][1];
+
+        //these are the internal indices
+        Eigen::VectorXi rowVec = w.ciIndices[sz][I][0];
+        Eigen::VectorXi colVec = w.ciIndices[sz][I][1];
+
+        Eigen::MatrixXcd aI;
+        igl::slice(alpha[sz], rowVec, colVec, aI);
+
+        Eigen::FullPivLU<MatrixXcd> lu(aI);
+        if (!lu.isInvertible()) { continue; }
+        Eigen::MatrixXcd aIinv = lu.inverse();
+
+        for (int i = 0; i < des.size(); i++)
+        {
+          for (int j = 0; j < cre.size(); j++)
+          {
+            Y[sz](cre(j), rowVec(i)) += cI * ratioI * aIinv(j, i);
+          }
+        }
+      }//sz
+    }//dets
+    Y[0] /= totalRatio;
+    Y[1] /= totalRatio;
+
+    std::array<Eigen::MatrixXcd, 2> G;
+    for (int sz = 0; sz < 2; sz++)
+    {
+      Eigen::MatrixXcd one = R[sz] * Ainv[sz];
+      Eigen::MatrixXcd two = Y[sz] * Ainv[sz];
+      Eigen::MatrixXcd three = R[sz] * AinvAall[sz];
+      G[sz] = one + two - (three * two);
+    }
+
+    for (int p = 0; p < norbs; p++)
+    {
+      for (int q = 0; q < nact; q++)
+      {
+        for (int sz = 0; sz < 2; sz++)
+        {
+          //gradRatio
+          std::complex<double> factor = G[sz].row(q) * AO[sz].col(p);
+          OrbgradRatio(p * nact + q) += factor.real();
+        }
+      }
+    }
+
+  }//orb param grad
+
+  grad << CIgradRatio, OrbgradRatio;
 }
 
 //********************** Backflow Slater ***************

@@ -15,9 +15,16 @@ inline double fastpow(double a, double b) {
 }
 
 bool electronsOfCorrectSpin(const int& i, const int& j, const int& ss) {
+  /*
   if ( ss == 2 ||  //applies to any term
        (i/rDeterminant::nalpha == j/rDeterminant::nalpha && ss == 1) ||
        (i/rDeterminant::nalpha != j/rDeterminant::nalpha && ss == 0) ) 
+       */
+  int si = i < rDeterminant::nalpha ? si = 0 : 1;
+  int sj = j < rDeterminant::nalpha ? sj = 0 : 1;
+  if ( ss == 2 ||  //applies to any term
+       (si == sj && ss == 1) ||
+       (si != sj && ss == 0) ) 
     return true;
   else
     return false;

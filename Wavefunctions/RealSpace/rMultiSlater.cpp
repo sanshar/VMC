@@ -197,6 +197,7 @@ void rMultiSlater::printVariables() const
     cout << endl;
   }
 
+  /*
   if (schd.hf == "uhf") {
     cout << "\nHforbsB\n";
     for (int i = 0; i < HforbsB.rows(); i++) {
@@ -204,5 +205,6 @@ void rMultiSlater::printVariables() const
       cout << endl;
     }
   }
+  */
   cout << endl;
 }
