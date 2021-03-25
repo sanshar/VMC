@@ -224,14 +224,20 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   Eloc = w.rHam(walk, T, Vij, ViI, Vnl, VIJ, viq, riq);
 
   //branching
-  double Eavg = (Eloc + Elocp) / 2.0;
   //use cutoff from PHYSICAL REVIEW B 93, 241118(R) (2016)
   double alpha = 0.2;
   double Ecut = alpha * std::sqrt(double(nelec) / tau);
-  double delta = Eavg - Ebest;
+  //before diffusion
+  double deltap = Elocp - Ebest;
+  double signp = std::copysign(1.0, deltap);
+  double Ebarp = Ebest + signp * std::min(Ecut, std::abs(deltap));
+  //after diffusion
+  double delta = Eloc - Ebest;
   double sign = std::copysign(1.0, delta);
   double Ebar = Ebest + sign * std::min(Ecut, std::abs(delta));
-  wt *= std::exp(- tau_eff * (Ebar - Eshift));
+
+  double Eavg = (Ebar + Ebarp) / 2.0;
+  wt *= std::exp(- tau_eff * (Eavg - Eshift));
 
   //size consistent (really size extensive) t-moves
   if (schd.doTMove)
@@ -249,7 +255,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
       t.push_back(cumT);
       for (int q = 0; q < viq[i].size(); q++)
       {
-        double txpx = - tau_eff * viq[i][q];
+        double txpx = - tau * viq[i][q];
         //cout << viq[i][q] << " | " << riq[i][q].transpose() << endl;
         //cout << txpx << " | " << riq[i][q].transpose() << endl;
 
@@ -269,12 +275,13 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
     cout << endl;
     cout << "Process: " << commrank << endl;
     cout << "Large weight: " << wt << endl;
-    cout << "delta weight: " << std::exp(- tau_eff * (Ebar - Eshift)) << endl;
-    cout << "exponential: " << - tau_eff * (Ebar - Eshift) << endl;
+    cout << "delta weight: " << std::exp(- tau_eff * (Eavg - Eshift)) << endl;
+    cout << "exponential: " << - tau_eff * (Eavg - Eshift) << endl;
     cout << "effective time step: " << tau_eff << endl;
-    cout << "Branching energy: " << Ebar << endl;
+    cout << "Branching energy: " << Eavg << endl;
     cout << "Energy shift: " << Eshift << endl;
     cout << "Local energy before and after diffusion: " << Elocp << " " << Eloc << endl;
+    cout << "Local energy bar before and after diffusion: " << Ebarp << " " << Ebar << endl;
     cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
     cout << "Local energy after t move: " << w.rHam(walk) << endl;
     //cout << "coords" << endl;
@@ -577,7 +584,6 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     StatsE2.push_back(Et2);
 
     //average some variables over processes
-    Ebest = Et;
     double totalMoves = double(Walkers.size());
     double totalPop = iterPop;
     //VectorXd wpp = VectorXd::Zero(commsize);
@@ -585,7 +591,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     //VectorXd Eshiftpp = VectorXd::Zero(commsize);
     //Eshiftpp(commrank) = Eshift;
 #ifndef SERIAL
-    MPI_Allreduce(MPI_IN_PLACE, &Ebest, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &Et, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &Vart, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &acceptedMoves, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &totalMoves, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -593,16 +599,18 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     //MPI_Allreduce(MPI_IN_PLACE, &wpp(0), wpp.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     //MPI_Allreduce(MPI_IN_PLACE, &Eshiftpp(0), Eshiftpp.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-    Ebest /= commsize;
+    Et /= commsize;
     Vart /= commsize;
     double acceptedFrac = acceptedMoves / totalMoves;
 
+    //Ebest += (Et - Ebest) / (iter + 2);
+    Ebest = 0.9 * Ebest + 0.1 * Et;
     if (commrank == 0) { f << iter + 1 << " " << tau * double(iter + 1) << " " << Ebest << " " << Vart << " " << int(totalMoves / commsize) << " " << totalPop / commsize << endl; }
     //if (commrank == 0) { f << wpp.transpose() << endl; }
     //if (commrank == 0) { f << Eshiftpp.transpose() << endl << endl; }
 
     //every process is independent and have different Eshifts
-    Eshift = Et - (0.1 / tau) * std::log(iterPop / targetPop);
+    Eshift = Ebest - (0.1 / tau) * std::log(iterPop / targetPop);
 
     //incase of catastrophic failure
     if (iterPop > 5 * targetPop)
@@ -639,7 +647,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
 
       //this is the exponentially moving average over generations
       if (iter == nGeneration) { Eexp = Ebar; }
-      else { Eexp = 0.75 * Eexp + 0.25 * Ebar; }
+      else { Eexp = 0.9 * Eexp + 0.1 * Ebar; }
 
       //this is the average energy over generations, but only start
       //taking averages after 4 generations because 

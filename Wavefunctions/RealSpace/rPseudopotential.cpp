@@ -144,6 +144,7 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
         else if (l == 4) { Pl = 0.125 * (35.0 * x * x * x * x - 30.0 * x * x + 3.0); }
         return Pl;
     };
+
     viq.clear();
     riq.clear();
     if (size()) //if pseudopotential object is not empty
@@ -164,6 +165,10 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                     Eigen::Vector3d ri = d.coord[i];
                     Eigen::Vector3d riI = ri - rI;
                     double riInorm = riI.norm();
+                    
+                    //if potential weak, don't integrate
+                    double testv = 0.0;
+                    std::vector<double> vlvec;
                     for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
                     {
                         int l = it1->first; //angular momentum
@@ -173,40 +178,60 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                         if (l == -1) { continue; } 
                         
                         //calculate potential
-                        double v = 0.0;
-                        for (int m = 0; m < pec.size(); m = m + 3) { v += std::pow(riInorm, int(pec.at(m) - 2)) * std::exp(-pec.at(m + 1) * riInorm * riInorm) * pec.at(m + 2); }
+                        double vl = 0.0;
+                        for (int m = 0; m < pec.size(); m = m + 3) { vl += std::pow(riInorm, int(pec.at(m) - 2)) * std::exp(-pec.at(m + 1) * riInorm * riInorm) * pec.at(m + 2); }
 
-                        double C = 2.0 * double(l) + 1.0;
-                        if (C * std::abs(v) < schd.pCutOff) { continue; } //if potential weak, don't integrate
+                        //legendre polynomial factor
+                        double Cl = 2.0 * double(l) + 1.0;
 
-                        //random rotation
-                        double theta = random() * M_PI;
-                        double phi = random() * 2.0 * M_PI;
-                        Eigen::Vector3d zhat = unit_vector(theta, phi);
-                        Eigen::Vector3d xhat = unit_vector(theta + M_PI / 2.0, phi);
-                        Eigen::Vector3d yhat = unit_vector(M_PI / 2.0, phi - M_PI / 2.0);
-                        //matrix
-                        Matrix3d rot;
-                        rot << zhat.transpose(), xhat.transpose(), yhat.transpose();
+                        testv += vl * Cl;
+                        vlvec.push_back(vl * Cl);
+                    }//l
+                    if (std::abs(testv) < schd.pCutOff) { continue; } 
                         
-                        for (int q = 0; q < schd.Q.size(); q++)
+                    //random rotation
+                    double theta = random() * M_PI;
+                    double phi = random() * 2.0 * M_PI;
+                    Eigen::Vector3d zhat = unit_vector(theta, phi);
+                    Eigen::Vector3d xhat = unit_vector(theta + M_PI / 2.0, phi);
+                    Eigen::Vector3d yhat = unit_vector(M_PI / 2.0, phi - M_PI / 2.0);
+                    //matrix
+                    Matrix3d rot;
+                    rot << zhat.transpose(), xhat.transpose(), yhat.transpose();
+
+                    for (int q = 0; q < schd.Q.size(); q++)
+                    {
+                        //calculate new vector, riprime
+                        Eigen::Vector3d rotQ = rot * schd.Q[q];
+                        Eigen::Vector3d riIprime = riInorm * rotQ;
+                        Eigen::Vector3d riprime = riIprime + rI;
+
+                        //calculate angle
+                        double costheta = riI.dot(riIprime) / (riInorm * riIprime.norm());
+                        
+                        double vxx = 0.0;
+                        int idx = 0;
+                        for (auto it1 = ppatm.begin(); it1 != ppatm.end(); it1++) //loop over angular momentum channels
                         {
-                            //calculate new vector, riprime
-                            Eigen::Vector3d rotQ = rot * schd.Q[q];
-                            Eigen::Vector3d riIprime = riInorm * rotQ;
-                            Eigen::Vector3d riprime = riIprime + rI;
-                            
-                            //calculate angle
-                            double costheta = riI.dot(riIprime) / (riInorm * riIprime.norm());
-                            
+                            int l = it1->first; //angular momentum
+                        
+                            //skip local potential
+                            if (l == -1) { continue; } 
+                        
+                            //potential
+                            double vl = vlvec.at(idx);
+                            idx++;
+
                             //legendre polynomial
                             double Pl = leg_pol(l, costheta);
 
-                            //update tensors
-                            vq.push_back(v * C * Pl * schd.Qwt[q]);
-                            rq.push_back(riprime);
-                        }//q
-                    }//l
+                            vxx += vl * Pl;
+                        }//l
+
+                        //update tensors
+                        vq.push_back(vxx * schd.Qwt[q]);
+                        rq.push_back(riprime);
+                    }//q
                 }//atm idx
             }//atm
 
