@@ -124,6 +124,42 @@ void generaterWalkers(std::list<std::pair<Walker, double>> &Walkers, Wfn &w)
   }
 }
 
+template<typename Wfn, typename Walker>
+void generaterWalkers(std::list<std::pair<Walker, std::pair<double, double>>> &Walkers, Wfn &w)
+{
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+
+  Walker walk = Walkers.begin()->first;
+  int nelec = walk.d.nelec;
+
+  auto it = Walkers.begin();
+  int nIter = 30 * Walkers.size() + 1;
+  for (int iter = 0; iter < nIter; iter++)
+  {
+    for (int elec = 0; elec < nelec; elec++)
+    {
+        double ovlpProb, proposalProb;
+        Vector3d step;
+        walk.getStep(step, elec, schd.rStepSize, w.getRef(), w.getCorr(), ovlpProb, proposalProb);
+        step += walk.d.coord[elec];
+        //if move is simple or gaussian
+        if (ovlpProb < -0.5) ovlpProb = std::pow(w.getOverlapFactor(elec, step, walk), 2); 
+
+        //accept or reject move
+        if (ovlpProb * proposalProb > random()) walk.updateWalker(elec, step, w.getRef(), w.getCorr());
+    }
+
+    if (iter % 30 == 0)
+    {
+      it->first = walk;
+      it->second.first = 1.0;
+      it->second.second = w.rHam(walk);
+      it++;
+      if (it == Walkers.end()) break; 
+    }
+  }
+}
+
 
 /*Take the walker and propagate it for time tau using orbital space continous time algorithm
  */
@@ -184,13 +220,13 @@ template<typename Wfn, typename Walker>
 /*Take the walker and propagate it for time tau using real space metropolis algorithm
  */
 template<typename Wfn, typename Walker>
-double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, double Eshift, double &Eloc, double E, double Var)
+double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double &Eloc, double tau, double Eshift, double E, double Var)
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
   int nelec = walk.d.nelec;
 
-  //calculate local energy before move
-  double Elocp = w.rHam(walk);
+  //local energy before move
+  double Elocp = Eloc;
   ////branching
   double deltap = E - Elocp;
   double signp = std::copysign(1.0, deltap);
@@ -311,7 +347,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, d
   double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
   pavg /= double(nelec);
 
-  //calculate local energy after move
+  //local energy after move
   Eloc = w.rHam(walk);
   double delta = E - Eloc;
   double sign = std::copysign(1.0, delta);
@@ -428,6 +464,59 @@ void reconfigure(std::list<pair<Walker, double> >& walkers) {
   std::sort(procByNWalkers.begin(), procByNWalkers.end(), [&nwalkersPerProc](size_t i1, size_t i2) {return nwalkersPerProc[i1] < nwalkersPerProc[i2];});
 
   return;  
+};
+
+template<typename Walker>
+void reconfigure(std::list<pair<Walker, std::pair<double, double>>>& walkers) {
+
+  auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+
+  vector< typename std::list<pair<Walker, std::pair<double, double>>>::iterator > smallWts; smallWts.reserve(10);
+  double totalSmallWts = 0.0;
+
+  auto it = walkers.begin();
+
+
+  //if a walker has wt > 2.0, then ducplicate it int(wt) times
+  //accumulate walkers with wt < 0.5, 
+  //then combine them and assing it to one of the walkers
+  //with a prob. proportional to its wt.
+  while (it != walkers.end()) {
+    double wt = it->second.first;
+
+    if (wt < 0.5) {
+      totalSmallWts += wt;
+      smallWts.push_back(it);
+      it++;
+    }
+    else if (wt > 2.0) {
+      int numReplicate = int(wt);
+      it->second.first = it->second.first/(1.0*numReplicate);
+      for (int i=0; i<numReplicate-1; i++) 
+	    walkers.push_front(*it); //add at front
+      it++;
+    }
+    else
+      it++;
+
+
+    if (totalSmallWts > 1.0 || it == walkers.end()) {
+      double select = random()*totalSmallWts;
+
+      //remove all wts except the selected one
+      for (int i=0; i<smallWts.size(); i++) {
+	    double bkpwt = smallWts[i]->second.first;
+	    if (select > 0 && select < smallWts[i]->second.first)
+	      smallWts[i]->second.first = totalSmallWts;
+	    else 
+	      walkers.erase(smallWts[i]);
+	      select -= bkpwt;
+      }
+      totalSmallWts = 0.0;
+      smallWts.resize(0);
+    }
+
+  }
 };
 
 
@@ -566,8 +655,8 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
 
   //list of schd.nwalk walkers and weights
   //we replciate the input walker nwalk times
-  std::list<std::pair<Walker, double>> Walkers;
-  for (int i = 0; i < schd.nwalk; i++) Walkers.push_back(std::pair<Walker, double>(walk, 1.0));
+  std::list<std::pair<Walker, std::pair<double, double>>> Walkers;
+  for (int i = 0; i < schd.nwalk; i++) Walkers.push_back(std::pair<Walker, std::pair<double, double>>(walk, std::pair<double, double>(1.0, 1.0)));
 
   //sample the wavefunction w to generate walkers
   generaterWalkers(Walkers, w);
@@ -587,8 +676,8 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
   double dE0 = 0.0;  
   for (auto it = Walkers.begin(); it != Walkers.end(); it++)
   {
-      double Eloc = w.rHam(it->first);
-      double wt = it->second;
+      double wt = it->second.first;
+      double Eloc = it->second.second;
       nE0 += Eloc * wt;
       nE20 += Eloc * Eloc * wt;
       dE0 += wt;
@@ -632,10 +721,10 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     for (auto it = Walkers.begin(); it != Walkers.end(); it++)
     {
       Walker &walk = it->first;
-      double &wt = it->second;
+      double &wt = it->second.first;
+      double &Eloc = it->second.second;
 
-      double Eloc = 0.0;
-      acceptedMoves += applyPropogatorMetropolis(w, walk, wt, tau, Eshift, Eloc, E, Var);
+      acceptedMoves += applyPropogatorMetropolis(w, walk, wt, Eloc, tau, Eshift, E, Var);
 
       iterPop += wt;
       N += wt * Eloc;
