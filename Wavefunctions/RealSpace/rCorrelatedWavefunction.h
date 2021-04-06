@@ -197,13 +197,6 @@ struct rCorrelatedWavefunction {
     return 0;
   }
 
-  double rHam(rWalker<Corr, Reference>& walk, double& T, double& Vij, double& ViI, double& Vpp, double& VIJ, std::vector<std::vector<double>> &Viq, std::vector<std::vector<Vector3d>> &Riq) const
-  {
-    cout << "Should not be here. There is a specialized rHam for various cases "<<endl;
-    exit(0);
-    return 0;
-  }
-
   double HamOverlap(rWalker<Corr, Reference>& walk,
                   Eigen::VectorXd &gradRatio,
                   Eigen::VectorXd &hamRatio) const
@@ -231,9 +224,6 @@ template<>
 long rCorrelatedWavefunction<rJastrow, rSlater>::getNumOptVariables() const;
 
 template<>
-double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlater>& walk, double& T, double& Vij, double& ViI, double& Vpp, double& VIJ, std::vector<std::vector<double>> &Viq, std::vector<std::vector<Vector3d>> &Riq) const;
-
-template<>
 double rCorrelatedWavefunction<rJastrow, rSlater>::rHam(rWalker<rJastrow, rSlater>& walk) const;
 
 template<>
@@ -254,9 +244,6 @@ void rCorrelatedWavefunction<rJastrow, rMultiSlater>::getOptVariables(Eigen::Vec
 
 template<>
 long rCorrelatedWavefunction<rJastrow, rMultiSlater>::getNumOptVariables() const;
-
-template<>
-double rCorrelatedWavefunction<rJastrow, rMultiSlater>::rHam(rWalker<rJastrow, rMultiSlater>& walk, double& T, double& Vij, double& ViI, double& Vpp, double& VIJ, std::vector<std::vector<double>> &Viq, std::vector<std::vector<Vector3d>> &Riq) const;
 
 template<>
 double rCorrelatedWavefunction<rJastrow, rMultiSlater>::rHam(rWalker<rJastrow, rMultiSlater>& walk) const;

@@ -70,16 +70,12 @@ double testElectronCusp(Wfn &wave, Walker &walk)
     r1 *= r0.norm();
     walk.updateWalker(1, r1, wave.getRef(), wave.getCorr());
     double ovlp = wave.Overlap(walk);
-    //double Eloc = wave.rHam(walk);
-    double T, Vij, ViI, Vpp, VIJ;
-    std::vector<std::vector<double>> viq; //matrix elements of nonlocal potential for every quadrature point [elec][quad]
-    std::vector<std::vector<Vector3d>> riq; //coordinates corresponding to above matrix elements
-    double Eloc = wave.rHam(walk, T, Vij, ViI, Vpp, VIJ, viq, riq);
+    double Eloc = wave.rHam(walk);
 
     std::cout << std::fixed;
     std::cout << std::setprecision(6);
-    //cout << theta << " " << ovlp << " " << Eloc << endl;
-    cout << theta << " " << ovlp << " " << Eloc << " " << T << " " << Vij << " " << ViI << " " << Vpp << " " << VIJ << endl;
+    cout << theta << " " << ovlp << " " << Eloc << endl;
+    //cout << theta << " " << ovlp << " " << Eloc << " " << T << " " << Vij << " " << ViI << " " << Vpp << " " << VIJ << endl;
   }
   return 0;
 }
@@ -107,16 +103,12 @@ double testNuclearCusp(Wfn &wave, Walker &walk)
     //r1 *= r0.norm();
     walk.updateWalker(1, r1, wave.getRef(), wave.getCorr());
     double ovlp = wave.Overlap(walk);
-    //double Eloc = wave.rHam(walk);
-    double T, Vij, ViI, Vpp, VIJ;
-    std::vector<std::vector<double>> viq; //matrix elements of nonlocal potential for every quadrature point [elec][quad]
-    std::vector<std::vector<Vector3d>> riq; //coordinates corresponding to above matrix elements
-    double Eloc = wave.rHam(walk, T, Vij, ViI, Vpp, VIJ, viq, riq);
+    double Eloc = wave.rHam(walk);
     
     std::cout << std::fixed;
     std::cout << std::setprecision(6);
-    //cout << z << " " << ovlp << " " << Eloc << endl;
-    cout << z << " " << ovlp << " " << Eloc << " " << T << " " << Vij << " " << ViI << " " << Vpp << " " << VIJ << endl;
+    cout << z << " " << ovlp << " " << Eloc << endl;
+    //cout << z << " " << ovlp << " " << Eloc << " " << T << " " << Vij << " " << ViI << " " << Vpp << " " << VIJ << endl;
   }
   return 0;
 }

@@ -68,6 +68,11 @@ class Pseudopotential
     //computes the local part of the pseudopotential
     double localPotential(const rDeterminant &d) const;
 
+    //computes matrix elements and coordinates for nonlocal part of pseudopotential for a given electron
+    //vq = <q|Vnl|r>, matrix element of nonlocal potential at every quarature point [q]
+    //rq = q, coordinate q corresponding to every viq matrix element [q]
+    void nonLocalPotential(int i, const rDeterminant &d, std::vector<double> &vq, std::vector<Eigen::Vector3d> &rq) const;
+
     //computes matrix elements and coordinates for nonlocal part of pseudopotential
     //viq = <q|Vnl|r>_i, matrix element of nonlocal potential at every quarature point [i=elec][q]
     //riq = q_i, coordinate q corresponding to every viq matrix element [i=elec][q]

@@ -371,7 +371,7 @@ void SphericalSteps::RotateTowards(Vector3d& R, Vector3d& ri, Vector3d& rf) {
 }
 
 
-void rWalker<rJastrow, rSlater>::getGradient(int elecI, Vector3d& grad) {
+void rWalker<rJastrow, rSlater>::getGradient(int elecI, Vector3d& grad, const rSlater &ref) {
 
   std::complex<double> DetFactor = refHelper.thetaDet[0][0] * refHelper.thetaDet[0][1], factor;
   double detgx, detgy, detgz;
@@ -675,24 +675,26 @@ double SphericalSteps::volume(double& a, double& eta, double& Ri, double& dR, do
 
 //use cyrus' scaled velocity
 //J. Chem. Phys., Vol. 99, No.4, 15 August 1993
-void rWalker<rJastrow, rSlater>::getScaledGradient(int elecI, double tau, Vector3d& vbar) {
+void rWalker<rJastrow, rSlater>::getScaledGradient(int elecI, double tau, Vector3d& vbar, const rSlater &ref) {
   Vector3d &ri = d.coord[elecI];
 
   Vector3d v;
-  getGradient(elecI, v);
-  Vector3d vhat = v.normalized();
+  getGradient(elecI, v, ref);
 
-  double null;
-  int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
-  Vector3d rI = schd.Ncoords[closestNucleus];
-  double Z = schd.Ncharge[closestNucleus];
+  //Vector3d vhat = v.normalized();
+  
+  //double null;
+  //int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
+  //Vector3d rI = schd.Ncoords[closestNucleus];
+  //double Z = schd.Ncharge[closestNucleus];
 
-  Vector3d z = ri - rI;
-  Vector3d zhat = z.normalized();
+  //Vector3d z = ri - rI;
+  //Vector3d zhat = z.normalized();
 
-  double zZ2 = Z * Z * z.squaredNorm();
-  double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+  //double zZ2 = Z * Z * z.squaredNorm();
+  //double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
 
+  double a = 0.5;
   double av2t = a * v.squaredNorm() * tau;
   double factor = (-1.0 + std::sqrt(1.0 + 2.0 * av2t)) / av2t;
 
@@ -705,19 +707,21 @@ double rWalker<rJastrow, rSlater>::getScaledGradientAfterSingleElectronMove(int 
 
   Vector3d v;
   double ovlpRatio = getGradientAfterSingleElectronMove(elecI, ri, v, ref);
-  Vector3d vhat = v.normalized();
 
-  double null;
-  int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
-  Vector3d rI = schd.Ncoords[closestNucleus];
-  double Z = schd.Ncharge[closestNucleus];
+  //Vector3d vhat = v.normalized();
 
-  Vector3d z = ri - rI;
-  Vector3d zhat = z.normalized();
+  //double null;
+  //int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
+  //Vector3d rI = schd.Ncoords[closestNucleus];
+  //double Z = schd.Ncharge[closestNucleus];
 
-  double zZ2 = Z * Z * z.squaredNorm();
-  double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+  //Vector3d z = ri - rI;
+  //Vector3d zhat = z.normalized();
 
+  //double zZ2 = Z * Z * z.squaredNorm();
+  //double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+
+  double a = 0.5;
   double av2t = a * v.squaredNorm() * tau;
   double factor = (-1.0 + std::sqrt(1.0 + 2.0 * av2t)) / av2t;
 
@@ -731,8 +735,8 @@ void rWalker<rJastrow, rSlater>::doDMCMove(Vector3d& coord, int elecI, double st
 
   Vector3d &r = d.coord[elecI];
   Vector3d v;
-  if (schd.scaledVelocity) { getScaledGradient(elecI, tau, v); }
-  else { getGradient(elecI, v); }
+  if (schd.scaledVelocity) { getScaledGradient(elecI, tau, v, ref); }
+  else { getGradient(elecI, v, ref); }
 
   Vector3d xsi;
   xsi(0) = nR(generator);
@@ -760,7 +764,7 @@ void rWalker<rJastrow, rSlater>::getDMCStep(Vector3d& coord, int elecI, double s
                                            double& proposalProb) {
   Vector3d gradi; //gradient at initial point
   //obtain the gradient
-  getGradient(elecI, gradi);
+  getGradient(elecI, gradi, ref);
 
   double driftSize = pow(stepsize, 0.5);
   double stepx = nR(generator), stepy = nR(generator), stepz = nR(generator);
@@ -813,7 +817,7 @@ void rWalker<rJastrow, rSlater>::getSphericalStep(Vector3d& coord, int elecI, do
     closestNucleus = SphericalSteps::findTheNearestNucleus(d.coord[elecI], RiN);
 
     Vector3d gradi; //gradient at initial point
-    getGradient(elecI, gradi);
+    getGradient(elecI, gradi, ref);
     
     //initialize radial function U
     double eta, a;
@@ -1487,19 +1491,21 @@ void rWalker<rJastrow, rMultiSlater>::getScaledGradient(int elecI, double tau, V
 
   Vector3d v;
   getGradient(elecI, v, ref);
-  Vector3d vhat = v.normalized();
 
-  double null;
-  int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
-  Vector3d rI = schd.Ncoords[closestNucleus];
-  double Z = schd.Ncharge[closestNucleus];
+  //Vector3d vhat = v.normalized();
 
-  Vector3d z = ri - rI;
-  Vector3d zhat = z.normalized();
+  //double null;
+  //int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
+  //Vector3d rI = schd.Ncoords[closestNucleus];
+  //double Z = schd.Ncharge[closestNucleus];
 
-  double zZ2 = Z * Z * z.squaredNorm();
-  double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+  //Vector3d z = ri - rI;
+  //Vector3d zhat = z.normalized();
 
+  //double zZ2 = Z * Z * z.squaredNorm();
+  //double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+
+  double a = 0.5;
   double av2t = a * v.squaredNorm() * tau;
   double factor = (-1.0 + std::sqrt(1.0 + 2.0 * av2t)) / av2t;
 
@@ -1512,19 +1518,21 @@ double rWalker<rJastrow, rMultiSlater>::getScaledGradientAfterSingleElectronMove
 
   Vector3d v;
   double ovlpRatio = getGradientAfterSingleElectronMove(elecI, ri, v, ref);
-  Vector3d vhat = v.normalized();
 
-  double null;
-  int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
-  Vector3d rI = schd.Ncoords[closestNucleus];
-  double Z = schd.Ncharge[closestNucleus];
+  //Vector3d vhat = v.normalized();
 
-  Vector3d z = ri - rI;
-  Vector3d zhat = z.normalized();
+  //double null;
+  //int closestNucleus = SphericalSteps::findTheNearestNucleus(ri, null);
+  //Vector3d rI = schd.Ncoords[closestNucleus];
+  //double Z = schd.Ncharge[closestNucleus];
 
-  double zZ2 = Z * Z * z.squaredNorm();
-  double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+  //Vector3d z = ri - rI;
+  //Vector3d zhat = z.normalized();
 
+  //double zZ2 = Z * Z * z.squaredNorm();
+  //double a = 0.5 * (1.0 + vhat.dot(zhat)) + zZ2 / (10.0 * (4.0 + zZ2));
+
+  double a = 0.5;
   double av2t = a * v.squaredNorm() * tau;
   double factor = (-1.0 + std::sqrt(1.0 + 2.0 * av2t)) / av2t;
 

@@ -184,113 +184,173 @@ template<typename Wfn, typename Walker>
 /*Take the walker and propagate it for time tau using real space metropolis algorithm
  */
 template<typename Wfn, typename Walker>
-double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, double Eshift, double &Eloc, double Ebest)
+double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double tau, double Eshift, double &Eloc, double E, double Var)
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
+  int nelec = walk.d.nelec;
 
+  //calculate local energy before move
   double Elocp = w.rHam(walk);
+  ////branching
+  double deltap = E - Elocp;
+  double signp = std::copysign(1.0, deltap);
+
+  double Ecutp = std::min(std::abs(deltap), 10.0 * std::sqrt(Var)) * signp;
+  //scale factor
+  double V2p = 0.0;
+  for (int i = 0; i < nelec; i++)
+  {
+    Vector3d v;
+    walk.getGradient(i, v, w.getRef());
+    V2p += v.squaredNorm(); 
+  }
+  double factorp = tau * V2p / double(nelec);
+  double Sp = Eshift - E + Ecutp / (1.0 + factorp * factorp);
+
+  //double Ecutp = std::min(std::abs(deltap), 0.2 * std::sqrt(nelec / tau)) * signp;
+  //double Sp = Eshift - E + Ecutp;
+
+  //size consistent (really size extensive) t-moves
+  if (schd.doTMove)
+  {
+    const Pseudopotential &pp = *schd.pseudo;
+    for (int i = 0; i < nelec; i++)
+    {
+      std::vector<double> vq;
+      std::vector<Eigen::Vector3d> rq;
+      pp.nonLocalPotential(i, walk.d, vq, rq); 
+
+      //make forward matrix elements
+      std::vector<double> tf;
+      std::vector<Eigen::Vector3d> rf;
+      for (int q = 0; q < vq.size(); q++)
+      {
+        double yq = w.getOverlapFactor(i, rq.at(q), walk);
+        double tq = - tau * vq.at(q) * yq;
+        if (tq > 0)
+        {
+          tf.push_back(tq);
+          rf.push_back(rq.at(q));
+        }
+      }
+
+      //heat bath move
+      double cumT = 0.0;
+      std::vector<double> T;
+      //first possible move is no move, with txx = 1.0
+      cumT += 1.0;
+      T.push_back(cumT);
+      for (int q = 0; q < tf.size(); q++)
+      {
+        cumT += tf.at(q);
+        T.push_back(cumT);
+      }
+      //get index of move, remember first index is no move
+      double move = random() * cumT;
+      int index = std::lower_bound(T.begin(), T.end(), move) - T.begin() - 1;
+
+      //accept move?
+      if (index < 0) { continue; } //no move
+      else //calculate acceptance probability
+      {
+        double y0 = w.getOverlapFactor(i, rf.at(index), walk);
+
+        //forward acceptance
+        double af = 1.0 + std::accumulate(tf.begin(), tf.end(), 0.0);
+
+        //make reverse matrix elements
+        rDeterminant d = walk.d;
+        d.coord[i] = rf.at(index);
+        pp.nonLocalPotential(i, d, vq, rq); 
+
+        std::vector<double> tr;
+        for (int q = 0; q < vq.size(); q++)
+        {
+          double yq = w.getOverlapFactor(i, rq.at(q), walk) / y0;
+          double tq = - tau * vq.at(q) * yq;
+          if (tq > 0)
+          {
+            tr.push_back(tq);
+          }
+        }
+
+        //reverse acceptance
+        double ar = 1.0 + std::accumulate(tr.begin(), tr.end(), 0.0);
+
+        double p = std::min(af / ar, 1.0);
+        if (p > random()) { walk.updateWalker(i, rf.at(index), w.getRef(), w.getCorr()); }
+      }//accept
+    }//nelec
+  }
 
   //diffusion
   //propogate every electron once via metropolis-hastings with dmc propogator
   double acceptedProb = 0.0;
   double dr2_accepted = 0.0, dr2_proposed = 0.0;
-  int nelec = walk.d.nelec;
+  double pavg = 0.0;
   for (int i = 0; i < nelec; i++)
   {
     double ovlpRatio = 0.0, proposalProb = 0.0;
     Vector3d step;
     walk.doDMCMove(step, i, tau, w.getRef(), w.getCorr(), ovlpRatio, proposalProb);
-    dr2_proposed += step.squaredNorm();
     Vector3d newCoord = step + walk.d.coord[i];
+    dr2_proposed += step.squaredNorm();
 
     //accept move?
     double ovlpProb = ovlpRatio * ovlpRatio;
-    if (ovlpProb * proposalProb > random() && ovlpRatio > 0.0) //accept move based on metropolis criterion and if node is not crossed
+    double p = std::min(ovlpProb * proposalProb, 1.0);
+    pavg += p;
+    if (p > random() && ovlpRatio > 0.0) //accept move based on metropolis criterion and if node is not crossed
     {
       acceptedProb++;
-      dr2_accepted += step.squaredNorm();
       walk.updateWalker(i, newCoord, w.getRef(), w.getCorr());
+      dr2_accepted += step.squaredNorm();
     }
   }
-  if (acceptedProb != 0) { dr2_accepted /= acceptedProb; } //don't divide by zero
-  dr2_proposed /= double(nelec);
   acceptedProb /= double(nelec);
   double tau_eff = tau * dr2_accepted / dr2_proposed; //effective time step due to metropolis algorithm
+  pavg /= double(nelec);
 
-  //calculate local energy and t move matrix elements
-  double T, Vij, ViI, Vnl, VIJ;
-  std::vector<std::vector<double>> viq;
-  std::vector<std::vector<Vector3d>> riq;
-  Eloc = w.rHam(walk, T, Vij, ViI, Vnl, VIJ, viq, riq);
+  //calculate local energy after move
+  Eloc = w.rHam(walk);
+  double delta = E - Eloc;
+  double sign = std::copysign(1.0, delta);
+
+  double Ecut = std::min(std::abs(delta), 10.0 * std::sqrt(Var)) * sign;
+  //scale factor
+  double V2 = 0.0;
+  for (int i = 0; i < nelec; i++)
+  {
+    Vector3d v;
+    walk.getGradient(i, v, w.getRef());
+    V2 += v.squaredNorm(); 
+  }
+  double factor = tau * V2 / double(nelec);
+  double S = Eshift - E + Ecut / (1.0 + factor * factor);
+
+  //double Ecut = std::min(std::abs(delta), 0.2 * std::sqrt(nelec / tau)) * sign;
+  //double S = Eshift - E + Ecut;
 
   //branching
-  //use cutoff from PHYSICAL REVIEW B 93, 241118(R) (2016)
-  double alpha = 0.2;
-  double Ecut = alpha * std::sqrt(double(nelec) / tau);
-  //before diffusion
-  double deltap = Elocp - Ebest;
-  double signp = std::copysign(1.0, deltap);
-  double Ebarp = Ebest + signp * std::min(Ecut, std::abs(deltap));
-  //after diffusion
-  double delta = Eloc - Ebest;
-  double sign = std::copysign(1.0, delta);
-  double Ebar = Ebest + sign * std::min(Ecut, std::abs(delta));
+  double arg = (1.0 - pavg / 2.0) * Sp + (pavg / 2.0) * S;
+  //double arg = 0.5 * (Sp + S);
+  wt *= std::exp(tau_eff * arg);
 
-  double Eavg = (Ebar + Ebarp) / 2.0;
-  wt *= std::exp(- tau_eff * (Eavg - Eshift));
-
-  //size consistent (really size extensive) t-moves
-  if (schd.doTMove)
+  if (wt > 10)
   {
-    for (int i = 0; i < nelec; i++)
-    {
-      //if no moves, continue
-      if (viq[i].empty()) { continue; }
-
-      //make heat bath move
-      double cumT = 0.0;
-      std::vector<double> t;
-      //first possible move is no move, with txx = 1.0
-      cumT += 1.0;
-      t.push_back(cumT);
-      for (int q = 0; q < viq[i].size(); q++)
-      {
-        double txpx = - tau * viq[i][q];
-        //cout << viq[i][q] << " | " << riq[i][q].transpose() << endl;
-        //cout << txpx << " | " << riq[i][q].transpose() << endl;
-
-        cumT += txpx;
-        t.push_back(cumT);
-      }
-      //get index of move, remember first index is no move
-      double move = random() * cumT;
-      int index = std::lower_bound(t.begin(), t.end(), move) - t.begin();
-      if (index != 0) { walk.updateWalker(i, riq[i][index - 1], w.getRef(), w.getCorr()); }
-    }
-  }
-
-  //print if walker has weird wt or Eloc
-  if (wt > 50.0)
-  {
-    cout << endl;
     cout << "Process: " << commrank << endl;
-    cout << "Large weight: " << wt << endl;
-    cout << "delta weight: " << std::exp(- tau_eff * (Eavg - Eshift)) << endl;
-    cout << "exponential: " << - tau_eff * (Eavg - Eshift) << endl;
-    cout << "effective time step: " << tau_eff << endl;
-    cout << "Branching energy: " << Eavg << endl;
-    cout << "Energy shift: " << Eshift << endl;
-    cout << "Local energy before and after diffusion: " << Elocp << " " << Eloc << endl;
-    cout << "Local energy bar before and after diffusion: " << Ebarp << " " << Ebar << endl;
-    cout << "T: " << T << " Vij: " << Vij << " ViI: " << ViI << " Vnl: " << Vnl << " VIJ: " << VIJ << endl;
-    cout << "Local energy after t move: " << w.rHam(walk) << endl;
-    //cout << "coords" << endl;
-    //cout << walk.d << endl;
-    cout << "current walker" << endl;
-    cout << "RiI" << endl;
-    cout << walk.RiN << endl;
+    cout << "weight: " << wt << endl;
+    cout << "delta weight: " << std::exp(tau_eff * arg) << endl;
+    cout << "tau effective: " << tau_eff << endl;
+    cout << "delta weight arg: " << arg << endl;
+    cout << "Eloc before diffusion: " << Elocp << endl;
+    cout << "Eloc after diffusion: " << Eloc << endl;
+    cout << "coords" << endl;
+    cout << walk.d << endl;
     cout << "Rij" << endl;
     cout << walk.Rij << endl;
+    cout << "RiN" << endl;
+    cout << walk.RiN << endl;
   }
 
   return acceptedProb;
@@ -523,20 +583,26 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
 
   //energy of inital population
   double nE0 = 0.0;
+  double nE20 = 0.0;
   double dE0 = 0.0;  
   for (auto it = Walkers.begin(); it != Walkers.end(); it++)
   {
       double Eloc = w.rHam(it->first);
       double wt = it->second;
       nE0 += Eloc * wt;
+      nE20 += Eloc * Eloc * wt;
       dE0 += wt;
   }
   double E0 = nE0 / dE0;
+  double E20 = nE20 / dE0;
 #ifndef SERIAL
       MPI_Allreduce(MPI_IN_PLACE, &E0, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &E20, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
   E0 /= commsize;
-  if (commrank == 0) { f << 0 << " " << double(0) << " " << E0 << " " << Walkers.size() << endl; }
+  E20 /= commsize;
+  double Var0 = E20 - E0 * E0;
+  if (commrank == 0) { f << 0 << " " << double(0) << " " << E0 << " " << Var0 << " " << Walkers.size() << endl; }
   if (commrank == 0) { cout << "Energy of initial population: " << E0 << endl; }
 
   //run calculation for niter iterations
@@ -549,8 +615,9 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
   int nGeneration = schd.nGeneration;
 
   //energy average
+  double E = E0;
+  double Var = Var0;
   double Eavg = 0.0, Eexp = 0.0;
-  double Ebest = Eshift;
   Statistics StatsE;
   Statistics StatsE2;
 
@@ -568,7 +635,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       double &wt = it->second;
 
       double Eloc = 0.0;
-      acceptedMoves += applyPropogatorMetropolis(w, walk, wt, tau, Eshift, Eloc, Ebest);
+      acceptedMoves += applyPropogatorMetropolis(w, walk, wt, tau, Eshift, Eloc, E, Var);
 
       iterPop += wt;
       N += wt * Eloc;
@@ -586,6 +653,8 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     //average some variables over processes
     double totalMoves = double(Walkers.size());
     double totalPop = iterPop;
+    //VectorXd npp = VectorXd::Zero(commsize);
+    //npp(commrank) = totalMoves;
     //VectorXd wpp = VectorXd::Zero(commsize);
     //wpp(commrank) = iterPop;
     //VectorXd Eshiftpp = VectorXd::Zero(commsize);
@@ -596,6 +665,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     MPI_Allreduce(MPI_IN_PLACE, &acceptedMoves, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &totalMoves, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &totalPop, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    //MPI_Allreduce(MPI_IN_PLACE, &npp(0), npp.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     //MPI_Allreduce(MPI_IN_PLACE, &wpp(0), wpp.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     //MPI_Allreduce(MPI_IN_PLACE, &Eshiftpp(0), Eshiftpp.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
@@ -603,22 +673,25 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     Vart /= commsize;
     double acceptedFrac = acceptedMoves / totalMoves;
 
-    //Ebest += (Et - Ebest) / (iter + 2);
-    Ebest = 0.9 * Ebest + 0.1 * Et;
-    if (commrank == 0) { f << iter + 1 << " " << tau * double(iter + 1) << " " << Ebest << " " << Vart << " " << int(totalMoves / commsize) << " " << totalPop / commsize << endl; }
+    E = 0.9 * E + 0.1 * Et;
+    Var = 0.9 * Var + 0.1 * Vart;
+    if (commrank == 0) { f << iter + 1 << " " << tau * double(iter + 1) << " " << Et << " " << Vart << " " << int(totalMoves / commsize) << " " << totalPop / commsize << endl; }
+    if (commrank == 0) { f << "\t" << E << " " << Var << endl; }
+    //if (commrank == 0) { f << npp.transpose() << endl; }
     //if (commrank == 0) { f << wpp.transpose() << endl; }
     //if (commrank == 0) { f << Eshiftpp.transpose() << endl << endl; }
 
     //every process is independent and have different Eshifts
-    Eshift = Ebest - (0.1 / tau) * std::log(iterPop / targetPop);
+    Eshift = E - (0.1 / tau) * std::log(iterPop / targetPop);
 
     //incase of catastrophic failure
-    if (iterPop > 5 * targetPop)
+    if (iterPop > 2 * targetPop)
     {
       cout << "population explosion" << endl;
       cout << commrank << endl;
       cout << Eshift << endl;
       cout << iterPop << " / " << targetPop << endl;
+      cout << Walkers.size() << " / " << targetPop << endl;
       exit(0);
     }
 
@@ -633,17 +706,23 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       double Neff = StatsE.Neff();
       StatsE = Statistics(); //restart statistics for new generation
       StatsE2 = Statistics(); //restart statistics for new generation
+      double Eshiftavg = Eshift;
       //now average over processes
 #ifndef SERIAL
     MPI_Allreduce(MPI_IN_PLACE, &Ep, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &Varp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &tp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &Neff, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &Eshiftavg, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
       double Ebar = Ep / commsize;
       double Varbar = Varp / commsize / commsize;
       double tbar = tp / commsize;
       double error = std::sqrt(Varbar / Neff);
+      Eshiftavg /= commsize;
+
+      E = Ebar;
+      Var = Varbar;
 
       //this is the exponentially moving average over generations
       if (iter == nGeneration) { Eexp = Ebar; }
@@ -661,7 +740,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       else { Eavg = Eexp; }
 
       if (commrank == 0) {
-	    cout << format("%8i %14.8f (%8.2e) %8.1f %14.8f %14.8f %8.3f %10i %8.2f %14.8f %8.2f\n") % iter % Ebar % error % tbar % Eexp % Eavg % acceptedFrac % int(totalMoves/commsize) % (totalPop/commsize) % Eshift % (getTime()-startofCalc);
+	    cout << format("%8i %14.8f (%8.2e) %8.1f %14.8f %14.8f %8.3f %10i %8.2f %14.8f %8.2f\n") % iter % Ebar % error % tbar % Eexp % Eavg % acceptedFrac % int(totalMoves/commsize) % (totalPop/commsize) % Eshiftavg % (getTime()-startofCalc);
       }
 
     }

@@ -98,8 +98,8 @@ struct rWalker<rJastrow, rSlater> {
 
   void doDMCMove(Vector3d& coord, int elecI, double stepsize, const rSlater& ref, const rJastrow& corr, double& ovlpRatio, double& proposalProb);
 
-  void getGradient(int elecI, Vector3d& grad);
-  void getScaledGradient(int elecI, double tau, Vector3d& vbar);
+  void getGradient(int elecI, Vector3d& grad, const rSlater &ref);
+  void getScaledGradient(int elecI, double tau, Vector3d& vbar, const rSlater &ref);
 
   double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad, const rSlater& ref);
   double getScaledGradientAfterSingleElectronMove(int elecI, double tau, Vector3d& move, Vector3d& grad, const rSlater& ref);
