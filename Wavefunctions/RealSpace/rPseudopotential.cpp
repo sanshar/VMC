@@ -127,10 +127,10 @@ double Pseudopotential::localPotential(const rDeterminant &d) const
     return Vl;
 }
 
-//computes matrix elements and coordinates for nonlocal part of pseudopotential for a given electron
-//vq = <q|Vnl|r>, matrix element of nonlocal potential at every quarature point [q]
+//computes matrix elements and coordinates for T-move for a given electron
+//vq = <q|Vnl|r>, matrix element at every quarature point [q]
 //rq = q, coordinate q corresponding to every viq matrix element [q]
-void Pseudopotential::nonLocalPotential(int i, const rDeterminant &d, std::vector<double> &vq, std::vector<Eigen::Vector3d> &rq) const
+void Pseudopotential::nonLocalPotential(int i, double tau, const rDeterminant &d, std::vector<double> &vq, std::vector<Eigen::Vector3d> &rq) const
 {
     auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
     auto unit_vector = [](double theta, double phi) -> Eigen::Vector3d { return Vector3d(std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta)); };
@@ -181,7 +181,7 @@ void Pseudopotential::nonLocalPotential(int i, const rDeterminant &d, std::vecto
                     double Cl = 2.0 * double(l) + 1.0;
 
                     testv += vl * Cl;
-                    vlvec.push_back(vl * Cl);
+                    vlvec.push_back((std::exp(- tau * vl) - 1.0) * Cl);
                 }//l
                 if (std::abs(testv) < schd.pCutOff) { continue; } 
                     

@@ -227,7 +227,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double &Eloc,
 
   //local energy before move
   double Elocp = Eloc;
-  ////branching
+  //branching
   double deltap = E - Elocp;
   double signp = std::copysign(1.0, deltap);
 
@@ -254,7 +254,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double &Eloc,
     {
       std::vector<double> vq;
       std::vector<Eigen::Vector3d> rq;
-      pp.nonLocalPotential(i, walk.d, vq, rq); 
+      pp.nonLocalPotential(i, tau, walk.d, vq, rq); 
 
       //make forward matrix elements
       std::vector<double> tf;
@@ -262,7 +262,7 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double &Eloc,
       for (int q = 0; q < vq.size(); q++)
       {
         double yq = w.getOverlapFactor(i, rq.at(q), walk);
-        double tq = - tau * vq.at(q) * yq;
+        double tq = vq.at(q) * yq;
         if (tq > 0)
         {
           tf.push_back(tq);
@@ -297,13 +297,13 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double &Eloc,
         //make reverse matrix elements
         rDeterminant d = walk.d;
         d.coord[i] = rf.at(index);
-        pp.nonLocalPotential(i, d, vq, rq); 
+        pp.nonLocalPotential(i, tau, d, vq, rq); 
 
         std::vector<double> tr;
         for (int q = 0; q < vq.size(); q++)
         {
           double yq = w.getOverlapFactor(i, rq.at(q), walk) / y0;
-          double tq = - tau * vq.at(q) * yq;
+          double tq = vq.at(q) * yq;
           if (tq > 0)
           {
             tr.push_back(tq);
@@ -764,7 +764,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
 
     E = 0.9 * E + 0.1 * Et;
     Var = 0.9 * Var + 0.1 * Vart;
-    if (commrank == 0) { f << iter + 1 << " " << tau * double(iter + 1) << " " << Et << " " << Vart << " " << int(totalMoves / commsize) << " " << totalPop / commsize << endl; }
+    if (commrank == 0) { f << iter + 1 << " " << tau * double(iter + 1) << " " << Et << " " << Vart << " " << int(totalMoves / commsize) << " " << totalPop / commsize << " " << (getTime() - startofCalc) << endl; }
     if (commrank == 0) { f << "\t" << E << " " << Var << endl; }
     //if (commrank == 0) { f << npp.transpose() << endl; }
     //if (commrank == 0) { f << wpp.transpose() << endl; }
