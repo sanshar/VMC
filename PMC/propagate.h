@@ -771,7 +771,8 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     //if (commrank == 0) { f << Eshiftpp.transpose() << endl << endl; }
 
     //every process is independent and have different Eshifts
-    Eshift = E - (0.1 / tau) * std::log(iterPop / targetPop);
+    //Eshift = E - (0.1 / tau) * std::log(iterPop / targetPop);
+    Eshift = StatsE.Average() - (0.1 / tau) * std::log(iterPop / targetPop);
 
     //incase of catastrophic failure
     if (iterPop > 2 * targetPop)
