@@ -183,6 +183,7 @@ void Pseudopotential::nonLocalPotential(int i, double tau, const rDeterminant &d
                     testv += vl * Cl;
                     vlvec.push_back((std::exp(- tau * vl) - 1.0) * Cl);
                 }//l
+
                 if (std::abs(testv) < schd.pCutOff) { continue; } 
                     
                 //random rotation
@@ -293,6 +294,7 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                         testv += vl * Cl;
                         vlvec.push_back(vl * Cl);
                     }//l
+
                     if (std::abs(testv) < schd.pCutOff) { continue; } 
                         
                     //random rotation

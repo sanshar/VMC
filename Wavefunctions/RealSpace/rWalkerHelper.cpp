@@ -443,6 +443,8 @@ rWalkerHelper<rMultiSlater>::rWalkerHelper(const rMultiSlater &w, const rDetermi
 void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const rDeterminant &d)
 {
   int norbs = Determinant::norbs;
+  int nact = norbs;
+  if (schd.nciAct > 0) { nact = schd.nciAct; }
   aoValues.resize(10*norbs, 0.0);
 
   A[0] = MatrixXd::Zero(d.nalpha, d.nalpha);
@@ -608,7 +610,8 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
   else { detA[1] = 1.0; }
 
 
-  //totalRatio and detRatios
+  //totalRatio and detRatios and Y
+  //(J. Chem. Theory Comput. 2017, 13, 5273−5281)
   std::array<std::complex<double>, 2> ratio;
   ratio[0] = 1.0;
   ratio[1] = 1.0;
@@ -616,10 +619,17 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
   std::complex<double> d0 = detA[0] * detA[1];
   double c0 = w.ciParity[0] * w.ciCoeffs[0];
 
+  Y[0] = Eigen::MatrixXd::Zero(nact, w.ref[0].size());
+  Y[1] = Eigen::MatrixXd::Zero(nact, w.ref[1].size());
   std::complex<double> sum = 0.0;
   for (int I = 1; I < w.getNumOfDets(); I++)
   {
     //alpha
+    //these are the orbital indices
+    const Eigen::VectorXi &desA = w.ciExcitations[0][I][0];
+    const Eigen::VectorXi &creA = w.ciExcitations[0][I][1];
+
+    //these are the internal indices
     Eigen::VectorXi rowVecA = w.ciIndices[0][I][0];
     Eigen::VectorXi colVecA = w.ciIndices[0][I][1];
 
@@ -628,8 +638,14 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
 
     Eigen::FullPivLU<MatrixXcd> lua(aA);
     std::complex<double> ratioA = lua.determinant();
+    Eigen::MatrixXcd aIinvA = lua.inverse();
 
     //beta
+    //these are the orbital indices
+    const Eigen::VectorXi &desB = w.ciExcitations[1][I][0];
+    const Eigen::VectorXi &creB = w.ciExcitations[1][I][1];
+
+    //these are the internal indices
     Eigen::VectorXi rowVecB = w.ciIndices[1][I][0];
     Eigen::VectorXi colVecB = w.ciIndices[1][I][1];
 
@@ -638,10 +654,27 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
 
     Eigen::FullPivLU<MatrixXcd> lub(aB);
     std::complex<double> ratioB = lub.determinant();
+    Eigen::MatrixXcd aIinvB = lub.inverse();
 
     //alpha and beta
     double cI = w.ciParity[I] * w.ciCoeffs[I];
     std::complex<double> ratioI = ratioA * ratioB;
+
+    for (int i = 0; i < desA.size(); i++)
+    {
+      for (int j = 0; j < creA.size(); j++)
+      {
+        Y[0](creA(j), rowVecA(i)) += cI * ratioI * aIinvA(j, i);
+      }
+    }
+
+    for (int i = 0; i < desB.size(); i++)
+    {
+      for (int j = 0; j < creB.size(); j++)
+      {
+        Y[1](creB(j), rowVecB(i)) += cI * ratioI * aIinvB(j, i);
+      }
+    }
 
     sum += cI * ratioI;
     ratio[0] = ratioA;
@@ -649,11 +682,15 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
     detRatios.push_back(ratio);
   }
   totalRatio = c0 + sum;
+  Y[0] /= totalRatio;
+  Y[1] /= totalRatio;
 }
 
 double rWalkerHelper<rMultiSlater>::getDetFactor(int elec, Vector3d& newCoord, const rDeterminant &d, const rMultiSlater& w) const
 {
   int norbs = Determinant::norbs;
+  int nact = norbs;
+  if (schd.nciAct > 0) { nact = schd.nciAct; }
   aoValues.resize(norbs);
 
   int sz = 0;
@@ -683,43 +720,34 @@ double rWalkerHelper<rMultiSlater>::getDetFactor(int elec, Vector3d& newCoord, c
     newAbar(mo) = newAO.transpose() * w.getHforbs(sz).col(orb);
   }
 
+  //reference
+  std::complex<double> refRatio = newA.transpose() * Ainv[sz].col(elec);  
+
   //intermediates
   MatrixXcd Mbar = Ainv[sz].col(elec) * newAbar.transpose();
   VectorXcd temp;
   temp.transpose() = newA.transpose() * AinvAbar[sz];
   Mbar -= Ainv[sz].col(elec) * temp.transpose();
 
-  std::complex<double> refRatio = newA.transpose() * Ainv[sz].col(elec);  
+  MatrixXcd Mall = Eigen::MatrixXd::Zero(Mbar.rows(), nact);
+  for (int i = 0; i < w.open[sz].size(); i++) { Mall.col(w.open[sz].at(i)) = Mbar.col(i); }
 
-  std::complex<double> sum = 0.0;
-  for (size_t I = 1; I < w.getNumOfDets(); I++)
+  //trace
+  double val = 0.0;
+  for (int i = 0; i < Mall.cols(); i++)
   {
-    Eigen::VectorXi rowVec = w.ciIndices[sz][I][0];
-    Eigen::VectorXi colVec = w.ciIndices[sz][I][1];
-
-    Eigen::MatrixXcd aI;
-    igl::slice(AinvAbar[sz], rowVec, colVec, aI);
-
-    Eigen::MatrixXcd MbarI;
-    igl::slice(Mbar, rowVec, colVec, MbarI);
-
-    //alpha and beta
-    double cI = w.ciParity[I] * w.ciCoeffs[I];
-    std::complex<double> ratioI = detRatios[I][0] * detRatios[I][1];
-
-    Eigen::FullPivLU<MatrixXcd> lu(aI);
-    if (!lu.isInvertible()) { continue; }
-    Eigen::MatrixXcd aIinv = lu.inverse();
-
-    sum += cI * (aIinv * MbarI).trace() * ratioI;
+    std::complex<double> factor = Y[sz].row(i) * Mall.col(i);
+    val += factor.real();
   }
 
-  return (refRatio + sum / totalRatio).real();
+  return (refRatio + val).real();
 }
 
 void rWalkerHelper<rMultiSlater>::updateWalker(int elec, Vector3d& oldCoord, const rDeterminant &d, const rMultiSlater& w)
 {
   int norbs = Determinant::norbs;
+  int nact = norbs;
+  if (schd.nciAct > 0) { nact = schd.nciAct; }
   aoValues.resize(10 * norbs, 0.0);
   schd.basis->eval_deriv2(d.coord[elec], &aoValues[0]);
 
@@ -799,43 +827,80 @@ void rWalkerHelper<rMultiSlater>::updateWalker(int elec, Vector3d& oldCoord, con
   AinvAbar[sz] = newAinvAbar;
   detA[sz] = detA[sz] * denom;
 
-  //recalculate totalRatio and detRatios
+  //totalRatio and detRatios and Y
+  //(J. Chem. Theory Comput. 2017, 13, 5273−5281)
   std::array<std::complex<double>, 2> ratio;
   ratio[0] = 1.0;
   ratio[1] = 1.0;
-  detRatios.at(0) = ratio;
+  detRatios.push_back(ratio);
   std::complex<double> d0 = detA[0] * detA[1];
   double c0 = w.ciParity[0] * w.ciCoeffs[0];
 
+  Y[0] = Eigen::MatrixXd::Zero(nact, w.ref[0].size());
+  Y[1] = Eigen::MatrixXd::Zero(nact, w.ref[1].size());
   std::complex<double> sum = 0.0;
   for (int I = 1; I < w.getNumOfDets(); I++)
   {
     //alpha
+    //these are the orbital indices
+    const Eigen::VectorXi &desA = w.ciExcitations[0][I][0];
+    const Eigen::VectorXi &creA = w.ciExcitations[0][I][1];
+
+    //these are the internal indices
     Eigen::VectorXi rowVecA = w.ciIndices[0][I][0];
     Eigen::VectorXi colVecA = w.ciIndices[0][I][1];
 
     Eigen::MatrixXcd aA;
     igl::slice(AinvAbar[0], rowVecA, colVecA, aA);
-    std::complex<double> ratioA = aA.determinant();
+
+    Eigen::FullPivLU<MatrixXcd> lua(aA);
+    std::complex<double> ratioA = lua.determinant();
+    Eigen::MatrixXcd aIinvA = lua.inverse();
 
     //beta
+    //these are the orbital indices
+    const Eigen::VectorXi &desB = w.ciExcitations[1][I][0];
+    const Eigen::VectorXi &creB = w.ciExcitations[1][I][1];
+
+    //these are the internal indices
     Eigen::VectorXi rowVecB = w.ciIndices[1][I][0];
     Eigen::VectorXi colVecB = w.ciIndices[1][I][1];
 
     Eigen::MatrixXcd aB;
     igl::slice(AinvAbar[1], rowVecB, colVecB, aB);
-    std::complex<double> ratioB = aB.determinant();
+
+    Eigen::FullPivLU<MatrixXcd> lub(aB);
+    std::complex<double> ratioB = lub.determinant();
+    Eigen::MatrixXcd aIinvB = lub.inverse();
 
     //alpha and beta
     double cI = w.ciParity[I] * w.ciCoeffs[I];
     std::complex<double> ratioI = ratioA * ratioB;
 
+    for (int i = 0; i < desA.size(); i++)
+    {
+      for (int j = 0; j < creA.size(); j++)
+      {
+        Y[0](creA(j), rowVecA(i)) += cI * ratioI * aIinvA(j, i);
+      }
+    }
+
+    for (int i = 0; i < desB.size(); i++)
+    {
+      for (int j = 0; j < creB.size(); j++)
+      {
+        Y[1](creB(j), rowVecB(i)) += cI * ratioI * aIinvB(j, i);
+      }
+    }
+
     sum += cI * ratioI;
     ratio[0] = ratioA;
     ratio[1] = ratioB;
-    detRatios.at(I) = ratio;
+    detRatios.push_back(ratio);
   }
   totalRatio = c0 + sum;
+  Y[0] /= totalRatio;
+  Y[1] /= totalRatio;
 }
 
 void rWalkerHelper<rMultiSlater>::OverlapWithGradient(const rDeterminant& d, const rMultiSlater& w, Eigen::VectorBlock<VectorXd>& grad) const
@@ -886,43 +951,6 @@ void rWalkerHelper<rMultiSlater>::OverlapWithGradient(const rDeterminant& d, con
     AinvAall[0] = Ainv[0] * Aall[0];
     AinvAall[1] = Ainv[1] * Aall[1];
     std::array<Eigen::MatrixXcd, 2> alpha = AinvAbar;
-
-    std::array<Eigen::MatrixXcd, 2> Y;
-    Y[0] = Eigen::MatrixXd::Zero(nact, nalpha);
-    Y[1] = Eigen::MatrixXd::Zero(nact, nbeta);
-    for (int I = 1; I < w.getNumOfDets(); I++)
-    {
-      double cI = w.ciParity[I] * w.ciCoeffs[I];
-      std::complex<double> ratioI = detRatios[I][0] * detRatios[I][1];
-
-      for (int sz = 0; sz < 2; sz++)
-      {
-        //these are the orbital indices
-        const Eigen::VectorXi &des = w.ciExcitations[sz][I][0];
-        const Eigen::VectorXi &cre = w.ciExcitations[sz][I][1];
-
-        //these are the internal indices
-        Eigen::VectorXi rowVec = w.ciIndices[sz][I][0];
-        Eigen::VectorXi colVec = w.ciIndices[sz][I][1];
-
-        Eigen::MatrixXcd aI;
-        igl::slice(alpha[sz], rowVec, colVec, aI);
-
-        Eigen::FullPivLU<MatrixXcd> lu(aI);
-        if (!lu.isInvertible()) { continue; }
-        Eigen::MatrixXcd aIinv = lu.inverse();
-
-        for (int i = 0; i < des.size(); i++)
-        {
-          for (int j = 0; j < cre.size(); j++)
-          {
-            Y[sz](cre(j), rowVec(i)) += cI * ratioI * aIinv(j, i);
-          }
-        }
-      }//sz
-    }//dets
-    Y[0] /= totalRatio;
-    Y[1] /= totalRatio;
 
     std::array<Eigen::MatrixXcd, 2> G;
     for (int sz = 0; sz < 2; sz++)

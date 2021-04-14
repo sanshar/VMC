@@ -413,13 +413,20 @@ void rWalker<rJastrow, rSlater>::getGradient(int elecI, Vector3d& grad, const rS
   grad[0] = gradRatio(0) + detgx;    
   grad[1] = gradRatio(1) + detgy;
   grad[2] = gradRatio(2) + detgz;
+}
 
-  /*
-  grad[0] = corrHelper.GradRatio(elecI,0) + detgx;    
-  grad[1] = corrHelper.GradRatio(elecI,1) + detgy;
-  grad[2] = corrHelper.GradRatio(elecI,2) + detgz;
-  */
+void rWalker<rJastrow, rSlater>::getGradient(std::vector<Vector3d>& grad, const rSlater &ref) {
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
+  grad.clear();
 
+  for (int i = 0; i < nelec; i++)
+  {
+    Vector3d gradi;
+    getGradient(i, gradi, ref);
+    grad.push_back(gradi);
+  }
 }
 
 double rWalker<rJastrow, rSlater>::getGradientAfterSingleElectronMove(int elecI, Vector3d& newCoord, Vector3d& grad, const rSlater& ref)
@@ -1215,6 +1222,8 @@ void rWalker<rJastrow, rMultiSlater>::getGaussianStep(Vector3d& coord, int elecI
 
 void rWalker<rJastrow, rMultiSlater>::getGradient(int elecI, Vector3d& grad, const rMultiSlater &ref) {
   int norbs = Determinant::norbs;
+  int nact = norbs;
+  if (schd.nciAct > 0) { nact = schd.nciAct; }
 
   int sz = 0;
   int i = elecI;
@@ -1225,61 +1234,57 @@ void rWalker<rJastrow, rMultiSlater>::getGradient(int elecI, Vector3d& grad, con
   }
 
   //intermediates
+  std::array<MatrixXcd, 2> &Y = refHelper.Y;
   //x
   MatrixXcd Mbarx = refHelper.Ainv[sz].col(i) * refHelper.Gradbar[sz][0].row(i);
   VectorXcd tempx;
   tempx.transpose() = refHelper.Grad[sz][0].row(i) * refHelper.AinvAbar[sz];
   Mbarx -= refHelper.Ainv[sz].col(i) * tempx.transpose();
+  MatrixXcd Mallx = Eigen::MatrixXd::Zero(Mbarx.rows(), nact);
+  for (int i = 0; i < ref.open[sz].size(); i++) { Mallx.col(ref.open[sz].at(i)) = Mbarx.col(i); }
   std::complex<double> refGradx = refHelper.Grad[sz][0].row(i) * refHelper.Ainv[sz].col(i);  
   //y
   MatrixXcd Mbary = refHelper.Ainv[sz].col(i) * refHelper.Gradbar[sz][1].row(i);
   VectorXcd tempy;
   tempy.transpose() = refHelper.Grad[sz][1].row(i) * refHelper.AinvAbar[sz];
   Mbary -= refHelper.Ainv[sz].col(i) * tempy.transpose();
+  MatrixXcd Mally = Eigen::MatrixXd::Zero(Mbary.rows(), nact);
+  for (int i = 0; i < ref.open[sz].size(); i++) { Mally.col(ref.open[sz].at(i)) = Mbary.col(i); }
   std::complex<double> refGrady = refHelper.Grad[sz][1].row(i) * refHelper.Ainv[sz].col(i);  
   //z
   MatrixXcd Mbarz = refHelper.Ainv[sz].col(i) * refHelper.Gradbar[sz][2].row(i);
   VectorXcd tempz;
   tempz.transpose() = refHelper.Grad[sz][2].row(i) * refHelper.AinvAbar[sz];
   Mbarz -= refHelper.Ainv[sz].col(i) * tempz.transpose();
+  MatrixXcd Mallz = Eigen::MatrixXd::Zero(Mbarz.rows(), nact);
+  for (int i = 0; i < ref.open[sz].size(); i++) { Mallz.col(ref.open[sz].at(i)) = Mbarz.col(i); }
   std::complex<double> refGradz = refHelper.Grad[sz][2].row(i) * refHelper.Ainv[sz].col(i);  
 
-  std::complex<double> sumx = 0.0;
-  std::complex<double> sumy = 0.0;
-  std::complex<double> sumz = 0.0;
-  for (size_t I = 1; I < ref.getNumOfDets(); I++)
+  //trace
+  double valx = 0.0;
+  for (int i = 0; i < Mallx.cols(); i++)
   {
-    Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
-    Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
-
-    Eigen::MatrixXcd aI;
-    igl::slice(refHelper.AinvAbar[sz], rowVec, colVec, aI);
-
-    Eigen::FullPivLU<MatrixXcd> lu(aI);
-    if (!lu.isInvertible()) { continue; }
-    Eigen::MatrixXcd aIinv = lu.inverse();
-
-    //x
-    Eigen::MatrixXcd MbarxI;
-    igl::slice(Mbarx, rowVec, colVec, MbarxI);
-    //y
-    Eigen::MatrixXcd MbaryI;
-    igl::slice(Mbary, rowVec, colVec, MbaryI);
-    //z
-    Eigen::MatrixXcd MbarzI;
-    igl::slice(Mbarz, rowVec, colVec, MbarzI);
-
-    //alpha and beta
-    double cI = ref.ciParity[I] * ref.ciCoeffs[I];
-    std::complex<double> ratioI = refHelper.detRatios[I][0] * refHelper.detRatios[I][1];
-
-    sumx += cI * (aIinv * MbarxI).trace() * ratioI;
-    sumy += cI * (aIinv * MbaryI).trace() * ratioI;
-    sumz += cI * (aIinv * MbarzI).trace() * ratioI;
+    std::complex<double> factor = Y[sz].row(i) * Mallx.col(i);
+    valx += factor.real();
   }
-  grad[0] = (refGradx + sumx / refHelper.totalRatio).real();
-  grad[1] = (refGrady + sumy / refHelper.totalRatio).real();
-  grad[2] = (refGradz + sumz / refHelper.totalRatio).real();
+
+  double valy = 0.0;
+  for (int i = 0; i < Mally.cols(); i++)
+  {
+    std::complex<double> factor = Y[sz].row(i) * Mally.col(i);
+    valy += factor.real();
+  }
+
+  double valz = 0.0;
+  for (int i = 0; i < Mallz.cols(); i++)
+  {
+    std::complex<double> factor = Y[sz].row(i) * Mallz.col(i);
+    valz += factor.real();
+  }
+
+  grad[0] = (refGradx + valx).real();
+  grad[1] = (refGrady + valy).real();
+  grad[2] = (refGradz + valz).real();
 
   Vector3d gradRatio;
   corrHelper.Gradient(elecI, gradRatio, d);
@@ -1288,9 +1293,25 @@ void rWalker<rJastrow, rMultiSlater>::getGradient(int elecI, Vector3d& grad, con
   grad[2] += gradRatio(2);
 }
 
+void rWalker<rJastrow, rMultiSlater>::getGradient(std::vector<Vector3d>& grad, const rMultiSlater &ref) {
+  int nalpha = Determinant::nalpha;
+  int nbeta = Determinant::nbeta;
+  int nelec = nalpha + nbeta;
+  grad.clear();
+
+  for (int i = 0; i < nelec; i++)
+  {
+    Vector3d gradi;
+    getGradient(i, gradi, ref);
+    grad.push_back(gradi);
+  }
+}
+
 double rWalker<rJastrow, rMultiSlater>::getGradientAfterSingleElectronMove(int elecI, Vector3d& newCoord, Vector3d& grad, const rMultiSlater& ref)
 {
   int norbs = Determinant::norbs;
+  int nact = norbs;
+  if (schd.nciAct > 0) { nact = schd.nciAct; }
   int nalpha = Determinant::nalpha;
   int nbeta = Determinant::nbeta;
   vector<double>& aoValues = refHelper.aoValues;
@@ -1346,71 +1367,72 @@ double rWalker<rJastrow, rMultiSlater>::getGradientAfterSingleElectronMove(int e
   }
 
   //intermediates
+  std::array<MatrixXcd, 2> &Y = refHelper.Y;
   MatrixXcd Mbar = refHelper.Ainv[sz].col(i) * newAbar.transpose();
   VectorXcd temp;
   temp.transpose() = newA.transpose() * refHelper.AinvAbar[sz];
   Mbar -= refHelper.Ainv[sz].col(i) * temp.transpose();
+  MatrixXcd Mall = Eigen::MatrixXd::Zero(Mbar.rows(), nact);
+  for (int i = 0; i < ref.open[sz].size(); i++) { Mall.col(ref.open[sz].at(i)) = Mbar.col(i); }
   std::complex<double> refRatio = newA.transpose() * refHelper.Ainv[sz].col(i);  
   //x
   MatrixXcd Mbarx = refHelper.Ainv[sz].col(i) * newGradxbar.transpose();
   VectorXcd tempx;
   tempx.transpose() = newGradx.transpose() * refHelper.AinvAbar[sz];
   Mbarx -= refHelper.Ainv[sz].col(i) * tempx.transpose();
+  MatrixXcd Mallx = Eigen::MatrixXd::Zero(Mbarx.rows(), nact);
+  for (int i = 0; i < ref.open[sz].size(); i++) { Mallx.col(ref.open[sz].at(i)) = Mbarx.col(i); }
   std::complex<double> refGradx = newGradx.transpose() * refHelper.Ainv[sz].col(i);  
   //y
   MatrixXcd Mbary = refHelper.Ainv[sz].col(i) * newGradybar.transpose();
   VectorXcd tempy;
   tempy.transpose() = newGrady.transpose() * refHelper.AinvAbar[sz];
   Mbary -= refHelper.Ainv[sz].col(i) * tempy.transpose();
+  MatrixXcd Mally = Eigen::MatrixXd::Zero(Mbary.rows(), nact);
+  for (int i = 0; i < ref.open[sz].size(); i++) { Mally.col(ref.open[sz].at(i)) = Mbary.col(i); }
   std::complex<double> refGrady = newGrady.transpose() * refHelper.Ainv[sz].col(i);  
   //z
   MatrixXcd Mbarz = refHelper.Ainv[sz].col(i) * newGradzbar.transpose();
   VectorXcd tempz;
   tempz.transpose() = newGradz.transpose() * refHelper.AinvAbar[sz];
   Mbarz -= refHelper.Ainv[sz].col(i) * tempz.transpose();
+  MatrixXcd Mallz = Eigen::MatrixXd::Zero(Mbarz.rows(), nact);
+  for (int i = 0; i < ref.open[sz].size(); i++) { Mallz.col(ref.open[sz].at(i)) = Mbarz.col(i); }
   std::complex<double> refGradz = newGradz.transpose() * refHelper.Ainv[sz].col(i);  
 
-  std::complex<double> sum = 0.0;
-  std::complex<double> sumx = 0.0;
-  std::complex<double> sumy = 0.0;
-  std::complex<double> sumz = 0.0;
-  for (size_t I = 1; I < ref.getNumOfDets(); I++)
+  //trace
+  double val = 0.0;
+  for (int i = 0; i < Mall.cols(); i++)
   {
-    Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
-    Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
-
-    Eigen::MatrixXcd aI;
-    igl::slice(refHelper.AinvAbar[sz], rowVec, colVec, aI);
-
-    Eigen::FullPivLU<MatrixXcd> lu(aI);
-    if (!lu.isInvertible()) { continue; }
-    Eigen::MatrixXcd aIinv = lu.inverse();
-
-    Eigen::MatrixXcd MbarI;
-    igl::slice(Mbar, rowVec, colVec, MbarI);
-    //x
-    Eigen::MatrixXcd MbarxI;
-    igl::slice(Mbarx, rowVec, colVec, MbarxI);
-    //y
-    Eigen::MatrixXcd MbaryI;
-    igl::slice(Mbary, rowVec, colVec, MbaryI);
-    //z
-    Eigen::MatrixXcd MbarzI;
-    igl::slice(Mbarz, rowVec, colVec, MbarzI);
-
-    //alpha and beta
-    double cI = ref.ciParity[I] * ref.ciCoeffs[I];
-    std::complex<double> ratioI = refHelper.detRatios[I][0] * refHelper.detRatios[I][1];
-
-    sum += cI * (aIinv * MbarI).trace() * ratioI;
-    sumx += cI * (aIinv * MbarxI).trace() * ratioI;
-    sumy += cI * (aIinv * MbaryI).trace() * ratioI;
-    sumz += cI * (aIinv * MbarzI).trace() * ratioI;
+    std::complex<double> factor = Y[sz].row(i) * Mall.col(i);
+    val += factor.real();
   }
-  double ovlpRatio = (refRatio + sum / refHelper.totalRatio).real();
-  double gradx = (refGradx + sumx / refHelper.totalRatio).real();
-  double grady = (refGrady + sumy / refHelper.totalRatio).real();
-  double gradz = (refGradz + sumz / refHelper.totalRatio).real();
+
+  double valx = 0.0;
+  for (int i = 0; i < Mallx.cols(); i++)
+  {
+    std::complex<double> factor = Y[sz].row(i) * Mallx.col(i);
+    valx += factor.real();
+  }
+
+  double valy = 0.0;
+  for (int i = 0; i < Mally.cols(); i++)
+  {
+    std::complex<double> factor = Y[sz].row(i) * Mally.col(i);
+    valy += factor.real();
+  }
+
+  double valz = 0.0;
+  for (int i = 0; i < Mallz.cols(); i++)
+  {
+    std::complex<double> factor = Y[sz].row(i) * Mallz.col(i);
+    valz += factor.real();
+  }
+
+  double ovlpRatio = (refRatio + val).real();
+  double gradx = (refGradx + valx).real();
+  double grady = (refGrady + valy).real();
+  double gradz = (refGradz + valz).real();
 
   gradx /= ovlpRatio;
   grady /= ovlpRatio;

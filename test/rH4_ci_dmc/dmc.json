@@ -1,0 +1,28 @@
+{
+  "wavefunction":
+  {
+    "name": "jastrowmultislater",
+    "numact": 7,
+    "hfType": "rhf",
+    "complex": false,
+    "addENCusp": true,
+    "QmaxEEN": 0,
+    "Qmax": 3
+  },
+  "realspace":
+  {
+    "basis": "gto",
+    "nalpha": 2,
+    "nbeta": 2,
+    "norbs": 20
+  },
+  "sampling":
+  {
+    "stochasticIter": 10000,
+    "seed": 1,
+    "nwalk": 50,
+    "tau": 0.1,
+    "ngeneration": 500,
+    "maxIter": 500
+  }
+}

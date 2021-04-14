@@ -233,13 +233,10 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double &Eloc,
 
   double Ecutp = std::min(std::abs(deltap), 10.0 * std::sqrt(Var)) * signp;
   //scale factor
+  std::vector<Vector3d> Vp;
+  walk.getGradient(Vp, w.getRef());
   double V2p = 0.0;
-  for (int i = 0; i < nelec; i++)
-  {
-    Vector3d v;
-    walk.getGradient(i, v, w.getRef());
-    V2p += v.squaredNorm(); 
-  }
+  for (int i = 0; i < nelec; i++) { V2p += Vp.at(i).squaredNorm(); }
   double factorp = tau * V2p / double(nelec);
   double Sp = Eshift - E + Ecutp / (1.0 + factorp * factorp);
 
@@ -354,13 +351,10 @@ double applyPropogatorMetropolis(Wfn &w, Walker &walk, double &wt, double &Eloc,
 
   double Ecut = std::min(std::abs(delta), 10.0 * std::sqrt(Var)) * sign;
   //scale factor
+  std::vector<Vector3d> V;
+  walk.getGradient(V, w.getRef());
   double V2 = 0.0;
-  for (int i = 0; i < nelec; i++)
-  {
-    Vector3d v;
-    walk.getGradient(i, v, w.getRef());
-    V2 += v.squaredNorm(); 
-  }
+  for (int i = 0; i < nelec; i++) { V2 += V.at(i).squaredNorm(); }
   double factor = tau * V2 / double(nelec);
   double S = Eshift - E + Ecut / (1.0 + factor * factor);
 
@@ -765,7 +759,7 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     E = 0.9 * E + 0.1 * Et;
     Var = 0.9 * Var + 0.1 * Vart;
     if (commrank == 0) { f << iter + 1 << " " << tau * double(iter + 1) << " " << Et << " " << Vart << " " << int(totalMoves / commsize) << " " << totalPop / commsize << " " << (getTime() - startofCalc) << endl; }
-    if (commrank == 0) { f << "\t" << E << " " << Var << endl; }
+    //if (commrank == 0) { f << "\t" << E << " " << Var << endl; }
     //if (commrank == 0) { f << npp.transpose() << endl; }
     //if (commrank == 0) { f << wpp.transpose() << endl; }
     //if (commrank == 0) { f << Eshiftpp.transpose() << endl << endl; }

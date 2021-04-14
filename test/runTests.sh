@@ -336,9 +336,17 @@ cd $here/rH4_ci/
 printf "...running rH4 ci vmc\n"
 $MPICOMMAND $VMCPATH > vmc.out
 python2 ../testEnergy.py 'vmc' $tol
-#printf "...running rH4 ci dmc\n"
-#$MPICOMMAND $DMCPATH > dmc.out
-##python2 ../testEnergy.py 'dmc' $tol
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
+
+cd $here/rH4_ci_dmc/
+../clean.sh
+printf "...running rH4 ci dmc\n"
+cp wave.bin rMultiSlaterrJastrow.bkp
+$MPICOMMAND $DMCPATH > dmc.out
+python2 ../testEnergy.py 'dmc' $tol
 if [ $clean == 1 ]
 then
     ../clean.sh

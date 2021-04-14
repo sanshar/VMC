@@ -101,6 +101,8 @@ struct rWalker<rJastrow, rSlater> {
   void getGradient(int elecI, Vector3d& grad, const rSlater &ref);
   void getScaledGradient(int elecI, double tau, Vector3d& vbar, const rSlater &ref);
 
+  void getGradient(std::vector<Vector3d>& grad, const rSlater &ref);
+
   double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad, const rSlater& ref);
   double getScaledGradientAfterSingleElectronMove(int elecI, double tau, Vector3d& move, Vector3d& grad, const rSlater& ref);
 
@@ -174,6 +176,8 @@ struct rWalker<rJastrow, rMultiSlater> {
 
   void getGradient(int elecI, Vector3d& grad, const rMultiSlater &ref);
   void getScaledGradient(int elecI, double tau, Vector3d& vbar, const rMultiSlater &ref);
+
+  void getGradient(std::vector<Vector3d>& grad, const rMultiSlater &ref);
 
   double getGradientAfterSingleElectronMove(int elecI, Vector3d& move, Vector3d& grad, const rMultiSlater& ref);
   double getScaledGradientAfterSingleElectronMove(int elecI, double tau, Vector3d& move, Vector3d& grad, const rMultiSlater& ref);
