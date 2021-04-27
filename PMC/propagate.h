@@ -765,8 +765,8 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
     //if (commrank == 0) { f << Eshiftpp.transpose() << endl << endl; }
 
     //every process is independent and have different Eshifts
-    //Eshift = E - (0.1 / tau) * std::log(iterPop / targetPop);
-    Eshift = StatsE.Average() - (0.1 / tau) * std::log(iterPop / targetPop);
+    Eshift = E - (0.1 / tau) * std::log(iterPop / targetPop);
+    //Eshift = StatsE.Average() - (0.1 / tau) * std::log(iterPop / targetPop);
 
     //incase of catastrophic failure
     if (iterPop > 2 * targetPop)
@@ -808,20 +808,24 @@ void doDMC(Wfn &w, Walker &walk, double Eshift)
       E = Ebar;
       Var = Varbar;
 
-      //this is the exponentially moving average over generations
-      if (iter == nGeneration) { Eexp = Ebar; }
-      else { Eexp = 0.9 * Eexp + 0.1 * Ebar; }
-
-      //this is the average energy over generations, but only start
-      //taking averages after 4 generations because 
-      //we assume that it takes atleast 4 generations to reach equilibration
-      if (iter/nGeneration == 4) { Eavg = Ebar; }
+      //these are the averages over generations, assume it takes 4 generations to reach equilibrium
+      if (iter/nGeneration == 4)
+      {
+        if (commrank == 0) { cout << "------------------------------------------------------------------------------------------------------------------------------------" << endl; }
+        Eexp = Ebar;
+        Eavg = Ebar;
+      }
       else if (iter/nGeneration > 4)
       {
+        Eexp = 0.9 * Eexp + 0.1 * Ebar;
 	    int oldIter = iter/nGeneration;
 	    Eavg = ((oldIter - 4) * Eavg + Ebar) / (oldIter - 3);
       }
-      else { Eavg = Eexp; }
+      else
+      {
+        Eexp = Ebar;
+        Eavg = Ebar;
+      }
 
       if (commrank == 0) {
 	    cout << format("%8i %14.8f (%8.2e) %8.1f %14.8f %14.8f %8.3f %10i %8.2f %14.8f %8.2f\n") % iter % Ebar % error % tbar % Eexp % Eavg % acceptedFrac % int(totalMoves/commsize) % (totalPop/commsize) % Eshiftavg % (getTime()-startofCalc);

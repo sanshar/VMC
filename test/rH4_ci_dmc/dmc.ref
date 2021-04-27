@@ -19,8 +19,8 @@ Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
 CPU MHz:               2899.968
 Computation started at:
-Wed Apr 14 14:27:03 MDT 2021
-git commit: d4a3c08474d1d7e70f0ddeff1f7b9fa20258dbb5, branch: merged, compiled at: Wed Apr 14 10:37:40 MDT 2021
+Tue Apr 27 11:41:51 MDT 2021
+git commit: f7dec24e4b8c598334549477ade11276480a98f2, branch: merged, compiled at: Tue Apr 27 11:36:10 MDT 2021
 
 nproc used: 4 (NB: stochasticIter below is per proc)
 
@@ -55,4 +55,4 @@ Input file  :
 
 Energy of VMC wavefunction: -2.033230018 (0.007263939313) 
 Energy of initial population: -2.014560071
-     500    -2.13072986 (1.66e-02)      3.2    -2.13072986    -2.13072986    0.971         48    51.78    -2.16523200     8.15
+     500    -2.13274425 (1.65e-02)      3.2    -2.13274425    -2.13274425    0.970         45    50.84    -2.13474116     8.19
