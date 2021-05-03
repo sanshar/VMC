@@ -1069,6 +1069,7 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
     CPSgradRatio[corr.EEsameSpinIndex] = 0.0;
     CPSgradRatio[corr.EEoppositeSpinIndex] = 0.0;
     if (schd.noENCusp || schd.addENCusp) for (int I = 0; I < schd.uniqueAtoms.size(); I++) { CPSgradRatio[corr.ENIndex + I * corr.Qmax] = 0.0; }
+
     CPShamRatio += Eloc * CPSgradRatio;
   } //CPS param gradients
 
@@ -1101,61 +1102,115 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
     dY[1] = Eigen::MatrixXd::Zero(nact, nbeta);
     for (int I = 1; I < ref.getNumOfDets(); I++)
     {
+      //alpha
+      //these are the orbital indices
+      const Eigen::VectorXi &desA = ref.ciExcitations[0][I][0];
+      const Eigen::VectorXi &creA = ref.ciExcitations[0][I][1];
+
+      //these are the internal indices
+      Eigen::VectorXi rowVecA = ref.ciIndices[0][I][0];
+      Eigen::VectorXi colVecA = ref.ciIndices[0][I][1];
+
+      Eigen::MatrixXcd aA;
+      igl::slice(alpha[0], rowVecA, colVecA, aA);
+
+      Eigen::FullPivLU<MatrixXcd> lua(aA);
+      std::complex<double> ratioA = lua.determinant();
+      Eigen::MatrixXcd aIinvA = lua.inverse();
+
+      //beta
+      //these are the orbital indices
+      const Eigen::VectorXi &desB = ref.ciExcitations[1][I][0];
+      const Eigen::VectorXi &creB = ref.ciExcitations[1][I][1];
+
+      //these are the internal indices
+      Eigen::VectorXi rowVecB = ref.ciIndices[1][I][0];
+      Eigen::VectorXi colVecB = ref.ciIndices[1][I][1];
+
+      Eigen::MatrixXcd aB;
+      igl::slice(alpha[1], rowVecB, colVecB, aB);
+
+      Eigen::FullPivLU<MatrixXcd> lub(aB);
+      std::complex<double> ratioB = lub.determinant();
+      Eigen::MatrixXcd aIinvB = lub.inverse();
+
+      //alpha and beta
       double cI = ref.ciParity[I] * ref.ciCoeffs[I];
-      std::complex<double> ratioI = walk.refHelper.detRatios[I][0] * walk.refHelper.detRatios[I][1];
+      std::complex<double> ratioI = ratioA * ratioB;
 
-      for (int sz = 0; sz < 2; sz++)
+      //alpha
+      for (int i = 0; i < desA.size(); i++)
       {
-        //these are the orbital indices
-        const Eigen::VectorXi &des = ref.ciExcitations[sz][I][0];
-        const Eigen::VectorXi &cre = ref.ciExcitations[sz][I][1];
-
-        if (des.size() < 2) { continue; }
-
-        //these are the internal indices
-        Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
-        Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
-
-        Eigen::MatrixXcd aI;
-        igl::slice(alpha[sz], rowVec, colVec, aI);
-
-        Eigen::FullPivLU<MatrixXcd> lu(aI);
-        if (!lu.isInvertible()) { continue; }
-        Eigen::MatrixXcd aIinv = lu.inverse();
-
-        for (int i = 0; i < des.size(); i++)
+        for (int j = 0; j < creA.size(); j++)
         {
-          for (int j = 0; j < cre.size(); j++)
+          //alpha
+          for (int k = 0; k < desA.size(); k++)
           {
-            for (int k = 0; k < des.size(); k++)
+            for (int l = 0; l < creA.size(); l++)
             {
-              for (int l = 0; l < cre.size(); l++)
-              {
-                //dY[sz](cre(j), rowVec(i)) += cI * ratioI * aIinv(j, i) * aIinv(l, k) * Mall[sz](rowVec(k), cre(l));
-                //dY[sz](cre(j), rowVec(i)) -= cI * ratioI * aIinv(j, k) * aIinv(l, i) * Mall[sz](rowVec(k), cre(l));
-                dY[sz](cre(j), rowVec(i)) += cI * ratioI * aIinv(j, i) * aIinv(l, k) * Mbar[sz](rowVec(k), colVec(l));
-                dY[sz](cre(j), rowVec(i)) -= cI * ratioI * aIinv(j, k) * aIinv(l, i) * Mbar[sz](rowVec(k), colVec(l));
-              }
+              dY[0](creA(j), rowVecA(i)) += cI * ratioI * aIinvA(j, i) * aIinvA(l, k) * Mall[0](rowVecA(k), creA(l));
+              dY[0](creA(j), rowVecA(i)) -= cI * ratioI * aIinvA(j, k) * aIinvA(l, i) * Mall[0](rowVecA(k), creA(l));
             }
           }
-        }
+          //beta
+          for (int k = 0; k < desB.size(); k++)
+          {
+            for (int l = 0; l < creB.size(); l++)
+            {
+              dY[0](creA(j), rowVecA(i)) += cI * ratioI * aIinvA(j, i) * aIinvB(l, k) * Mall[1](rowVecB(k), creB(l));
+            }
+          }
 
-      }//sz
+        }
+      }
+      //beta
+      for (int i = 0; i < desB.size(); i++)
+      {
+        for (int j = 0; j < creB.size(); j++)
+        {
+          //beta
+          for (int k = 0; k < desB.size(); k++)
+          {
+            for (int l = 0; l < creB.size(); l++)
+            {
+              dY[1](creB(j), rowVecB(i)) += cI * ratioI * aIinvB(j, i) * aIinvB(l, k) * Mall[1](rowVecB(k), creB(l));
+              dY[1](creB(j), rowVecB(i)) -= cI * ratioI * aIinvB(j, k) * aIinvB(l, i) * Mall[1](rowVecB(k), creB(l));
+            }
+          }
+          //alpha
+          for (int k = 0; k < desA.size(); k++)
+          {
+            for (int l = 0; l < creA.size(); l++)
+            {
+              dY[1](creB(j), rowVecB(i)) += cI * ratioI * aIinvB(j, i) * aIinvA(l, k) * Mall[0](rowVecA(k), creA(l));
+            }
+          }
+
+        }
+      }
+
     }//dets
     dY[0] /= walk.refHelper.totalRatio;
     dY[1] /= walk.refHelper.totalRatio;
 
-    for (int sz = 0; sz < 2; sz++)
     {
       //trace
-      double val = 0.0;
-      for (int l = 0; l < Y[sz].rows(); l++)
+      double valA = 0.0;
+      for (int l = 0; l < Y[0].rows(); l++)
       {
-        std::complex<double> factor = Y[sz].row(l) * Mall[sz].col(l);
-        val += factor.real();
+        std::complex<double> factor = Y[0].row(l) * Mall[0].col(l);
+        valA += factor.real();
       }
 
-      dY[sz] -= Y[sz] * val;
+      double valB = 0.0;
+      for (int l = 0; l < Y[1].rows(); l++)
+      {
+        std::complex<double> factor = Y[1].row(l) * Mall[1].col(l);
+        valB += factor.real();
+      }
+
+      dY[0] -= Y[0] * (valA + valB);
+      dY[1] -= Y[1] * (valA + valB);
     }
 
     std::array<Eigen::MatrixXcd, 2> dG;
