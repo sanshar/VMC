@@ -17,9 +17,9 @@ CPU family:            6
 Model:                 79
 Model name:            Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
 Stepping:              1
-CPU MHz:               3010.968
+CPU MHz:               2928.562
 Computation started at:
-Mon May 10 09:32:27 MDT 2021
+Mon May 10 09:26:10 MDT 2021
 git commit: bf2cab378f08ff493240955e5db1157b4655e160, branch: merged, compiled at: Sun May 9 19:15:01 MDT 2021
 
 nproc used: 4 (NB: stochasticIter below is per proc)
@@ -31,24 +31,34 @@ Input file  :
     "wavefunction": {
         "name": "jastrowslater",
         "hfType": "ghf",
-        "complex": "true"
+        "complex": "true",
+        "QmaxEEN": "6"
+    },
+    "realspace": {
+        "basis": "sto",
+        "nalpha": "2",
+        "nbeta": "2",
+        "norbs": "17"
     },
     "sampling": {
-        "stochasticIter": "1000",
+        "stochasticIter": "7500",
         "seed": "1"
     },
     "optimizer": {
         "method": "sr",
         "direct": "true",
-        "stepsize": "0.1",
-        "sDiagShift": "0.01",
-        "cgIter": "15",
+        "sDiagShift": "1.0e-6",
+        "cgIter": "25",
+        "stepsize": "0.05",
         "maxIter": "5"
     }
 }
 
-    0    -2.10259851 (5.01e-03)     0.12922707      1.1     0.08     0.08
-    1    -2.11020927 (4.38e-03)     0.11718571      1.0     0.12     0.12
-    2    -2.12150080 (3.77e-03)     0.10263264      1.0     0.16     0.16
-    3    -2.13130234 (3.34e-03)     0.09301178      1.0     0.20     0.20
-    4    -2.13626503 (2.91e-03)     0.07718982      1.0     0.23     0.24
+Number of Jastrow vars: 92
+Number of Reference vars: 273
+Number of Optimized vars: 365
+    0   -14.59897028 (5.03e-03)     0.55818234      2.0     0.94     1.03
+    1   -14.61570704 (7.96e-03)     0.24385426      2.2     1.93     2.03
+    2   -14.62311578 (7.41e-03)     0.36265615      2.3     2.94     3.04
+    3   -14.62084440 (8.56e-03)     0.14138489      2.1     3.93     4.03
+    4   -14.62691795 (1.14e-02)     0.36872855      2.6     4.93     5.03

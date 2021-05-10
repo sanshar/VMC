@@ -48,7 +48,7 @@ void runVMC(Wave& wave, Walker& walk) {
   
   getGradientWrapper<Wave, Walker> wrapper(wave, walk, schd.stochasticIter, schd.ctmc);
   auto getStochasticGradient = std::bind(&getGradientWrapper<Wave, Walker>::getGradient, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, schd.deterministic);
-  auto getStochasticGradientMetric = std::bind(&getGradientWrapper<Wave, Walker>::getMetric, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  auto getStochasticGradientMetric = std::bind(&getGradientWrapper<Wave, Walker>::getMetric, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, schd.deterministic);
   auto getStochasticGradientMetricRandom = std::bind(&getGradientWrapper<Wave, Walker>::getMetricRandom, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
   //auto getStochasticGradientVariance = std::bind(&getGradientWrapper<Wave, Walker>::getVariance, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
   auto getStochasticGradientHessian = std::bind(&getGradientWrapper<Wave, Walker>::getHessian, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
@@ -128,7 +128,7 @@ void runVMCRealSpace(Wave& wave, Walker& walk) {
   }
 
   auto getStochasticGradientRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getGradientRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, schd.deterministic);
-  auto getStochasticGradientMetricRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
+  auto getStochasticGradientMetricRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getMetricRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, schd.deterministic);
   auto getStochasticGradientMetricRandomRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getMetricRandomRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
   auto getStochasticGradientHessianRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getHessianRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, ph::_7, schd.deterministic);
   auto getStochasticGradientHessianDirectRealSpace = std::bind(&getGradientWrapper<Wave, Walker>::getHessianDirectRealSpace, &wrapper, ph::_1, ph::_2, ph::_3, ph::_4, ph::_5, ph::_6, schd.deterministic);

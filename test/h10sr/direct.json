@@ -14,9 +14,9 @@
   {
     "method": "sr",
     "direct": true,
-    "stepsize": 0.1,
-    "sDiagShift": 0.01,
-    "cgIter": 15,
+    "stepsize": 0.05,
+    "sDiagShift": 1.0e-6,
+    "cgIter": 25,
     "maxIter": 5
   }
 }

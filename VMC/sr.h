@@ -51,18 +51,23 @@ class DirectMetric
     {
       double Tau = 0.0;
       int dim = Vectors[0].rows();
+      VectorXd Vectors_bar = VectorXd::Zero(dim);
       Smatrix = MatrixXd::Zero(dim, dim);
       for (int i = 0; i < Vectors.size(); i++)
       {
         Smatrix += T[i] * Vectors[i] * Vectors[i].adjoint();
+        Vectors_bar += T[i] * Vectors[i];
         Tau += T[i];
       }
 
 #ifndef SERIAL
       MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &(Vectors_bar(0)), Vectors_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &(Smatrix(0,0)), Smatrix.rows() * Smatrix.cols(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
+      Vectors_bar /= Tau;
       Smatrix /= Tau; 
+      Smatrix -= Vectors_bar * Vectors_bar.adjoint();
     }
       
     
@@ -70,23 +75,27 @@ class DirectMetric
   {
     double Tau = 0.0;
     int dim = x.rows();
-    if (Ax.rows() != x.rows())
-      Ax = VectorXd::Zero(dim);
-    else
-      Ax.setZero();
+    VectorXd Vectors_bar = VectorXd::Zero(dim);
+    Ax.setZero(dim);
     for (int i = 0; i < Vectors.size(); i++)
     {
       double factor = Vectors[i].adjoint() * x;
       Ax += T[i] * Vectors[i] * factor;
+      Vectors_bar += T[i] * Vectors[i];
       Tau += T[i];
     }
 #ifndef SERIAL
+      MPI_Allreduce(MPI_IN_PLACE, &(Vectors_bar(0)), Vectors_bar.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &(Ax(0)), Ax.rows(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &(Tau), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
-      Ax /= Tau;
-      Ax += diagshift * x;
-    } 
+    Vectors_bar /= Tau;
+    Ax /= Tau;
+
+    Ax += diagshift * x;
+    double factor = Vectors_bar.adjoint() * x;
+    Ax -= Vectors_bar * factor;
+  } 
 };
 
 void ConjGrad(DirectMetric &A, VectorXd &b, int n, VectorXd &x);
@@ -157,16 +166,11 @@ class SR
      while (iter < maxIter)
      {
        VectorXd grad = VectorXd::Zero(numVars);
-       VectorXd x, H;
        DirectMetric S(schd.sDiagShift);
        double E0 = 0.0, stddev = 0.0, rt = 0.0;
-       x.setZero(numVars + 1);
-       if (!schd.direct)
-       {
-         S.Smatrix = schd.sDiagShift * MatrixXd::Identity(numVars + 1, numVars + 1);
-       }
+       if (!schd.direct) { S.Smatrix = MatrixXd::Zero(numVars, numVars); }
 
-       getMetric(vars, grad, H, S, E0, stddev, rt);
+       getMetric(vars, grad, S, E0, stddev, rt);
        write(vars);
        auto VMC_time = (getTime() - startofCalc);
 
@@ -187,28 +191,26 @@ class SR
 
        //xguess << 1.0, vars;
 
+       VectorXd x = VectorXd::Zero(numVars);
        if (schd.direct)
        {
-         x[0] = 1.0;
-         ConjGrad(S, H, schd.cgIter, x);
+         ConjGrad(S, grad, schd.cgIter, x);
        }
        else
        {
          if (commrank == 0)
          {
-           MatrixXd SInv = MatrixXd::Zero(numVars + 1, numVars + 1);
+           S.Smatrix += schd.sDiagShift * MatrixXd::Identity(numVars, numVars);
+           MatrixXd SInv = MatrixXd::Zero(numVars, numVars);
            PInv(S.Smatrix, SInv);
-           x = SInv * H;
+           x = SInv * grad;
          }
        }
        
        if (commrank == 0)
        {
          //update vars
-         for (int i = 0; i < vars.rows(); i++)
-         {
-           vars(i) += (x(i+1) / x(0));
-         }
+         vars -= schd.stepsize * x;
        }
 #ifndef SERIAL
        MPI_Bcast(&(vars[0]), vars.rows(), MPI_DOUBLE, 0, MPI_COMM_WORLD);

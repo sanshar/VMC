@@ -428,16 +428,14 @@ class ContinuousTime
 
   void UpdateSR(DirectMetric &S)
   {
-    Eigen::VectorXd appended(numVars + 1);
-    appended << 1.0, grad_ratio;
     if (schd.direct)
     {
-      S.Vectors.push_back(appended);
+      S.Vectors.push_back(grad_ratio);
       S.T.push_back(T);
     }
     else
     {
-      S.Smatrix.noalias() += T * (appended * appended.adjoint() - S.Smatrix) / cumT;
+      S.Smatrix.noalias() += T * (grad_ratio * grad_ratio.adjoint() - S.Smatrix) / cumT;
     }
   }
 
@@ -465,12 +463,8 @@ class ContinuousTime
   }
 */
   
-  void FinishSR(const Eigen::VectorXd &grad, const Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &H, DirectMetric &S)
+  void FinishSR(const Eigen::VectorXd &grad_ratio_bar, DirectMetric &S)
   {
-    H.setZero(grad.rows() + 1);
-    Eigen::VectorXd appended(grad.rows());
-    appended = grad_ratio_bar - schd.stepsize * grad;
-    H << 1.0, appended;
     if (!(schd.direct))
     {
 #ifndef SERIAL
@@ -478,6 +472,7 @@ class ContinuousTime
 #endif
       S.Smatrix /= commsize;
     }
+    S.Smatrix.noalias() -= grad_ratio_bar * grad_ratio_bar.transpose();
   }
 
 /*

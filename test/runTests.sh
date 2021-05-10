@@ -285,6 +285,16 @@ then
     ../clean.sh
 fi
 
+cd $here/rBe_sr/
+../clean.sh
+printf "...running rBe direct sr\n"
+$MPICOMMAND $VMCPATH > vmc.out
+python2 ../testEnergy.py 'vmc' 3.0e-3
+if [ $clean == 1 ]
+then
+    ../clean.sh
+fi
+
 cd $here/rMg_pp/
 ../clean.sh
 printf "...running rMg with pseudopotentials\n"

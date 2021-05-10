@@ -359,7 +359,7 @@ void getGradientDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &gr
 }
 
 template<typename Wfn, typename Walker>
-void getGradientMetricDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &grad, VectorXd &H, DirectMetric &S)
+void getGradientMetricDeterministic(Wfn &w, Walker &walk, double &Energy, VectorXd &grad, DirectMetric &S)
 {
   Deterministic<Wfn, Walker> D(w, walk);
   Energy = 0.0;
@@ -375,7 +375,7 @@ void getGradientMetricDeterministic(Wfn &w, Walker &walk, double &Energy, Vector
   }
   D.FinishEnergy(Energy);
   D.FinishGradient(grad, grad_ratio_bar, Energy);
-  D.FinishSR(grad, grad_ratio_bar, H, S);
+  D.FinishSR(grad_ratio_bar, S);
 }
 
 template<typename Wfn, typename Walker>
@@ -516,7 +516,7 @@ void getStochasticGradientContinuousTime(Wfn &w, Walker &walk, double &Energy, d
 }
     
 template<typename Wfn, typename Walker>
-void getStochasticGradientMetricContinuousTime(Wfn &w, Walker& walk, double &Energy, double &stddev, VectorXd &grad, VectorXd &H, DirectMetric &S, double &rk, int niter)
+void getStochasticGradientMetricContinuousTime(Wfn &w, Walker& walk, double &Energy, double &stddev, VectorXd &grad, DirectMetric &S, double &rk, int niter)
 {
   ContinuousTime<Wfn, Walker> CTMC(w, walk, niter);
   Energy = 0.0, stddev = 0.0, rk = 0.0;
@@ -534,7 +534,7 @@ void getStochasticGradientMetricContinuousTime(Wfn &w, Walker& walk, double &Ene
   }
   CTMC.FinishEnergy(Energy, stddev, rk);
   CTMC.FinishGradient(grad, grad_ratio_bar, Energy);
-  CTMC.FinishSR(grad, grad_ratio_bar, H, S);
+  CTMC.FinishSR(grad_ratio_bar, S);
   CTMC.FinishBestDet();
 }
 
@@ -1327,7 +1327,7 @@ double getGradientMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, doubl
 }
 
 template<typename Wfn, typename Walker>
-double getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, VectorXd& H, DirectMetric& S, double &rk, int niter, double targetError)
+double getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0, double &stddev, Eigen::VectorXd &grad, DirectMetric& S, double &rk, int niter, double targetError)
 {
   auto random = std::bind(std::uniform_real_distribution<double>(0, 1), std::ref(generator));
 
@@ -1339,7 +1339,6 @@ double getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0,
   double energy = 0.0, S1 = 0.0;
   int numVars = grad.rows();
   grad.setZero();
-  H = VectorXd::Zero(numVars + 1);
   VectorXd diagonalGrad = VectorXd::Zero(numVars);
 
   double acceptedFrac = 0;
@@ -1392,14 +1391,12 @@ double getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0,
       diagonalGrad += (localdiagonalGrad - diagonalGrad) / effIter;
       grad += (eloc * localdiagonalGrad - grad) / effIter;
 
-      VectorXd appended;
-      appended << 1.0, localdiagonalGrad;
       if (schd.direct) {
-        S.Vectors.push_back(appended);
+        S.Vectors.push_back(localdiagonalGrad);
         S.T.push_back(1.0);
       }
       else {
-        S.Smatrix.noalias() += (appended * appended.transpose() - S.Smatrix) / effIter;
+        S.Smatrix.noalias() += (localdiagonalGrad * localdiagonalGrad.transpose() - S.Smatrix) / effIter;
       }
 
       if (effIter < corrIter) Stats.push_back(eloc);
@@ -1431,14 +1428,16 @@ double getGradientMetricMetropolisRealSpace(Wfn &wave, Walker &walk, double &E0,
   rk /= commsize;
   diagonalGrad /= commsize;
   grad /= commsize;
-  if (!schd.direct) { S.Smatrix /= commsize; }
+  if (!schd.direct)
+  {
+    S.Smatrix /= commsize;
+    S.Smatrix.noalias() -= diagonalGrad * diagonalGrad.transpose();
+  }
 #endif
   double n_eff = effIter;
   stddev = std::sqrt(S1 * rk / n_eff);
   E0 = energy;
-
   grad = grad - E0 * diagonalGrad;
-  H << 1.0, (diagonalGrad - schd.stepsize * grad);
 
   if (commrank == 0)
   {
@@ -2352,12 +2351,12 @@ class getGradientWrapper
     return acceptedFrac;
   };
 
-  void getMetricRealSpace(VectorXd &vars, VectorXd &grad, VectorXd& H, DirectMetric& S, double &E0, double &stddev, double &rt, bool deterministic)
+  void getMetricRealSpace(VectorXd &vars, VectorXd &grad, DirectMetric& S, double &E0, double &stddev, double &rt, bool deterministic)
   {
     w.updateOptVariables(vars);
     w.initWalker(walk);
     if (!deterministic)
-      getGradientMetricMetropolisRealSpace(w, walk, E0, stddev, grad, H, S, rt, stochasticIter, 0.5e-3);
+      getGradientMetricMetropolisRealSpace(w, walk, E0, stddev, grad, S, rt, stochasticIter, 0.5e-3);
 
     w.writeWave();
   };
@@ -2394,17 +2393,17 @@ class getGradientWrapper
     return acceptedFrac;
   };
   
-  void getMetric(VectorXd &vars, VectorXd &grad, VectorXd &H, DirectMetric &S, double &E0, double &stddev, double &rt, bool deterministic)
+  void getMetric(VectorXd &vars, VectorXd &grad, DirectMetric &S, double &E0, double &stddev, double &rt, bool deterministic)
   {
       w.updateVariables(vars);
       w.initWalker(walk);
       if (!deterministic)
-        getStochasticGradientMetricContinuousTime(w, walk, E0, stddev, grad, H, S, rt, stochasticIter);
+        getStochasticGradientMetricContinuousTime(w, walk, E0, stddev, grad, S, rt, stochasticIter);
       else
       {
         stddev = 0.0;
       	rt = 1.0;
-      	getGradientMetricDeterministic(w, walk, E0, grad, H, S);
+      	getGradientMetricDeterministic(w, walk, E0, grad, S);
       }
       w.writeWave();
   };

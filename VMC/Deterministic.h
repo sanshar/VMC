@@ -95,25 +95,19 @@ class Deterministic
   
   void UpdateSR(DirectMetric &S)
   {
-    Eigen::VectorXd appended(numVars+1);
-    appended << 1.0, grad_ratio;
     if (schd.direct)
     {
-      S.Vectors.push_back(appended);
+      S.Vectors.push_back(grad_ratio);
       S.T.push_back(ovlp * ovlp);
     }
     else
     {
-      S.Smatrix += (ovlp * ovlp) * appended * appended.adjoint();
+      S.Smatrix.noalias() += (ovlp * ovlp) * grad_ratio * grad_ratio.adjoint();
     }
   }
   
-  void FinishSR(const Eigen::VectorXd &grad, const Eigen::VectorXd &grad_ratio_bar, Eigen::VectorXd &H, DirectMetric S)
+  void FinishSR(const Eigen::VectorXd &grad_ratio_bar, DirectMetric S)
   {
-    H.setZero(numVars + 1);
-    Eigen::VectorXd appended(numVars);
-    appended = grad_ratio_bar - schd.stepsize * grad;
-    H << 1.0, appended;
     if (!(schd.direct))
     {
 #ifndef SERIAL
@@ -121,6 +115,7 @@ class Deterministic
 #endif
       S.Smatrix /= Overlap;
     }
+    S.Smatrix.noalias() -= grad_ratio_bar * grad_ratio_bar.transpose();
   }
 
   void UpdateLM(DirectLM &H)
