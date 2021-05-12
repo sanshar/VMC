@@ -106,7 +106,6 @@ class rWalkerHelper<rMultiSlater>
   std::array<MatrixXcd, 2> AinvAbar;         //matrix of single excitations: Ainv * Abar
 
   std::complex<double> totalRatio;                      //total overlap ratio with reference det = c0 + \sum_I cI * DI / D0
-  std::vector<std::array<std::complex<double>, 2>> detRatios;         //overlap ratio with each determinant DI / D0
   std::array<Eigen::MatrixXcd, 2> Y; //Y (J. Chem. Theory Comput. 2017, 13, 5273−5281)
 
   mutable vector<double> aoValues;                   //this is used to store the ao values at some coordinate

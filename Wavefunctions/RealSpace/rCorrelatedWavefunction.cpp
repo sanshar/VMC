@@ -490,8 +490,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
             std::complex<double> t1 = thetaInv[1].row(mo) * AOBnl.col(orb).tail(nbeta);
             std::complex<double> t2 = Xnl.row(mo) * AoRi.col(orb).tail(nbeta);
             std::complex<double> factor = t1 - t2;
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo + 1] += i * factor;
           }
 
           //laplacian contribution
@@ -499,8 +499,8 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
             std::complex<double> t1 = thetaInv[1].row(mo) * AOLaplacian.col(orb).tail(nbeta);
             std::complex<double> t2 = X.row(mo) * AoRi.col(orb).tail(nbeta);
             std::complex<double> factor = -0.5 * (t1 - t2);
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo + 1] += i * factor;
           }
 
           //grad contribution
@@ -508,30 +508,30 @@ double rCorrelatedWavefunction<rJastrow, rSlater>::HamOverlap(rWalker<rJastrow, 
             std::complex<double> t1 = thetaInv[1].row(mo) * AOGradx.col(orb).tail(nbeta);
             std::complex<double> t2 = Xgx.row(mo) * AoRi.col(orb).tail(nbeta);
             std::complex<double> factor = -(t1 - t2);
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo + 1] += i * factor;
           }
           {
             std::complex<double> t1 = thetaInv[1].row(mo) * AOGrady.col(orb).tail(nbeta);
             std::complex<double> t2 = Xgy.row(mo) * AoRi.col(orb).tail(nbeta);
             std::complex<double> factor = -(t1 - t2);
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo + 1] += i * factor;
           }
           {
             std::complex<double> t1 = thetaInv[1].row(mo) * AOGradz.col(orb).tail(nbeta);
             std::complex<double> t2 = Xgz.row(mo) * AoRi.col(orb).tail(nbeta);
             std::complex<double> factor = -(t1 - t2);
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-            RefGradcEloc[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcEloc[numDets + shift + 2*orb * nalpha + 2*mo + 1] += i * factor;
           }
 
           {
             std::complex<double> factor = thetaInv[1].row(mo) * AoRi.col(orb).tail(nbeta);
-            RefGradcOvlp[numDets + shift + 2*orb * nbeta + 2*mo] += factor;
-            RefGradcOvlp[numDets + shift + 2*orb * nbeta + 2*mo + 1] += i * factor;
-            RefgradRatio[numDets + shift + 2*orb * nbeta + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
-            if (schd.ifComplex) RefgradRatio[numDets + shift + 2*orb * nbeta + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
+            RefGradcOvlp[numDets + shift + 2*orb * nalpha + 2*mo] += factor;
+            RefGradcOvlp[numDets + shift + 2*orb * nalpha + 2*mo + 1] += i * factor;
+            RefgradRatio[numDets + shift + 2*orb * nalpha + 2*mo] += (factor * thetaDet).real() / thetaDet.real();        
+            if (schd.ifComplex) RefgradRatio[numDets + shift + 2*orb * nalpha + 2*mo + 1] += (i * factor * thetaDet).real() / thetaDet.real();
           }
         } 
       }
@@ -957,28 +957,44 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::HamOverlap(rWalker<rJast
     //sum over dets
     for (size_t I = 1; I < ref.getNumOfDets(); I++)
     {
-      std::complex<double> ratioI = walk.refHelper.detRatios[I][0] * walk.refHelper.detRatios[I][1];
+      //alpha
+      //these are the internal indices
+      Eigen::VectorXi rowVecA = ref.ciIndices[0][I][0];
+      Eigen::VectorXi colVecA = ref.ciIndices[0][I][1];
+
+      Eigen::MatrixXcd aA;
+      igl::slice(alpha[0], rowVecA, colVecA, aA);
+
+      Eigen::FullPivLU<MatrixXcd> lua(aA);
+      std::complex<double> ratioA = lua.determinant();
+      Eigen::MatrixXcd aIinvA = lua.inverse();
+
+      Eigen::MatrixXcd MbarAI;
+      igl::slice(Mbar[0], rowVecA, colVecA, MbarAI);
+
+      //beta
+      //these are the internal indices
+      Eigen::VectorXi rowVecB = ref.ciIndices[1][I][0];
+      Eigen::VectorXi colVecB = ref.ciIndices[1][I][1];
+
+      Eigen::MatrixXcd aB;
+      igl::slice(alpha[1], rowVecB, colVecB, aB);
+
+      Eigen::FullPivLU<MatrixXcd> lub(aB);
+      std::complex<double> ratioB = lub.determinant();
+      Eigen::MatrixXcd aIinvB = lub.inverse();
+
+      Eigen::MatrixXcd MbarBI;
+      igl::slice(Mbar[1], rowVecB, colVecB, MbarBI);
+
+      //alpha and beta
+      std::complex<double> ratioI = ratioA * ratioB;
 
       CIgradRatio(I) += ref.ciParity[I] * (ratioI / walk.refHelper.totalRatio).real();
       CIhamRatio(I) += ref.ciParity[I] * (refEloc * ratioI / walk.refHelper.totalRatio).real();
 
-      for (int sz = 0; sz < 2; sz++)
-      {
-        Eigen::VectorXi rowVec = ref.ciIndices[sz][I][0];
-        Eigen::VectorXi colVec = ref.ciIndices[sz][I][1];
-
-        Eigen::MatrixXcd aI;
-        igl::slice(alpha[sz], rowVec, colVec, aI);
-    
-        Eigen::MatrixXcd MbarI;
-        igl::slice(Mbar[sz], rowVec, colVec, MbarI);
-
-        Eigen::FullPivLU<MatrixXcd> lu(aI);
-        if (!lu.isInvertible()) { continue; }
-        Eigen::MatrixXcd aIinv = lu.inverse();
-      
-        CIhamRatio(I) += ref.ciParity[I] * ((aIinv * MbarI).trace() * ratioI / walk.refHelper.totalRatio).real();
-      }
+      CIhamRatio(I) += ref.ciParity[I] * ((aIinvA * MbarAI).trace() * ratioI / walk.refHelper.totalRatio).real();
+      CIhamRatio(I) += ref.ciParity[I] * ((aIinvB * MbarBI).trace() * ratioI / walk.refHelper.totalRatio).real();
     }
   }//param grad
 
@@ -1408,7 +1424,7 @@ double rCorrelatedWavefunction<rJastrow, rMultiSlater>::rHam(rWalker<rJastrow, r
       }
 
       //intermediates
-      Eigen::MatrixXcd Ball = Eigen::MatrixXd::Zero(nalpha, nact);
+      Eigen::MatrixXcd Ball = Eigen::MatrixXd::Zero(B.rows(), nact);
       for (int i = 0; i < ref.ref[sz].size(); i++) { Ball.col(ref.ref[sz][i]) = B.col(i); }
       for (int i = 0; i < ref.open[sz].size(); i++) { Ball.col(ref.open[sz][i]) = Bbar.col(i); }
       

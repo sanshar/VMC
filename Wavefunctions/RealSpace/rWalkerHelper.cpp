@@ -398,12 +398,12 @@ void rWalkerHelper<rSlater>::OverlapWithGradient(const rDeterminant& d,
         std::complex<double> factor = thetaInv[1].row(mob) * AO.col(orb).tail(nbeta);
         factor *= DetFactor / DetFactor.real();
       if (ref.hftype == Restricted) {
-        grad[numDets + 2*orb * nbeta + 2*mob] += factor.real();
-        grad[numDets + 2*orb * nbeta + 2*mob + 1] += -factor.imag();
+        grad[numDets + 2*orb * nalpha + 2*mob] += factor.real();
+        grad[numDets + 2*orb * nalpha + 2*mob + 1] += -factor.imag();
       }
       else {
-        grad[numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob] += factor.real();
-        grad[numDets + 2*nalpha*norbs + 2*orb * nbeta + 2*mob + 1] += -factor.imag();
+        grad[numDets + 2*nalpha*norbs + 2*orb * nalpha + 2*mob] += factor.real();
+        grad[numDets + 2*nalpha*norbs + 2*orb * nalpha + 2*mob + 1] += -factor.imag();
       }
     }
   }
@@ -612,10 +612,6 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
 
   //totalRatio and detRatios and Y
   //(J. Chem. Theory Comput. 2017, 13, 5273−5281)
-  std::array<std::complex<double>, 2> ratio;
-  ratio[0] = 1.0;
-  ratio[1] = 1.0;
-  detRatios.push_back(ratio);
   std::complex<double> d0 = detA[0] * detA[1];
   double c0 = w.ciParity[0] * w.ciCoeffs[0];
 
@@ -677,9 +673,6 @@ void rWalkerHelper<rMultiSlater>::initInvDetsTables(const rMultiSlater &w, const
     }
 
     sum += cI * ratioI;
-    ratio[0] = ratioA;
-    ratio[1] = ratioB;
-    detRatios.push_back(ratio);
   }
   totalRatio = c0 + sum;
   Y[0] /= totalRatio;
@@ -829,10 +822,6 @@ void rWalkerHelper<rMultiSlater>::updateWalker(int elec, Vector3d& oldCoord, con
 
   //totalRatio and detRatios and Y
   //(J. Chem. Theory Comput. 2017, 13, 5273−5281)
-  std::array<std::complex<double>, 2> ratio;
-  ratio[0] = 1.0;
-  ratio[1] = 1.0;
-  detRatios.push_back(ratio);
   std::complex<double> d0 = detA[0] * detA[1];
   double c0 = w.ciParity[0] * w.ciCoeffs[0];
 
@@ -894,9 +883,6 @@ void rWalkerHelper<rMultiSlater>::updateWalker(int elec, Vector3d& oldCoord, con
     }
 
     sum += cI * ratioI;
-    ratio[0] = ratioA;
-    ratio[1] = ratioB;
-    detRatios.push_back(ratio);
   }
   totalRatio = c0 + sum;
   Y[0] /= totalRatio;
@@ -917,7 +903,36 @@ void rWalkerHelper<rMultiSlater>::OverlapWithGradient(const rDeterminant& d, con
   {
     CIgradRatio.setZero(w.getNumOfDets());
 
-    for (int I = 0; I < w.getNumOfDets(); I++) { CIgradRatio(I) = w.ciParity[I] * (detRatios[I][0] * detRatios[I][1] / totalRatio).real(); }
+    CIgradRatio(0) += w.ciParity[0] * (1.0 / totalRatio).real();
+    for (size_t I = 1; I < w.getNumOfDets(); I++)
+    {
+      //alpha
+      //these are the internal indices
+      Eigen::VectorXi rowVecA = w.ciIndices[0][I][0];
+      Eigen::VectorXi colVecA = w.ciIndices[0][I][1];
+
+      Eigen::MatrixXcd aA;
+      igl::slice(AinvAbar[0], rowVecA, colVecA, aA);
+
+      Eigen::FullPivLU<MatrixXcd> lua(aA);
+      std::complex<double> ratioA = lua.determinant();
+
+      //beta
+      //these are the internal indices
+      Eigen::VectorXi rowVecB = w.ciIndices[1][I][0];
+      Eigen::VectorXi colVecB = w.ciIndices[1][I][1];
+
+      Eigen::MatrixXcd aB;
+      igl::slice(AinvAbar[1], rowVecB, colVecB, aB);
+
+      Eigen::FullPivLU<MatrixXcd> lub(aB);
+      std::complex<double> ratioB = lub.determinant();
+
+      //alpha and beta
+      std::complex<double> ratioI = ratioA * ratioB;
+
+      CIgradRatio(I) += w.ciParity[I] * (ratioI / totalRatio).real();
+    }
   }//ci param grad
 
   Eigen::VectorXd OrbgradRatio = VectorXd::Zero(0);
