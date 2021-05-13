@@ -101,6 +101,79 @@ void readInput(string inputFile, schedule& schd, bool print) {
       schd.pseudo = boost::shared_ptr<Pseudopotential>(new Pseudopotential);
       schd.nGrid = input.get("realspace.nGrid", 5);
       schd.pCutOff = input.get("realspace.pseudoCutOff", 1.0e-8);
+      {
+        std::vector<Vector3d> Q6;
+        std::vector<double> Qwt6;
+
+        Q6.push_back(Vector3d(1.0, 0.0, 0.0));
+        Q6.push_back(Vector3d(-1.0, 0.0, 0.0));
+        Q6.push_back(Vector3d(0.0, 1.0, 0.0));
+        Q6.push_back(Vector3d(0.0, -1.0, 0.0));
+        Q6.push_back(Vector3d(0.0, 0.0, 1.0));
+        Q6.push_back(Vector3d(0.0, 0.0, -1.0));
+
+        Qwt6.push_back(1.0 / 6.0);
+        Qwt6.push_back(1.0 / 6.0);
+        Qwt6.push_back(1.0 / 6.0);
+        Qwt6.push_back(1.0 / 6.0);
+        Qwt6.push_back(1.0 / 6.0);
+        Qwt6.push_back(1.0 / 6.0);
+
+        schd.Q[6] = Q6;
+        schd.Qwt[6] = Qwt6;
+      }
+      {
+        std::vector<Vector3d> Q18;
+        std::vector<double> Qwt18;
+
+        Q18.push_back(Vector3d(1.0, 0.0, 0.0));
+        Q18.push_back(Vector3d(-1.0, 0.0, 0.0));
+        Q18.push_back(Vector3d(0.0, 1.0, 0.0));
+        Q18.push_back(Vector3d(0.0, -1.0, 0.0));
+        Q18.push_back(Vector3d(0.0, 0.0, 1.0));
+        Q18.push_back(Vector3d(0.0, 0.0, -1.0));
+
+        Qwt18.push_back(1.0 / 30.0);
+        Qwt18.push_back(1.0 / 30.0);
+        Qwt18.push_back(1.0 / 30.0);
+        Qwt18.push_back(1.0 / 30.0);
+        Qwt18.push_back(1.0 / 30.0);
+        Qwt18.push_back(1.0 / 30.0);
+
+        double p = 1.0 / std::sqrt(2);
+        Q18.push_back(Vector3d(p, p, 0.0));
+        Q18.push_back(Vector3d(-p, p, 0.0));
+        Q18.push_back(Vector3d(p, -p, 0.0));
+        Q18.push_back(Vector3d(-p, -p, 0.0)); 
+
+        Q18.push_back(Vector3d(0.0, p, p));
+        Q18.push_back(Vector3d(0.0, -p, p));
+        Q18.push_back(Vector3d(0.0, p, -p));
+        Q18.push_back(Vector3d(0.0, -p, -p));
+
+        Q18.push_back(Vector3d(p, 0.0, p));
+        Q18.push_back(Vector3d(-p, 0.0, p));
+        Q18.push_back(Vector3d(p, 0.0, -p));
+        Q18.push_back(Vector3d(-p, 0.0, -p));
+
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+        Qwt18.push_back(1.0 / 15.0);
+
+        schd.Q[18] = Q18;
+        schd.Qwt[18] = Qwt18;
+      }
+      //below is deprecated, quadrature grid dynamically chosen based on Z = Z_eff + n_core
+      /*
       schd.pQuad = input.get("realspace.pseudo", 4);
       if (schd.pQuad == 4)
       {
@@ -217,6 +290,7 @@ void readInput(string inputFile, schedule& schd, bool print) {
         cout << "set pseudo to 4, 6, 12, or 18" << endl;
         exit(0);
       }
+      */
     }
     else schd.walkerBasis = ORBITALS;
 

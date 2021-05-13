@@ -156,6 +156,11 @@ void Pseudopotential::nonLocalPotential(int i, double tau, const rDeterminant &d
             {
                 int I = ppatm.indices()[a];
 
+                //choose quadrature grid
+                int Z = ppatm.ncore() + schd.Ncharge[I];
+                double pQuad = 6;
+                if (Z > 18) { pQuad = 18; }
+
                 //riI
                 Eigen::Vector3d rI = schd.Ncoords[I];
                 Eigen::Vector3d ri = d.coord[i];
@@ -196,10 +201,10 @@ void Pseudopotential::nonLocalPotential(int i, double tau, const rDeterminant &d
                 Matrix3d rot;
                 rot << zhat.transpose(), xhat.transpose(), yhat.transpose();
 
-                for (int q = 0; q < schd.Q.size(); q++)
+                for (int q = 0; q < schd.Q[pQuad].size(); q++)
                 {
                     //calculate new vector, riprime
-                    Eigen::Vector3d rotQ = rot * schd.Q[q];
+                    Eigen::Vector3d rotQ = rot * schd.Q[pQuad][q];
                     Eigen::Vector3d riIprime = riInorm * rotQ;
                     Eigen::Vector3d riprime = riIprime + rI;
 
@@ -226,7 +231,7 @@ void Pseudopotential::nonLocalPotential(int i, double tau, const rDeterminant &d
                     }//l
 
                     //update tensors
-                    vq.push_back(vxx * schd.Qwt[q]);
+                    vq.push_back(vxx * schd.Qwt[pQuad][q]);
                     rq.push_back(riprime);
                 }//q
             }//atm idx
@@ -266,6 +271,11 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                 for (int a = 0; a < ppatm.indices().size(); a++) //loop over indices of atom
                 {
                     int I = ppatm.indices()[a];
+
+                    //choose quadrature grid
+                    int Z = ppatm.ncore() + schd.Ncharge[I];
+                    double pQuad = 6;
+                    if (Z > 18) { pQuad = 18; }
 
                     //riI
                     Eigen::Vector3d rI = schd.Ncoords[I];
@@ -307,10 +317,10 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                     Matrix3d rot;
                     rot << zhat.transpose(), xhat.transpose(), yhat.transpose();
 
-                    for (int q = 0; q < schd.Q.size(); q++)
+                    for (int q = 0; q < schd.Q[pQuad].size(); q++)
                     {
                         //calculate new vector, riprime
-                        Eigen::Vector3d rotQ = rot * schd.Q[q];
+                        Eigen::Vector3d rotQ = rot * schd.Q[pQuad][q];
                         Eigen::Vector3d riIprime = riInorm * rotQ;
                         Eigen::Vector3d riprime = riIprime + rI;
 
@@ -337,7 +347,7 @@ void Pseudopotential::nonLocalPotential(const rDeterminant &d, std::vector<std::
                         }//l
 
                         //update tensors
-                        vq.push_back(vxx * schd.Qwt[q]);
+                        vq.push_back(vxx * schd.Qwt[pQuad][q]);
                         rq.push_back(riprime);
                     }//q
                 }//atm idx

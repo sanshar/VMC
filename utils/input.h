@@ -147,7 +147,6 @@ private:
       & nMaxMacroIter
       & nMaxMicroIter
       & sampleEveryRt
-      & pQuad
       & pCutOff
       & Q
       & Qwt
@@ -208,9 +207,8 @@ public:
   RSTEPTYPE rStepType;
   double rStepSize;
   //pseudopotential options
-  int pQuad; //sampled vertices of regular polhydral, number or points
-  std::vector<Vector3d> Q;  //qudrature points
-  std::vector<double> Qwt; //quadrature point weights
+  std::map<int, std::vector<Vector3d>> Q;  //qudrature points
+  std::map<int, std::vector<double>> Qwt; //quadrature point weights
   double pCutOff; //cutoff for pseudopotential
   bool fourBodyJastrow;
   JBASIS fourBodyJastrowBasis;
