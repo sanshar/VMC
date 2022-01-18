@@ -10,7 +10,7 @@ class DQMCWalker {
     std::complex<double> orthoFac, trialOverlap;
     std::vector<std::complex<double>> mfShifts;
     std::array<std::complex<double>, 2> propConstant;
-    Eigen::MatrixXcd expOneBodyOperator;
+    std::array<Eigen::MatrixXcd, 2> expOneBodyOperator;
     //std::vector<Eigen::MatrixXf> floatChol;
     //std::vector<std::vector<float>> floatChol;
     bool rhfQ, phaselessQ;
@@ -18,7 +18,7 @@ class DQMCWalker {
     std::normal_distribution<double> normal;
 
     // constructor
-    DQMCWalker(bool prhfQ = true, bool pphaselessQ = false);
+    DQMCWalker(bool prhfQ = false, bool pphaselessQ = true);
 
     void prepProp(std::array<Eigen::MatrixXcd, 2>& ref, Hamiltonian& ham, double pdt, double pene0);
 
@@ -33,6 +33,7 @@ class DQMCWalker {
 
     std::complex<double> overlap(Wavefunction& wave);
     void forceBias(Wavefunction& wave, Hamiltonian& ham, Eigen::VectorXcd& fb);
+    void oneRDM(Wavefunction& wave, Eigen::MatrixXcd& rdmSample);
     std::array<std::complex<double>, 2> hamAndOverlap(Wavefunction& wave, Hamiltonian& ham);
 };
 #endif

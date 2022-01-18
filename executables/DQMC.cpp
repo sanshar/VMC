@@ -10,14 +10,14 @@
 #include "integral.h"
 #include "SHCIshm.h"
 //#include "DQMCSampling.h"
-#include "ProjectedMF.h"
-#include "RHF.h"
+//#include "ProjectedMF.h"
+//#include "RHF.h"
 #include "UHF.h"
-#include "KSGHF.h"
-#include "Multislater.h"
-#include "CCSD.h"
-#include "UCCSD.h"
-#include "sJastrow.h"
+//#include "KSGHF.h"
+//#include "Multislater.h"
+//#include "CCSD.h"
+//#include "UCCSD.h"
+//#include "sJastrow.h"
 #include "MixedEstimator.h"
 
 int main(int argc, char *argv[])
@@ -57,89 +57,43 @@ int main(int argc, char *argv[])
   Hamiltonian ham(schd.integralsFile);
   if (commrank == 0) cout << "Number of orbitals:  " << ham.norbs << ", nalpha:  " << ham.nalpha << ", nbeta:  " << ham.nbeta << endl;
   DQMCWalker walker;
-  if (ham.nalpha != ham.nbeta) walker = DQMCWalker(false);
-  if (schd.phaseless) {
-    if (ham.nalpha == ham.nbeta) walker = DQMCWalker(true, true);
-    else walker = DQMCWalker(false, true);
-  }  
+  walker = DQMCWalker(false, true);
+  
+  //walker = DQMCWalker(false, true);
+  //std::array<Eigen::MatrixXcd, 2> det;
+  //det[0] = Eigen::MatrixXcd::Zero(4, 2);
+  //det[1] = Eigen::MatrixXcd::Zero(4, 2);
+  //readMat(det[0], "up.dat");
+  //readMat(det[1], "down.dat");
+  //cout << "up\n" << det[0] << endl << endl;
+  //cout << "dn\n" << det[1] << endl << endl;
+  //walker.setDet(det);
 
   // left state
   Wavefunction *waveLeft;
-  if (schd.leftWave == "rhf") {
-    waveLeft = new RHF(ham, true); 
-  }
-  else if (schd.leftWave == "uhf") {
-    waveLeft = new UHF(ham, true); 
-  }
-  else if (schd.leftWave == "ksghf") {
-    if (schd.optimizeOrbs)
-      optimizeProjectedSlater(ham.ecore, ham.h1, ham.chol);
-    MPI_Barrier(MPI_COMM_WORLD);
-    waveLeft = new KSGHF(ham, true); 
-  }
-  else if (schd.leftWave == "multislater") {
-    int nact = (schd.nciAct < 0) ? ham.norbs : schd.nciAct;
-    waveLeft = new Multislater(schd.determinantFile, nact, schd.nciCore); 
-  }
-  else if (schd.leftWave == "ccsd") {
-    if (commrank == 0) cout << "Not supported yet\n";
-    exit(0);
-  }
-  else if (schd.leftWave == "uccsd") {
-    if (commrank == 0) cout << "Not supported yet\n";
-    exit(0);
-  }
-  else if (schd.leftWave == "jastrow") {
-    waveLeft = new sJastrow(ham.norbs, ham.nalpha, ham.nbeta);
-  }
-  else {
-    if (commrank == 0) cout << "Left wave function not specified\n";
-    exit(0);
-  }
-  
+  waveLeft = new UHF(ham, true); 
+
+  //auto overlap = walker.overlap(*waveLeft);
+  //Eigen::VectorXcd fb;
+  //walker.forceBias(*waveLeft, ham, fb);
+  //Eigen::MatrixXcd rdmSample;
+  //walker.oneRDM(*waveLeft, rdmSample);
+  //auto hamOverlap = walker.hamAndOverlap(*waveLeft, ham);
+  //cout << "overlap:  " << overlap << endl << endl;
+  //cout << "fb\n" << fb << endl << endl;
+  //cout << "rdmSample\n" << rdmSample << endl << endl;
+  //cout << "ham:  " << hamOverlap[0] << ",  overlap:  " <<  hamOverlap[1] << endl << endl;
+  //cout << "eloc:  " << hamOverlap[0] / hamOverlap[1] << endl;
+  //exit(0);
+
   // right state
   Wavefunction *waveRight;
-  if (schd.rightWave == "rhf") {
-    waveRight = new RHF(ham, false); 
-  }
-  else if (schd.rightWave == "uhf") {
-    waveRight = new UHF(ham, false); 
-    if(schd.phaseless) walker = DQMCWalker(false, true);
-    else walker = DQMCWalker(false);
-  }
-  else if (schd.rightWave == "ksghf") {
-    if (commrank == 0) cout << "Not supported yet\n";
-    exit(0);
-  }
-  else if (schd.rightWave == "multislater") { 
-    int nact = (schd.nciAct < 0) ? ham.norbs : schd.nciAct;
-    waveLeft = new Multislater(schd.determinantFile, nact, schd.nciCore, true); 
-    walker = DQMCWalker(false);
-  }
-  else if (schd.rightWave == "ccsd") {
-    waveRight = new CCSD(ham.norbs, ham.nalpha);
-  }
-  else if (schd.rightWave == "uccsd") {
-    waveRight = new UCCSD(ham.norbs, ham.nalpha, ham.nbeta);
-    walker = DQMCWalker(false);
-  }
-  else if (schd.rightWave == "jastrow") {
-    waveRight = new sJastrow(ham.norbs, ham.nalpha, ham.nbeta);
-  }
-  else {
-    if (commrank == 0) cout << "Right wave function not specified\n";
-    exit(0);
-  }
+  waveRight = new UHF(ham, false); 
 
-  if (schd.phaseless) {
-    Wavefunction *waveGuide;
-    waveGuide = new RHF(ham, true); 
-    calcMixedEstimatorLongProp(*waveLeft, *waveRight, *waveGuide, walker, ham);
-  }
-  else {
-    if (schd.dt == 0.) calcMixedEstimatorNoProp(*waveLeft, *waveRight, walker, ham);
-    else calcMixedEstimator(*waveLeft, *waveRight, walker, ham);
-  }
+  Wavefunction *waveGuide;
+  waveGuide = new UHF(ham, true); 
+  calcMixedEstimatorLongProp(*waveLeft, *waveRight, *waveGuide, walker, ham);
+  
   //else calcMixedEstimatorLongProp(*waveLeft, *waveRight, walker, ham);
   
   if (commrank == 0) cout << "\nTotal calculation time:  " << getTime() - startofCalc << " s\n";

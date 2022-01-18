@@ -138,15 +138,8 @@ OBJ_DQMC = obj/staticVariables.o \
 	obj/DQMCStatistics.o \
 	obj/DQMCWalker.o \
 	obj/Hamiltonian.o \
-	obj/RHF.o \
 	obj/UHF.o \
-	obj/KSGHF.o \
-	obj/Multislater.o \
-	obj/CCSD.o \
-	obj/UCCSD.o \
-	obj/sJastrow.o \
-	obj/MixedEstimator.o \
-	obj/ProjectedMF.o
+	obj/MixedEstimator.o 
 
 #obj/DQMCSampling.o \
 #obj/DQMCUtils.o \

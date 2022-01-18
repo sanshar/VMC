@@ -48,7 +48,7 @@ void DQMCWalker::prepProp(std::array<Eigen::MatrixXcd, 2>& ref, Hamiltonian& ham
     }
   }
   else {
-    if (commrank == 0) cout << "Using ROHF RDM for background subtraction\n\n";
+    if (commrank == 0) cout << "Using UHF RDM for background subtraction\n\n";
     matPair refT;
     refT[0] = ref[0].adjoint();
     refT[1] = ref[1].adjoint();
@@ -57,14 +57,19 @@ void DQMCWalker::prepProp(std::array<Eigen::MatrixXcd, 2>& ref, Hamiltonian& ham
   }
 
   // calculate mean field shifts
-  MatrixXcd oneBodyOperator = ham.h1Mod;
+  std::array<MatrixXcd, 2> oneBodyOperator;
+  oneBodyOperator[0] = ham.h1Mod[0];
+  oneBodyOperator[1] = ham.h1Mod[1];
   complex<double> constant(0., 0.);
   constant += ene0 - ham.ecore;
   for (int i = 0; i < nfields; i++) {
-    MatrixXcd op = complex<double>(0., 1.) * ham.chol[i];
-    complex<double> mfShift = 1. * green[0].cwiseProduct(op).sum() + 1. * green[1].cwiseProduct(op).sum();
+    std::array<MatrixXcd, 2> op;
+    op[0] = complex<double>(0., 1.) * ham.chol[i][0];
+    op[1] = complex<double>(0., 1.) * ham.chol[i][1];
+    complex<double> mfShift = 1. * green[0].cwiseProduct(op[0]).sum() + 1. * green[1].cwiseProduct(op[1]).sum();
     constant -= pow(mfShift, 2) / 2.;
-    oneBodyOperator -= mfShift * op;
+    oneBodyOperator[0] -= mfShift * op[0];
+    oneBodyOperator[1] -= mfShift * op[1];
     if (phaselessQ) mfShifts.push_back(mfShift);
     else mfShifts.push_back(mfShift / (ham.nalpha + ham.nbeta));
   }
@@ -77,7 +82,8 @@ void DQMCWalker::prepProp(std::array<Eigen::MatrixXcd, 2>& ref, Hamiltonian& ham
     propConstant[0] = constant / ham.nalpha;
     propConstant[1] = constant / ham.nbeta;
   }
-  expOneBodyOperator =  (-dt * oneBodyOperator / 2.).exp();
+  expOneBodyOperator[0] =  (-dt * oneBodyOperator[0] / 2.).exp();
+  expOneBodyOperator[1] =  (-dt * oneBodyOperator[1] / 2.).exp();
 
   //ham.floattenCholesky(floatChol);
 };
@@ -146,51 +152,51 @@ void DQMCWalker::orthogonalize()
 
 void DQMCWalker::propagate(Hamiltonian& ham)
 {
-  int norbs = det[0].rows();
-  int nfields = ham.floatChol.size(); 
-  //MatrixXf prop = MatrixXf::Zero(norbs, norbs);
-  vector<float> prop(norbs * (norbs + 1) / 2, 0.);
-  complex<double> shift(0., 0.);
-  VectorXd fields(nfields);
-  fields.setZero();
-  for (int n = 0; n < nfields; n++) {
-    double field_n = normal(generator);
-    fields(n) = field_n;
-    for (int i = 0; i < norbs; i++)
-      for (int j = 0; j <= i; j++)
-        prop[i * (i + 1) / 2 + j] += float(field_n) * ham.floatChol[n][i * (i + 1) / 2 + j];
-    //prop.noalias() += float(field_n) * floatChol[i];
-    shift += field_n * mfShifts[n];
-  }
-  //MatrixXcd propc = sqrt(dt) * complex<double>(0, 1.) * prop.cast<double>();
-  MatrixXcd propc = MatrixXcd::Zero(norbs, norbs);
-  for (int i = 0; i < norbs; i++) {
-    propc(i, i) = sqrt(dt) * complex<double>(0, 1.) * prop[i * (i + 1) / 2 + i];
-    for (int j = 0; j < i; j++) {
-      propc(i, j) = sqrt(dt) * complex<double>(0, 1.) * prop[i * (i + 1) / 2 + j];
-      propc(j, i) = sqrt(dt) * complex<double>(0, 1.) * prop[i * (i + 1) / 2 + j];
-    }
-  }
-  
-  det[0] = expOneBodyOperator * det[0];
-  MatrixXcd temp = det[0];
-  for (int i = 1; i < 10; i++) {
-    temp = propc * temp / i;
-    det[0] += temp;
-  }
-  det[0] = exp(-sqrt(dt) * shift) * exp(propConstant[0] * dt / 2.) * expOneBodyOperator * det[0];
-
-
-  if (rhfQ) det[1] = det[0];
-  else {
-    det[1] = expOneBodyOperator * det[1];
-    temp = det[1];
-    for (int i = 1; i < 10; i++) {
-      temp = propc * temp / i;
-      det[1] += temp;
-    }
-    det[1] = exp(-sqrt(dt) * shift) * exp(propConstant[1] * dt / 2.) * expOneBodyOperator * det[1];
-  }
+//  int norbs = det[0].rows();
+//  int nfields = ham.floatChol.size(); 
+//  //MatrixXf prop = MatrixXf::Zero(norbs, norbs);
+//  vector<float> prop(norbs * (norbs + 1) / 2, 0.);
+//  complex<double> shift(0., 0.);
+//  VectorXd fields(nfields);
+//  fields.setZero();
+//  for (int n = 0; n < nfields; n++) {
+//    double field_n = normal(generator);
+//    fields(n) = field_n;
+//    for (int i = 0; i < norbs; i++)
+//      for (int j = 0; j <= i; j++)
+//        prop[i * (i + 1) / 2 + j] += float(field_n) * ham.floatChol[n][i * (i + 1) / 2 + j];
+//    //prop.noalias() += float(field_n) * floatChol[i];
+//    shift += field_n * mfShifts[n];
+//  }
+//  //MatrixXcd propc = sqrt(dt) * complex<double>(0, 1.) * prop.cast<double>();
+//  MatrixXcd propc = MatrixXcd::Zero(norbs, norbs);
+//  for (int i = 0; i < norbs; i++) {
+//    propc(i, i) = sqrt(dt) * complex<double>(0, 1.) * prop[i * (i + 1) / 2 + i];
+//    for (int j = 0; j < i; j++) {
+//      propc(i, j) = sqrt(dt) * complex<double>(0, 1.) * prop[i * (i + 1) / 2 + j];
+//      propc(j, i) = sqrt(dt) * complex<double>(0, 1.) * prop[i * (i + 1) / 2 + j];
+//    }
+//  }
+//  
+//  det[0] = expOneBodyOperator * det[0];
+//  MatrixXcd temp = det[0];
+//  for (int i = 1; i < 10; i++) {
+//    temp = propc * temp / i;
+//    det[0] += temp;
+//  }
+//  det[0] = exp(-sqrt(dt) * shift) * exp(propConstant[0] * dt / 2.) * expOneBodyOperator * det[0];
+//
+//
+//  if (rhfQ) det[1] = det[0];
+//  else {
+//    det[1] = expOneBodyOperator * det[1];
+//    temp = det[1];
+//    for (int i = 1; i < 10; i++) {
+//      temp = propc * temp / i;
+//      det[1] += temp;
+//    }
+//    det[1] = exp(-sqrt(dt) * shift) * exp(propConstant[1] * dt / 2.) * expOneBodyOperator * det[1];
+//  }
 };
 
 
@@ -204,9 +210,12 @@ double DQMCWalker::propagatePhaseless(Wavefunction& wave, Hamiltonian& ham, doub
   // capping fb
   //for (int n = 0; n < nfields; n++) 
   //  if (std::abs(fb(n)) > 1./sqrt(dt)) fb(n) = fb(n) / std::abs(fb(n));
-  MatrixXf prop = MatrixXf::Zero(norbs, norbs);
-  vector<float> propr(norbs * (norbs + 1) / 2, 0.);
-  vector<float> propi(norbs * (norbs + 1) / 2, 0.);
+  MatrixXf propUp = MatrixXf::Zero(norbs, norbs);
+  MatrixXf propDn = MatrixXf::Zero(norbs, norbs);
+  vector<float> propUpr(norbs * (norbs + 1) / 2, 0.);
+  vector<float> propUpi(norbs * (norbs + 1) / 2, 0.);
+  vector<float> propDnr(norbs * (norbs + 1) / 2, 0.);
+  vector<float> propDni(norbs * (norbs + 1) / 2, 0.);
   //MatrixXcd propc = MatrixXcd::Zero(norbs, norbs);
   complex<double> shift(0., 0.), fbTerm(0., 0.);
   for (int n = 0; n < nfields; n++) {
@@ -216,8 +225,10 @@ double DQMCWalker::propagatePhaseless(Wavefunction& wave, Hamiltonian& ham, doub
     //propc += sqrt(dt) * complex<double>(0., 1.) * (field_n - fieldShift) * ham.chol[n];
     for (int i = 0; i < norbs; i++) {
       for (int j = 0; j <= i; j++) {
-        propr[i * (i + 1) / 2 + j] += float(field_n - fieldShift.real()) * ham.floatChol[n][i * (i + 1) / 2 + j];
-        propi[i * (i + 1) / 2 + j] += float(- fieldShift.imag()) * ham.floatChol[n][i * (i + 1) / 2 + j];
+        propUpr[i * (i + 1) / 2 + j] += float(field_n - fieldShift.real()) * ham.floatChol[n][0][i * (i + 1) / 2 + j];
+        propUpi[i * (i + 1) / 2 + j] += float(- fieldShift.imag()) * ham.floatChol[n][0][i * (i + 1) / 2 + j];
+        propDnr[i * (i + 1) / 2 + j] += float(field_n - fieldShift.real()) * ham.floatChol[n][1][i * (i + 1) / 2 + j];
+        propDni[i * (i + 1) / 2 + j] += float(- fieldShift.imag()) * ham.floatChol[n][1][i * (i + 1) / 2 + j];
       }
     }
     //prop.noalias() += float(field_n) * floatChol[i];
@@ -225,35 +236,39 @@ double DQMCWalker::propagatePhaseless(Wavefunction& wave, Hamiltonian& ham, doub
     fbTerm += (field_n * fieldShift - fieldShift * fieldShift / 2);
   }
 
+
   //MatrixXcd propc = sqrt(dt) * complex<double>(0, 1.) * prop.cast<double>();
-  MatrixXcd propc = MatrixXcd::Zero(norbs, norbs);
+  MatrixXcd propUpc = MatrixXcd::Zero(norbs, norbs);
+  MatrixXcd propDnc = MatrixXcd::Zero(norbs, norbs);
   for (int i = 0; i < norbs; i++) {
-    propc(i, i) = sqrt(dt) * (complex<double>(0., 1.) * propr[i * (i + 1) / 2 + i] - propi[i * (i + 1) / 2 + i]);
+    propUpc(i, i) = sqrt(dt) * (complex<double>(0., 1.) * propUpr[i * (i + 1) / 2 + i] - propUpi[i * (i + 1) / 2 + i]);
+    propDnc(i, i) = sqrt(dt) * (complex<double>(0., 1.) * propDnr[i * (i + 1) / 2 + i] - propDni[i * (i + 1) / 2 + i]);
     for (int j = 0; j < i; j++) {
-      propc(i, j) = sqrt(dt) * (complex<double>(0., 1.) * propr[i * (i + 1) / 2 + j] - propi[i * (i + 1) / 2 + j]);
-      propc(j, i) = sqrt(dt) * (complex<double>(0., 1.) * propr[i * (i + 1) / 2 + j] - propi[i * (i + 1) / 2 + j]);
+      propUpc(i, j) = sqrt(dt) * (complex<double>(0., 1.) * propUpr[i * (i + 1) / 2 + j] - propUpi[i * (i + 1) / 2 + j]);
+      propUpc(j, i) = sqrt(dt) * (complex<double>(0., 1.) * propUpr[i * (i + 1) / 2 + j] - propUpi[i * (i + 1) / 2 + j]);
+      propDnc(i, j) = sqrt(dt) * (complex<double>(0., 1.) * propDnr[i * (i + 1) / 2 + j] - propDni[i * (i + 1) / 2 + j]);
+      propDnc(j, i) = sqrt(dt) * (complex<double>(0., 1.) * propDnr[i * (i + 1) / 2 + j] - propDni[i * (i + 1) / 2 + j]);
     }
   }
-  
-  det[0] = expOneBodyOperator * det[0];
+
+
+  det[0] = expOneBodyOperator[0] * det[0];
   MatrixXcd temp = det[0];
   for (int i = 1; i < 6; i++) {
-    temp = propc * temp / i;
+    temp = propUpc * temp / i;
     det[0] += temp;
   }
-  det[0] = expOneBodyOperator * det[0];
+  det[0] = expOneBodyOperator[0] * det[0];
 
 
-  if (rhfQ) det[1] = det[0];
-  else {
-    det[1] = expOneBodyOperator * det[1];
-    temp = det[1];
-    for (int i = 1; i < 6; i++) {
-      temp = propc * temp / i;
-      det[1] += temp;
-    }
-    det[1] = expOneBodyOperator * det[1];
+  det[1] = expOneBodyOperator[1] * det[1];
+  temp = det[1];
+  for (int i = 1; i < 6; i++) {
+    temp = propDnc * temp / i;
+    det[1] += temp;
   }
+  det[1] = expOneBodyOperator[1] * det[1];
+  
   
   // phaseless
   complex<double> oldOverlap = trialOverlap;
@@ -283,7 +298,7 @@ double DQMCWalker::propagatePhaseless(Wavefunction& wave, Hamiltonian& ham, doub
 // only used in phaseless
 std::complex<double> DQMCWalker::overlap(Wavefunction& wave)
 {
-  std::complex<double> overlap = rhfQ ? wave.overlap(det[0]) : wave.overlap(det);
+  std::complex<double> overlap = wave.overlap(det);
   trialOverlap = overlap;
   return overlap;
 };
@@ -291,14 +306,19 @@ std::complex<double> DQMCWalker::overlap(Wavefunction& wave)
 
 void DQMCWalker::forceBias(Wavefunction& wave, Hamiltonian& ham, Eigen::VectorXcd& fb)
 {
-  if (rhfQ) wave.forceBias(det[0], ham, fb);
-  else wave.forceBias(det, ham, fb);
+  wave.forceBias(det, ham, fb);
+};
+
+
+void DQMCWalker::oneRDM(Wavefunction& wave, Eigen::MatrixXcd& rdmSample)
+{
+  wave.oneRDM(det, rdmSample);
 };
 
 
 std::array<std::complex<double>, 2> DQMCWalker::hamAndOverlap(Wavefunction& wave, Hamiltonian& ham)
 {
-  std::array<complex<double>, 2> hamOverlap = rhfQ ? wave.hamAndOverlap(det[0], ham) : wave.hamAndOverlap(det, ham);
+  std::array<complex<double>, 2> hamOverlap = wave.hamAndOverlap(det, ham);
   hamOverlap[0] *= orthoFac;
   hamOverlap[1] *= orthoFac;
   return hamOverlap;
