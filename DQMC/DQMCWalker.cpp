@@ -71,7 +71,7 @@ void DQMCWalker::prepProp(std::array<Eigen::MatrixXcd, 2>& ref, Hamiltonian& ham
     oneBodyOperator[0] -= mfShift * op[0];
     oneBodyOperator[1] -= mfShift * op[1];
     if (phaselessQ) mfShifts.push_back(mfShift);
-    else mfShifts.push_back(mfShift / (ham.nalpha + ham.nbeta));
+    else mfShifts.push_back(mfShift /(1. * (ham.nalpha + ham.nbeta)));
   }
 
   if (phaselessQ) {
@@ -79,8 +79,8 @@ void DQMCWalker::prepProp(std::array<Eigen::MatrixXcd, 2>& ref, Hamiltonian& ham
     propConstant[1] = constant - ene0;
   }
   else {
-    propConstant[0] = constant / ham.nalpha;
-    propConstant[1] = constant / ham.nbeta;
+    propConstant[0] = constant / (1. * ham.nalpha);
+    propConstant[1] = constant / (1. * ham.nbeta);
   }
   expOneBodyOperator[0] =  (-dt * oneBodyOperator[0] / 2.).exp();
   expOneBodyOperator[1] =  (-dt * oneBodyOperator[1] / 2.).exp();
@@ -233,7 +233,7 @@ double DQMCWalker::propagatePhaseless(Wavefunction& wave, Hamiltonian& ham, doub
     }
     //prop.noalias() += float(field_n) * floatChol[i];
     shift += (field_n - fieldShift) * mfShifts[n];
-    fbTerm += (field_n * fieldShift - fieldShift * fieldShift / 2);
+    fbTerm += (field_n * fieldShift - fieldShift * fieldShift / 2.);
   }
 
 
@@ -241,13 +241,13 @@ double DQMCWalker::propagatePhaseless(Wavefunction& wave, Hamiltonian& ham, doub
   MatrixXcd propUpc = MatrixXcd::Zero(norbs, norbs);
   MatrixXcd propDnc = MatrixXcd::Zero(norbs, norbs);
   for (int i = 0; i < norbs; i++) {
-    propUpc(i, i) = sqrt(dt) * (complex<double>(0., 1.) * propUpr[i * (i + 1) / 2 + i] - propUpi[i * (i + 1) / 2 + i]);
-    propDnc(i, i) = sqrt(dt) * (complex<double>(0., 1.) * propDnr[i * (i + 1) / 2 + i] - propDni[i * (i + 1) / 2 + i]);
+    propUpc(i, i) = sqrt(dt) * static_cast<complex<double>>(complex<float>(0., 1.) * propUpr[i * (i + 1) / 2 + i] - propUpi[i * (i + 1) / 2 + i]);
+    propDnc(i, i) = sqrt(dt) * static_cast<complex<double>>(complex<float>(0., 1.) * propDnr[i * (i + 1) / 2 + i] - propDni[i * (i + 1) / 2 + i]);
     for (int j = 0; j < i; j++) {
-      propUpc(i, j) = sqrt(dt) * (complex<double>(0., 1.) * propUpr[i * (i + 1) / 2 + j] - propUpi[i * (i + 1) / 2 + j]);
-      propUpc(j, i) = sqrt(dt) * (complex<double>(0., 1.) * propUpr[i * (i + 1) / 2 + j] - propUpi[i * (i + 1) / 2 + j]);
-      propDnc(i, j) = sqrt(dt) * (complex<double>(0., 1.) * propDnr[i * (i + 1) / 2 + j] - propDni[i * (i + 1) / 2 + j]);
-      propDnc(j, i) = sqrt(dt) * (complex<double>(0., 1.) * propDnr[i * (i + 1) / 2 + j] - propDni[i * (i + 1) / 2 + j]);
+      propUpc(i, j) = sqrt(dt) * static_cast<complex<double>>(complex<float>(0., 1.) * propUpr[i * (i + 1) / 2 + j] - propUpi[i * (i + 1) / 2 + j]);
+      propUpc(j, i) = sqrt(dt) * static_cast<complex<double>>(complex<float>(0., 1.) * propUpr[i * (i + 1) / 2 + j] - propUpi[i * (i + 1) / 2 + j]);
+      propDnc(i, j) = sqrt(dt) * static_cast<complex<double>>(complex<float>(0., 1.) * propDnr[i * (i + 1) / 2 + j] - propDni[i * (i + 1) / 2 + j]);
+      propDnc(j, i) = sqrt(dt) * static_cast<complex<double>>(complex<float>(0., 1.) * propDnr[i * (i + 1) / 2 + j] - propDni[i * (i + 1) / 2 + j]);
     }
   }
 
