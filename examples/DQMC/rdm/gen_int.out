@@ -1,0 +1,676 @@
+#INFO: **** input file is /projects/anma2640/VMC/dqmc_uihf/VMC/examples/DQMC/rdm/gen_int.py ****
+#!/usr/bin/env python
+
+import numpy as np
+from scipy import linalg as la
+from pyscf import gto, scf, ao2mo, lo, fci
+import h5py
+
+np.set_printoptions(3, linewidth=1000, suppress=True)
+
+mol = gto.M(
+atom = '''
+O        0.000000    0.000000    0.117790
+H        0.000000    0.755453   -0.471161
+H        0.000000   -0.755453   -0.471161
+''',
+basis = '631g',
+charge = 1,
+spin = 1,  # = 2S = spin_up - spin_down
+verbose = 4
+)
+
+rmf = scf.RHF(mol)
+rmf.kernel()
+
+cisolver = fci.FCI(rmf)
+e_fci, ci = cisolver.kernel()
+print('e(FCI) = %.12f' % e_fci)
+dm1_fci = cisolver.make_rdm1(ci, mol.nao, mol.nelec)
+h1e = rmf.mo_coeff.T.dot(rmf.get_hcore()).dot(rmf.mo_coeff)
+e1_fci = np.trace(np.dot(dm1_fci, h1e))
+
+mf = scf.UHF(mol)
+mf.kernel()
+
+H0 = mf.energy_nuc()
+ovlp = mf.get_ovlp()
+hcore = mf.get_hcore()
+eri = mf._eri
+dm = mf.make_rdm1()
+
+def scdm(coeff, ovlp):
+    aux = lo.orth.lowdin(ovlp)
+    no = coeff.shape[1]
+    ova = coeff.T @ ovlp @ aux
+    piv = la.qr(ova, pivoting=True)[2]
+    bc = ova[:, piv[:no]]
+    ova = np.dot(bc.T, bc)
+    s12inv = lo.orth.lowdin(ova)
+    return coeff @ bc @ s12inv
+
+C = np.asarray([scdm(mo, ovlp) for mo in mf.mo_coeff])
+#C = mf.mo_coeff
+
+from libdmet.utils import mdot
+from libdmet.system import integral
+from libdmet.basis_transform import make_basis
+from libdmet.solver import scf_solver
+
+h1 = np.asarray([mdot(lo.conj().T, hcore, lo) for lo in C])
+h2_aa = ao2mo.kernel(eri, C[0])
+h2_bb = ao2mo.kernel(eri, C[1])
+h2_ab = ao2mo.kernel(eri, (C[0], C[0], C[1], C[1]))
+h2 = np.asarray([h2_aa, h2_bb, h2_ab])
+#dm = make_basis.transform_rdm1_to_lo_mol(dm, C, ovlp)
+dm = make_basis.transform_rdm1_to_lo(dm, C, ovlp)
+norb = mol.nao_nr()
+nelec = mf.nelec
+H1 = {}
+H1['cd'] = h1
+H2 = {}
+H2['ccdd'] = h2
+ints = integral.Integral(norb, restricted=False, bogoliubov=False,
+                         H0=H0, H1=H1, H2=H2, ovlp=None)
+
+# save integrals
+print ("norb: ", norb)
+print ("nelec: ", nelec)
+print ("E_uhf from pyscf", mf.e_tot)
+ints.save("ImpHam.h5")
+np.save("dm.npy", dm)
+
+# re-compute uhf energy from UIHF
+ImpHam = integral.load("ImpHam.h5")
+nocc = nelec
+norb = ImpHam.norb
+
+dm0 = np.load("dm.npy")
+
+solver = scf_solver.SCFSolver(restricted=False, tol=1e-10, scf_newton=False, Sz=nelec[0]-nelec[1])
+rho, E = solver.run(ImpHam, nelec=sum(nelec), dm0=dm0)
+Mo_coeff = solver.scfsolver.mf.mo_coeff
+
+def write_dqmc(hcore, hcore_mod, chol, nelec, nmo, enuc, ms=0,
+                        filename='FCIDUMP_chol'):
+    with h5py.File(filename, 'w') as fh5:
+        print(np.array([nelec, nmo, ms, chol[0].shape[0]]))
+        fh5['header'] = np.array([nelec, nmo, ms, chol[0].shape[0]])
+        fh5['hcore_up'] = hcore[0].flatten()
+        fh5['hcore_dn'] = hcore[1].flatten()
+        fh5['hcore_mod_up'] = hcore_mod[0].flatten()
+        fh5['hcore_mod_dn'] = hcore_mod[1].flatten()
+        fh5['chol_up'] = chol[0].flatten()
+        fh5['chol_dn'] = chol[1].flatten()
+        fh5['energy_core'] = enuc
+
+
+def writeMat(mat, fileName, isComplex=False):
+  fileh = open(fileName, 'w')
+  for i in range(mat.shape[0]):
+      for j in range(mat.shape[1]):
+        if (isComplex):
+          fileh.write('(%16.10e, %16.10e) '%(mat[i,j].real, mat[i,j].imag))
+        else:
+          fileh.write('%16.10e '%(mat[i,j]))
+      fileh.write('\n')
+  fileh.close()
+
+# expressing eri's as sum of squares
+eri = ImpHam.H2['ccdd']
+h1 = ImpHam.H1['cd']
+enuc = float(ImpHam.H0)
+block_eri = np.block([[eri[0], eri[2]], [eri[2].T, eri[1]]])
+evals, evecs = np.linalg.eigh(block_eri)
+nchol = (evals > 1.e-8).nonzero()[0].shape[0]
+evals_sqrt = np.sqrt(evals[ evals > 1.e-8 ])
+chol = np.zeros((2, nchol, norb, norb))
+for i in range(nchol):
+  for m in range(norb):
+    for n in range(m+1):
+      triind = m*(m+1)//2 + n
+      chol[0, i, m, n] = evals_sqrt[-i-1] * evecs[triind, -i-1]
+      chol[0, i, n, m] = evals_sqrt[-i-1] * evecs[triind, -i-1]
+      chol[1, i, m, n] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
+      chol[1, i, n, m] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
+
+# checking uhf energy with cholesky ints
+coul = np.einsum('sgpr,spr->g', chol, rho)
+exc = np.einsum('sgpr,spt->sgrt', chol, rho)
+e2 = (np.einsum('g,g->', coul, coul) - np.einsum('sgtr,sgrt->', exc, exc) )/2
+e1 = np.einsum('ij,ji->', h1[0], rho[0]) + np.einsum('ij,ji->', h1[1], rho[1])
+print(f'uhf ene from chol: {enuc + e1 + e2}')
+e1_hf = e1
+
+# writing afqmc ints
+nbasis = norb
+v0_up = 0.5 * np.einsum('nik,njk->ij', chol[0], chol[0], optimize='optimal')
+v0_dn = 0.5 * np.einsum('nik,njk->ij', chol[1], chol[1], optimize='optimal')
+h1_mod = [ h1[0] - v0_up, h1[1] - v0_dn ]
+chol_flat = [ chol[0].reshape((nchol, -1)), chol[1].reshape((nchol, -1)) ]
+write_dqmc(h1, h1_mod, chol_flat, sum(nelec), nbasis, enuc, ms=nelec[0] - nelec[1], filename='FCIDUMP_chol')
+
+uhfCoeffs = np.empty((norb, 2*norb))
+uhfCoeffs[::,:norb] = Mo_coeff[0]
+uhfCoeffs[::,norb:] = Mo_coeff[1]
+writeMat(uhfCoeffs, "uhf.txt")
+
+# cc
+from libdmet.solver import cc
+solver = cc.CCSD(restricted=False, tol=1e-10, Sz=nelec[0]-nelec[1], scf_newton=False)
+rho_cc, E_cc = solver.run(ImpHam, nelec=sum(nelec), dm0=dm0, ccsdt=True, ccsdt_energy=True)
+e1_cc = np.einsum('ij,ji->', h1[0], rho_cc[0]) + np.einsum('ij,ji->', h1[1], rho_cc[1])
+
+print('\n\n')
+print(f'e1_hf: {e1_hf}')
+print(f'e1_cc: {e1_cc}')
+print(f'e1_fci: {e1_fci}')
+
+# afqmc
+import sys
+import os
+
+def write_afqmc_input(dt = 0.005, nsteps = 50, ndets = 100, fname = 'afqmc.json'):
+  afqmc_input =  '''
+{
+  "system":
+  {
+    "integrals": "FCIDUMP_chol"
+  },
+  "wavefunction":
+  {
+    "right": "uhf",
+    "left": "uhf",
+    "ndets": %i
+  },
+  "sampling":
+  {
+    "seed": %i,
+    "phaseless": true,
+    "dt": %f,
+    "nsteps": %i,
+    "nwalk": 50,
+    "choleskyThreshold": 2.0e-3,
+    "orthoSteps": 20,
+    "stochasticIter": 300
+  }
+}
+  '''%(ndets, np.random.randint(1, 1e6), dt, nsteps)
+  f = open (fname, "w")
+  f.write(afqmc_input)
+  f.close()
+  return
+
+# change these to your paths
+dqmc_binary = '/projects/anma2640/VMC/dqmc_uihf/VMC/bin/DQMC'
+blocking_script = '/projects/anma2640/VMC/dqmc/VMC/scripts/blocking.py'
+
+nproc = 36
+os.system("export OMP_NUM_THREADS=1; rm samples.dat -f")
+
+write_afqmc_input()
+command = f'''
+              mpirun -np {nproc} {dqmc_binary} afqmc.json > afqmc.out;
+              python {blocking_script} samples.dat 50 > blocking.out;
+           '''
+os.system(command)
+
+# read afqmc rdm and calculate observables
+import csv
+import pandas as pd
+
+# nobs is the number of observables
+nobs = 1
+constants = np.array([ 0. ])
+fcount = [0, 0]
+observables_afqmc =[ [ ], [ ] ]
+weights = [ [ ], [ ] ]   # weights for up and down are the same
+for (i, sz) in enumerate(['up', 'dn']):
+ for filename in os.listdir():
+   if (filename.startswith(f'rdm_{sz}')):
+     fcount[i] += 1
+     with open(filename) as fh:
+       weights[i].append(float(fh.readline()))
+     cols = list(range(norb))
+     df = pd.read_csv(filename, delim_whitespace=True, usecols=cols, header=None, skiprows=1)
+     rdm_i = df.to_numpy()
+     obs_i = constants.copy()
+     for n in range(nobs):
+       obs_i[n] += np.trace(np.dot(rdm_i, h1[i]))
+     observables_afqmc[i].append(obs_i)
+
+fcount = fcount[0]
+weights = np.array(weights[0])
+observables_afqmc = np.array(observables_afqmc[0]) + np.array(observables_afqmc[1])
+obsMean = np.zeros(nobs)
+obsError = np.zeros(nobs)
+v1 = weights.sum()
+v2 = (weights**2).sum()
+for n in range(nobs):
+  obsMean[n] = np.multiply(weights, observables_afqmc[:, n]).sum() / v1
+  obsError[n] = (np.multiply(weights, (observables_afqmc[:, n] - obsMean[n])**2).sum() / (v1 - v2 / v1) / (fcount - 1))**0.5
+
+obsVar = np.array([ e1_hf ])
+np.set_printoptions(precision=7, linewidth=1000, suppress=True)
+print(f'mixed obs_afqmc: {obsMean}')
+print(f'extrapolated obs: {2*obsMean - obsVar}')
+print(f'errors: {obsError}')
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='bhpc-c7-u31-13.rc.int.colorado.edu', release='3.10.0-1160.15.2.el7.x86_64', version='#1 SMP Wed Feb 3 15:06:38 UTC 2021', machine='x86_64', processor='x86_64')  Threads 1
+Python 3.8.3 (default, May 19 2020, 18:47:26) 
+[GCC 7.3.0]
+numpy 1.19.1  scipy 1.5.2
+Date: Fri Feb 18 15:19:38 2022
+PySCF version 1.7.4
+PySCF path  /projects/anma2640/pyscf/pyscf
+GIT HEAD      ref: refs/heads/master
+GIT master branch  14142ec394cbdcffb8e214fba6b1d6cde9025e9a
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 3
+[INPUT] num. electrons = 9
+[INPUT] charge = 1
+[INPUT] spin (= nelec alpha-beta = 2S) = 1
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT]  1 O      0.000000000000   0.000000000000   0.117790000000 AA    0.000000000000   0.000000000000   0.222590840213 Bohr
+[INPUT]  2 H      0.000000000000   0.755453000000  -0.471161000000 AA    0.000000000000   1.427599269981  -0.890365250576 Bohr
+[INPUT]  3 H      0.000000000000  -0.755453000000  -0.471161000000 AA    0.000000000000  -1.427599269981  -0.890365250576 Bohr
+
+nuclear repulsion = 9.18919322930975
+number of shells = 9
+number of NR pGTOs = 30
+number of NR cGTOs = 13
+basis = 631g
+ecp = {}
+CPU time:         0.51
+
+
+******** <class 'pyscf.scf.rohf.ROHF'> ********
+method = ROHF-RHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 50
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = /rc_scratch/anma2640/tmpj9u73gon
+max_memory 4000 MB (current use 69 MB)
+num. doubly occ = 4  num. singly occ = 1
+Set gradient conv threshold to 3.16228e-05
+init E= -75.8343603552122
+  HOMO = -0.474590049410627  LUMO = 0.124071669732751
+cycle= 1 E= -75.5342802067043  delta_E=  0.3  |g|= 0.393  |ddm|= 0.927
+  HOMO = -0.812626085940056  LUMO = -0.16143536938982
+cycle= 2 E= -75.5725779240879  delta_E= -0.0383  |g|= 0.168  |ddm|= 0.298
+  HOMO = -0.699900290714638  LUMO = -0.135928563232543
+cycle= 3 E= -75.5779899214115  delta_E= -0.00541  |g|= 0.0203  |ddm|= 0.0795
+  HOMO = -0.705546935330848  LUMO = -0.131793513922667
+cycle= 4 E= -75.5781508393397  delta_E= -0.000161  |g|= 0.00253  |ddm|= 0.0189
+  HOMO = -0.704728414978822  LUMO = -0.131874112507293
+cycle= 5 E= -75.5781541431174  delta_E= -3.3e-06  |g|= 0.000518  |ddm|= 0.00251
+  HOMO = -0.704784136101224  LUMO = -0.131926423586494
+cycle= 6 E= -75.5781543108554  delta_E= -1.68e-07  |g|= 6.75e-05  |ddm|= 0.000682
+  HOMO = -0.704793196775804  LUMO = -0.1319293281748
+cycle= 7 E= -75.5781543127748  delta_E= -1.92e-09  |g|= 4.07e-06  |ddm|= 6.44e-05
+  HOMO = -0.704793888413784  LUMO = -0.131928564464415
+cycle= 8 E= -75.578154312784  delta_E= -9.14e-12  |g|= 3.74e-07  |ddm|= 4.99e-06
+  HOMO = -0.704793686194772  LUMO = -0.131928631534558
+Extra cycle  E= -75.578154312784  delta_E= -4.26e-14  |g|= 9.4e-08  |ddm|= 3.49e-07
+converged SCF energy = -75.578154312784
+e(FCI) = -75.683787893036
+
+
+******** <class 'pyscf.scf.uhf.UHF'> ********
+method = UHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 50
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = /rc_scratch/anma2640/tmpz5pqlgbz
+max_memory 4000 MB (current use 110 MB)
+number electrons alpha = 5  beta = 4
+Set gradient conv threshold to 3.16228e-05
+init E= -75.8343603552122
+  alpha nocc = 5  HOMO = -0.474590049410626  LUMO = 0.12407166973275
+  beta  nocc = 4  HOMO = -0.58810301172999  LUMO = -0.474590049410626
+
+WARN: system HOMO -0.474590049410626 >= system LUMO -0.474590049410626
+
+cycle= 1 E= -75.5342802067043  delta_E=  0.3  |g|= 0.298  |ddm|= 0.927
+  alpha nocc = 5  HOMO = -1.16855717864588  LUMO = -0.168281600475727
+  beta  nocc = 4  HOMO = -1.12043680588647  LUMO = -0.415916797147921
+cycle= 2 E= -75.5748195789461  delta_E= -0.0405  |g|= 0.112  |ddm|= 0.287
+  alpha nocc = 5  HOMO = -1.08390503342281  LUMO = -0.142742206074541
+  beta  nocc = 4  HOMO = -1.03190474781049  LUMO = -0.321708594116692
+cycle= 3 E= -75.5796784790997  delta_E= -0.00486  |g|= 0.0238  |ddm|= 0.0734
+  alpha nocc = 5  HOMO = -1.09153326445071  LUMO = -0.138507568875544
+  beta  nocc = 4  HOMO = -1.03572233957168  LUMO = -0.324205285024226
+cycle= 4 E= -75.5801532784388  delta_E= -0.000475  |g|= 0.00891  |ddm|= 0.0264
+  alpha nocc = 5  HOMO = -1.09298092505708  LUMO = -0.138815976334154
+  beta  nocc = 4  HOMO = -1.03270118137578  LUMO = -0.322717165580931
+cycle= 5 E= -75.5802672876017  delta_E= -0.000114  |g|= 0.0024  |ddm|= 0.0158
+  alpha nocc = 5  HOMO = -1.0939858011429  LUMO = -0.13870978141606
+  beta  nocc = 4  HOMO = -1.0320731695344  LUMO = -0.322698719542218
+cycle= 6 E= -75.5802768809083  delta_E= -9.59e-06  |g|= 0.000647  |ddm|= 0.00498
+  alpha nocc = 5  HOMO = -1.09414990969096  LUMO = -0.138676127322684
+  beta  nocc = 4  HOMO = -1.0319813651281  LUMO = -0.322756322977339
+cycle= 7 E= -75.5802774462913  delta_E= -5.65e-07  |g|= 8.13e-05  |ddm|= 0.00137
+  alpha nocc = 5  HOMO = -1.0941288727991  LUMO = -0.138678725159088
+  beta  nocc = 4  HOMO = -1.03197435086827  LUMO = -0.322746706468257
+cycle= 8 E= -75.5802774531095  delta_E= -6.82e-09  |g|= 1.54e-05  |ddm|= 0.000131
+  alpha nocc = 5  HOMO = -1.09412900833966  LUMO = -0.138682459917802
+  beta  nocc = 4  HOMO = -1.03197927052734  LUMO = -0.322749905945555
+cycle= 9 E= -75.5802774533471  delta_E= -2.38e-10  |g|= 2.28e-06  |ddm|= 2.44e-05
+  alpha nocc = 5  HOMO = -1.09412902842576  LUMO = -0.13868191326612
+  beta  nocc = 4  HOMO = -1.03197831022332  LUMO = -0.322749057234261
+Extra cycle  E= -75.5802774533512  delta_E= -4.14e-12  |g|= 9.8e-07  |ddm|= 2.39e-06
+converged SCF energy = -75.5802774533512  <S^2> = 0.75528791  2S+1 = 2.0052809
+Feb 18 15:19:43 ####### 
+                ####### libDMET   version 0.4
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+norb:  13
+nelec:  (5, 4)
+E_uhf from pyscf -75.58027745335119
+Feb 18 15:19:45    INFO HF solver Run
+Feb 18 15:19:45 ******* Unrestricted Hartree-Fock with pyscf
+Feb 18 15:19:45 ******* 
+                ******* 
+Feb 18 15:19:45 ******* ******** <class 'libdmet.solver.scf.UIHF'> ********
+Feb 18 15:19:45 ******* method = UIHF-UHF
+Feb 18 15:19:45 ******* initial guess = minao
+Feb 18 15:19:45 ******* damping factor = 0
+Feb 18 15:19:45 ******* level_shift factor = 0
+Feb 18 15:19:45 ******* DIIS = <class 'pyscf.scf.diis.CDIIS'>
+Feb 18 15:19:45 ******* diis_start_cycle = 1
+Feb 18 15:19:45 ******* diis_space = 12
+Feb 18 15:19:45 ******* SCF conv_tol = 1e-10
+Feb 18 15:19:45 ******* SCF conv_tol_grad = None
+Feb 18 15:19:45 ******* SCF max_cycles = 200
+Feb 18 15:19:45 ******* direct_scf = False
+Feb 18 15:19:45 ******* chkfile to save SCF result = /rc_scratch/anma2640/tmpgtrnl_fk
+Feb 18 15:19:45 ******* max_memory 40000 MB (current use 141 MB)
+Feb 18 15:19:45 ******* number electrons alpha = 5  beta = 4
+Feb 18 15:19:45 ******* Set gradient conv threshold to 1e-05
+Feb 18 15:19:45 ******* init E= 3.68021225569735
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -7.95357250509025  LUMO = -4.34505660665675
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -8.12217815789212  LUMO = -8.0524944079424
+Feb 18 15:19:45 ******* 
+                ******* WARN: system HOMO -8.0524944079424 >= system LUMO -8.0524944079424
+                ******* 
+Feb 18 15:19:45 ******* cycle= 1 E= -71.3283100021294  delta_E=  -75  |g|= 2.28  |ddm|= 2.94
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -0.0980756205695408  LUMO = -0.0285290778461165
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -0.126585021991706  LUMO = -0.0173717097088567
+Feb 18 15:19:45 ******* cycle= 2 E= -73.9201339989678  delta_E= -2.59  |g|= 1.72  |ddm|= 2.76
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.01130010941382  LUMO = -0.212997693867005
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -0.857715603385407  LUMO = -0.4397599262996
+Feb 18 15:19:45 ******* cycle= 3 E= -75.5342484885595  delta_E= -1.61  |g|= 0.169  |ddm|=  1.4
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.08787184440155  LUMO = -0.128865390640881
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.03112890221306  LUMO = -0.363119105347426
+Feb 18 15:19:45 ******* cycle= 4 E= -75.5577257766284  delta_E= -0.0235  |g|= 0.0546  |ddm|= 0.177
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.06446843364786  LUMO = -0.135028558328557
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.01150214894506  LUMO = -0.345597941644759
+Feb 18 15:19:45 ******* cycle= 5 E= -75.5633950022848  delta_E= -0.00567  |g|= 0.0338  |ddm|= 0.101
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.06799568530512  LUMO = -0.136741103016107
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.01857566846427  LUMO = -0.33751778117796
+Feb 18 15:19:45 ******* cycle= 6 E= -75.5677852268288  delta_E= -0.00439  |g|= 0.0287  |ddm|= 0.104
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.08150819727327  LUMO = -0.138124410187199
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.04544981299768  LUMO = -0.316995216451671
+Feb 18 15:19:45 ******* cycle= 7 E= -75.5752763056962  delta_E= -0.00749  |g|= 0.0201  |ddm|= 0.228
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.0876140612153  LUMO = -0.13873636625243
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.05483406187426  LUMO = -0.305502787551305
+Feb 18 15:19:45 ******* cycle= 8 E= -75.5795808406669  delta_E= -0.0043  |g|= 0.0111  |ddm|= 0.239
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09603580318073  LUMO = -0.137960292140918
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.0066979545519  LUMO = -0.347331863725152
+Feb 18 15:19:45 ******* cycle= 9 E= -75.5801673012867  delta_E= -0.000586  |g|= 0.00697  |ddm|= 0.0828
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09152302612152  LUMO = -0.138825912486914
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.04268684065968  LUMO = -0.31292483165641
+Feb 18 15:19:45 ******* cycle= 10 E= -75.5802686638625  delta_E= -0.000101  |g|= 0.00277  |ddm|= 0.0454
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09436984253885  LUMO = -0.138668667277344
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.03044575184609  LUMO = -0.324354702077992
+Feb 18 15:19:45 ******* cycle= 11 E= -75.5802769654452  delta_E= -8.3e-06  |g|= 0.000513  |ddm|= 0.00558
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09423485816804  LUMO = -0.138675351278085
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.031222131132  LUMO = -0.323414199787991
+Feb 18 15:19:45 ******* cycle= 12 E= -75.5802773360123  delta_E= -3.71e-07  |g|= 0.000266  |ddm|= 0.0012
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09419677291441  LUMO = -0.138671730022238
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.03162089659848  LUMO = -0.323079341809568
+Feb 18 15:19:45 ******* cycle= 13 E= -75.5802774416334  delta_E= -1.06e-07  |g|= 0.00011  |ddm|= 0.00069
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.0941541689917  LUMO = -0.138681440092665
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.03186516953041  LUMO = -0.322852970218351
+Feb 18 15:19:45 ******* cycle= 14 E= -75.5802774524769  delta_E= -1.08e-08  |g|= 2.84e-05  |ddm|= 0.000183
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09412370863059  LUMO = -0.138682497048572
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.0320203947007  LUMO = -0.322707757335591
+Feb 18 15:19:45 ******* cycle= 15 E= -75.5802774532322  delta_E= -7.55e-10  |g|= 1.18e-05  |ddm|= 5.64e-05
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09412979473916  LUMO = -0.138682058755611
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.03198234656885  LUMO = -0.322745392999827
+Feb 18 15:19:45 ******* cycle= 16 E= -75.5802774533438  delta_E= -1.12e-10  |g|= 2.31e-06  |ddm|= 1.64e-05
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.0941299253947  LUMO = -0.138682046741775
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.0319793853678  LUMO = -0.322748740328505
+Feb 18 15:19:45 ******* cycle= 17 E= -75.580277453352  delta_E= -8.21e-12  |g|= 4.12e-07  |ddm|= 6.42e-06
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09412995193464  LUMO = -0.138682024387445
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.03197845538957  LUMO = -0.322749478891983
+Feb 18 15:19:45 ******* Extra cycle  E= -75.5802774533522  delta_E= -1.99e-13  |g|= 1.94e-07  |ddm|= 3.64e-07
+Feb 18 15:19:45 ******* converged SCF energy = -75.5802774533522  <S^2> = 3.0695604  2S+1 = 3.6439322
+Feb 18 15:19:45 ******* Hartree-Fock convergence: True
+Feb 18 15:19:45 ******* Hartree-Fock energy =     -75.580277453352
+uhf ene from chol: -75.58027745317168
+[ 9 13  1 86]
+Feb 18 15:19:45    INFO CC solver: start
+Feb 18 15:19:45 ******* Unrestricted Hartree-Fock with pyscf
+Feb 18 15:19:45 ******* 
+                ******* 
+Feb 18 15:19:45 ******* ******** <class 'libdmet.solver.scf.UIHF'> ********
+Feb 18 15:19:45 ******* method = UIHF-UHF
+Feb 18 15:19:45 ******* initial guess = minao
+Feb 18 15:19:45 ******* damping factor = 0
+Feb 18 15:19:45 ******* level_shift factor = 0
+Feb 18 15:19:45 ******* DIIS = <class 'pyscf.scf.diis.CDIIS'>
+Feb 18 15:19:45 ******* diis_start_cycle = 1
+Feb 18 15:19:45 ******* diis_space = 12
+Feb 18 15:19:45 ******* SCF conv_tol = 1e-11
+Feb 18 15:19:45 ******* SCF conv_tol_grad = None
+Feb 18 15:19:45 ******* SCF max_cycles = 200
+Feb 18 15:19:45 ******* direct_scf = False
+Feb 18 15:19:45 ******* chkfile to save SCF result = /rc_scratch/anma2640/tmpzgofy1ru
+Feb 18 15:19:45 ******* max_memory 40000 MB (current use 142 MB)
+Feb 18 15:19:45 ******* number electrons alpha = 5  beta = 4
+Feb 18 15:19:45 ******* Set gradient conv threshold to 3.16228e-06
+Feb 18 15:19:45 ******* init E= 3.68021225569735
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -7.95357250509025  LUMO = -4.34505660665675
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -8.12217815789212  LUMO = -8.0524944079424
+Feb 18 15:19:45 ******* 
+                ******* WARN: system HOMO -8.0524944079424 >= system LUMO -8.0524944079424
+                ******* 
+Feb 18 15:19:45 ******* cycle= 1 E= -71.3283100021294  delta_E=  -75  |g|= 2.28  |ddm|= 2.94
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -0.0980756205695408  LUMO = -0.0285290778461165
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -0.126585021991706  LUMO = -0.0173717097088567
+Feb 18 15:19:45 ******* cycle= 2 E= -73.9201339989678  delta_E= -2.59  |g|= 1.72  |ddm|= 2.76
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.01130010941382  LUMO = -0.212997693867005
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -0.857715603385407  LUMO = -0.4397599262996
+Feb 18 15:19:45 ******* cycle= 3 E= -75.5342484885595  delta_E= -1.61  |g|= 0.169  |ddm|=  1.4
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.08787184440155  LUMO = -0.128865390640881
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.03112890221306  LUMO = -0.363119105347426
+Feb 18 15:19:45 ******* cycle= 4 E= -75.5577257766284  delta_E= -0.0235  |g|= 0.0546  |ddm|= 0.177
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.06446843364786  LUMO = -0.135028558328557
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.01150214894506  LUMO = -0.345597941644759
+Feb 18 15:19:45 ******* cycle= 5 E= -75.5633950022848  delta_E= -0.00567  |g|= 0.0338  |ddm|= 0.101
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.06799568530512  LUMO = -0.136741103016107
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.01857566846427  LUMO = -0.33751778117796
+Feb 18 15:19:45 ******* cycle= 6 E= -75.5677852268288  delta_E= -0.00439  |g|= 0.0287  |ddm|= 0.104
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.08150819727327  LUMO = -0.138124410187199
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.04544981299768  LUMO = -0.316995216451671
+Feb 18 15:19:45 ******* cycle= 7 E= -75.5752763056962  delta_E= -0.00749  |g|= 0.0201  |ddm|= 0.228
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.0876140612153  LUMO = -0.13873636625243
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.05483406187426  LUMO = -0.305502787551305
+Feb 18 15:19:45 ******* cycle= 8 E= -75.5795808406669  delta_E= -0.0043  |g|= 0.0111  |ddm|= 0.239
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09603580318073  LUMO = -0.137960292140918
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.0066979545519  LUMO = -0.347331863725152
+Feb 18 15:19:45 ******* cycle= 9 E= -75.5801673012867  delta_E= -0.000586  |g|= 0.00697  |ddm|= 0.0828
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09152302612152  LUMO = -0.138825912486914
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.04268684065968  LUMO = -0.31292483165641
+Feb 18 15:19:45 ******* cycle= 10 E= -75.5802686638625  delta_E= -0.000101  |g|= 0.00277  |ddm|= 0.0454
+Feb 18 15:19:45 *******   alpha nocc = 5  HOMO = -1.09436984253885  LUMO = -0.138668667277344
+Feb 18 15:19:45 *******   beta  nocc = 4  HOMO = -1.03044575184609  LUMO = -0.324354702077992
+Feb 18 15:19:45 ******* cycle= 11 E= -75.5802769654452  delta_E= -8.3e-06  |g|= 0.000513  |ddm|= 0.00558
+Feb 18 15:19:46 *******   alpha nocc = 5  HOMO = -1.09423485816804  LUMO = -0.138675351278085
+Feb 18 15:19:46 *******   beta  nocc = 4  HOMO = -1.031222131132  LUMO = -0.323414199787991
+Feb 18 15:19:46 ******* cycle= 12 E= -75.5802773360123  delta_E= -3.71e-07  |g|= 0.000266  |ddm|= 0.0012
+Feb 18 15:19:46 *******   alpha nocc = 5  HOMO = -1.09419677291441  LUMO = -0.138671730022238
+Feb 18 15:19:46 *******   beta  nocc = 4  HOMO = -1.03162089659848  LUMO = -0.323079341809568
+Feb 18 15:19:46 ******* cycle= 13 E= -75.5802774416334  delta_E= -1.06e-07  |g|= 0.00011  |ddm|= 0.00069
+Feb 18 15:19:46 *******   alpha nocc = 5  HOMO = -1.0941541689917  LUMO = -0.138681440092665
+Feb 18 15:19:46 *******   beta  nocc = 4  HOMO = -1.03186516953041  LUMO = -0.322852970218351
+Feb 18 15:19:46 ******* cycle= 14 E= -75.5802774524769  delta_E= -1.08e-08  |g|= 2.84e-05  |ddm|= 0.000183
+Feb 18 15:19:46 *******   alpha nocc = 5  HOMO = -1.09412370863059  LUMO = -0.138682497048572
+Feb 18 15:19:46 *******   beta  nocc = 4  HOMO = -1.0320203947007  LUMO = -0.322707757335591
+Feb 18 15:19:46 ******* cycle= 15 E= -75.5802774532322  delta_E= -7.55e-10  |g|= 1.18e-05  |ddm|= 5.64e-05
+Feb 18 15:19:46 *******   alpha nocc = 5  HOMO = -1.09412979473916  LUMO = -0.138682058755611
+Feb 18 15:19:46 *******   beta  nocc = 4  HOMO = -1.03198234656885  LUMO = -0.322745392999827
+Feb 18 15:19:46 ******* cycle= 16 E= -75.5802774533438  delta_E= -1.12e-10  |g|= 2.31e-06  |ddm|= 1.64e-05
+Feb 18 15:19:46 *******   alpha nocc = 5  HOMO = -1.0941299253947  LUMO = -0.138682046741775
+Feb 18 15:19:46 *******   beta  nocc = 4  HOMO = -1.0319793853678  LUMO = -0.322748740328505
+Feb 18 15:19:46 ******* cycle= 17 E= -75.580277453352  delta_E= -8.21e-12  |g|= 4.12e-07  |ddm|= 6.42e-06
+Feb 18 15:19:46 *******   alpha nocc = 5  HOMO = -1.09412995193464  LUMO = -0.138682024387445
+Feb 18 15:19:46 *******   beta  nocc = 4  HOMO = -1.03197845538957  LUMO = -0.322749478891983
+Feb 18 15:19:46 ******* Extra cycle  E= -75.5802774533522  delta_E= -1.99e-13  |g|= 1.94e-07  |ddm|= 3.64e-07
+Feb 18 15:19:46 ******* converged SCF energy = -75.5802774533522  <S^2> = 3.0695604  2S+1 = 3.6439322
+Feb 18 15:19:46 ******* Hartree-Fock convergence: True
+Feb 18 15:19:46 ******* Hartree-Fock energy =     -75.580277453352
+Feb 18 15:19:46 
+Feb 18 15:19:46 ******* ******** <class 'libdmet.solver.cc.UICCSD'> ********
+Feb 18 15:19:46 ******* CC2 = 0
+Feb 18 15:19:46 ******* CCSD nocc = (5, 4), nmo = (13, 13)
+Feb 18 15:19:46 ******* frozen orbitals 0
+Feb 18 15:19:46 ******* max_cycle = 200
+Feb 18 15:19:46 ******* direct = 0
+Feb 18 15:19:46 ******* conv_tol = 1e-10
+Feb 18 15:19:46 ******* conv_tol_normt = 1e-06
+Feb 18 15:19:46 ******* diis_space = 6
+Feb 18 15:19:46 ******* diis_start_cycle = 0
+Feb 18 15:19:46 ******* diis_start_energy_diff = 1e+09
+Feb 18 15:19:46 ******* max_memory 40000 MB (current use 142 MB)
+Feb 18 15:19:46 ******* Init t2, MP2 energy = -0.0908104530971766
+Feb 18 15:19:46 *******     CPU time for init mp2      0.00 sec, wall time      0.00 sec
+Feb 18 15:19:46 ******* Init E_corr(CCSD) = -0.0908104530972027
+Feb 18 15:19:46 ******* cycle = 1  E_corr(CCSD) = -0.0982255438836661  dE = -0.00741509079  norm(t1,t2) = 0.0316766
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 2  E_corr(CCSD) = -0.100766484359515  dE = -0.00254094048  norm(t1,t2) = 0.0123351
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 3  E_corr(CCSD) = -0.102461794725623  dE = -0.00169531037  norm(t1,t2) = 0.00635434
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 4  E_corr(CCSD) = -0.102529393025668  dE = -6.75983e-05  norm(t1,t2) = 0.00196302
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 5  E_corr(CCSD) = -0.102535519359414  dE = -6.12633375e-06  norm(t1,t2) = 0.000635867
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 6  E_corr(CCSD) = -0.102543083781686  dE = -7.56442227e-06  norm(t1,t2) = 0.000210845
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 7  E_corr(CCSD) = -0.102542473356874  dE = 6.10424812e-07  norm(t1,t2) = 6.42702e-05
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 8  E_corr(CCSD) = -0.102542539141285  dE = -6.57844113e-08  norm(t1,t2) = 2.03341e-05
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 9  E_corr(CCSD) = -0.102542651504459  dE = -1.12363174e-07  norm(t1,t2) = 7.41204e-06
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 10  E_corr(CCSD) = -0.102542570070534  dE = 8.14339252e-08  norm(t1,t2) = 1.61512e-06
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 11  E_corr(CCSD) = -0.102542548507031  dE = 2.15635031e-08  norm(t1,t2) = 4.09281e-07
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 12  E_corr(CCSD) = -0.102542550193864  dE = -1.68683252e-09  norm(t1,t2) = 1.13443e-07
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 13  E_corr(CCSD) = -0.102542551776202  dE = -1.58233802e-09  norm(t1,t2) = 4.76991e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 14  E_corr(CCSD) = -0.102542552626045  dE = -8.4984339e-10  norm(t1,t2) = 3.37247e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 15  E_corr(CCSD) = -0.102542552878159  dE = -2.52113677e-10  norm(t1,t2) = 2.7812e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 16  E_corr(CCSD) = -0.102542553078821  dE = -2.00661793e-10  norm(t1,t2) = 2.57885e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 17  E_corr(CCSD) = -0.10254255347898  dE = -4.00159253e-10  norm(t1,t2) = 2.43579e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 18  E_corr(CCSD) = -0.102542554053121  dE = -5.74141276e-10  norm(t1,t2) = 2.5121e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 19  E_corr(CCSD) = -0.102542554387147  dE = -3.34026057e-10  norm(t1,t2) = 1.92077e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 20  E_corr(CCSD) = -0.102542554622224  dE = -2.35076458e-10  norm(t1,t2) = 1.64118e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 21  E_corr(CCSD) = -0.102542554804688  dE = -1.82464571e-10  norm(t1,t2) = 1.4731e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 22  E_corr(CCSD) = -0.102542554984338  dE = -1.7964992e-10  norm(t1,t2) = 1.34087e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 23  E_corr(CCSD) = -0.102542555166958  dE = -1.82619905e-10  norm(t1,t2) = 1.21312e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 24  E_corr(CCSD) = -0.102542555336116  dE = -1.69158146e-10  norm(t1,t2) = 1.09036e-08
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 25  E_corr(CCSD) = -0.102542555467559  dE = -1.31443023e-10  norm(t1,t2) = 9.56805e-09
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 26  E_corr(CCSD) = -0.102542555577852  dE = -1.10292747e-10  norm(t1,t2) = 8.57056e-09
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.02 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* Linear dependence found in DIIS error vectors.
+Feb 18 15:19:46 ******* cycle = 27  E_corr(CCSD) = -0.102542555675719  dE = -9.78666592e-11  norm(t1,t2) = 7.75561e-09
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 *******     CPU time for CCSD      0.36 sec, wall time      0.36 sec
+Feb 18 15:19:46 ******* UICCSD converged
+Feb 18 15:19:46 ******* E(UICCSD) = -75.68282000902794  E_corr = -0.1025425556757186
+Feb 18 15:19:46    INFO CCSD(T) correction
+Feb 18 15:19:46 ******* max_memory 39856 MB (143 MB in use)
+Feb 18 15:19:46 ******* max_memory 39856 MB (143 MB in use)
+Feb 18 15:19:46 *******     CPU time for UCCSD(T)      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* UCCSD(T) correction = -0.000673439426499116
+Feb 18 15:19:46    INFO CCSD(T) E(T):      -0.000673439426
+Feb 18 15:19:46 *******     CPU time for CCSD lambda initialization      0.06 sec, wall time      0.23 sec
+Feb 18 15:19:46 ******* cycle = 1  norm(lambda1,lambda2) = 0.0116679
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 2  norm(lambda1,lambda2) = 0.00118702
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 3  norm(lambda1,lambda2) = 0.000395994
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 4  norm(lambda1,lambda2) = 0.000163484
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.02 sec, wall time      0.02 sec
+Feb 18 15:19:46 ******* cycle = 5  norm(lambda1,lambda2) = 5.29651e-05
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.02 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 6  norm(lambda1,lambda2) = 1.52496e-05
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 7  norm(lambda1,lambda2) = 5.49985e-06
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+Feb 18 15:19:46 ******* cycle = 8  norm(lambda1,lambda2) = 1.60504e-06
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.02 sec, wall time      0.02 sec
+Feb 18 15:19:46 ******* cycle = 9  norm(lambda1,lambda2) = 6.56853e-07
+Feb 18 15:19:46 *******     CPU time for CCSD iter      0.01 sec, wall time      0.01 sec
+
+
+
+e1_hf: -117.9256125775019
+e1_cc: -117.7310849524483
+e1_fci: -117.72815573909769
+mixed obs_afqmc: [-117.8494701]
+extrapolated obs: [-117.7733276]
+errors: [0.0012358]
