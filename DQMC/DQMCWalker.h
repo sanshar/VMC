@@ -34,6 +34,7 @@ class DQMCWalker {
     std::complex<double> overlap(Wavefunction& wave);
     void forceBias(Wavefunction& wave, Hamiltonian& ham, Eigen::VectorXcd& fb);
     void oneRDM(Wavefunction& wave, Eigen::MatrixXcd& rdmSample);
+    void oneRDM(Wavefunction& wave, std::array<Eigen::MatrixXcd, 2>& rdmSample);
     std::array<std::complex<double>, 2> hamAndOverlap(Wavefunction& wave, Hamiltonian& ham);
 };
 #endif

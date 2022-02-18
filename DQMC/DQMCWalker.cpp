@@ -315,6 +315,11 @@ void DQMCWalker::oneRDM(Wavefunction& wave, Eigen::MatrixXcd& rdmSample)
   wave.oneRDM(det, rdmSample);
 };
 
+void DQMCWalker::oneRDM(Wavefunction& wave, std::array<Eigen::MatrixXcd, 2>& rdmSample)
+{
+  wave.oneRDM(det, rdmSample);
+};
+
 
 std::array<std::complex<double>, 2> DQMCWalker::hamAndOverlap(Wavefunction& wave, Hamiltonian& ham)
 {

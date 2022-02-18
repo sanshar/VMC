@@ -47,6 +47,11 @@ void UHF::forceBias(std::array<Eigen::MatrixXcd, 2>& psi, Hamiltonian& ham, Eige
   }
 };
 
+void UHF::oneRDM(std::array<Eigen::MatrixXcd, 2>& det, std::array<Eigen::MatrixXcd, 2>& rdmSample) 
+{
+  rdmSample[0] = (det[0] * (detT[0] * det[0]).inverse() * detT[0]).transpose();
+  rdmSample[1] = (det[1] * (detT[1] * det[1]).inverse() * detT[1]).transpose();
+};
 
 std::array<std::complex<double>, 2> UHF::hamAndOverlap(std::array<Eigen::MatrixXcd, 2>& psi, Hamiltonian& ham) 
 { 

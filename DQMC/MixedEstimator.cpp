@@ -299,8 +299,12 @@ void calcMixedEstimatorLongProp(Wavefunction& waveLeft, Wavefunction& waveRight,
   double averageEnergyEql = totalEnergies(0), averageNumEql = 0., averageDenomEql = 0.;
   double eEstimate = totalEnergies(0);
   long nLargeDeviations = 0;
-  MatrixXd oneRDM = MatrixXd::Zero(norbs, norbs);
-  MatrixXcd rdmSample = MatrixXcd::Zero(norbs, norbs);
+  std::array<MatrixXd, 2> oneRDM;
+  oneRDM[0]= MatrixXd::Zero(norbs, norbs);
+  oneRDM[1]= MatrixXd::Zero(norbs, norbs);
+  std::array<MatrixXcd, 2> rdmSample;
+  rdmSample[0] = MatrixXcd::Zero(norbs, norbs);
+  rdmSample[1] = MatrixXcd::Zero(norbs, norbs);
   for (int step = 1; step < nsweeps * nsteps; step++) {
     // average before eql
     if (step * dt < 10.) averageEnergy = averageEnergyEql;
@@ -339,10 +343,13 @@ void calcMixedEstimatorLongProp(Wavefunction& waveLeft, Wavefunction& waveRight,
           // one rdm
           if (step * dt > 10.) {
             walkers[w].oneRDM(waveLeft, rdmSample);
-            oneRDM *= cumulativeWeight;
-            oneRDM += weights(w) * rdmSample.real();
+            oneRDM[0] *= cumulativeWeight;
+            oneRDM[1] *= cumulativeWeight;
+            oneRDM[0] += weights(w) * rdmSample[0].real();
+            oneRDM[1] += weights(w) * rdmSample[1].real();
             cumulativeWeight += weights(w);
-            oneRDM /= cumulativeWeight;
+            oneRDM[0] /= cumulativeWeight;
+            oneRDM[1] /= cumulativeWeight;
           }
 
           // energy
@@ -507,17 +514,33 @@ void calcMixedEstimatorLongProp(Wavefunction& waveLeft, Wavefunction& waveRight,
   }
   
   // write one rdm 
-  string fname = "rdm_";
-  fname.append(to_string(commrank));
-  fname.append(".dat");
-  ofstream rdmdump(fname);
-  rdmdump << cumulativeWeight << endl;
-  for (int i = 0; i < oneRDM.rows(); i++) {
-    for (int j = 0; j < oneRDM.cols(); j++){
-      rdmdump << oneRDM(i, j) << "  ";
+  {
+    string fname = "rdm_up_";
+    fname.append(to_string(commrank));
+    fname.append(".dat");
+    ofstream rdmdump(fname);
+    rdmdump << cumulativeWeight << endl;
+    for (int i = 0; i < oneRDM[0].rows(); i++) {
+      for (int j = 0; j < oneRDM[0].cols(); j++){
+        rdmdump << oneRDM[0](i, j) << "  ";
+      }
+      rdmdump << endl;
     }
-    rdmdump << endl;
+    rdmdump.close();
   }
-  rdmdump.close();
   
+  {
+    string fname = "rdm_dn_";
+    fname.append(to_string(commrank));
+    fname.append(".dat");
+    ofstream rdmdump(fname);
+    rdmdump << cumulativeWeight << endl;
+    for (int i = 0; i < oneRDM[1].rows(); i++) {
+      for (int j = 0; j < oneRDM[1].cols(); j++){
+        rdmdump << oneRDM[1](i, j) << "  ";
+      }
+      rdmdump << endl;
+    }
+    rdmdump.close();
+  } 
 };
