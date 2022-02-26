@@ -514,11 +514,18 @@ void calcMixedEstimatorLongProp(Wavefunction& waveLeft, Wavefunction& waveRight,
   }
   
   // write one rdm 
+  std::string scratch_dir = "./";
+  if (const char* dqmc_scratch = std::getenv("DQMC_SCRATCH")) scratch_dir = std::string(dqmc_scratch) + "/";
   {
-    string fname = "rdm_up_";
+    string fname = scratch_dir + "rdm_up_";
     fname.append(to_string(commrank));
     fname.append(".dat");
     ofstream rdmdump(fname);
+    if (rdmdump.fail()) {
+      if (commrank == 0) cout << scratch_dir + " does not exist!\n";
+      rdmdump.close();
+      exit(0);
+    }
     rdmdump << cumulativeWeight << endl;
     for (int i = 0; i < oneRDM[0].rows(); i++) {
       for (int j = 0; j < oneRDM[0].cols(); j++){
@@ -530,10 +537,15 @@ void calcMixedEstimatorLongProp(Wavefunction& waveLeft, Wavefunction& waveRight,
   }
   
   {
-    string fname = "rdm_dn_";
+    string fname = scratch_dir + "rdm_dn_";
     fname.append(to_string(commrank));
     fname.append(".dat");
     ofstream rdmdump(fname);
+    if (rdmdump.fail()) {
+      if (commrank == 0) cout << scratch_dir + " does not exist!\n";
+      rdmdump.close();
+      exit(0);
+    }
     rdmdump << cumulativeWeight << endl;
     for (int i = 0; i < oneRDM[1].rows(); i++) {
       for (int j = 0; j < oneRDM[1].cols(); j++){
