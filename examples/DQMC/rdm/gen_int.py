@@ -191,6 +191,10 @@ def write_afqmc_input(dt = 0.005, nsteps = 50, ndets = 100, fname = 'afqmc.json'
     "choleskyThreshold": 2.0e-3,
     "orthoSteps": 20,
     "stochasticIter": 300
+  },
+  "print":
+  {
+    "scratchDir": "./scratch"
   }
 }
   '''%(ndets, np.random.randint(1, 1e6), dt, nsteps)

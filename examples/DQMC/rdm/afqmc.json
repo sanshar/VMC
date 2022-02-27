@@ -20,6 +20,10 @@
     "choleskyThreshold": 2.0e-3,
     "orthoSteps": 20,
     "stochasticIter": 300
+  },
+  "print":
+  {
+    "scratchDir": "./scratch"
   }
 }
   

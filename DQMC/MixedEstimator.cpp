@@ -514,10 +514,10 @@ void calcMixedEstimatorLongProp(Wavefunction& waveLeft, Wavefunction& waveRight,
   }
   
   // write one rdm 
-  std::string scratch_dir = "./";
-  if (const char* dqmc_scratch = std::getenv("DQMC_SCRATCH")) scratch_dir = std::string(dqmc_scratch) + "/";
+  std::string scratch_dir = schd.scratchDir;
+  //if (const char* dqmc_scratch = std::getenv("DQMC_SCRATCH")) scratch_dir = std::string(dqmc_scratch) + "/";
   {
-    string fname = scratch_dir + "rdm_up_";
+    string fname = scratch_dir + "/rdm_up_";
     fname.append(to_string(commrank));
     fname.append(".dat");
     ofstream rdmdump(fname);
@@ -537,7 +537,7 @@ void calcMixedEstimatorLongProp(Wavefunction& waveLeft, Wavefunction& waveRight,
   }
   
   {
-    string fname = scratch_dir + "rdm_dn_";
+    string fname = scratch_dir + "/rdm_dn_";
     fname.append(to_string(commrank));
     fname.append(".dat");
     ofstream rdmdump(fname);
