@@ -14,7 +14,7 @@
 //#include "RHF.h"
 #include "UHF.h"
 //#include "KSGHF.h"
-//#include "Multislater.h"
+#include "Multislater.h"
 //#include "CCSD.h"
 //#include "UCCSD.h"
 //#include "sJastrow.h"
@@ -71,8 +71,13 @@ int main(int argc, char *argv[])
 
   // left state
   Wavefunction *waveLeft;
-  waveLeft = new UHF(ham, true); 
-
+  if (schd.leftWave == "uhf") {
+    waveLeft = new UHF(ham, true); 
+  }
+  else if (schd.leftWave == "multislater") {
+    int nact = (schd.nciAct < 0) ? ham.norbs : schd.nciAct;
+    waveLeft = new Multislater(schd.determinantFile, nact, schd.nciCore); 
+  }
   //auto overlap = walker.overlap(*waveLeft);
   //Eigen::VectorXcd fb;
   //walker.forceBias(*waveLeft, ham, fb);

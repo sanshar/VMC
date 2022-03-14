@@ -1,16 +1,16 @@
 USE_MPI = yes
-USE_INTEL = no
+USE_INTEL = yes
 COMPILE_NUMERIC = yes
 
 EIGEN=/projects/ilsa8974/apps/eigen/
-#BOOST=/projects/anma2640/boost_1_66_0/
-BOOST=${CURC_BOOST_ROOT}
-#HDF5=/curc/sw/hdf5/1.10.1/impi/17.3/intel/17.4/
-HDF5=${CURC_HDF5_ROOT}
+BOOST=/projects/anma2640/boost_1_66_0/
+#BOOST=${CURC_BOOST_ROOT}
+HDF5=/curc/sw/hdf5/1.10.1/impi/17.3/intel/17.4/
+#HDF5=${CURC_HDF5_ROOT}
 
 
 #FLAGS = -std=c++14 -O3 -g -I./FCIQMC -I./VMC -I./utils -I./Wavefunctions -I./ICPT -I./ICPT/StackArray/ -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${HDF5}/include  -I/opt/local/include/openmpi-mp/ #-fpermissive #-DComplex
-FLAGS = -std=c++14 -O3 -march=core-avx2 -g -I./FCIQMC -I./VMC -I./utils -I./Wavefunctions -I./ICPT -I./ICPT/StackArray/ -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${HDF5}/include  -I/opt/local/include/openmpi-mp/ -fpermissive #-DComplex
+FLAGS = -std=c++14 -O3 -march=core-avx2 -g -I./FCIQMC -I./VMC -I./utils -I./Wavefunctions -I./ICPT -I./ICPT/StackArray/ -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${HDF5}/include  -I/opt/local/include/openmpi-mp/ #-fpermissive #-DComplex
 
 
 #FLAGS = -std=c++14 -g   -I./utils -I./Wavefunctions -I${EIGEN} -I${BOOST} -I${BOOST}/include -I${LIBIGL} -I/opt/local/include/openmpi-mp/ #-DComplex
@@ -46,7 +46,7 @@ else
 	ifeq ($(USE_MPI), yes) 
 		CXX = mpicxx
 		CC = mpicxx
-		LFLAGS = -L${CURC_BOOST_LIB} -lboost_serialization -lboost_mpi -lboost_program_options -lboost_system -lboost_filesystem -L${HDF5}/lib -lhdf5
+		LFLAGS = -L${CURC_BOOST_LIB} -lboost_serialization -lboost_mpi -lboost_program_options -lboost_system -lboost_filesystem -L${CURC_HDF5_LIB} -lhdf5
 		#LFLAGS = -L/opt/local/lib -lboost_serialization-mt -lboost_mpi-mt -lboost_program_options-mt
 	else
 		CXX = g++
@@ -141,6 +141,7 @@ OBJ_DQMC = obj/staticVariables.o \
 	obj/DQMCWalker.o \
 	obj/Hamiltonian.o \
 	obj/UHF.o \
+	obj/Multislater.o \
 	obj/MixedEstimator.o 
 
 #obj/DQMCSampling.o \
