@@ -1,47 +1,16 @@
-import sys, os
-import numpy as np
+import sys, os, time
 import math
-import time
-import h5py
-from pyscf import gto, scf, ao2mo, mcscf, tools, fci, mp
-#from pyscf.shciscf import shci, settings
-from pyscf import lo
+import numpy as np
+import copy
+import h5py, json, csv, struct
+import pandas as pd
+from pyscf import gto, scf, ao2mo, mcscf, tools, fci, mp, lo
 from pyscf.lo import pipek, boys, edmiston, iao, ibo
 from scipy.linalg import fractional_matrix_power
 from scipy.stats import ortho_group
 import scipy.linalg as la
-import json
-import csv
-import pandas as pd
 
-def doRHF(mol):
-  mf = scf.RHF(mol)
-  print(mf.kernel())
-  return mf
-
-#it may be necessary (more often than not) to provide a system curated initial guess for the dm rather than just adding noise
-#if using noise, changing its magnitude may change the final answer as well
-def doUHF(mol, dm=None):
-  umf = scf.UHF(mol)
-  if dm is None:
-    dm = umf.get_init_guess()
-    norb = mol.nao
-    dm[0] = dm[0] + np.random.rand(norb, norb) / 2
-    dm[1] = dm[1] + np.random.rand(norb, norb) / 2
-  print(umf.kernel(dm0 = dm))
-  return umf
-
-#it may be necessary (more often than not) to provide a system curated initial guess for the dm rather than just adding noise
-#if using noise, changing its magnitude may change the final answer as well
-def doGHF(mol, dm=None):
-  gmf = scf.GHF(mol)
-  gmf.max_cycle = 200
-  if dm is None:
-    dm = gmf.get_init_guess()
-    norb = mol.nao
-    dm = dm + np.random.rand(2*norb, 2*norb) / 3
-  print(gmf.kernel(dm0 = dm))
-  return gmf
+# vmc
 
 def localizeAllElectron(mf, method="lowdin"):
   if (method == "lowdin"):
@@ -113,47 +82,10 @@ def basisChange(matAO, lmo, ovlp):
   matMO = (matAO.T.dot(ovlp).dot(lmo)).T
   return matMO
 
-def writeMat(mat, fileName, isComplex=False):
-  fileh = open(fileName, 'w')
-  for i in range(mat.shape[0]):
-      for j in range(mat.shape[1]):
-        if (isComplex):
-          fileh.write('(%16.10e, %16.10e) '%(mat[i,j].real, mat[i,j].imag))
-        else:
-          fileh.write('%16.10e '%(mat[i,j]))
-      fileh.write('\n')
-  fileh.close()
-
-def readMat(fileName, shape, isComplex=False):
-  if(isComplex):
-    matr = np.zeros(shape)
-    mati = np.zeros(shape)
-  else:
-    mat = np.zeros(shape)
-  row = 0
-  fileh = open(fileName, 'r')
-  for line in fileh:
-    col = 0
-    for coeff in line.split():
-      if (isComplex):
-        m = coeff.strip()[1:-1]
-        matr[row, col], mati[row, col] = [float(x) for x in m.split(',')]
-      else:
-        mat[row, col]  = float(coeff)
-      col = col + 1
-    row = row + 1
-  fileh.close()
-  if (isComplex):
-    mat = matr + 1j * mati
-  return mat
-
 def makeAGPFromRHF(rhfCoeffs):
   norb = rhfCoeffs.shape[0]
   nelec = 2*rhfCoeffs.shape[1]
   diag = np.eye(nelec//2)
-  #diag = np.zeros((norb,norb))
-  #for i in range(nelec/2):
-  #  diag[i,i] = 1.
   pairMat = rhfCoeffs.dot(diag).dot(rhfCoeffs.T)
   return pairMat
 
@@ -165,14 +97,6 @@ def makePfaffFromGHF(ghfCoeffs):
     amat[2 * i, 2 * i + 1] = 1.
   pairMat = ghfCoeffs.dot(amat).dot(ghfCoeffs.T)
   return pairMat
-
-def addNoise(mat, isComplex=False):
-  if (isComplex):
-    randMat = 0.01 * (np.random.rand(mat.shape[0], mat.shape[1]) + 1j * np.random.rand(mat.shape[0], mat.shape[1]))
-    return mat + randMat
-  else:
-    randMat = 0.01 * np.random.rand(mat.shape[0], mat.shape[1])
-    return mat + randMat
 
 def prepAllElectron(mol, loc="lowdin", dm=None, writeFcidump=True, writeMOs=True):
   mf = doRHF(mol)
@@ -225,6 +149,171 @@ def prepValence(mol, ncore, nact, occ=None, loc="iao", dm=None, writeFcidump=Tru
   if writeMOs:
     writeMat(gmf.mo_coeff, "hf.txt", False)
 
+# misc
+
+def writeMat(mat, fileName, isComplex=False):
+  fileh = open(fileName, 'w')
+  for i in range(mat.shape[0]):
+      for j in range(mat.shape[1]):
+        if (isComplex):
+          fileh.write('(%16.10e, %16.10e) '%(mat[i,j].real, mat[i,j].imag))
+        else:
+          fileh.write('%16.10e '%(mat[i,j]))
+      fileh.write('\n')
+  fileh.close()
+
+def readMat(fileName, shape, isComplex=False):
+  if(isComplex):
+    matr = np.zeros(shape)
+    mati = np.zeros(shape)
+  else:
+    mat = np.zeros(shape)
+  row = 0
+  fileh = open(fileName, 'r')
+  for line in fileh:
+    col = 0
+    for coeff in line.split():
+      if (isComplex):
+        m = coeff.strip()[1:-1]
+        matr[row, col], mati[row, col] = [float(x) for x in m.split(',')]
+      else:
+        mat[row, col]  = float(coeff)
+      col = col + 1
+    row = row + 1
+  fileh.close()
+  if (isComplex):
+    mat = matr + 1j * mati
+  return mat
+
+def addNoise(mat, isComplex=False):
+  if (isComplex):
+    randMat = 0.01 * (np.random.rand(mat.shape[0], mat.shape[1]) + 1j * np.random.rand(mat.shape[0], mat.shape[1]))
+    return mat + randMat
+  else:
+    randMat = 0.01 * np.random.rand(mat.shape[0], mat.shape[1])
+    return mat + randMat
+
+
+# dice
+
+# reading dets from dice
+def read_dets(fname = 'dets.bin', ndets = None):
+  state = { }
+  norbs = 0
+  with open(fname, 'rb') as f:
+    ndetsAll = struct.unpack('i', f.read(4))[0]
+    norbs = struct.unpack('i', f.read(4))[0]
+    if ndets is None:
+      ndets = ndetsAll
+    for i in range(ndets):
+      coeff = struct.unpack('d', f.read(8))[0]
+      det = [ [ 0 for i in range(norbs) ], [ 0 for i in range(norbs) ] ]
+      for j in range(norbs):
+        occ = struct.unpack('c', f.read(1))[0]
+        if (occ == b'a'):
+          det[0][j] = 1
+        elif (occ == b'b'):
+          det[1][j] = 1
+        elif (occ == b'2'):
+          det[0][j] = 1
+          det[1][j] = 1
+      state[tuple(map(tuple, det))] = coeff
+
+  return norbs, state
+
+# a_i^dag a_j
+def ci_parity(det, i, j):
+  assert(det[i] == 0 and det[j] == 1)
+  if i > j:
+    return (-1.)**(det[j+1:i].count(1))
+  else:
+    return (-1.)**(det[i+1:j].count(1))
+
+def calculate_ci_1rdm(norbs, state, ndets=100):
+  norm_square = 0.
+  counter = 0
+  rdm = [ np.zeros((norbs, norbs)), np.zeros((norbs, norbs)) ]
+  for det, coeff in state.items():
+    counter += 1
+    norm_square += coeff * coeff
+    det_list = list(map(list, det))
+    for sz in range(2):
+      occ = [ i for i, x in enumerate(det_list[sz]) if x == 1 ]
+      empty = [ i for i, x in enumerate(det_list[sz]) if x == 0 ]
+      for j in occ:
+        rdm[sz][j, j] += coeff * coeff
+        for i in empty:
+          new_det = copy.deepcopy(det_list)
+          new_det[sz][i] = 1
+          new_det[sz][j] = 0
+          new_det = tuple(map(tuple, new_det))
+          if new_det in state:
+            rdm[sz][i, j] += ci_parity(det_list[sz], i, j) * state[new_det] * coeff
+    if counter == ndets:
+      break
+
+  rdm[0] /= norm_square
+  rdm[1] /= norm_square
+  return rdm
+
+def write_hci_ghf_uhf_integrals(ham_ints, norb, nelec, tol = 1.e-10, filename='FCIDUMP'):
+  enuc = ham_ints['enuc']
+  h1g = la.block_diag(ham_ints['h1'][0], ham_ints['h1'][1])
+  # arrange orbitals ababab...
+  h1g = h1g[:, [ i//2 if (i%2 == 0) else norb + i//2 for i in range(2*norb)]]
+  h1g = h1g[[ i//2 if (i%2 == 0) else norb + i//2 for i in range(2*norb)], :]
+  eriUp, eriDn, eriUpDn = ham_ints['eri']
+  erig = np.zeros((4*norb**2, 4*norb**2)) + 0.j
+  for i in range(norb):
+    for j in range(norb):
+      ij_up = (2*i)*(2*norb)+(2*j)
+      ij_dn = (2*i+1)*(2*norb)+(2*j+1)
+      ij_uhf = max(i,j) * (max(i,j) + 1) // 2 + min(i,j)
+      for k in range(norb):
+        for l in range(norb):
+          kl_up = (2*k)*(2*norb)+(2*l)
+          kl_dn = (2*k+1)*(2*norb)+(2*l+1)
+          kl_uhf = max(k,l) * (max(k,l) + 1) // 2 + min(k,l)
+          erig[ij_up, kl_up] = eriUp[ij_uhf, kl_uhf]
+          erig[ij_up, kl_dn] = eriUpDn[ij_uhf, kl_uhf]
+          erig[ij_dn, kl_up] = eriUpDn[kl_uhf, ij_uhf]
+          erig[ij_dn, kl_dn] = eriDn[ij_uhf, kl_uhf]
+
+  float_format = '(%16.12e, %16.12e)'
+  nsorb = 2*norb
+  with open(filename, 'w') as fout:
+    # header
+    fout.write(' &FCI NORB=%4d,NELEC=%2d,MS2=%d,\n' % (nsorb, nelec, 0))
+    fout.write('  ORBSYM=%s\n' % ('1,' * nsorb))
+    fout.write('  ISYM=0,\n')
+    fout.write(' &END\n')
+
+    # eri
+    output_format = float_format + ' %4d %4d %4d %4d\n'
+    for i in range(nsorb):
+      for j in range(nsorb):
+        ij = i*nsorb+j
+        for k in range(nsorb):
+          for l in range(nsorb):
+            kl = k*nsorb+l
+            if abs(erig[ij][kl]) > tol:
+              fout.write(output_format % (erig[ij][kl].real, erig[ij][kl].imag, i+1, j+1, k+1, l+1))
+
+    # h1
+    output_format = float_format + ' %4d %4d  0  0\n'
+    for i in range(nsorb):
+      for j in range(nsorb):
+        if abs(h1g[i,j]) > tol:
+          fout.write(output_format % (h1g[i,j].real, h1g[i,j].imag, i+1, j+1))
+
+    # enuc
+    output_format = float_format + '  0  0  0  0\n'
+    fout.write(output_format % (enuc, 0.0))
+
+  return
+
+
+# afqmc
 
 # calculate and write cholesky integrals
 # mc has to be provided if using frozen core
@@ -253,6 +342,30 @@ def prepAFQMC(mol, mf, mc=None, chol_cut=1e-5, verbose=False):
   chol = chol.reshape((chol.shape[0], -1))
   write_dqmc(h1e, h1e_mod, chol, sum(nelec), nbasis, enuc, ms=mol.spin, filename='FCIDUMP_chol')
 
+# calculate and write cholesky-like integrals given eri's
+def calculate_write_afqmc_uihf_integrals(ham_ints, norb, nelec, ms = 0, chol_cut = 1e-8, filename = 'FCIDUMP_chol'):
+  block_eri = np.block([[ ham_ints['eri'][0], ham_ints['eri'][2] ], [ ham_ints['eri'][2].T, ham_ints['eri'][1] ]]).round(8)
+  evals, evecs = np.linalg.eigh(block_eri)
+  nchol = (evals > chol_cut).nonzero()[0].shape[0]
+  evals_sqrt = np.sqrt(evals[ evals > chol_cut ])
+  chol = np.zeros((2, nchol, norb, norb))
+  for i in range(nchol):
+    for m in range(norb):
+      for n in range(m+1):
+        triind = m*(m+1)//2 + n
+        chol[0, i, m, n] = evals_sqrt[-i-1] * evecs[triind, -i-1]
+        chol[0, i, n, m] = evals_sqrt[-i-1] * evecs[triind, -i-1]
+        chol[1, i, m, n] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
+        chol[1, i, n, m] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
+
+  # writing afqmc ints
+  h1 = np.array(ham_ints['h1']).round(8)
+  enuc = round(ham_ints['enuc'], 8)
+  v0_up = 0.5 * np.einsum('nik,njk->ij', chol[0], chol[0], optimize='optimal')
+  v0_dn = 0.5 * np.einsum('nik,njk->ij', chol[1], chol[1], optimize='optimal')
+  h1_mod = [ h1[0] - v0_up, h1[1] - v0_dn ]
+  chol_flat = [ chol[0].reshape((nchol, -1)), chol[1].reshape((nchol, -1)) ]
+  write_dqmc_uihf(h1, h1_mod, chol_flat, nelec, norb, enuc, ms=ms, filename=filename)
 
 # cholesky generation functions are from pauxy
 def generate_integrals(mol, hcore, X, chol_cut=1e-5, verbose=False):
@@ -424,6 +537,40 @@ def write_dqmc_uihf(hcore, hcore_mod, chol, nelec, nmo, enuc, ms=0,
         fh5['energy_core'] = enuc
 
 # reads rdm files and calculates one-body observables and stochastic error
+def calculate_observables(observables, constants = None, prefix = './'):
+  # nobs is the number of observables
+  nobs = len(observables)
+  norb = observables[0].shape[0]
+  if constants is None:
+    constants = np.zeros(nobs)
+  fcount = 0
+  observables_afqmc = [ ]
+  weights = [ ]
+  for filename in os.listdir(prefix):
+    if (filename.startswith(f'rdm_')):
+      fcount += 1
+      with open(filename) as fh:
+        weights.append(float(fh.readline()))
+      cols = list(range(norb))
+      df = pd.read_csv(filename, delim_whitespace=True, usecols=cols, header=None, skiprows=1)
+      rdm_i = df.to_numpy()
+      obs_i = constants.copy()
+      for n in range(nobs):
+        obs_i[n] += np.trace(np.dot(rdm_i, observables[n]))
+      observables_afqmc.append(obs_i)
+
+  weights = np.array(weights)
+  observables_afqmc = np.array(observables_afqmc)
+  obsMean = np.zeros(nobs)
+  obsError = np.zeros(nobs)
+  v1 = weights.sum()
+  v2 = (weights**2).sum()
+  for n in range(nobs):
+    obsMean[n] = np.multiply(weights, observables_afqmc[:, n]).sum() / v1
+    obsError[n] = (np.multiply(weights, (observables_afqmc[:, n] - obsMean[n])**2).sum() / (v1 - v2 / v1) / (fcount - 1))**0.5
+  return [ obsMean, obsError ]
+
+# reads rdm files and calculates one-body observables and stochastic error
 def calculate_observables_uihf(observables, constants = None, prefix = './'):
   # nobs is the number of observables
   nobs = len(observables)
@@ -487,7 +634,7 @@ def write_uccsd(singles, doubles, rotation=None, filename='uccsd.h5'):
     fh5['rotation'] = rotation.flatten()
 
 
-def write_afqmc_input(numAct = None, left = "rhf", right = "rhf", ndets = 100, seed = None, dt = 0.005, nsteps = 50, nwalk = 50, stochasticIter = 500, orthoSteps = 20, choleskyThreshold = 2.0e-3, fname = 'afqmc.json'):
+def write_afqmc_input(numAct = None, left = "rhf", right = "rhf", ndets = 100, seed = None, dt = 0.005, nsteps = 50, nwalk = 50, stochasticIter = 500, orthoSteps = 20, choleskyThreshold = 2.0e-3, rdm = False, fname = 'afqmc.json'):
   system = { }
   system["integrals"] = "FCIDUMP_chol"
   if numAct is not None:
@@ -512,13 +659,19 @@ def write_afqmc_input(numAct = None, left = "rhf", right = "rhf", ndets = 100, s
   sampling["choleskyThreshold"] = choleskyThreshold
   sampling["orthoSteps"] = orthoSteps
 
-  json_input = {"system": system, "wavefunction": wavefunction, "sampling": sampling}
+  printBlock = { }
+  if rdm:
+    printBlock['writeOneRDM'] = True
+
+  json_input = {"system": system, "wavefunction": wavefunction, "sampling": sampling, "print": printBlock}
   json_dump = json.dumps(json_input, indent = 2)
 
   with open(fname, "w") as outfile:
     outfile.write(json_dump)
   return
 
+
+# lattice models
 
 # for tilted hubbard model
 def findSiteInUnitCell(newsite, size, latticeVectors, sites):

@@ -13,17 +13,17 @@ nproc = 10
 dice_binary = "/projects/anma2640/relDice/Dice/ZDice2"
 vmc_root = "/projects/anma2640/VMC/dqmc_uihf/VMC/"
 
-r = 1.8
-atomstring = ""
-for i in range(10):
-  atomstring += "H 0 0 %g\n"%(i*r)
 mol = gto.M(
-    atom = atomstring,
-    basis = 'sto-6g',
-    verbose = 4,
-    unit = 'bohr',
-    symmetry = 0,
-    spin = 0)
+atom = '''
+O        0.000000    0.000000    0.117790
+H        0.000000    0.755453   -0.471161
+H        0.000000   -0.755453   -0.471161
+''',
+basis = '631g',
+charge = 1,
+spin = 1,  # = 2S = spin_up - spin_down
+symmetry = 1,
+verbose = 4)
 mf = scf.RHF(mol)
 mf.kernel()
 norb = mol.nao
@@ -46,12 +46,8 @@ print('e(FCI) = %.12f' % e_fci)
 dm1_fci = cisolver.make_rdm1(ci, mol.nao, mol.nelec)
 
 # uhf
-dm = [np.zeros((norb, norb)), np.zeros((norb, norb))]
-for i in range(norb//2):
-  dm[0][2*i, 2*i] = 1.
-  dm[1][2*i+1, 2*i+1] = 1.
 umf = scf.UHF(mol)
-umf.kernel(dm)
+umf.kernel()
 dm1_uhf = umf.make_rdm1()
 
 
@@ -113,15 +109,43 @@ print("Finished Dice calculation\n")
 # one-body energy
 h1e = mf.mo_coeff.T.dot(mf.get_hcore()).dot(mf.mo_coeff)
 
-e1_rhf = np.trace(np.dot(dm1_rhf, mf.get_hcore()))
+e1_rhf = np.trace(np.dot(dm1_rhf[0] + dm1_rhf[1], mf.get_hcore()))
 e1_uhf = np.trace(np.dot(dm1_uhf[0] + dm1_uhf[1], mf.get_hcore()))
-e1_cc = np.trace(np.dot(dm1_cc, h1e))
+e1_cc = np.trace(np.dot(dm1_cc[0] + dm1_cc[1], h1e))
 e1_fci = np.trace(np.dot(dm1_fci, h1e))
 
 print(f'e1_rhf: {e1_rhf}')
 print(f'e1_uhf: {e1_uhf}')
 print(f'e1_cc: {e1_cc}')
 print(f'e1_fci: {e1_fci}\n')
+
+# dipole moment
+nuc_dipmom = [0.0, 0.0, 0.0]
+for i in range(mol.natm):
+  for j in range(3):
+    nuc_dipmom[j] += mol.atom_charge(i) * mol.atom_coord(i)[j]
+
+# spatial orbitals
+dip_ints_ao = -mol.intor_symmetric('int1e_r', comp=3)
+dip_ints_mo = np.empty_like(dip_ints_ao)
+for i in range(dip_ints_ao.shape[0]):
+  dip_ints_mo[i] = mf.mo_coeff.T.dot(dip_ints_ao[i]).dot(mf.mo_coeff)
+
+dipole_rhf = np.einsum('kij,ji->k', dip_ints_ao, dm1_rhf[0] + dm1_rhf[1]) + np.array(nuc_dipmom)
+dipole_uhf = np.einsum('kij,ji->k', dip_ints_ao, dm1_uhf[0] + dm1_uhf[1]) + np.array(nuc_dipmom)
+dipole_cc = np.einsum('kij,ji->k', dip_ints_mo, dm1_cc[0] + dm1_cc[1]) + np.array(nuc_dipmom)
+dipole_dice = np.einsum('kij,ji->k', dip_ints_mo, dm1_fci) + np.array(nuc_dipmom)
+
+print(f'dipole_rhf: {dipole_rhf}')
+print(f'dipole_uhf: {dipole_uhf}')
+print(f'dipole_cc: {dipole_cc}')
+print(f'dipole_fci: {dipole_dice}\n')
+
+# spin orbitals
+dip_ints_mo = [ [ np.zeros((norb, norb)), np.zeros((norb, norb)) ] for i in range(3) ]
+for i in range(dip_ints_ao.shape[0]):
+  dip_ints_mo[i][0] = umf.mo_coeff[0].T.dot(dip_ints_ao[i]).dot(umf.mo_coeff[0])
+  dip_ints_mo[i][1] = umf.mo_coeff[1].T.dot(dip_ints_ao[i]).dot(umf.mo_coeff[1])
 
 
 # afqmc
@@ -144,7 +168,7 @@ os.system("export OMP_NUM_THREADS=1; rm samples.dat rdm_* -f")
 
 # hci trial
 for ndets in [ 1, 10, 100 ]:
-  QMCUtils.write_afqmc_input(seed=16835, left="multislater", right="uhf", nwalk=20, stochasticIter=500, ndets=ndets, choleskyThreshold=1.e-3, fname=f"afqmc_{ndets}.json")
+  QMCUtils.write_afqmc_input(seed=16835, left="multislater", right="uhf", nwalk=30, stochasticIter=500, ndets=ndets, choleskyThreshold=2.e-3, fname=f"afqmc_{ndets}.json")
   print(f"\nStarting AFQMC / HCI ({ndets}) calculation", flush=True)
   command = f'''
                 mpirun -np {nproc} {afqmc_binary} afqmc_{ndets}.json > afqmc_{ndets}.out;
@@ -162,4 +186,13 @@ for ndets in [ 1, 10, 100 ]:
   print(f'{ndets} dets mixed afqmc e1: {obsMean}')
   print(f'{ndets} dets extrapolated e1: {2*obsMean - obsVar}')
   print(f'{ndets} dets errors e1: {obsError}')
+
+  print('\ndipole')
+  obsVar = np.array( [ np.einsum('ij,ji->', dip_ints_mo[i][0], rdm_dice[0]) + np.einsum('ij,ji->', dip_ints_mo[i][1], rdm_dice[1]) for i in range(3) ] )
+  obsMean, obsError = QMCUtils.calculate_observables_uihf(dip_ints_mo, constants=nuc_dipmom)
+  print(f'{ndets} dets variational dipole: {obsVar}')
+  print(f'{ndets} dets mixed afqmc dipole: {obsMean}')
+  print(f'{ndets} dets extrapolated dipole: {2*obsMean - obsVar}')
+  print(f'{ndets} dets errors dipole: {obsError}')
+  print(f"Finished AFQMC / HCI ({ndets}) calculation\n")
 

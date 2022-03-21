@@ -1,12 +1,13 @@
 #INFO: **** input file is /projects/anma2640/VMC/dqmc_uihf/VMC/examples/DQMC/h10_uhf_afqmc/hChain.py ****
 import numpy as np
-from pyscf import gto, scf, ao2mo, mcscf, tools, fci, mp
+from pyscf import gto, scf, ao2mo, mcscf, tools, fci, mp, cc
 from pyscf.shciscf import shci
 import sys, os
 import scipy.linalg as la
 import QMCUtils
-import fcidump_rel
 import h5py
+
+np.set_printoptions(precision=7, linewidth=1000, suppress=True)
 
 # these need to be provided
 nproc = 10
@@ -27,6 +28,23 @@ mol = gto.M(
 mf = scf.RHF(mol)
 mf.kernel()
 norb = mol.nao
+dm1_rhf = mf.make_rdm1()
+
+# ccsd
+mycc = cc.CCSD(mf)
+mycc.frozen = 0
+mycc.verbose = 5
+mycc.kernel()
+dm1_cc = mycc.make_rdm1()
+
+et = mycc.ccsd_t()
+print('CCSD(T) energy', mycc.e_tot + et)
+
+# fci
+cisolver = fci.FCI(mf)
+e_fci, ci = cisolver.kernel()
+print('e(FCI) = %.12f' % e_fci)
+dm1_fci = cisolver.make_rdm1(ci, mol.nao, mol.nelec)
 
 # uhf
 dm = [np.zeros((norb, norb)), np.zeros((norb, norb))]
@@ -35,20 +53,14 @@ for i in range(norb//2):
   dm[1][2*i+1, 2*i+1] = 1.
 umf = scf.UHF(mol)
 umf.kernel(dm)
+dm1_uhf = umf.make_rdm1()
 
-# fci
-cisolver = fci.FCI(mf)
-e_fci, ci = cisolver.kernel()
-print('e(FCI) = %.12f' % e_fci)
-dm1_fci = cisolver.make_rdm1(ci, mol.nao, mol.nelec)
-h1e = mf.mo_coeff.T.dot(mf.get_hcore()).dot(mf.mo_coeff)
-e1_fci = np.trace(np.dot(dm1_fci, h1e))
 
 # dice
-# writing input and integrals
 print("\nPreparing Dice calculation")
+# writing input
 # dummy shciscf object for specifying options
-mc = shci.SHCISCF(mf, mol.nao, mol.nelectron)
+mc = shci.SHCISCF(mf, norb, mol.nelectron)
 mc.mo_coeff = mf.mo_coeff
 mc.fcisolver.sweep_iter = [ 0 ]
 mc.fcisolver.sweep_epsilon = [ 1e-5 ]
@@ -57,76 +69,67 @@ mc.fcisolver.dE = 1.e-6
 mc.fcisolver.maxiter = 6
 mc.fcisolver.nPTiter = 0
 mc.fcisolver.DoRDM = False
-#shci.dryrun(mc, mc.mo_coeff)
 shci.writeSHCIConfFile(mc.fcisolver, mol.nelec, False)
 command = "mv input.dat dice.dat"
 os.system(command)
 with open("dice.dat", "a") as fh:
   fh.write("readText\n")
-  fh.write("writebestdeterminants 1000\n")
+  fh.write("writebestdeterminants 10000\n")
+  fh.write("DoSpinRDM\n")
 
-
-ughf = la.block_diag(umf.mo_coeff[0], umf.mo_coeff[1])
-ughf = ughf[:, [ i//2 if (i%2 == 0) else norb + i//2 for i in range(2*norb)]]
-ghcore = la.block_diag(umf.get_hcore(), umf.get_hcore())
-h1g = ughf.T.dot(ghcore).dot(ughf) + 0.j
-eri = ao2mo.kernel(mol, ughf[[ i//2 if (i%2 == 0) else norb + i//2 for i in range(2*norb)],:] + 0.j, intor='int2e_spinor')
-fcidump_rel.from_integrals('FCIDUMP', h1g, eri, 2*norb, mol.nelectron, nuc=mf.energy_nuc())
-
-# run dice calculation
-print("Starting Dice calculation")
-command = f"mpirun -np {nproc} {dice_binary} dice.dat > dice.out; rm -f shci.e"
-os.system(command)
-print("Finished Dice calculation\n")
-
-# afqmc
-
-print("Preparing AFQMC calculation")
-# expressing eri's as sum of squares
+# constructing and writing ghf integrals from uhf
 h1_ao = umf.get_hcore()
-h1 = [ umf.mo_coeff[0].T.dot(h1_ao).dot(umf.mo_coeff[0]), umf.mo_coeff[1].T.dot(h1_ao).dot(umf.mo_coeff[1])  ]
+h1 = [ umf.mo_coeff[0].T.dot(h1_ao).dot(umf.mo_coeff[0]), umf.mo_coeff[1].T.dot(h1_ao).dot(umf.mo_coeff[1]) ]
 eriUp = ao2mo.kernel(umf._eri, umf.mo_coeff[0])
 eriDn = ao2mo.kernel(umf._eri, umf.mo_coeff[1])
 eriUpDn = ao2mo.incore.general(umf._eri, (umf.mo_coeff[0], umf.mo_coeff[0], umf.mo_coeff[1],umf.mo_coeff[1]))
 enuc = mf.energy_nuc()
-block_eri = np.block([[eriUp, eriUpDn], [eriUpDn.T, eriDn]])
-evals, evecs = np.linalg.eigh(block_eri)
-nchol = (evals > 1.e-8).nonzero()[0].shape[0]
-evals_sqrt = np.sqrt(evals[ evals > 1.e-8 ])
-chol = np.zeros((2, nchol, norb, norb))
-for i in range(nchol):
-  for m in range(norb):
-    for n in range(m+1):
-      triind = m*(m+1)//2 + n
-      chol[0, i, m, n] = evals_sqrt[-i-1] * evecs[triind, -i-1]
-      chol[0, i, n, m] = evals_sqrt[-i-1] * evecs[triind, -i-1]
-      chol[1, i, m, n] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
-      chol[1, i, n, m] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
+ham_ints = {'enuc': enuc, 'h1': h1, 'eri': [ eriUp, eriDn, eriUpDn ] }
+QMCUtils.write_hci_ghf_uhf_integrals(ham_ints, norb, mol.nelectron)
 
-# checking uhf energy with cholesky ints
-rho = [ np.zeros((norb, norb)), np.zeros((norb, norb)) ]
-for i in range(mol.nelec[0]):
-  rho[0][i, i] = 1.
-for i in range(mol.nelec[1]):
-  rho[1][i, i] = 1.
-coul = np.einsum('sgpr,spr->g', chol, rho)
-exc = np.einsum('sgpr,spt->sgrt', chol, rho)
-e2 = (np.einsum('g,g->', coul, coul) - np.einsum('sgtr,sgrt->', exc, exc) )/2
-e1 = np.einsum('ij,ji->', h1[0], rho[0]) + np.einsum('ij,ji->', h1[1], rho[1])
-print(f'uhf ene from chol: {enuc + e1 + e2}\n')
-e1_hf = e1
+# run dice calculation
+print("Starting Dice calculation")
+command = f'''
+              mpirun -np {nproc} {dice_binary} dice.dat > dice.out;
+              rm -f shci.e; rm -f FCIDUMP;
+           '''
+os.system(command)
 
+# get dice energy from output
+e1_dice = 0
+e_dice = 0
+with open('dice.out', 'r') as fh:
+  for line in fh:
+    if 'one-body' in line:
+      ls = line.split()
+      e1_dice = float(ls[3])
+    if 'E from 2RDM:' in line:
+      ls = line.split()
+      e_dice = float(ls[3])
+print(f'e_dice: {e_dice}')
+print("Finished Dice calculation\n")
+
+
+# observable integrals
 # one-body energy
-print(f'e1_hf: {e1_hf}')
-print(f'e1_fci: {e1_fci}')
+h1e = mf.mo_coeff.T.dot(mf.get_hcore()).dot(mf.mo_coeff)
 
-# writing afqmc ints
-nbasis = norb
-v0_up = 0.5 * np.einsum('nik,njk->ij', chol[0], chol[0], optimize='optimal')
-v0_dn = 0.5 * np.einsum('nik,njk->ij', chol[1], chol[1], optimize='optimal')
-h1_mod = [ h1[0] - v0_up, h1[1] - v0_dn ]
-chol_flat = [ chol[0].reshape((nchol, -1)), chol[1].reshape((nchol, -1)) ]
-QMCUtils.write_dqmc_uihf(h1, h1_mod, chol_flat, mol.nelectron, nbasis, enuc, filename='FCIDUMP_chol')
+e1_rhf = np.trace(np.dot(dm1_rhf, mf.get_hcore()))
+e1_uhf = np.trace(np.dot(dm1_uhf[0] + dm1_uhf[1], mf.get_hcore()))
+e1_cc = np.trace(np.dot(dm1_cc, h1e))
+e1_fci = np.trace(np.dot(dm1_fci, h1e))
+
+print(f'e1_rhf: {e1_rhf}')
+print(f'e1_uhf: {e1_uhf}')
+print(f'e1_cc: {e1_cc}')
+print(f'e1_fci: {e1_fci}\n')
+
+
+# afqmc
+
+print("Preparing AFQMC calculation")
+# calculate and write integrals
+QMCUtils.calculate_write_afqmc_uihf_integrals(ham_ints, norb, mol.nelectron, ms=mol.spin)
 
 # write hf wave function coefficients
 uhfCoeffs = np.empty((norb, 2*norb))
@@ -140,28 +143,10 @@ blocking_script = vmc_root + "/scripts/blocking.py"
 
 os.system("export OMP_NUM_THREADS=1; rm samples.dat rdm_* -f")
 
-# uhf trial
-QMCUtils.write_afqmc_input(seed=4321, left="uhf", right="uhf", nwalk=20, stochasticIter=500, choleskyThreshold=1.e-3, fname="afqmc_uhf.json")
-print("\nStarting AFQMC / UHF calculation", flush=True)
-command = f'''
-              mpirun -np {nproc} {afqmc_binary} afqmc_uhf.json > afqmc_uhf.out;
-              mv samples.dat samples_uhf.dat
-              python {blocking_script} samples_uhf.dat 100 > blocking_uhf.out;
-              cat blocking_uhf.out;
-           '''
-os.system(command)
-obsVar = np.array([ e1_hf ])
-obsMean, obsError = QMCUtils.calculate_observables_uihf([ h1 ])
-np.set_printoptions(precision=7, linewidth=1000, suppress=True)
-print(f'\nmixed obs_afqmc: {obsMean}')
-print(f'extrapolated obs: {2*obsMean - obsVar}')
-print(f'errors: {obsError}')
-print("Finished AFQMC / UHF calculation\n")
-
 # hci trial
-for ndets in [ 10, 100 ]:
-  QMCUtils.write_afqmc_input(left="multislater", right="uhf", nwalk=20, stochasticIter=500, ndets=ndets, choleskyThreshold=1.e-3, fname=f"afqmc_{ndets}.json")
-  print(f"Starting AFQMC / HCI ({ndets}) calculation", flush=True)
+for ndets in [ 1, 10, 100 ]:
+  QMCUtils.write_afqmc_input(seed=16835, left="multislater", right="uhf", nwalk=20, stochasticIter=500, ndets=ndets, choleskyThreshold=1.e-3, fname=f"afqmc_{ndets}.json")
+  print(f"\nStarting AFQMC / HCI ({ndets}) calculation", flush=True)
   command = f'''
                 mpirun -np {nproc} {afqmc_binary} afqmc_{ndets}.json > afqmc_{ndets}.out;
                 mv samples.dat samples_{ndets}.dat
@@ -169,20 +154,24 @@ for ndets in [ 10, 100 ]:
                 cat blocking_{ndets}.out;
              '''
   os.system(command)
+  norb_dice, state_dice = QMCUtils.read_dets(ndets=ndets)
+  rdm_dice = QMCUtils.calculate_ci_1rdm(norb_dice, state_dice, ndets=ndets)
+  print('\n1e energy')
+  obsVar = np.array( [np.einsum('ij,ji->', h1[0], rdm_dice[0]) + np.einsum('ij,ji->', h1[1], rdm_dice[1])] )
   obsMean, obsError = QMCUtils.calculate_observables_uihf([ h1 ])
-  np.set_printoptions(precision=7, linewidth=1000, suppress=True)
-  print(f'\nmixed obs_afqmc: {obsMean}')
-  print(f'errors: {obsError}')
-  print(f"Finished AFQMC / HCI ({ndets}) calculation\n")
+  print(f'{ndets} dets variational e1: {obsVar}')
+  print(f'{ndets} dets mixed afqmc e1: {obsMean}')
+  print(f'{ndets} dets extrapolated e1: {2*obsMean - obsVar}')
+  print(f'{ndets} dets errors e1: {obsError}')
 
 #INFO: ******************** input file end ********************
 
 
-System: uname_result(system='Linux', node='bhpc-c7-u7-10.rc.int.colorado.edu', release='3.10.0-1160.15.2.el7.x86_64', version='#1 SMP Wed Feb 3 15:06:38 UTC 2021', machine='x86_64', processor='x86_64')  Threads 1
+System: uname_result(system='Linux', node='bhpc-c7-u7-1.rc.int.colorado.edu', release='3.10.0-1160.15.2.el7.x86_64', version='#1 SMP Wed Feb 3 15:06:38 UTC 2021', machine='x86_64', processor='x86_64')  Threads 36
 Python 3.8.3 (default, May 19 2020, 18:47:26) 
 [GCC 7.3.0]
 numpy 1.19.1  scipy 1.5.2
-Date: Sun Mar 13 19:42:38 2022
+Date: Mon Mar 21 13:48:24 2022
 PySCF version 1.7.4
 PySCF path  /projects/anma2640/pyscf/pyscf
 GIT HEAD      ref: refs/heads/master
@@ -213,7 +202,7 @@ number of NR pGTOs = 60
 number of NR cGTOs = 10
 basis = sto-6g
 ecp = {}
-CPU time:         1.24
+CPU time:         1.10
 
 
 ******** <class 'pyscf.scf.hf.RHF'> ********
@@ -229,27 +218,99 @@ SCF conv_tol_grad = None
 SCF max_cycles = 50
 direct_scf = True
 direct_scf_tol = 1e-13
-chkfile to save SCF result = /rc_scratch/anma2640/tmpxevibayq
-max_memory 4000 MB (current use 103 MB)
+chkfile to save SCF result = /rc_scratch/anma2640/tmpblqot227
+max_memory 4000 MB (current use 105 MB)
 Set gradient conv threshold to 3.16228e-05
 init E= -4.31855489594788
-  HOMO = -0.140320282759687  LUMO = 0.0969750548082788
+  HOMO = -0.140320282759688  LUMO = 0.0969750548082789
 cycle= 1 E= -5.25669051356884  delta_E= -0.938  |g|= 0.118  |ddm|= 2.29
-  HOMO = -0.255171886156429  LUMO = 0.147406808544082
+  HOMO = -0.255171886156428  LUMO = 0.147406808544083
 cycle= 2 E= -5.26791682409509  delta_E= -0.0112  |g|= 0.046  |ddm|= 0.323
-  HOMO = -0.261112002125801  LUMO = 0.168613394802669
-cycle= 3 E= -5.27003186667196  delta_E= -0.00212  |g|= 0.0108  |ddm|= 0.149
+  HOMO = -0.261112002125801  LUMO = 0.168613394802666
+cycle= 3 E= -5.27003186667197  delta_E= -0.00212  |g|= 0.0108  |ddm|= 0.149
   HOMO = -0.267065022401348  LUMO = 0.169512600696269
-cycle= 4 E= -5.27014241120653  delta_E= -0.000111  |g|= 0.000826  |ddm|= 0.0438
-  HOMO = -0.266904613545519  LUMO = 0.169472828369521
+cycle= 4 E= -5.27014241120654  delta_E= -0.000111  |g|= 0.000826  |ddm|= 0.0438
+  HOMO = -0.26690461354552  LUMO = 0.16947282836952
 cycle= 5 E= -5.27014281644618  delta_E= -4.05e-07  |g|= 0.000202  |ddm|= 0.00146
-  HOMO = -0.266945662809854  LUMO = 0.169472194800056
+  HOMO = -0.266945662809853  LUMO = 0.169472194800055
 cycle= 6 E= -5.27014284137256  delta_E= -2.49e-08  |g|= 1.65e-05  |ddm|= 0.000498
-  HOMO = -0.266952679183071  LUMO = 0.169479128914712
+  HOMO = -0.266952679183071  LUMO = 0.16947912891471
 cycle= 7 E= -5.27014284162115  delta_E= -2.49e-10  |g|= 1.2e-06  |ddm|= 6.09e-05
   HOMO = -0.266951778345663  LUMO = 0.169478648819239
-Extra cycle  E= -5.27014284162218  delta_E= -1.02e-12  |g|= 4.44e-07  |ddm|= 2.54e-06
+Extra cycle  E= -5.27014284162218  delta_E= -1.03e-12  |g|= 4.44e-07  |ddm|= 2.54e-06
 converged SCF energy = -5.27014284162218
+
+******** <class 'pyscf.cc.ccsd.CCSD'> ********
+CC2 = 0
+CCSD nocc = 5, nmo = 10
+frozen orbitals 0
+max_cycle = 50
+direct = 0
+conv_tol = 1e-07
+conv_tol_normt = 1e-05
+diis_space = 6
+diis_start_cycle = 0
+diis_start_energy_diff = 1e+09
+max_memory 4000 MB (current use 129 MB)
+    CPU time for CCSD integral transformation      0.18 sec, wall time      0.01 sec
+Init t2, MP2 energy = -5.37139267420502  E_corr(MP2) -0.101249832582844
+    CPU time for init mp2      0.02 sec, wall time      0.00 sec
+Init E_corr(CCSD) = -0.101249832582959
+cycle = 1  E_corr(CCSD) = -0.129984086131307  dE = -0.0287342535  norm(t1,t2) = 0.0687416
+    CPU time for CCSD iter      4.71 sec, wall time      0.13 sec
+cycle = 2  E_corr(CCSD) = -0.141788334707575  dE = -0.0118042486  norm(t1,t2) = 0.0388523
+    CPU time for CCSD iter      6.31 sec, wall time      0.18 sec
+cycle = 3  E_corr(CCSD) = -0.151647831244297  dE = -0.00985949654  norm(t1,t2) = 0.0210679
+    CPU time for CCSD iter      4.87 sec, wall time      0.14 sec
+cycle = 4  E_corr(CCSD) = -0.152817447150757  dE = -0.00116961591  norm(t1,t2) = 0.00617798
+    CPU time for CCSD iter      3.27 sec, wall time      0.09 sec
+cycle = 5  E_corr(CCSD) = -0.152326349165165  dE = 0.000491097986  norm(t1,t2) = 0.00310372
+    CPU time for CCSD iter      3.40 sec, wall time      0.09 sec
+cycle = 6  E_corr(CCSD) = -0.152395272151054  dE = -6.89229859e-05  norm(t1,t2) = 0.000784975
+    CPU time for CCSD iter      3.90 sec, wall time      0.11 sec
+cycle = 7  E_corr(CCSD) = -0.152424678270268  dE = -2.94061192e-05  norm(t1,t2) = 0.00028711
+    CPU time for CCSD iter      3.68 sec, wall time      0.10 sec
+cycle = 8  E_corr(CCSD) = -0.152409641479668  dE = 1.50367906e-05  norm(t1,t2) = 0.000110106
+    CPU time for CCSD iter      4.26 sec, wall time      0.12 sec
+cycle = 9  E_corr(CCSD) = -0.152404752272367  dE = 4.8892073e-06  norm(t1,t2) = 3.36407e-05
+    CPU time for CCSD iter      4.09 sec, wall time      0.11 sec
+cycle = 10  E_corr(CCSD) = -0.152405536846489  dE = -7.84574123e-07  norm(t1,t2) = 9.60336e-06
+    CPU time for CCSD iter      3.60 sec, wall time      0.10 sec
+cycle = 11  E_corr(CCSD) = -0.152406036496671  dE = -4.99650182e-07  norm(t1,t2) = 3.92214e-06
+    CPU time for CCSD iter      3.86 sec, wall time      0.11 sec
+cycle = 12  E_corr(CCSD) = -0.152406348288446  dE = -3.11791775e-07  norm(t1,t2) = 8.53762e-07
+    CPU time for CCSD iter      4.41 sec, wall time      0.12 sec
+cycle = 13  E_corr(CCSD) = -0.152406389082996  dE = -4.07945498e-08  norm(t1,t2) = 2.63759e-07
+    CPU time for CCSD iter      4.08 sec, wall time      0.11 sec
+    CPU time for CCSD     54.45 sec, wall time      1.52 sec
+CCSD converged
+E(CCSD) = -5.422549230705176  E_corr = -0.1524063890829959
+    CPU time for CCSD integral transformation      0.75 sec, wall time      0.02 sec
+    CPU time for CCSD lambda initialization      2.35 sec, wall time      0.07 sec
+cycle = 1  norm(lambda1,lambda2) = 0.0176984
+    CPU time for CCSD iter      1.00 sec, wall time      0.03 sec
+cycle = 2  norm(lambda1,lambda2) = 0.0038788
+    CPU time for CCSD iter      0.26 sec, wall time      0.01 sec
+cycle = 3  norm(lambda1,lambda2) = 0.00197008
+    CPU time for CCSD iter      0.28 sec, wall time      0.01 sec
+cycle = 4  norm(lambda1,lambda2) = 0.000539748
+    CPU time for CCSD iter      0.79 sec, wall time      0.02 sec
+cycle = 5  norm(lambda1,lambda2) = 0.000184099
+    CPU time for CCSD iter      0.69 sec, wall time      0.02 sec
+cycle = 6  norm(lambda1,lambda2) = 7.40528e-05
+    CPU time for CCSD iter      0.46 sec, wall time      0.01 sec
+cycle = 7  norm(lambda1,lambda2) = 2.8949e-05
+    CPU time for CCSD iter      1.02 sec, wall time      0.03 sec
+cycle = 8  norm(lambda1,lambda2) = 1.1875e-05
+    CPU time for CCSD iter      0.54 sec, wall time      0.02 sec
+cycle = 9  norm(lambda1,lambda2) = 5.96819e-06
+    CPU time for CCSD iter      0.61 sec, wall time      0.02 sec
+    CPU time for CCSD integral transformation      1.03 sec, wall time      0.03 sec
+max_memory 3791 MB (208 MB in use)
+    CPU time for CCSD(T)      1.34 sec, wall time      0.04 sec
+CCSD(T) correction = -0.00163884341451288
+CCSD(T) energy -5.424188074119689
+e(FCI) = -5.424385376327
 
 
 ******** <class 'pyscf.scf.uhf.UHF'> ********
@@ -265,115 +326,120 @@ SCF conv_tol_grad = None
 SCF max_cycles = 50
 direct_scf = True
 direct_scf_tol = 1e-13
-chkfile to save SCF result = /rc_scratch/anma2640/tmp5uyclmxg
-max_memory 4000 MB (current use 109 MB)
+chkfile to save SCF result = /rc_scratch/anma2640/tmp27em16c6
+max_memory 4000 MB (current use 233 MB)
 number electrons alpha = 5  beta = 5
 Set gradient conv threshold to 3.16228e-05
-init E= -4.98286286977553
-  alpha nocc = 5  HOMO = -0.347235036399888  LUMO = 0.341960118113371
+init E= -4.98286286977552
+  alpha nocc = 5  HOMO = -0.347235036399888  LUMO = 0.341960118113372
   beta  nocc = 5  HOMO = -0.347235036399889  LUMO = 0.341960118113374
 cycle= 1 E= -5.16115732035316  delta_E= -0.178  |g|= 0.267  |ddm|= 1.32
   alpha nocc = 5  HOMO = -0.363618951073237  LUMO = 0.283635295394482
   beta  nocc = 5  HOMO = -0.363618951073238  LUMO = 0.283635295394483
 cycle= 2 E= -5.23578894482543  delta_E= -0.0746  |g|= 0.136  |ddm|= 0.422
-  alpha nocc = 5  HOMO = -0.318031403924958  LUMO = 0.225440835125729
-  beta  nocc = 5  HOMO = -0.31803140392496  LUMO = 0.225440835125731
-cycle= 3 E= -5.27136073334112  delta_E= -0.0356  |g|= 0.0324  |ddm|= 0.47
-  alpha nocc = 5  HOMO = -0.298305403290819  LUMO = 0.205922738911046
-  beta  nocc = 5  HOMO = -0.298305403290818  LUMO = 0.205922738911046
+  alpha nocc = 5  HOMO = -0.31803140392496  LUMO = 0.225440835125727
+  beta  nocc = 5  HOMO = -0.31803140392496  LUMO = 0.225440835125729
+cycle= 3 E= -5.27136073334111  delta_E= -0.0356  |g|= 0.0324  |ddm|= 0.47
+  alpha nocc = 5  HOMO = -0.298305403290819  LUMO = 0.205922738911044
+  beta  nocc = 5  HOMO = -0.298305403290819  LUMO = 0.205922738911043
 cycle= 4 E= -5.27633100705958  delta_E= -0.00497  |g|= 0.0129  |ddm|= 0.239
-  alpha nocc = 5  HOMO = -0.297949058556315  LUMO = 0.202274256990013
-  beta  nocc = 5  HOMO = -0.297949058556317  LUMO = 0.202274256990013
-cycle= 5 E= -5.27732650162013  delta_E= -0.000995  |g|= 0.00435  |ddm|= 0.127
-  alpha nocc = 5  HOMO = -0.295027729673902  LUMO = 0.200612090813284
-  beta  nocc = 5  HOMO = -0.295027729673902  LUMO = 0.200612090813284
+  alpha nocc = 5  HOMO = -0.297949058556314  LUMO = 0.202274256990012
+  beta  nocc = 5  HOMO = -0.297949058556316  LUMO = 0.202274256990012
+cycle= 5 E= -5.27732650162012  delta_E= -0.000995  |g|= 0.00435  |ddm|= 0.127
+  alpha nocc = 5  HOMO = -0.295027729673898  LUMO = 0.200612090813281
+  beta  nocc = 5  HOMO = -0.295027729673897  LUMO = 0.200612090813282
 cycle= 6 E= -5.277442641756  delta_E= -0.000116  |g|= 0.000974  |ddm|= 0.0529
-  alpha nocc = 5  HOMO = -0.294678097125467  LUMO = 0.199853638916757
-  beta  nocc = 5  HOMO = -0.294678097125466  LUMO = 0.199853638916757
-cycle= 7 E= -5.27744695368877  delta_E= -4.31e-06  |g|= 0.000571  |ddm|= 0.00753
-  alpha nocc = 5  HOMO = -0.294503721252892  LUMO = 0.199475621007903
-  beta  nocc = 5  HOMO = -0.294503721252891  LUMO = 0.199475621007903
-cycle= 8 E= -5.27744842687988  delta_E= -1.47e-06  |g|= 0.000233  |ddm|= 0.00453
-  alpha nocc = 5  HOMO = -0.294442440233922  LUMO = 0.199403936838063
-  beta  nocc = 5  HOMO = -0.294442440233922  LUMO = 0.199403936838063
-cycle= 9 E= -5.27744868841913  delta_E= -2.62e-07  |g|= 4.4e-05  |ddm|= 0.00224
-  alpha nocc = 5  HOMO = -0.294391092778381  LUMO = 0.199352778536636
-  beta  nocc = 5  HOMO = -0.29439109277838  LUMO = 0.199352778536637
+  alpha nocc = 5  HOMO = -0.294678097125474  LUMO = 0.199853638916782
+  beta  nocc = 5  HOMO = -0.294678097125474  LUMO = 0.199853638916783
+cycle= 7 E= -5.27744695368876  delta_E= -4.31e-06  |g|= 0.000571  |ddm|= 0.00753
+  alpha nocc = 5  HOMO = -0.294503721252909  LUMO = 0.199475621007933
+  beta  nocc = 5  HOMO = -0.294503721252909  LUMO = 0.199475621007933
+cycle= 8 E= -5.27744842687987  delta_E= -1.47e-06  |g|= 0.000233  |ddm|= 0.00453
+  alpha nocc = 5  HOMO = -0.294442440233945  LUMO = 0.199403936838104
+  beta  nocc = 5  HOMO = -0.294442440233949  LUMO = 0.199403936838104
+cycle= 9 E= -5.27744868841914  delta_E= -2.62e-07  |g|= 4.4e-05  |ddm|= 0.00224
+  alpha nocc = 5  HOMO = -0.294391092778381  LUMO = 0.199352778536637
+  beta  nocc = 5  HOMO = -0.294391092778382  LUMO = 0.199352778536638
 cycle= 10 E= -5.27744870056548  delta_E= -1.21e-08  |g|= 1.26e-05  |ddm|= 0.000476
-  alpha nocc = 5  HOMO = -0.294378947198617  LUMO = 0.1993383617528
-  beta  nocc = 5  HOMO = -0.294378947198618  LUMO = 0.199338361752802
+  alpha nocc = 5  HOMO = -0.294378947198617  LUMO = 0.199338361752803
+  beta  nocc = 5  HOMO = -0.294378947198618  LUMO = 0.199338361752803
 cycle= 11 E= -5.27744870199613  delta_E= -1.43e-09  |g|= 1.83e-06  |ddm|= 0.00023
-  alpha nocc = 5  HOMO = -0.29437694320136  LUMO = 0.19933651292832
-  beta  nocc = 5  HOMO = -0.294376943201362  LUMO = 0.199336512928321
+  alpha nocc = 5  HOMO = -0.294376943201364  LUMO = 0.199336512928322
+  beta  nocc = 5  HOMO = -0.294376943201366  LUMO = 0.199336512928323
 cycle= 12 E= -5.27744870200056  delta_E= -4.43e-12  |g|= 8.37e-07  |ddm|= 2.41e-05
-  alpha nocc = 5  HOMO = -0.294377409047303  LUMO = 0.199336887592866
-  beta  nocc = 5  HOMO = -0.294377409047303  LUMO = 0.199336887592866
-Extra cycle  E= -5.27744870200195  delta_E= -1.39e-12  |g|= 6.51e-07  |ddm|= 1.99e-06
-converged SCF energy = -5.27744870200195  <S^2> = 0.53934006  2S+1 = 1.7768962
-e(FCI) = -5.424385376327
+  alpha nocc = 5  HOMO = -0.294377409047305  LUMO = 0.199336887592868
+  beta  nocc = 5  HOMO = -0.294377409047305  LUMO = 0.199336887592868
+Extra cycle  E= -5.27744870200196  delta_E= -1.4e-12  |g|= 6.51e-07  |ddm|= 1.99e-06
+converged SCF energy = -5.27744870200196  <S^2> = 0.53934006  2S+1 = 1.7768962
 
 Preparing Dice calculation
 Starting Dice calculation
+e_dice: -5.4243840048
 Finished Dice calculation
 
+e1_rhf: -26.62989717498617
+e1_uhf: -26.568211374883077
+e1_cc: -26.515050752891305
+e1_fci: -26.512672985420842
+
 Preparing AFQMC calculation
-uhf ene from chol: -5.277448701169726
 
-e1_hf: -26.568211374883077
-e1_fci: -26.512672985420824
-
-Starting AFQMC / UHF calculation
-reading samples from samples_uhf.dat, ignoring first 100
-mean: -5.420796464948098
+Starting AFQMC / HCI (1) calculation
+reading samples from samples_1.dat, ignoring first 100
+mean: -5.421161211910368
 blocked statistics:
 block size    # of blocks        mean                error
-     1            400       -5.42079646e+00       4.737649e-04
-     2            200       -5.42079646e+00       6.241731e-04
-     5             80       -5.42079646e+00       8.763880e-04
-    10             40       -5.42079646e+00       1.064884e-03
-    20             20       -5.42079646e+00       1.317426e-03
-    50              8       -5.42079646e+00       1.696292e-03
-    70              5       -5.41985282e+00       1.739703e-03
-   100              4       -5.42079646e+00       1.424665e-03
+     1            400       -5.42116121e+00       4.697989e-04
+     2            200       -5.42116121e+00       5.982795e-04
+     5             80       -5.42116121e+00       8.007543e-04
+    10             40       -5.42116121e+00       9.085572e-04
+    20             20       -5.42116121e+00       9.747944e-04
+    50              8       -5.42116121e+00       1.125768e-03
+    70              5       -5.42168165e+00       1.238703e-03
+   100              4       -5.42116121e+00       9.012199e-04
 
-mixed obs_afqmc: [-26.6140142]
-extrapolated obs: [-26.659817]
-errors: [0.0011859]
-Finished AFQMC / UHF calculation
+1e energy
+1 dets variational e1: [-26.5682114]
+1 dets mixed afqmc e1: [-26.6144957]
+1 dets extrapolated e1: [-26.6607799]
+1 dets errors e1: [0.0007619]
 
 Starting AFQMC / HCI (10) calculation
 reading samples from samples_10.dat, ignoring first 100
-mean: -5.423099517596924
+mean: -5.422437930529122
 blocked statistics:
 block size    # of blocks        mean                error
-     1            400       -5.42309952e+00       4.135695e-04
-     2            200       -5.42309952e+00       5.225249e-04
-     5             80       -5.42309952e+00       6.911448e-04
-    10             40       -5.42309952e+00       7.982889e-04
-    20             20       -5.42309952e+00       8.597553e-04
-    50              8       -5.42309952e+00       8.601908e-04
-    70              5       -5.42336736e+00       8.855210e-04
-   100              4       -5.42309952e+00       1.294299e-03
+     1            400       -5.42243793e+00       4.254271e-04
+     2            200       -5.42243793e+00       5.557405e-04
+     5             80       -5.42243793e+00       7.219863e-04
+    10             40       -5.42243793e+00       8.159407e-04
+    20             20       -5.42243793e+00       9.827014e-04
+    50              8       -5.42243793e+00       8.050547e-04
+    70              5       -5.42278881e+00       1.097834e-03
+   100              4       -5.42243793e+00       6.737205e-04
 
-mixed obs_afqmc: [-26.6066273]
-errors: [0.0006417]
-Finished AFQMC / HCI (10) calculation
+1e energy
+10 dets variational e1: [-26.5717086]
+10 dets mixed afqmc e1: [-26.6067127]
+10 dets extrapolated e1: [-26.6417168]
+10 dets errors e1: [0.0007907]
 
 Starting AFQMC / HCI (100) calculation
 reading samples from samples_100.dat, ignoring first 100
-mean: -5.423637798849736
+mean: -5.423683902617534
 blocked statistics:
 block size    # of blocks        mean                error
-     1            400       -5.42363780e+00       1.856960e-04
-     2            200       -5.42363780e+00       2.346796e-04
-     5             80       -5.42363780e+00       3.106726e-04
-    10             40       -5.42363780e+00       3.699867e-04
-    20             20       -5.42363780e+00       4.135368e-04
-    50              8       -5.42363780e+00       4.957031e-04
-    70              5       -5.42366850e+00       3.798084e-04
-   100              4       -5.42363780e+00       5.770212e-04
+     1            400       -5.42368390e+00       1.993936e-04
+     2            200       -5.42368390e+00       2.592760e-04
+     5             80       -5.42368390e+00       3.396842e-04
+    10             40       -5.42368390e+00       3.825355e-04
+    20             20       -5.42368390e+00       4.622144e-04
+    50              8       -5.42368390e+00       5.176910e-04
+    70              5       -5.42379272e+00       7.099166e-04
+   100              4       -5.42368390e+00       3.780510e-04
 
-mixed obs_afqmc: [-26.5585584]
-errors: [0.0004974]
-Finished AFQMC / HCI (100) calculation
-
+1e energy
+100 dets variational e1: [-26.5443963]
+100 dets mixed afqmc e1: [-26.5577493]
+100 dets extrapolated e1: [-26.5711022]
+100 dets errors e1: [0.0007964]

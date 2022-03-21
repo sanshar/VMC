@@ -1,0 +1,502 @@
+#INFO: **** input file is /projects/anma2640/VMC/dqmc_uihf/VMC/examples/DQMC/h2o_uhf_afqmc/h2o.py ****
+import numpy as np
+from pyscf import gto, scf, ao2mo, mcscf, tools, fci, mp, cc
+from pyscf.shciscf import shci
+import sys, os
+import scipy.linalg as la
+import QMCUtils
+import h5py
+
+np.set_printoptions(precision=7, linewidth=1000, suppress=True)
+
+# these need to be provided
+nproc = 10
+dice_binary = "/projects/anma2640/relDice/Dice/ZDice2"
+vmc_root = "/projects/anma2640/VMC/dqmc_uihf/VMC/"
+
+mol = gto.M(
+atom = '''
+O        0.000000    0.000000    0.117790
+H        0.000000    0.755453   -0.471161
+H        0.000000   -0.755453   -0.471161
+''',
+basis = '631g',
+charge = 1,
+spin = 1,  # = 2S = spin_up - spin_down
+symmetry = 1,
+verbose = 4)
+mf = scf.RHF(mol)
+mf.kernel()
+norb = mol.nao
+dm1_rhf = mf.make_rdm1()
+
+# ccsd
+mycc = cc.CCSD(mf)
+mycc.frozen = 0
+mycc.verbose = 5
+mycc.kernel()
+dm1_cc = mycc.make_rdm1()
+
+et = mycc.ccsd_t()
+print('CCSD(T) energy', mycc.e_tot + et)
+
+# fci
+cisolver = fci.FCI(mf)
+e_fci, ci = cisolver.kernel()
+print('e(FCI) = %.12f' % e_fci)
+dm1_fci = cisolver.make_rdm1(ci, mol.nao, mol.nelec)
+
+# uhf
+umf = scf.UHF(mol)
+umf.kernel()
+dm1_uhf = umf.make_rdm1()
+
+
+# dice
+print("\nPreparing Dice calculation")
+# writing input
+# dummy shciscf object for specifying options
+mc = shci.SHCISCF(mf, norb, mol.nelectron)
+mc.mo_coeff = mf.mo_coeff
+mc.fcisolver.sweep_iter = [ 0 ]
+mc.fcisolver.sweep_epsilon = [ 1e-5 ]
+mc.fcisolver.davidsonTol = 5.e-5
+mc.fcisolver.dE = 1.e-6
+mc.fcisolver.maxiter = 6
+mc.fcisolver.nPTiter = 0
+mc.fcisolver.DoRDM = False
+shci.writeSHCIConfFile(mc.fcisolver, mol.nelec, False)
+command = "mv input.dat dice.dat"
+os.system(command)
+with open("dice.dat", "a") as fh:
+  fh.write("readText\n")
+  fh.write("writebestdeterminants 10000\n")
+  fh.write("DoSpinRDM\n")
+
+# constructing and writing ghf integrals from uhf
+h1_ao = umf.get_hcore()
+h1 = [ umf.mo_coeff[0].T.dot(h1_ao).dot(umf.mo_coeff[0]), umf.mo_coeff[1].T.dot(h1_ao).dot(umf.mo_coeff[1]) ]
+eriUp = ao2mo.kernel(umf._eri, umf.mo_coeff[0])
+eriDn = ao2mo.kernel(umf._eri, umf.mo_coeff[1])
+eriUpDn = ao2mo.incore.general(umf._eri, (umf.mo_coeff[0], umf.mo_coeff[0], umf.mo_coeff[1],umf.mo_coeff[1]))
+enuc = mf.energy_nuc()
+ham_ints = {'enuc': enuc, 'h1': h1, 'eri': [ eriUp, eriDn, eriUpDn ] }
+QMCUtils.write_hci_ghf_uhf_integrals(ham_ints, norb, mol.nelectron)
+
+# run dice calculation
+print("Starting Dice calculation")
+command = f'''
+              mpirun -np {nproc} {dice_binary} dice.dat > dice.out;
+              rm -f shci.e; rm -f FCIDUMP;
+           '''
+os.system(command)
+
+# get dice energy from output
+e1_dice = 0
+e_dice = 0
+with open('dice.out', 'r') as fh:
+  for line in fh:
+    if 'one-body' in line:
+      ls = line.split()
+      e1_dice = float(ls[3])
+    if 'E from 2RDM:' in line:
+      ls = line.split()
+      e_dice = float(ls[3])
+print(f'e_dice: {e_dice}')
+print("Finished Dice calculation\n")
+
+
+# observable integrals
+# one-body energy
+h1e = mf.mo_coeff.T.dot(mf.get_hcore()).dot(mf.mo_coeff)
+
+e1_rhf = np.trace(np.dot(dm1_rhf[0] + dm1_rhf[1], mf.get_hcore()))
+e1_uhf = np.trace(np.dot(dm1_uhf[0] + dm1_uhf[1], mf.get_hcore()))
+e1_cc = np.trace(np.dot(dm1_cc[0] + dm1_cc[1], h1e))
+e1_fci = np.trace(np.dot(dm1_fci, h1e))
+
+print(f'e1_rhf: {e1_rhf}')
+print(f'e1_uhf: {e1_uhf}')
+print(f'e1_cc: {e1_cc}')
+print(f'e1_fci: {e1_fci}\n')
+
+# dipole moment
+nuc_dipmom = [0.0, 0.0, 0.0]
+for i in range(mol.natm):
+  for j in range(3):
+    nuc_dipmom[j] += mol.atom_charge(i) * mol.atom_coord(i)[j]
+
+# spatial orbitals
+dip_ints_ao = -mol.intor_symmetric('int1e_r', comp=3)
+dip_ints_mo = np.empty_like(dip_ints_ao)
+for i in range(dip_ints_ao.shape[0]):
+  dip_ints_mo[i] = mf.mo_coeff.T.dot(dip_ints_ao[i]).dot(mf.mo_coeff)
+
+dipole_rhf = np.einsum('kij,ji->k', dip_ints_ao, dm1_rhf[0] + dm1_rhf[1]) + np.array(nuc_dipmom)
+dipole_uhf = np.einsum('kij,ji->k', dip_ints_ao, dm1_uhf[0] + dm1_uhf[1]) + np.array(nuc_dipmom)
+dipole_cc = np.einsum('kij,ji->k', dip_ints_mo, dm1_cc[0] + dm1_cc[1]) + np.array(nuc_dipmom)
+dipole_dice = np.einsum('kij,ji->k', dip_ints_mo, dm1_fci) + np.array(nuc_dipmom)
+
+print(f'dipole_rhf: {dipole_rhf}')
+print(f'dipole_uhf: {dipole_uhf}')
+print(f'dipole_cc: {dipole_cc}')
+print(f'dipole_fci: {dipole_dice}\n')
+
+# spin orbitals
+dip_ints_mo = [ [ np.zeros((norb, norb)), np.zeros((norb, norb)) ] for i in range(3) ]
+for i in range(dip_ints_ao.shape[0]):
+  dip_ints_mo[i][0] = umf.mo_coeff[0].T.dot(dip_ints_ao[i]).dot(umf.mo_coeff[0])
+  dip_ints_mo[i][1] = umf.mo_coeff[1].T.dot(dip_ints_ao[i]).dot(umf.mo_coeff[1])
+
+
+# afqmc
+
+print("Preparing AFQMC calculation")
+# calculate and write integrals
+QMCUtils.calculate_write_afqmc_uihf_integrals(ham_ints, norb, mol.nelectron, ms=mol.spin)
+
+# write hf wave function coefficients
+uhfCoeffs = np.empty((norb, 2*norb))
+uhfCoeffs[::,:norb] = np.eye(norb)
+uhfCoeffs[::,norb:] = np.eye(norb)
+QMCUtils.writeMat(uhfCoeffs, "uhf.txt")
+
+# write afqmc input and perform calculation
+afqmc_binary = vmc_root + "/bin/DQMC"
+blocking_script = vmc_root + "/scripts/blocking.py"
+
+os.system("export OMP_NUM_THREADS=1; rm samples.dat rdm_* -f")
+
+# hci trial
+for ndets in [ 1, 10, 100 ]:
+  QMCUtils.write_afqmc_input(seed=16835, left="multislater", right="uhf", nwalk=30, stochasticIter=500, ndets=ndets, choleskyThreshold=2.e-3, fname=f"afqmc_{ndets}.json")
+  print(f"\nStarting AFQMC / HCI ({ndets}) calculation", flush=True)
+  command = f'''
+                mpirun -np {nproc} {afqmc_binary} afqmc_{ndets}.json > afqmc_{ndets}.out;
+                mv samples.dat samples_{ndets}.dat
+                python {blocking_script} samples_{ndets}.dat 100 > blocking_{ndets}.out;
+                cat blocking_{ndets}.out;
+             '''
+  os.system(command)
+  norb_dice, state_dice = QMCUtils.read_dets(ndets=ndets)
+  rdm_dice = QMCUtils.calculate_ci_1rdm(norb_dice, state_dice, ndets=ndets)
+  print('\n1e energy')
+  obsVar = np.array( [np.einsum('ij,ji->', h1[0], rdm_dice[0]) + np.einsum('ij,ji->', h1[1], rdm_dice[1])] )
+  obsMean, obsError = QMCUtils.calculate_observables_uihf([ h1 ])
+  print(f'{ndets} dets variational e1: {obsVar}')
+  print(f'{ndets} dets mixed afqmc e1: {obsMean}')
+  print(f'{ndets} dets extrapolated e1: {2*obsMean - obsVar}')
+  print(f'{ndets} dets errors e1: {obsError}')
+
+  print('\ndipole')
+  obsVar = np.array( [ np.einsum('ij,ji->', dip_ints_mo[i][0], rdm_dice[0]) + np.einsum('ij,ji->', dip_ints_mo[i][1], rdm_dice[1]) for i in range(3) ] )
+  obsMean, obsError = QMCUtils.calculate_observables_uihf(dip_ints_mo, constants=nuc_dipmom)
+  print(f'{ndets} dets variational dipole: {obsVar}')
+  print(f'{ndets} dets mixed afqmc dipole: {obsMean}')
+  print(f'{ndets} dets extrapolated dipole: {2*obsMean - obsVar}')
+  print(f'{ndets} dets errors dipole: {obsError}')
+  print(f"Finished AFQMC / HCI ({ndets}) calculation\n")
+
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='bhpc-c7-u7-1.rc.int.colorado.edu', release='3.10.0-1160.15.2.el7.x86_64', version='#1 SMP Wed Feb 3 15:06:38 UTC 2021', machine='x86_64', processor='x86_64')  Threads 36
+Python 3.8.3 (default, May 19 2020, 18:47:26) 
+[GCC 7.3.0]
+numpy 1.19.1  scipy 1.5.2
+Date: Mon Mar 21 13:31:02 2022
+PySCF version 1.7.4
+PySCF path  /projects/anma2640/pyscf/pyscf
+GIT HEAD      ref: refs/heads/master
+GIT master branch  14142ec394cbdcffb8e214fba6b1d6cde9025e9a
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 3
+[INPUT] num. electrons = 9
+[INPUT] charge = 1
+[INPUT] spin (= nelec alpha-beta = 2S) = 1
+[INPUT] symmetry 1 subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT]  1 O      0.000000000000   0.000000000000   0.117790000000 AA    0.000000000000   0.000000000000   0.222590840213 Bohr
+[INPUT]  2 H      0.000000000000   0.755453000000  -0.471161000000 AA    0.000000000000   1.427599269981  -0.890365250576 Bohr
+[INPUT]  3 H      0.000000000000  -0.755453000000  -0.471161000000 AA    0.000000000000  -1.427599269981  -0.890365250576 Bohr
+
+nuclear repulsion = 9.18919322930975
+point group symmetry = C2v
+num. orbitals of irrep A1 = 7
+num. orbitals of irrep B1 = 4
+num. orbitals of irrep B2 = 2
+number of shells = 9
+number of NR pGTOs = 30
+number of NR cGTOs = 13
+basis = 631g
+ecp = {}
+CPU time:         1.23
+
+
+******** <class 'pyscf.scf.hf_symm.SymAdaptedROHF'> ********
+method = SymAdaptedROHF-ROHF-RHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 50
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = /rc_scratch/anma2640/tmp1g3xbjke
+max_memory 4000 MB (current use 105 MB)
+num. doubly occ = 4  num. singly occ = 1
+Freeze 0 electrons in irreps []
+    9 free electrons in irreps A1 B1 B2
+Set gradient conv threshold to 3.16228e-05
+init E= -75.8343603552122
+HOMO (B2) = -0.474590049410627  LUMO (A1) = 0.124071669732749
+cycle= 1 E= -75.5342802067043  delta_E=  0.3  |g|= 0.393  |ddm|= 0.927
+HOMO (B2) = -0.812626085940066  LUMO (A1) = -0.16143536938982
+cycle= 2 E= -75.5725779240879  delta_E= -0.0383  |g|= 0.168  |ddm|= 0.298
+HOMO (B2) = -0.699900290714641  LUMO (A1) = -0.135928563232547
+cycle= 3 E= -75.5779899214115  delta_E= -0.00541  |g|= 0.0203  |ddm|= 0.0795
+HOMO (B2) = -0.705546935330849  LUMO (A1) = -0.131793513922667
+cycle= 4 E= -75.5781508393395  delta_E= -0.000161  |g|= 0.00253  |ddm|= 0.0189
+HOMO (B2) = -0.70472841497882  LUMO (A1) = -0.131874112507294
+cycle= 5 E= -75.5781541431174  delta_E= -3.3e-06  |g|= 0.000518  |ddm|= 0.00251
+HOMO (B2) = -0.704784136101224  LUMO (A1) = -0.131926423586495
+cycle= 6 E= -75.5781543108554  delta_E= -1.68e-07  |g|= 6.75e-05  |ddm|= 0.000682
+HOMO (B2) = -0.704793196775825  LUMO (A1) = -0.131929328174803
+cycle= 7 E= -75.578154312775  delta_E= -1.92e-09  |g|= 4.07e-06  |ddm|= 6.44e-05
+HOMO (B2) = -0.704793888413817  LUMO (A1) = -0.131928564464377
+cycle= 8 E= -75.5781543127841  delta_E= -9.12e-12  |g|= 3.74e-07  |ddm|= 4.99e-06
+HOMO (B2) = -0.704793686194757  LUMO (A1) = -0.131928631534557
+Extra cycle  E= -75.5781543127841  delta_E=    0  |g|= 9.4e-08  |ddm|= 3.49e-07
+converged SCF energy = -75.5781543127841
+
+WARN: RCCSD method does not support ROHF method. ROHF object is converted to UHF object and UCCSD method is called.
+
+
+******** <class 'pyscf.cc.uccsd.UCCSD'> ********
+CC2 = 0
+CCSD nocc = (5, 4), nmo = (13, 13)
+frozen orbitals 0
+max_cycle = 50
+direct = 0
+conv_tol = 1e-07
+conv_tol_normt = 1e-06
+diis_space = 6
+diis_start_cycle = 0
+diis_start_energy_diff = 1e+09
+max_memory 4000 MB (current use 124 MB)
+Init t2, MP2 energy = -0.0914183902437404
+    CPU time for init mp2      0.01 sec, wall time      0.00 sec
+Init E_corr(CCSD) = -0.0925426393231784
+cycle = 1  E_corr(CCSD) = -0.100324983391938  dE = -0.00778234407  norm(t1,t2) = 0.0327455
+    CPU time for CCSD iter     10.53 sec, wall time      0.35 sec
+cycle = 2  E_corr(CCSD) = -0.102950623002197  dE = -0.00262563961  norm(t1,t2) = 0.0125023
+    CPU time for CCSD iter     12.52 sec, wall time      0.42 sec
+cycle = 3  E_corr(CCSD) = -0.104621124694943  dE = -0.00167050169  norm(t1,t2) = 0.00615434
+    CPU time for CCSD iter      6.75 sec, wall time      0.22 sec
+cycle = 4  E_corr(CCSD) = -0.104657271740296  dE = -3.61470454e-05  norm(t1,t2) = 0.00171146
+    CPU time for CCSD iter     11.76 sec, wall time      0.38 sec
+cycle = 5  E_corr(CCSD) = -0.104658931348346  dE = -1.65960805e-06  norm(t1,t2) = 0.000607792
+    CPU time for CCSD iter      3.77 sec, wall time      0.13 sec
+cycle = 6  E_corr(CCSD) = -0.104669406707247  dE = -1.04753589e-05  norm(t1,t2) = 0.000211718
+    CPU time for CCSD iter      5.60 sec, wall time      0.19 sec
+cycle = 7  E_corr(CCSD) = -0.104669496070961  dE = -8.93637139e-08  norm(t1,t2) = 5.83275e-05
+    CPU time for CCSD iter      6.20 sec, wall time      0.20 sec
+cycle = 8  E_corr(CCSD) = -0.104669690940962  dE = -1.94870001e-07  norm(t1,t2) = 1.72632e-05
+    CPU time for CCSD iter      9.25 sec, wall time      0.30 sec
+cycle = 9  E_corr(CCSD) = -0.104669787626257  dE = -9.6685295e-08  norm(t1,t2) = 6.4395e-06
+    CPU time for CCSD iter      5.32 sec, wall time      0.17 sec
+cycle = 10  E_corr(CCSD) = -0.10466969448219  dE = 9.31440672e-08  norm(t1,t2) = 1.63565e-06
+    CPU time for CCSD iter     10.02 sec, wall time      0.32 sec
+cycle = 11  E_corr(CCSD) = -0.104669663931018  dE = 3.05511724e-08  norm(t1,t2) = 4.67264e-07
+    CPU time for CCSD iter      9.78 sec, wall time      0.32 sec
+    CPU time for CCSD     91.51 sec, wall time      3.00 sec
+UCCSD converged
+E(UCCSD) = -75.6828239767151  E_corr = -0.1046696639310175
+    CPU time for CCSD lambda initialization      3.37 sec, wall time      0.12 sec
+cycle = 1  norm(lambda1,lambda2) = 0.00825927
+    CPU time for CCSD iter      7.29 sec, wall time      0.25 sec
+cycle = 2  norm(lambda1,lambda2) = 0.00125254
+    CPU time for CCSD iter      5.58 sec, wall time      0.18 sec
+cycle = 3  norm(lambda1,lambda2) = 0.000543198
+    CPU time for CCSD iter      7.11 sec, wall time      0.24 sec
+cycle = 4  norm(lambda1,lambda2) = 0.00014199
+    CPU time for CCSD iter      4.97 sec, wall time      0.16 sec
+cycle = 5  norm(lambda1,lambda2) = 5.4951e-05
+    CPU time for CCSD iter      8.36 sec, wall time      0.27 sec
+cycle = 6  norm(lambda1,lambda2) = 1.78162e-05
+    CPU time for CCSD iter     13.47 sec, wall time      0.44 sec
+cycle = 7  norm(lambda1,lambda2) = 6.91364e-06
+    CPU time for CCSD iter     14.75 sec, wall time      0.49 sec
+cycle = 8  norm(lambda1,lambda2) = 1.74894e-06
+    CPU time for CCSD iter     10.97 sec, wall time      0.36 sec
+cycle = 9  norm(lambda1,lambda2) = 4.46751e-07
+    CPU time for CCSD iter     10.48 sec, wall time      0.34 sec
+max_memory 3798 MB (201 MB in use)
+max_memory 3798 MB (201 MB in use)
+    CPU time for UCCSD(T)      6.26 sec, wall time      0.22 sec
+UCCSD(T) correction = -0.00067123576340761
+CCSD(T) energy -75.6834952124785
+e(FCI) = -75.683787893036
+
+
+******** <class 'pyscf.scf.uhf_symm.SymAdaptedUHF'> ********
+method = SymAdaptedUHF-UHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 50
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = /rc_scratch/anma2640/tmp4lfb9jq3
+max_memory 4000 MB (current use 238 MB)
+number electrons alpha = 5  beta = 4
+Freeze 0 electrons in irreps []
+    9 free electrons in irreps A1 B1 B2
+Set gradient conv threshold to 3.16228e-05
+init E= -75.8343603552122
+alpha HOMO (B2) = -0.474590049410628  LUMO (A1) = 0.124071669732749
+beta  HOMO (A1) = -0.588103011729987  LUMO (B2) = -0.474590049410628
+
+WARN: alpha-B2 HOMO -0.474590049410628 > system LUMO -0.474590049410628
+
+cycle= 1 E= -75.5342802067043  delta_E=  0.3  |g|= 0.298  |ddm|= 0.927
+alpha HOMO (A1) = -1.16855717864588  LUMO (A1) = -0.168281600475731
+beta  HOMO (A1) = -1.12043680588648  LUMO (B2) = -0.415916797147927
+cycle= 2 E= -75.5748195789462  delta_E= -0.0405  |g|= 0.112  |ddm|= 0.287
+alpha HOMO (A1) = -1.08390503342281  LUMO (A1) = -0.14274220607454
+beta  HOMO (A1) = -1.03190474781049  LUMO (B2) = -0.321708594116692
+cycle= 3 E= -75.5796784790996  delta_E= -0.00486  |g|= 0.0238  |ddm|= 0.0734
+alpha HOMO (A1) = -1.09153326445071  LUMO (A1) = -0.138507568875539
+beta  HOMO (A1) = -1.03572233957168  LUMO (B2) = -0.324205285024226
+cycle= 4 E= -75.5801532784389  delta_E= -0.000475  |g|= 0.00891  |ddm|= 0.0264
+alpha HOMO (A1) = -1.09298092505708  LUMO (A1) = -0.138815976334161
+beta  HOMO (A1) = -1.03270118137578  LUMO (B2) = -0.322717165580929
+cycle= 5 E= -75.5802672876017  delta_E= -0.000114  |g|= 0.0024  |ddm|= 0.0158
+alpha HOMO (A1) = -1.0939858011429  LUMO (A1) = -0.138709781416061
+beta  HOMO (A1) = -1.0320731695344  LUMO (B2) = -0.322698719542217
+cycle= 6 E= -75.5802768809083  delta_E= -9.59e-06  |g|= 0.000647  |ddm|= 0.00498
+alpha HOMO (A1) = -1.09414990969097  LUMO (A1) = -0.138676127322682
+beta  HOMO (A1) = -1.0319813651281  LUMO (B2) = -0.322756322977342
+cycle= 7 E= -75.5802774462913  delta_E= -5.65e-07  |g|= 8.13e-05  |ddm|= 0.00137
+alpha HOMO (A1) = -1.09412887279909  LUMO (A1) = -0.138678725159082
+beta  HOMO (A1) = -1.03197435086826  LUMO (B2) = -0.322746706468254
+cycle= 8 E= -75.5802774531096  delta_E= -6.82e-09  |g|= 1.54e-05  |ddm|= 0.000131
+alpha HOMO (A1) = -1.09412900833964  LUMO (A1) = -0.138682459917736
+beta  HOMO (A1) = -1.03197927052723  LUMO (B2) = -0.322749905945475
+cycle= 9 E= -75.5802774533471  delta_E= -2.37e-10  |g|= 2.28e-06  |ddm|= 2.44e-05
+alpha HOMO (A1) = -1.0941290284258  LUMO (A1) = -0.138681913266113
+beta  HOMO (A1) = -1.03197831022333  LUMO (B2) = -0.322749057234291
+Extra cycle  E= -75.5802774533512  delta_E= -4.18e-12  |g|= 9.8e-07  |ddm|= 2.39e-06
+converged SCF energy = -75.5802774533512  <S^2> = 0.75528791  2S+1 = 2.0052809
+
+Preparing Dice calculation
+Starting Dice calculation
+e_dice: -75.6837875863
+Finished Dice calculation
+
+e1_rhf: -117.92832723110958
+e1_uhf: -117.92561107404454
+e1_cc: -117.71776619826531
+e1_fci: -117.72815573436792
+
+dipole_rhf: [ 0.        -0.        -1.1042285]
+dipole_uhf: [ 0.         0.        -1.1030195]
+dipole_cc: [ 0.        -0.        -1.0589727]
+dipole_fci: [-0.     -0.     -1.0592]
+
+Preparing AFQMC calculation
+
+Starting AFQMC / HCI (1) calculation
+reading samples from samples_1.dat, ignoring first 100
+mean: -75.68288869090392
+blocked statistics:
+block size    # of blocks        mean                error
+     1            400       -7.56828887e+01       4.974914e-04
+     2            200       -7.56828887e+01       5.856097e-04
+     5             80       -7.56828887e+01       7.342359e-04
+    10             40       -7.56828887e+01       7.963899e-04
+    20             20       -7.56828887e+01       1.003334e-03
+    50              8       -7.56828887e+01       1.117003e-03
+    70              5       -7.56832888e+01       1.569422e-03
+   100              4       -7.56828887e+01       1.289382e-03
+
+1e energy
+1 dets variational e1: [-117.9256111]
+1 dets mixed afqmc e1: [-117.8429235]
+1 dets extrapolated e1: [-117.7602359]
+1 dets errors e1: [0.001831]
+
+dipole
+1 dets variational dipole: [-0.        -0.        -1.1030157]
+1 dets mixed afqmc dipole: [ 0.0053968  0.0021115 -1.0709956]
+1 dets extrapolated dipole: [ 0.0107936  0.0042229 -1.0389755]
+1 dets errors dipole: [0.003466  0.0013039 0.0012197]
+Finished AFQMC / HCI (1) calculation
+
+
+Starting AFQMC / HCI (10) calculation
+reading samples from samples_10.dat, ignoring first 100
+mean: -75.68380692999439
+blocked statistics:
+block size    # of blocks        mean                error
+     1            400       -7.56838069e+01       3.771259e-04
+     2            200       -7.56838069e+01       4.540528e-04
+     5             80       -7.56838069e+01       5.170084e-04
+    10             40       -7.56838069e+01       5.617235e-04
+    20             20       -7.56838069e+01       5.211421e-04
+    50              8       -7.56838069e+01       4.812553e-04
+    70              5       -7.56839008e+01       7.191084e-04
+   100              4       -7.56838069e+01       4.595042e-04
+
+1e energy
+10 dets variational e1: [-117.8955807]
+10 dets mixed afqmc e1: [-117.8319826]
+10 dets extrapolated e1: [-117.7683845]
+10 dets errors e1: [0.0020332]
+
+dipole
+10 dets variational dipole: [-0.        -0.        -1.0995797]
+10 dets mixed afqmc dipole: [ 0.0037743 -0.001834  -1.0732684]
+10 dets extrapolated dipole: [ 0.0075486 -0.0036679 -1.046957 ]
+10 dets errors dipole: [0.002319  0.0012263 0.0011871]
+Finished AFQMC / HCI (10) calculation
+
+
+Starting AFQMC / HCI (100) calculation
+reading samples from samples_100.dat, ignoring first 100
+mean: -75.68371896517212
+blocked statistics:
+block size    # of blocks        mean                error
+     1            400       -7.56837190e+01       1.007068e-04
+     2            200       -7.56837190e+01       1.167607e-04
+     5             80       -7.56837190e+01       1.318732e-04
+    10             40       -7.56837190e+01       1.419723e-04
+    20             20       -7.56837190e+01       1.143712e-04
+    50              8       -7.56837190e+01       1.107216e-04
+    70              5       -7.56837359e+01       1.838332e-04
+   100              4       -7.56837190e+01       1.396362e-04
+
+1e energy
+100 dets variational e1: [-117.7973019]
+100 dets mixed afqmc e1: [-117.7713954]
+100 dets extrapolated e1: [-117.7454889]
+100 dets errors e1: [0.0020148]
+
+dipole
+100 dets variational dipole: [-0.        -0.        -1.0822323]
+100 dets mixed afqmc dipole: [-0.0004405  0.0017691 -1.0636947]
+100 dets extrapolated dipole: [-0.000881   0.0035381 -1.0451572]
+100 dets errors dipole: [0.0029411 0.0016678 0.0004895]
+Finished AFQMC / HCI (100) calculation
+
