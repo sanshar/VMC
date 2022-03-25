@@ -369,7 +369,7 @@ def prepAFQMC(mol, mf, mc=None, chol_cut=1e-5, verbose=False):
 # calculate and write cholesky-like integrals given eri's
 def calculate_write_afqmc_uihf_integrals(ham_ints, norb, nelec, ms = 0, chol_cut = 1e-6, filename = 'FCIDUMP_chol', dm=None):
   block_eri = np.block([[ ham_ints['eri'][0], ham_ints['eri'][2] ], [ ham_ints['eri'][2].T, ham_ints['eri'][1] ]])
-  block_eri = block_eri.round(8)
+  #block_eri = block_eri.round(8)
   evecs = modified_cholesky(block_eri, max_error=chol_cut).T
   nchol = evecs.shape[1]
   print(f'nchol: {nchol}')
