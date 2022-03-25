@@ -315,6 +315,30 @@ def write_hci_ghf_uhf_integrals(ham_ints, norb, nelec, tol = 1.e-10, filename='F
 
 # afqmc
 
+# modified cholesky for a give matrix
+def modified_cholesky(mat, max_error=1e-6):
+    diag = mat.diagonal()
+    size = mat.shape[0]
+    nchol_max = size
+    chol_vecs = np.zeros((nchol_max, nchol_max))
+    ndiag = 0
+    nu = np.argmax(diag)
+    delta_max = diag[nu]
+    Mapprox = np.zeros(size)
+    chol_vecs[0] = np.copy(mat[nu]) / delta_max**0.5
+
+    nchol = 0
+    while abs(delta_max) > max_error:
+        Mapprox += chol_vecs[nchol] * chol_vecs[nchol]
+        delta = diag - Mapprox
+        nu = np.argmax(np.abs(delta))
+        delta_max = np.abs(delta[nu])
+        R = np.dot(chol_vecs[:nchol+1,nu], chol_vecs[:nchol+1,:])
+        chol_vecs[nchol+1] = (mat[nu] - R) / (delta_max)**0.5
+        nchol += 1
+
+    return chol_vecs[:nchol]
+
 # calculate and write cholesky integrals
 # mc has to be provided if using frozen core
 def prepAFQMC(mol, mf, mc=None, chol_cut=1e-5, verbose=False):
@@ -343,20 +367,34 @@ def prepAFQMC(mol, mf, mc=None, chol_cut=1e-5, verbose=False):
   write_dqmc(h1e, h1e_mod, chol, sum(nelec), nbasis, enuc, ms=mol.spin, filename='FCIDUMP_chol')
 
 # calculate and write cholesky-like integrals given eri's
-def calculate_write_afqmc_uihf_integrals(ham_ints, norb, nelec, ms = 0, chol_cut = 1e-8, filename = 'FCIDUMP_chol'):
-  block_eri = np.block([[ ham_ints['eri'][0], ham_ints['eri'][2] ], [ ham_ints['eri'][2].T, ham_ints['eri'][1] ]]).round(8)
-  evals, evecs = np.linalg.eigh(block_eri)
-  nchol = (evals > chol_cut).nonzero()[0].shape[0]
-  evals_sqrt = np.sqrt(evals[ evals > chol_cut ])
+def calculate_write_afqmc_uihf_integrals(ham_ints, norb, nelec, ms = 0, chol_cut = 1e-6, filename = 'FCIDUMP_chol', dm=None):
+  block_eri = np.block([[ ham_ints['eri'][0], ham_ints['eri'][2] ], [ ham_ints['eri'][2].T, ham_ints['eri'][1] ]])
+  block_eri = block_eri.round(8)
+  evecs = modified_cholesky(block_eri, max_error=chol_cut).T
+  nchol = evecs.shape[1]
+  print(f'nchol: {nchol}')
   chol = np.zeros((2, nchol, norb, norb))
   for i in range(nchol):
     for m in range(norb):
       for n in range(m+1):
         triind = m*(m+1)//2 + n
-        chol[0, i, m, n] = evals_sqrt[-i-1] * evecs[triind, -i-1]
-        chol[0, i, n, m] = evals_sqrt[-i-1] * evecs[triind, -i-1]
-        chol[1, i, m, n] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
-        chol[1, i, n, m] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
+        chol[0, i, m, n] = evecs[triind, -i-1]
+        chol[0, i, n, m] = evecs[triind, -i-1]
+        chol[1, i, m, n] = evecs[norb*(norb+1)//2 + triind, -i-1]
+        chol[1, i, n, m] = evecs[norb*(norb+1)//2 + triind, -i-1]
+
+  #evals, evecs = np.linalg.eigh(block_eri)
+  #nchol = (evals > chol_cut).nonzero()[0].shape[0]
+  #evals_sqrt = np.sqrt(evals[ evals > chol_cut ])
+  #chol = np.zeros((2, nchol, norb, norb))
+  #for i in range(nchol):
+  #  for m in range(norb):
+  #    for n in range(m+1):
+  #      triind = m*(m+1)//2 + n
+  #      chol[0, i, m, n] = evals_sqrt[-i-1] * evecs[triind, -i-1]
+  #      chol[0, i, n, m] = evals_sqrt[-i-1] * evecs[triind, -i-1]
+  #      chol[1, i, m, n] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
+  #      chol[1, i, n, m] = evals_sqrt[-i-1] * evecs[norb*(norb+1)//2 + triind, -i-1]
 
   # writing afqmc ints
   h1 = np.array(ham_ints['h1']).round(8)
@@ -366,6 +404,15 @@ def calculate_write_afqmc_uihf_integrals(ham_ints, norb, nelec, ms = 0, chol_cut
   h1_mod = [ h1[0] - v0_up, h1[1] - v0_dn ]
   chol_flat = [ chol[0].reshape((nchol, -1)), chol[1].reshape((nchol, -1)) ]
   write_dqmc_uihf(h1, h1_mod, chol_flat, nelec, norb, enuc, ms=ms, filename=filename)
+
+  # can be used to check if the chol_cut is reasonable
+  if dm is not None:
+    coul = np.einsum('sgpr,spr->g', chol, dm)
+    exc = np.einsum('sgpr,spt->sgrt', chol, dm)
+    e2 = (np.einsum('g,g->', coul, coul) - np.einsum('sgtr,sgrt->', exc, exc) )/2
+    e1 = np.einsum('ij,ji->', h1[0], dm[0]) + np.einsum('ij,ji->', h1[1], dm[1])
+    print(f'ene for given 1dm: {enuc + e1 + e2}')
+
 
 # cholesky generation functions are from pauxy
 def generate_integrals(mol, hcore, X, chol_cut=1e-5, verbose=False):
