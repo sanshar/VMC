@@ -152,7 +152,7 @@ for i in range(dip_ints_ao.shape[0]):
 
 print("Preparing AFQMC calculation")
 # calculate and write integrals
-QMCUtils.calculate_write_afqmc_uihf_integrals(ham_ints, norb, mol.nelectron, ms=mol.spin)
+QMCUtils.calculate_write_afqmc_uihf_integrals(ham_ints, norb, mol.nelectron, ms=mol.spin, chol_cut=1.e-6)
 
 # write hf wave function coefficients
 uhfCoeffs = np.empty((norb, 2*norb))
@@ -184,15 +184,17 @@ for ndets in [ 1, 10, 100 ]:
   obsMean, obsError = QMCUtils.calculate_observables_uihf([ h1 ])
   print(f'{ndets} dets variational e1: {obsVar}')
   print(f'{ndets} dets mixed afqmc e1: {obsMean}')
+  print(f'{ndets} dets mixed afqmc e1 errors: {obsError}')
   print(f'{ndets} dets extrapolated e1: {2*obsMean - obsVar}')
-  print(f'{ndets} dets errors e1: {obsError}')
+  print(f'{ndets} dets extrapolated e1 errors: {2*obsError}')
 
   print('\ndipole')
   obsVar = np.array( [ np.einsum('ij,ji->', dip_ints_mo[i][0], rdm_dice[0]) + np.einsum('ij,ji->', dip_ints_mo[i][1], rdm_dice[1]) for i in range(3) ] )
   obsMean, obsError = QMCUtils.calculate_observables_uihf(dip_ints_mo, constants=nuc_dipmom)
   print(f'{ndets} dets variational dipole: {obsVar}')
   print(f'{ndets} dets mixed afqmc dipole: {obsMean}')
+  print(f'{ndets} dets mixed afqmc dipole errors: {obsError}')
   print(f'{ndets} dets extrapolated dipole: {2*obsMean - obsVar}')
-  print(f'{ndets} dets errors dipole: {obsError}')
+  print(f'{ndets} dets extrapolated dipole errors: {2*obsError}')
   print(f"Finished AFQMC / HCI ({ndets}) calculation\n")
 

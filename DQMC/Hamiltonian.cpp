@@ -27,6 +27,8 @@ void Hamiltonian::rotateCholesky(std::array<Eigen::MatrixXd, 2>& phiT, std::vect
     rot[0] = phiT[0] * chol[i][0];
     rot[1] = phiT[1] * chol[i][1];
     rotChol.push_back(rot);
+    chol[i][0].resize(0, 0);
+    chol[i][1].resize(0, 0);
   }
 };
 

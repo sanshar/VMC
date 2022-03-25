@@ -63,9 +63,26 @@ void DQMCWalker::prepProp(std::array<Eigen::MatrixXcd, 2>& ref, Hamiltonian& ham
   complex<double> constant(0., 0.);
   constant += ene0 - ham.ecore;
   for (int i = 0; i < nfields; i++) {
+    std::array<MatrixXd, 2> chol;
+    chol[0] = ham.chol[i][0];
+    chol[1] = ham.chol[i][1];
+    if (ham.chol[i][0].rows() == 0) {
+      chol[0] = MatrixXd::Zero(norbs, norbs);
+      chol[1] = MatrixXd::Zero(norbs, norbs);
+      long counter = 0;
+      for (int j = 0; j < norbs; j++) {
+        for (int k = 0; k <= j; k++) {
+          chol[0](j, k) = ham.floatChol[i][0][counter];
+          chol[0](k, j) = ham.floatChol[i][0][counter];
+          chol[1](j, k) = ham.floatChol[i][1][counter];
+          chol[1](k, j) = ham.floatChol[i][1][counter];
+          counter++;
+        }
+      }
+    }
     std::array<MatrixXcd, 2> op;
-    op[0] = complex<double>(0., 1.) * ham.chol[i][0];
-    op[1] = complex<double>(0., 1.) * ham.chol[i][1];
+    op[0] = complex<double>(0., 1.) * chol[0];
+    op[1] = complex<double>(0., 1.) * chol[1];
     complex<double> mfShift = 1. * green[0].cwiseProduct(op[0]).sum() + 1. * green[1].cwiseProduct(op[1]).sum();
     constant -= pow(mfShift, 2) / 2.;
     oneBodyOperator[0] -= mfShift * op[0];

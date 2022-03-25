@@ -817,21 +817,25 @@ void readIntegralsCholeskyAndInitializeDeterminantStaticVariables(string fcidump
   status = H5Dread(dataset_chol_up, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, eri_up);
   dataset_chol_dn = H5Dopen(file, "/chol_dn", H5P_DEFAULT);
   status = H5Dread(dataset_chol_dn, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, eri_dn);
-  for (int n = 0; n < nchol; n++) {
-    std::array<MatrixXd, 2> cholMat;
-    cholMat[0] = MatrixXd::Zero(norbs, norbs);
-    cholMat[1] = MatrixXd::Zero(norbs, norbs);
-    for (int i = 0; i < norbs; i++) { 
-      for (int j = 0; j < norbs; j++) {
-        cholMat[0](i, j) = eri_up[n * norbs * norbs + i * norbs + j];
-        cholMat[1](i, j) = eri_dn[n * norbs * norbs + i * norbs + j];
+  for (int p = 0; p < commsize; p++) { 
+    if (commrank == p) {
+      for (int n = 0; n < nchol; n++) {
+        std::array<MatrixXd, 2> cholMat;
+        cholMat[0] = MatrixXd::Zero(norbs, norbs);
+        cholMat[1] = MatrixXd::Zero(norbs, norbs);
+        for (int i = 0; i < norbs; i++) { 
+          for (int j = 0; j < norbs; j++) {
+            cholMat[0](i, j) = eri_up[n * norbs * norbs + i * norbs + j];
+            cholMat[1](i, j) = eri_dn[n * norbs * norbs + i * norbs + j];
+          }
+        }
+        chol.push_back(cholMat);
       }
+      delete [] eri_up;
+      delete [] eri_dn;
     }
-    chol.push_back(cholMat);
+    MPI_Barrier(MPI_COMM_WORLD);
   }
-  
-  delete [] eri_up;
-  delete [] eri_dn;
 
   coreE = 0.;
   double energy_core[1];

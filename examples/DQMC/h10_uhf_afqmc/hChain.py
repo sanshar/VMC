@@ -128,7 +128,7 @@ print(f'e1_fci: {e1_fci}\n')
 
 print("Preparing AFQMC calculation")
 # calculate and write integrals
-QMCUtils.calculate_write_afqmc_uihf_integrals(ham_ints, norb, mol.nelectron, ms=mol.spin)
+QMCUtils.calculate_write_afqmc_uihf_integrals(ham_ints, norb, mol.nelectron, ms=mol.spin, chol_cut=1.e-6)
 
 # write hf wave function coefficients
 uhfCoeffs = np.empty((norb, 2*norb))
@@ -160,6 +160,7 @@ for ndets in [ 1, 10, 100 ]:
   obsMean, obsError = QMCUtils.calculate_observables_uihf([ h1 ])
   print(f'{ndets} dets variational e1: {obsVar}')
   print(f'{ndets} dets mixed afqmc e1: {obsMean}')
+  print(f'{ndets} dets mixed afqmc e1 errors: {obsError}')
   print(f'{ndets} dets extrapolated e1: {2*obsMean - obsVar}')
-  print(f'{ndets} dets errors e1: {obsError}')
+  print(f'{ndets} dets extrapolated e1 errors: {2*obsError}')
 

@@ -153,7 +153,7 @@ for i in range(dip_ints_ao.shape[0]):
 
 print("Preparing AFQMC calculation")
 # calculate and write integrals
-QMCUtils.calculate_write_afqmc_uihf_integrals(ham_ints, norb, mol.nelectron, ms=mol.spin)
+QMCUtils.calculate_write_afqmc_uihf_integrals(ham_ints, norb, mol.nelectron, ms=mol.spin, chol_cut=1.e-6)
 
 # write hf wave function coefficients
 uhfCoeffs = np.empty((norb, 2*norb))
@@ -185,26 +185,28 @@ for ndets in [ 1, 10, 100 ]:
   obsMean, obsError = QMCUtils.calculate_observables_uihf([ h1 ])
   print(f'{ndets} dets variational e1: {obsVar}')
   print(f'{ndets} dets mixed afqmc e1: {obsMean}')
+  print(f'{ndets} dets mixed afqmc e1 errors: {obsError}')
   print(f'{ndets} dets extrapolated e1: {2*obsMean - obsVar}')
-  print(f'{ndets} dets errors e1: {obsError}')
+  print(f'{ndets} dets extrapolated e1 errors: {2*obsError}')
 
   print('\ndipole')
   obsVar = np.array( [ np.einsum('ij,ji->', dip_ints_mo[i][0], rdm_dice[0]) + np.einsum('ij,ji->', dip_ints_mo[i][1], rdm_dice[1]) for i in range(3) ] )
   obsMean, obsError = QMCUtils.calculate_observables_uihf(dip_ints_mo, constants=nuc_dipmom)
   print(f'{ndets} dets variational dipole: {obsVar}')
   print(f'{ndets} dets mixed afqmc dipole: {obsMean}')
+  print(f'{ndets} dets mixed afqmc dipole errors: {obsError}')
   print(f'{ndets} dets extrapolated dipole: {2*obsMean - obsVar}')
-  print(f'{ndets} dets errors dipole: {obsError}')
+  print(f'{ndets} dets extrapolated dipole errors: {2*obsError}')
   print(f"Finished AFQMC / HCI ({ndets}) calculation\n")
 
 #INFO: ******************** input file end ********************
 
 
-System: uname_result(system='Linux', node='bhpc-c7-u7-1.rc.int.colorado.edu', release='3.10.0-1160.15.2.el7.x86_64', version='#1 SMP Wed Feb 3 15:06:38 UTC 2021', machine='x86_64', processor='x86_64')  Threads 36
+System: uname_result(system='Linux', node='bhpc-c7-u7-16.rc.int.colorado.edu', release='3.10.0-1160.15.2.el7.x86_64', version='#1 SMP Wed Feb 3 15:06:38 UTC 2021', machine='x86_64', processor='x86_64')  Threads 36
 Python 3.8.3 (default, May 19 2020, 18:47:26) 
 [GCC 7.3.0]
 numpy 1.19.1  scipy 1.5.2
-Date: Mon Mar 21 13:31:02 2022
+Date: Thu Mar 24 14:19:34 2022
 PySCF version 1.7.4
 PySCF path  /projects/anma2640/pyscf/pyscf
 GIT HEAD      ref: refs/heads/master
@@ -232,7 +234,7 @@ number of NR pGTOs = 30
 number of NR cGTOs = 13
 basis = 631g
 ecp = {}
-CPU time:         1.23
+CPU time:         1.35
 
 
 ******** <class 'pyscf.scf.hf_symm.SymAdaptedROHF'> ********
@@ -248,31 +250,31 @@ SCF conv_tol_grad = None
 SCF max_cycles = 50
 direct_scf = True
 direct_scf_tol = 1e-13
-chkfile to save SCF result = /rc_scratch/anma2640/tmp1g3xbjke
+chkfile to save SCF result = /rc_scratch/anma2640/tmpewthj5l1
 max_memory 4000 MB (current use 105 MB)
 num. doubly occ = 4  num. singly occ = 1
 Freeze 0 electrons in irreps []
     9 free electrons in irreps A1 B1 B2
 Set gradient conv threshold to 3.16228e-05
 init E= -75.8343603552122
-HOMO (B2) = -0.474590049410627  LUMO (A1) = 0.124071669732749
-cycle= 1 E= -75.5342802067043  delta_E=  0.3  |g|= 0.393  |ddm|= 0.927
-HOMO (B2) = -0.812626085940066  LUMO (A1) = -0.16143536938982
+HOMO (B2) = -0.474590049410628  LUMO (A1) = 0.124071669732751
+cycle= 1 E= -75.5342802067044  delta_E=  0.3  |g|= 0.393  |ddm|= 0.927
+HOMO (B2) = -0.812626085940061  LUMO (A1) = -0.161435369389819
 cycle= 2 E= -75.5725779240879  delta_E= -0.0383  |g|= 0.168  |ddm|= 0.298
-HOMO (B2) = -0.699900290714641  LUMO (A1) = -0.135928563232547
-cycle= 3 E= -75.5779899214115  delta_E= -0.00541  |g|= 0.0203  |ddm|= 0.0795
-HOMO (B2) = -0.705546935330849  LUMO (A1) = -0.131793513922667
-cycle= 4 E= -75.5781508393395  delta_E= -0.000161  |g|= 0.00253  |ddm|= 0.0189
-HOMO (B2) = -0.70472841497882  LUMO (A1) = -0.131874112507294
-cycle= 5 E= -75.5781541431174  delta_E= -3.3e-06  |g|= 0.000518  |ddm|= 0.00251
-HOMO (B2) = -0.704784136101224  LUMO (A1) = -0.131926423586495
-cycle= 6 E= -75.5781543108554  delta_E= -1.68e-07  |g|= 6.75e-05  |ddm|= 0.000682
-HOMO (B2) = -0.704793196775825  LUMO (A1) = -0.131929328174803
-cycle= 7 E= -75.578154312775  delta_E= -1.92e-09  |g|= 4.07e-06  |ddm|= 6.44e-05
-HOMO (B2) = -0.704793888413817  LUMO (A1) = -0.131928564464377
-cycle= 8 E= -75.5781543127841  delta_E= -9.12e-12  |g|= 3.74e-07  |ddm|= 4.99e-06
-HOMO (B2) = -0.704793686194757  LUMO (A1) = -0.131928631534557
-Extra cycle  E= -75.5781543127841  delta_E=    0  |g|= 9.4e-08  |ddm|= 3.49e-07
+HOMO (B2) = -0.69990029071464  LUMO (A1) = -0.135928563232543
+cycle= 3 E= -75.5779899214114  delta_E= -0.00541  |g|= 0.0203  |ddm|= 0.0795
+HOMO (B2) = -0.705546935330849  LUMO (A1) = -0.131793513922669
+cycle= 4 E= -75.5781508393396  delta_E= -0.000161  |g|= 0.00253  |ddm|= 0.0189
+HOMO (B2) = -0.70472841497882  LUMO (A1) = -0.131874112507302
+cycle= 5 E= -75.5781541431175  delta_E= -3.3e-06  |g|= 0.000518  |ddm|= 0.00251
+HOMO (B2) = -0.704784136101221  LUMO (A1) = -0.131926423586481
+cycle= 6 E= -75.5781543108555  delta_E= -1.68e-07  |g|= 6.75e-05  |ddm|= 0.000682
+HOMO (B2) = -0.704793196775815  LUMO (A1) = -0.131929328174803
+cycle= 7 E= -75.5781543127749  delta_E= -1.92e-09  |g|= 4.07e-06  |ddm|= 6.44e-05
+HOMO (B2) = -0.704793888413709  LUMO (A1) = -0.131928564464502
+cycle= 8 E= -75.5781543127839  delta_E= -9.08e-12  |g|= 3.74e-07  |ddm|= 4.99e-06
+HOMO (B2) = -0.704793686194793  LUMO (A1) = -0.13192863153456
+Extra cycle  E= -75.5781543127841  delta_E= -1.28e-13  |g|= 9.4e-08  |ddm|= 3.49e-07
 converged SCF energy = -75.5781543127841
 
 WARN: RCCSD method does not support ROHF method. ROHF object is converted to UHF object and UCCSD method is called.
@@ -289,59 +291,59 @@ conv_tol_normt = 1e-06
 diis_space = 6
 diis_start_cycle = 0
 diis_start_energy_diff = 1e+09
-max_memory 4000 MB (current use 124 MB)
-Init t2, MP2 energy = -0.0914183902437404
+max_memory 4000 MB (current use 128 MB)
+Init t2, MP2 energy = -0.0914183902437408
     CPU time for init mp2      0.01 sec, wall time      0.00 sec
-Init E_corr(CCSD) = -0.0925426393231784
-cycle = 1  E_corr(CCSD) = -0.100324983391938  dE = -0.00778234407  norm(t1,t2) = 0.0327455
-    CPU time for CCSD iter     10.53 sec, wall time      0.35 sec
-cycle = 2  E_corr(CCSD) = -0.102950623002197  dE = -0.00262563961  norm(t1,t2) = 0.0125023
-    CPU time for CCSD iter     12.52 sec, wall time      0.42 sec
+Init E_corr(CCSD) = -0.092542639323179
+cycle = 1  E_corr(CCSD) = -0.100324983391939  dE = -0.00778234407  norm(t1,t2) = 0.0327455
+    CPU time for CCSD iter      2.00 sec, wall time      0.06 sec
+cycle = 2  E_corr(CCSD) = -0.102950623002198  dE = -0.00262563961  norm(t1,t2) = 0.0125023
+    CPU time for CCSD iter      3.34 sec, wall time      0.09 sec
 cycle = 3  E_corr(CCSD) = -0.104621124694943  dE = -0.00167050169  norm(t1,t2) = 0.00615434
-    CPU time for CCSD iter      6.75 sec, wall time      0.22 sec
-cycle = 4  E_corr(CCSD) = -0.104657271740296  dE = -3.61470454e-05  norm(t1,t2) = 0.00171146
-    CPU time for CCSD iter     11.76 sec, wall time      0.38 sec
-cycle = 5  E_corr(CCSD) = -0.104658931348346  dE = -1.65960805e-06  norm(t1,t2) = 0.000607792
-    CPU time for CCSD iter      3.77 sec, wall time      0.13 sec
+    CPU time for CCSD iter      2.22 sec, wall time      0.06 sec
+cycle = 4  E_corr(CCSD) = -0.104657271740297  dE = -3.61470454e-05  norm(t1,t2) = 0.00171146
+    CPU time for CCSD iter      1.91 sec, wall time      0.05 sec
+cycle = 5  E_corr(CCSD) = -0.104658931348347  dE = -1.65960805e-06  norm(t1,t2) = 0.000607792
+    CPU time for CCSD iter      1.83 sec, wall time      0.05 sec
 cycle = 6  E_corr(CCSD) = -0.104669406707247  dE = -1.04753589e-05  norm(t1,t2) = 0.000211718
-    CPU time for CCSD iter      5.60 sec, wall time      0.19 sec
-cycle = 7  E_corr(CCSD) = -0.104669496070961  dE = -8.93637139e-08  norm(t1,t2) = 5.83275e-05
-    CPU time for CCSD iter      6.20 sec, wall time      0.20 sec
+    CPU time for CCSD iter      1.83 sec, wall time      0.05 sec
+cycle = 7  E_corr(CCSD) = -0.104669496070961  dE = -8.9363714e-08  norm(t1,t2) = 5.83275e-05
+    CPU time for CCSD iter      1.91 sec, wall time      0.05 sec
 cycle = 8  E_corr(CCSD) = -0.104669690940962  dE = -1.94870001e-07  norm(t1,t2) = 1.72632e-05
-    CPU time for CCSD iter      9.25 sec, wall time      0.30 sec
-cycle = 9  E_corr(CCSD) = -0.104669787626257  dE = -9.6685295e-08  norm(t1,t2) = 6.4395e-06
-    CPU time for CCSD iter      5.32 sec, wall time      0.17 sec
+    CPU time for CCSD iter      1.88 sec, wall time      0.05 sec
+cycle = 9  E_corr(CCSD) = -0.104669787626257  dE = -9.66852949e-08  norm(t1,t2) = 6.4395e-06
+    CPU time for CCSD iter      1.85 sec, wall time      0.05 sec
 cycle = 10  E_corr(CCSD) = -0.10466969448219  dE = 9.31440672e-08  norm(t1,t2) = 1.63565e-06
-    CPU time for CCSD iter     10.02 sec, wall time      0.32 sec
-cycle = 11  E_corr(CCSD) = -0.104669663931018  dE = 3.05511724e-08  norm(t1,t2) = 4.67264e-07
-    CPU time for CCSD iter      9.78 sec, wall time      0.32 sec
-    CPU time for CCSD     91.51 sec, wall time      3.00 sec
+    CPU time for CCSD iter      1.91 sec, wall time      0.05 sec
+cycle = 11  E_corr(CCSD) = -0.104669663931018  dE = 3.05511723e-08  norm(t1,t2) = 4.67264e-07
+    CPU time for CCSD iter      1.86 sec, wall time      0.05 sec
+    CPU time for CCSD     22.55 sec, wall time      0.63 sec
 UCCSD converged
-E(UCCSD) = -75.6828239767151  E_corr = -0.1046696639310175
-    CPU time for CCSD lambda initialization      3.37 sec, wall time      0.12 sec
+E(UCCSD) = -75.68282397671508  E_corr = -0.1046696639310178
+    CPU time for CCSD lambda initialization      6.14 sec, wall time      0.17 sec
 cycle = 1  norm(lambda1,lambda2) = 0.00825927
-    CPU time for CCSD iter      7.29 sec, wall time      0.25 sec
+    CPU time for CCSD iter      2.91 sec, wall time      0.08 sec
 cycle = 2  norm(lambda1,lambda2) = 0.00125254
-    CPU time for CCSD iter      5.58 sec, wall time      0.18 sec
+    CPU time for CCSD iter      3.61 sec, wall time      0.10 sec
 cycle = 3  norm(lambda1,lambda2) = 0.000543198
-    CPU time for CCSD iter      7.11 sec, wall time      0.24 sec
+    CPU time for CCSD iter      3.08 sec, wall time      0.09 sec
 cycle = 4  norm(lambda1,lambda2) = 0.00014199
-    CPU time for CCSD iter      4.97 sec, wall time      0.16 sec
+    CPU time for CCSD iter      2.63 sec, wall time      0.07 sec
 cycle = 5  norm(lambda1,lambda2) = 5.4951e-05
-    CPU time for CCSD iter      8.36 sec, wall time      0.27 sec
+    CPU time for CCSD iter      3.72 sec, wall time      0.10 sec
 cycle = 6  norm(lambda1,lambda2) = 1.78162e-05
-    CPU time for CCSD iter     13.47 sec, wall time      0.44 sec
+    CPU time for CCSD iter      3.65 sec, wall time      0.10 sec
 cycle = 7  norm(lambda1,lambda2) = 6.91364e-06
-    CPU time for CCSD iter     14.75 sec, wall time      0.49 sec
+    CPU time for CCSD iter      3.67 sec, wall time      0.10 sec
 cycle = 8  norm(lambda1,lambda2) = 1.74894e-06
-    CPU time for CCSD iter     10.97 sec, wall time      0.36 sec
+    CPU time for CCSD iter      3.70 sec, wall time      0.10 sec
 cycle = 9  norm(lambda1,lambda2) = 4.46751e-07
-    CPU time for CCSD iter     10.48 sec, wall time      0.34 sec
-max_memory 3798 MB (201 MB in use)
-max_memory 3798 MB (201 MB in use)
-    CPU time for UCCSD(T)      6.26 sec, wall time      0.22 sec
-UCCSD(T) correction = -0.00067123576340761
-CCSD(T) energy -75.6834952124785
+    CPU time for CCSD iter      3.69 sec, wall time      0.10 sec
+max_memory 3789 MB (210 MB in use)
+max_memory 3789 MB (210 MB in use)
+    CPU time for UCCSD(T)      4.00 sec, wall time      0.11 sec
+UCCSD(T) correction = -0.000671235763407529
+CCSD(T) energy -75.68349521247849
 e(FCI) = -75.683787893036
 
 
@@ -358,46 +360,46 @@ SCF conv_tol_grad = None
 SCF max_cycles = 50
 direct_scf = True
 direct_scf_tol = 1e-13
-chkfile to save SCF result = /rc_scratch/anma2640/tmp4lfb9jq3
-max_memory 4000 MB (current use 238 MB)
+chkfile to save SCF result = /rc_scratch/anma2640/tmpiab0hhy7
+max_memory 4000 MB (current use 252 MB)
 number electrons alpha = 5  beta = 4
 Freeze 0 electrons in irreps []
     9 free electrons in irreps A1 B1 B2
 Set gradient conv threshold to 3.16228e-05
 init E= -75.8343603552122
-alpha HOMO (B2) = -0.474590049410628  LUMO (A1) = 0.124071669732749
-beta  HOMO (A1) = -0.588103011729987  LUMO (B2) = -0.474590049410628
+alpha HOMO (B2) = -0.474590049410628  LUMO (A1) = 0.12407166973275
+beta  HOMO (A1) = -0.588103011729986  LUMO (B2) = -0.474590049410628
 
 WARN: alpha-B2 HOMO -0.474590049410628 > system LUMO -0.474590049410628
 
 cycle= 1 E= -75.5342802067043  delta_E=  0.3  |g|= 0.298  |ddm|= 0.927
-alpha HOMO (A1) = -1.16855717864588  LUMO (A1) = -0.168281600475731
-beta  HOMO (A1) = -1.12043680588648  LUMO (B2) = -0.415916797147927
-cycle= 2 E= -75.5748195789462  delta_E= -0.0405  |g|= 0.112  |ddm|= 0.287
-alpha HOMO (A1) = -1.08390503342281  LUMO (A1) = -0.14274220607454
+alpha HOMO (A1) = -1.16855717864588  LUMO (A1) = -0.168281600475726
+beta  HOMO (A1) = -1.12043680588647  LUMO (B2) = -0.415916797147922
+cycle= 2 E= -75.5748195789461  delta_E= -0.0405  |g|= 0.112  |ddm|= 0.287
+alpha HOMO (A1) = -1.08390503342281  LUMO (A1) = -0.142742206074539
 beta  HOMO (A1) = -1.03190474781049  LUMO (B2) = -0.321708594116692
-cycle= 3 E= -75.5796784790996  delta_E= -0.00486  |g|= 0.0238  |ddm|= 0.0734
+cycle= 3 E= -75.5796784790997  delta_E= -0.00486  |g|= 0.0238  |ddm|= 0.0734
 alpha HOMO (A1) = -1.09153326445071  LUMO (A1) = -0.138507568875539
 beta  HOMO (A1) = -1.03572233957168  LUMO (B2) = -0.324205285024226
-cycle= 4 E= -75.5801532784389  delta_E= -0.000475  |g|= 0.00891  |ddm|= 0.0264
-alpha HOMO (A1) = -1.09298092505708  LUMO (A1) = -0.138815976334161
+cycle= 4 E= -75.5801532784388  delta_E= -0.000475  |g|= 0.00891  |ddm|= 0.0264
+alpha HOMO (A1) = -1.09298092505708  LUMO (A1) = -0.138815976334163
 beta  HOMO (A1) = -1.03270118137578  LUMO (B2) = -0.322717165580929
-cycle= 5 E= -75.5802672876017  delta_E= -0.000114  |g|= 0.0024  |ddm|= 0.0158
-alpha HOMO (A1) = -1.0939858011429  LUMO (A1) = -0.138709781416061
-beta  HOMO (A1) = -1.0320731695344  LUMO (B2) = -0.322698719542217
-cycle= 6 E= -75.5802768809083  delta_E= -9.59e-06  |g|= 0.000647  |ddm|= 0.00498
-alpha HOMO (A1) = -1.09414990969097  LUMO (A1) = -0.138676127322682
-beta  HOMO (A1) = -1.0319813651281  LUMO (B2) = -0.322756322977342
+cycle= 5 E= -75.5802672876016  delta_E= -0.000114  |g|= 0.0024  |ddm|= 0.0158
+alpha HOMO (A1) = -1.09398580114291  LUMO (A1) = -0.138709781416058
+beta  HOMO (A1) = -1.0320731695344  LUMO (B2) = -0.322698719542219
+cycle= 6 E= -75.5802768809082  delta_E= -9.59e-06  |g|= 0.000647  |ddm|= 0.00498
+alpha HOMO (A1) = -1.09414990969097  LUMO (A1) = -0.138676127322678
+beta  HOMO (A1) = -1.0319813651281  LUMO (B2) = -0.322756322977341
 cycle= 7 E= -75.5802774462913  delta_E= -5.65e-07  |g|= 8.13e-05  |ddm|= 0.00137
-alpha HOMO (A1) = -1.09412887279909  LUMO (A1) = -0.138678725159082
-beta  HOMO (A1) = -1.03197435086826  LUMO (B2) = -0.322746706468254
+alpha HOMO (A1) = -1.09412887279907  LUMO (A1) = -0.138678725159082
+beta  HOMO (A1) = -1.03197435086826  LUMO (B2) = -0.322746706468245
 cycle= 8 E= -75.5802774531096  delta_E= -6.82e-09  |g|= 1.54e-05  |ddm|= 0.000131
-alpha HOMO (A1) = -1.09412900833964  LUMO (A1) = -0.138682459917736
-beta  HOMO (A1) = -1.03197927052723  LUMO (B2) = -0.322749905945475
+alpha HOMO (A1) = -1.09412900833965  LUMO (A1) = -0.13868245991776
+beta  HOMO (A1) = -1.03197927052727  LUMO (B2) = -0.322749905945505
 cycle= 9 E= -75.5802774533471  delta_E= -2.37e-10  |g|= 2.28e-06  |ddm|= 2.44e-05
-alpha HOMO (A1) = -1.0941290284258  LUMO (A1) = -0.138681913266113
-beta  HOMO (A1) = -1.03197831022333  LUMO (B2) = -0.322749057234291
-Extra cycle  E= -75.5802774533512  delta_E= -4.18e-12  |g|= 9.8e-07  |ddm|= 2.39e-06
+alpha HOMO (A1) = -1.09412902842579  LUMO (A1) = -0.138681913266116
+beta  HOMO (A1) = -1.03197831022332  LUMO (B2) = -0.322749057234277
+Extra cycle  E= -75.5802774533512  delta_E= -4.09e-12  |g|= 9.8e-07  |ddm|= 2.39e-06
 converged SCF energy = -75.5802774533512  <S^2> = 0.75528791  2S+1 = 2.0052809
 
 Preparing Dice calculation
@@ -406,97 +408,104 @@ e_dice: -75.6837875863
 Finished Dice calculation
 
 e1_rhf: -117.92832723110958
-e1_uhf: -117.92561107404454
+e1_uhf: -117.92561107404441
 e1_cc: -117.71776619826531
-e1_fci: -117.72815573436792
+e1_fci: -117.72815573436809
 
 dipole_rhf: [ 0.        -0.        -1.1042285]
-dipole_uhf: [ 0.         0.        -1.1030195]
-dipole_cc: [ 0.        -0.        -1.0589727]
-dipole_fci: [-0.     -0.     -1.0592]
+dipole_uhf: [ 0.        -0.        -1.1030195]
+dipole_cc: [-0.        -0.        -1.0589727]
+dipole_fci: [ 0.     -0.     -1.0592]
 
 Preparing AFQMC calculation
+nchol: 79
 
 Starting AFQMC / HCI (1) calculation
 reading samples from samples_1.dat, ignoring first 100
-mean: -75.68288869090392
+mean: -75.6827311977928
 blocked statistics:
 block size    # of blocks        mean                error
-     1            400       -7.56828887e+01       4.974914e-04
-     2            200       -7.56828887e+01       5.856097e-04
-     5             80       -7.56828887e+01       7.342359e-04
-    10             40       -7.56828887e+01       7.963899e-04
-    20             20       -7.56828887e+01       1.003334e-03
-    50              8       -7.56828887e+01       1.117003e-03
-    70              5       -7.56832888e+01       1.569422e-03
-   100              4       -7.56828887e+01       1.289382e-03
+     1            400       -7.56827312e+01       4.710019e-04
+     2            200       -7.56827312e+01       5.650319e-04
+     5             80       -7.56827312e+01       6.301121e-04
+    10             40       -7.56827312e+01       7.953429e-04
+    20             20       -7.56827312e+01       9.975338e-04
+    50              8       -7.56827312e+01       1.014612e-03
+    70              5       -7.56826343e+01       7.826148e-04
+   100              4       -7.56827312e+01       4.193157e-04
 
 1e energy
 1 dets variational e1: [-117.9256111]
-1 dets mixed afqmc e1: [-117.8429235]
-1 dets extrapolated e1: [-117.7602359]
-1 dets errors e1: [0.001831]
+1 dets mixed afqmc e1: [-117.8482771]
+1 dets mixed afqmc e1 errors: [0.0022579]
+1 dets extrapolated e1: [-117.770943]
+1 dets extrapolated e1 errors: [0.0045158]
 
 dipole
-1 dets variational dipole: [-0.        -0.        -1.1030157]
-1 dets mixed afqmc dipole: [ 0.0053968  0.0021115 -1.0709956]
-1 dets extrapolated dipole: [ 0.0107936  0.0042229 -1.0389755]
-1 dets errors dipole: [0.003466  0.0013039 0.0012197]
+1 dets variational dipole: [ 0.         0.        -1.1030157]
+1 dets mixed afqmc dipole: [-0.0012879 -0.0020241 -1.0732449]
+1 dets mixed afqmc dipole errors: [0.0018643 0.0013836 0.0009978]
+1 dets extrapolated dipole: [-0.0025757 -0.0040482 -1.0434741]
+1 dets extrapolated dipole errors: [0.0037287 0.0027672 0.0019956]
 Finished AFQMC / HCI (1) calculation
 
 
 Starting AFQMC / HCI (10) calculation
 reading samples from samples_10.dat, ignoring first 100
-mean: -75.68380692999439
+mean: -75.68409603749866
 blocked statistics:
 block size    # of blocks        mean                error
-     1            400       -7.56838069e+01       3.771259e-04
-     2            200       -7.56838069e+01       4.540528e-04
-     5             80       -7.56838069e+01       5.170084e-04
-    10             40       -7.56838069e+01       5.617235e-04
-    20             20       -7.56838069e+01       5.211421e-04
-    50              8       -7.56838069e+01       4.812553e-04
-    70              5       -7.56839008e+01       7.191084e-04
-   100              4       -7.56838069e+01       4.595042e-04
+     1            400       -7.56840960e+01       3.600439e-04
+     2            200       -7.56840960e+01       4.282252e-04
+     5             80       -7.56840960e+01       5.236096e-04
+    10             40       -7.56840960e+01       5.487713e-04
+    20             20       -7.56840960e+01       5.822816e-04
+    50              8       -7.56840960e+01       5.457485e-04
+    70              5       -7.56841024e+01       9.697149e-04
+   100              4       -7.56840960e+01       6.290232e-04
 
 1e energy
 10 dets variational e1: [-117.8955807]
-10 dets mixed afqmc e1: [-117.8319826]
-10 dets extrapolated e1: [-117.7683845]
-10 dets errors e1: [0.0020332]
+10 dets mixed afqmc e1: [-117.8347684]
+10 dets mixed afqmc e1 errors: [0.0027001]
+10 dets extrapolated e1: [-117.7739561]
+10 dets extrapolated e1 errors: [0.0054002]
 
 dipole
-10 dets variational dipole: [-0.        -0.        -1.0995797]
-10 dets mixed afqmc dipole: [ 0.0037743 -0.001834  -1.0732684]
-10 dets extrapolated dipole: [ 0.0075486 -0.0036679 -1.046957 ]
-10 dets errors dipole: [0.002319  0.0012263 0.0011871]
+10 dets variational dipole: [ 0.         0.        -1.0995797]
+10 dets mixed afqmc dipole: [ 0.000415  -0.0001729 -1.0730929]
+10 dets mixed afqmc dipole errors: [0.0033662 0.0008399 0.0013877]
+10 dets extrapolated dipole: [ 0.00083   -0.0003458 -1.046606 ]
+10 dets extrapolated dipole errors: [0.0067323 0.0016797 0.0027754]
 Finished AFQMC / HCI (10) calculation
 
 
 Starting AFQMC / HCI (100) calculation
 reading samples from samples_100.dat, ignoring first 100
-mean: -75.68371896517212
+mean: -75.68352509223605
 blocked statistics:
 block size    # of blocks        mean                error
-     1            400       -7.56837190e+01       1.007068e-04
-     2            200       -7.56837190e+01       1.167607e-04
-     5             80       -7.56837190e+01       1.318732e-04
-    10             40       -7.56837190e+01       1.419723e-04
-    20             20       -7.56837190e+01       1.143712e-04
-    50              8       -7.56837190e+01       1.107216e-04
-    70              5       -7.56837359e+01       1.838332e-04
-   100              4       -7.56837190e+01       1.396362e-04
+     1            400       -7.56835251e+01       1.029172e-04
+     2            200       -7.56835251e+01       1.184407e-04
+     5             80       -7.56835251e+01       1.301756e-04
+    10             40       -7.56835251e+01       1.385631e-04
+    20             20       -7.56835251e+01       1.514722e-04
+    50              8       -7.56835251e+01       1.132862e-04
+    70              5       -7.56835568e+01       1.804099e-04
+   100              4       -7.56835251e+01       1.094533e-04
 
 1e energy
 100 dets variational e1: [-117.7973019]
-100 dets mixed afqmc e1: [-117.7713954]
-100 dets extrapolated e1: [-117.7454889]
-100 dets errors e1: [0.0020148]
+100 dets mixed afqmc e1: [-117.7709916]
+100 dets mixed afqmc e1 errors: [0.0011012]
+100 dets extrapolated e1: [-117.7446814]
+100 dets extrapolated e1 errors: [0.0022024]
 
 dipole
-100 dets variational dipole: [-0.        -0.        -1.0822323]
-100 dets mixed afqmc dipole: [-0.0004405  0.0017691 -1.0636947]
-100 dets extrapolated dipole: [-0.000881   0.0035381 -1.0451572]
-100 dets errors dipole: [0.0029411 0.0016678 0.0004895]
+100 dets variational dipole: [ 0.         0.        -1.0822323]
+100 dets mixed afqmc dipole: [ 0.0006283 -0.0022585 -1.0654805]
+100 dets mixed afqmc dipole errors: [0.0028238 0.0015615 0.0008043]
+100 dets extrapolated dipole: [ 0.0012566 -0.0045171 -1.0487287]
+100 dets extrapolated dipole errors: [0.0056476 0.0031229 0.0016086]
 Finished AFQMC / HCI (100) calculation
 

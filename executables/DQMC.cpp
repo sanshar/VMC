@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
   waveRight = new UHF(ham, false); 
 
   Wavefunction *waveGuide;
-  waveGuide = new UHF(ham, true); 
+  waveGuide = new UHF(ham, false); 
   calcMixedEstimatorLongProp(*waveLeft, *waveRight, *waveGuide, walker, ham);
   
   //else calcMixedEstimatorLongProp(*waveLeft, *waveRight, walker, ham);

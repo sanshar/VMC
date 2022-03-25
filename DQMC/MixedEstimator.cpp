@@ -142,7 +142,7 @@ void calcMixedEstimatorNoProp(Wavefunction& waveLeft, Wavefunction& waveRight, D
     cout << "Initial state energy:  " << setprecision(8) << refEnergy << endl;
   }
   
-  int nchol = ham.chol.size();
+  int nchol = ham.nchol;
   complex<double> delta(0., 0.);
   if (commrank == 0) cout << "Number of Cholesky vectors: " << nchol << endl;
   vector<int> ncholVec = { int(0.3 * nchol), int(0.4 * nchol), int(0.5 * nchol), int(0.6 * nchol), int(0.7 * nchol) };
