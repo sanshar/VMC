@@ -1,0 +1,46 @@
+Calculating Cholesky integrals
+Parsing FCIDUMP_26
+Finished calculating Cholesky integrals
+
+Size of the correlation space:
+Number of basis functions: 26
+Number of Cholesky vectors: 185
+
+Starting AFQMC / MF calculation
+reading samples from samples_afqmc.dat, ignoring first 50
+mean: -109.27452015702404
+blocked statistics:
+block size    # of blocks        mean                error
+     1            950       -1.09274520e+02       3.961760e-03
+     2            475       -1.09274520e+02       4.744285e-03
+     5            190       -1.09274520e+02       6.054552e-03
+    10             95       -1.09274520e+02       6.696502e-03
+    20             47       -1.09274668e+02       7.070074e-03
+    50             19       -1.09274520e+02       6.323043e-03
+    70             13       -1.09274530e+02       5.990766e-03
+   100              9       -1.09274721e+02       6.427078e-03
+   200              4       -1.09275405e+02       8.633015e-03
+Finished AFQMC / MF calculation
+Calculating Cholesky integrals
+Parsing FCIDUMP_26
+Finished calculating Cholesky integrals
+
+Size of the correlation space:
+Number of basis functions: 26
+Number of Cholesky vectors: 185
+
+Starting AFQMC / HCI calculation
+reading samples from samples_multislater.dat, ignoring first 50
+mean: -109.26648718960575
+blocked statistics:
+block size    # of blocks        mean                error
+     1            950       -1.09266487e+02       5.723794e-04
+     2            475       -1.09266487e+02       6.870264e-04
+     5            190       -1.09266487e+02       8.372470e-04
+    10             95       -1.09266487e+02       8.820107e-04
+    20             47       -1.09266499e+02       1.059496e-03
+    50             19       -1.09266487e+02       9.020926e-04
+    70             13       -1.09266387e+02       1.001307e-03
+   100              9       -1.09266440e+02       1.128959e-03
+   200              4       -1.09266223e+02       7.725841e-04
+Finished AFQMC / HCI calculation

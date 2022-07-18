@@ -1346,11 +1346,12 @@ def from_integrals_nevpt(filename, h1e, iiii, iiiv, iviv, iivv, nmo, nelec, nuc=
   fh.close()
 
 
-def run_nevpt2(mc,nelecAct=None,numAct=None,norbFrozen=None, integrals="FCIDUMP.h5",nproc=None, seed=None, fname="nevpt2.json",foutname='nevpt2.out',spatialRDMfile="spatialRDM.0.0.txt",spinRDMfile='',stochasticIterNorms= 1000,nIterFindInitDets= 100,numSCSamples= 10000,stochasticIterEachSC= 100,fixedResTimeNEVPT_Ene= False,epsilon= 1.0e-8,efficientNEVPT_2= True,determCCVV= True,SCEnergiesBurnIn= 50,SCNormsBurnIn= 50,vmc_root=None, diceoutfile="dice.out"):
+def run_nevpt2(mc,nelecAct=None,numAct=None,norbFrozen=None, integrals="FCIDUMP.h5",nproc=None, seed=None, fname="nevpt2.json",foutname='nevpt2.out',nroot=0,spatialRDMfile=None,spinRDMfile=None,stochasticIterNorms= 1000,nIterFindInitDets= 100,numSCSamples= 10000,stochasticIterEachSC= 100,fixedResTimeNEVPT_Ene= False,epsilon= 1.0e-8,efficientNEVPT_2= True,determCCVV= True,SCEnergiesBurnIn= 50,SCNormsBurnIn= 50,vmc_root=None, diceoutfile="dice.out"):
 	
 	numCore = (sum(mc.mol.nelec)-nelecAct - norbFrozen*2)//2
-	getDets(fname=diceoutfile)
-	
+	getDets(fname=diceoutfile,nroot=nroot)
+	if(spatialRDMfile==None):
+		spatialRDMfile=f"spatialRDM.{nroot}.{nroot}.txt"	
 	run_ICPT(mc,nelecAct=nelecAct,norbAct=numAct,vmc_root=vmc_root,fname=spatialRDMfile) 
 	
 	print("Writing NEVPT2 input")
@@ -1363,6 +1364,8 @@ def run_nevpt2(mc,nelecAct=None,numAct=None,norbFrozen=None, integrals="FCIDUMP.
 	for i in range(mc.mol.nao - norbFrozen):
 		fileh.write('%.12e\n'%(mc.mo_energy[i + norbFrozen]))
 	fileh.close()
+	if (spinRDMfile==None and nroot>0):
+		os.system(f"mv spinRDM.0.0.txt spinRDM0;mv spinRDM.{nroot}.{nroot}.txt spinRDM.0.0.txt")
 	print("Running NEVPT2")
 	if vmc_root is None:
 		vmc_root = os.environ['VMC_ROOT']
@@ -1442,18 +1445,21 @@ def run_ICPT(mc,nelecAct=None,norbAct=None,vmc_root=None,fname="spatialRDM.0.0.t
         	os.system(command)
 	print("Finished running ICPT\n")	
 
-def getDets(fname="dice.out"): #To get the determinants printed to dice output and write to text file 'dets'
+def getDets(fname="dice.out",nroot=0): #To get the determinants printed to dice output and write to text file 'dets'
     file = open(fname,'r')
     content = (file.readlines())
+    # content = [c.split() for c in content]
     dets = []
     k = -1
+    # return content
     for c in content:
-        if c.split(" ")[0]=="Printing" :
+        if (c.split(" ")[0]=="State" and c.split()[1]==f':{nroot}'):
             k = content.index(c)
+            # return k
             break
-         
-    for c in content[(k+3):]:
-        if c.split()[0]=='Printing':
+
+    for c in content[(k+1):]:
+        if (c.split()[0]=='Printing' or c.split()[0]=='State'):
             break
         ch =c.split()
         if(float(ch[0])==0):
@@ -1486,4 +1492,76 @@ def get_nevptEnergy(fname="nevpt2.out",printNevpt2=False):
     totalE = nevptE + sum(icE)
     return totalE,Error
   
+def prepAFQMC_fromFCIDUMP(choleskyThreshold=2.e-3,ndets=100,left=None,right=None,seed = None,spin=None,norb_core=0,norb_act=None,nelec_act=None,norb_frozen=None,nroot=0,mo_coeff=None,chol_cut = 1e-5,dt = 0.005, steps_per_block = 50, nwalk_per_proc = 5, nblocks = 1000, ortho_steps = 20, cholesky_threshold = 2.0e-3,fname="afqmc.json",fcidump="FCIDUMP"): 
+    print("Calculating Cholesky integrals")
+    fcidump = tools.fcidump.read(filename=fcidump,molpro_orbsym=True)
+    norb = fcidump['NORB']
+    nelec = fcidump['NELEC']
+    eri = ao2mo.addons.restore('4', fcidump['H2'],norb )
+    h1e = fcidump['H1']
+    nbasis = norb
+    if(mo_coeff == None):
+        mo_coeff = np.eye(norb)
+    enuc = fcidump['ECORE']
+    chol0 = modified_cholesky(eri, chol_cut)
+    nchol = chol0.shape[0]
+    chol = np.zeros((nchol, norb, norb))
+    for i in range(nchol):
+      for m in range(norb):
+        for n in range(m+1):
+          triind = m*(m+1)//2 + n
+          chol[i, m, n] = chol0[i, triind]
+          chol[i, n, m] = chol0[i, triind]
 
+    print("Finished calculating Cholesky integrals\n")
+
+    print('Size of the correlation space:')
+    #print(f'Number of electrons: {mf.mol.nelec}')
+    print(f'Number of basis functions: {nbasis}')
+    print(f'Number of Cholesky vectors: {chol.shape[0]}\n')
+    chol = chol.reshape((-1, norb, norb))
+    v0 = 0.5 * np.einsum('nik,njk->ij', chol, chol, optimize='optimal')
+    h1e_mod = h1e - v0
+    chol = chol.reshape((chol.shape[0], -1))
+
+
+
+# write mo coefficients
+    
+    if(left=='multislater'):
+        det_file = 'dets.bin'
+        if nroot > 0:
+            det_file = f'dets_{nroot}.bin'
+        norb_act, state, ndets_all = read_dets(det_file, 1)
+        up = np.argsort(-np.array(list(state.keys())[0][0])) + norb_core
+        dn = np.argsort(-np.array(list(state.keys())[0][1])) + norb_core + nbasis
+        hf_type = "rhf"
+        if list(state.keys())[0][0] == list(state.keys())[0][1]:
+            rhfCoeffs = np.eye(nbasis)
+            writeMat(rhfCoeffs[:, np.concatenate((range(norb_core), up, range(norb_core+norb_act, nbasis))).astype(int)], "rhf.txt")
+        else:
+            hf_type = "uhf"
+            uhfCoeffs = np.hstack((np.eye(nbasis), np.eye(nbasis)))
+            writeMat(uhfCoeffs[:, np.concatenate((np.array(range(norb_core)), up, np.array(range(norb_core+norb_act, nbasis+norb_core)), dn, np.array(range(nbasis+norb_core+norb_act, 2*nbasis)))).astype(int)], "uhf.txt")
+        right = hf_type
+    else:
+        hf_type = 'rhf'
+        if (left=='uhf'):
+            hf_type = "uhf"    
+            rhfCoeffs = np.eye(norb)
+            uhfCoeffs = np.block([ rhfCoeffs, rhfCoeffs ])
+            writeMat(uhfCoeffs, "uhf.txt")
+        elif (left=='rhf'):
+            hf_type = "rhf"
+            rhfCoeffs = np.eye(norb)
+            writeMat(rhfCoeffs, "rhf.txt")
+        left = hf_type
+        right = hf_type 
+    
+    write_dqmc(h1e, h1e_mod, chol, nelec, norb, enuc, ms=spin, filename='FCIDUMP_chol')
+    if(seed==None):
+        seed = np.random.randint(0,1e6)
+    if(left=='multislater'):
+        write_afqmc_input(seed=seed, left=left,numAct=norb_act,numCore=norb_core,ndets=ndets, right=hf_type,detFile=det_file, choleskyThreshold=choleskyThreshold,dt = dt, nsteps = steps_per_block, nwalk = nwalk_per_proc, stochasticIter = nblocks, orthoSteps = ortho_steps, fname=fname)
+    else:
+        write_afqmc_input(seed=seed, left=left, right=hf_type, choleskyThreshold=choleskyThreshold,dt = dt, nsteps = steps_per_block, nwalk = nwalk_per_proc, stochasticIter = nblocks, orthoSteps = ortho_steps, fname=fname)
