@@ -8,7 +8,7 @@ Number of Cholesky vectors: 301
 
 Starting AFQMC / MF calculation
 reading samples from samples_afqmc.dat, ignoring first 50
-mean: -76.268721799669
+mean: -76.26872179967323
 blocked statistics:
 block size    # of blocks        mean                error
      1            950       -7.62687218e+01       3.318132e-03
@@ -21,6 +21,8 @@ block size    # of blocks        mean                error
    100              9       -7.62682222e+01       6.112337e-03
    200              4       -7.62667417e+01       5.796400e-03
 Finished AFQMC / MF calculation
+Running Dice
+Finished Dice calculation
 Calculating Cholesky integrals
 Parsing FCIDUMP
 Finished calculating Cholesky integrals
@@ -31,7 +33,7 @@ Number of Cholesky vectors: 301
 
 Starting AFQMC / HCI calculation
 reading samples from samples_multislater.dat, ignoring first 50
-mean: -76.27264495550193
+mean: -76.27264495551742
 blocked statistics:
 block size    # of blocks        mean                error
      1            950       -7.62726450e+01       1.541547e-03
